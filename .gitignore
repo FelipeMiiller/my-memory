@@ -1,0 +1,29 @@
+﻿# Binários e executáveis Go
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Bancos de dados SQLite locais
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Dados de teste e vaults locais
+data/
+vault_test/
+
+# Arquivos de ambiente e segredos
+.env
+*.env.local
+
+# IDEs e editores
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
