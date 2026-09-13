@@ -104,10 +104,12 @@ Indexa documentos, extrai wikilinks, calcula embeddings no Ollama e gera índice
 ./bin/mem.exe index ./suas-notas
 ```
 
-#### 2. Busca Semântica Padrão (k-NN + Grafo)
-Executa busca por proximidade vetorial float32 com expansão de dependências no grafo:
+#### 2. Busca Híbrida e Decaimento Temporal (RRF + FTS5 + k-NN + Grafo)
+Executa busca híbrida unificada via Reciprocal Rank Fusion (RRF), com suporte opcional a decaimento temporal exponencial (ADR-015) para priorizar notas mais recentes:
 ```bash
 ./bin/mem.exe search "como funciona o fluxo de autenticação?"
+# Com decaimento temporal ativado (meia-vida de 15 dias, peso 0.5):
+./bin/mem.exe search --decay --half-life 15 --decay-weight 0.5 "decisões recentes de arquitetura"
 ```
 
 #### 3. Busca Ultracompacta com TurboQuant (4-bits)
@@ -152,7 +154,7 @@ O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)*
 
 | Ferramenta | Descrição |
 | :--- | :--- |
-| `memory_search` | Busca semântica e contextual de chunks relevantes no banco de conhecimento. |
+| `memory_search` | Busca híbrida (RRF) unificando FTS, vetores e grafo, com decaimento temporal exponencial opcional (`decay`, `half_life`, `decay_weight`). |
 | `memory_get_neighbors` | Expande nós e documentos conectados no grafo através de travessia recursiva SQL. |
 
 ---

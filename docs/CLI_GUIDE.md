@@ -35,15 +35,19 @@ Percorre recursivamente a pasta especificada procurando arquivos `.md`:
 
 ---
 
-### 2. `mem search "<pergunta>"`
-Realiza a busca semântica k-NN padrão utilizando a extensão `sqlite-vec` ou `pgvector`:
-* Calcula o embedding da pergunta.
-* Busca os chunks com menor distância de cosseno.
-* Realiza a **expansão de grafo** via SQL recursivo para trazer notas conectadas.
+### 2. `mem search "<pergunta>" [--mode hybrid|vector|fts] [--decay] [--half-life 30] [--decay-weight 0.3]`
+Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato FTS5/tsvector, vetores semânticos k-NN e expansão de grafo:
+* `--mode`: Escolhe entre `hybrid` (padrão, fusão RRF), `vector` (apenas semântico k-NN) ou `fts` (apenas texto exato).
+* `--decay`: Ativa o decaimento temporal exponencial ponderado (ADR-015) para priorizar notas mais recentes no ranking final.
+* `--half-life <dias>`: Tempo de meia-vida da curva em dias (padrão: 30.0 dias).
+* `--decay-weight <w>`: Peso do decaimento entre 0.0 (sem efeito) e 1.0 (decaimento máximo) com piso assintótico $(1 - w)$ (padrão: 0.3).
+* Realiza a **expansão de grafo** via SQL recursivo para trazer notas estruturalmente conectadas.
 
 **Exemplo:**
 ```bash
 ./bin/mem.exe search "como funciona o fluxo de autenticacao?"
+# Busca com decaimento temporal agressivo (meia-vida de 15 dias, peso 0.5):
+./bin/mem.exe search --decay --half-life 15 --decay-weight 0.5 "decisoes de arquitetura"
 # Filtrando por repositório ou conectando ao PostgreSQL:
 ./bin/mem.exe search --postgres "postgres://user:pass@localhost:5432/memory?sslmode=disable" --repo "meu-org/meu-projeto" "fluxo de autenticacao"
 ```
