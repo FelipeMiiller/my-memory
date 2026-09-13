@@ -55,10 +55,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/compiler/compile_test.go
 **Gate**: go test -v ./internal/compiler/...
 **Done when**:
-- [ ] Implementar AppendSection localizando cabeçalhos Markdown ou criando nova seção
-- [ ] Implementar CompileTopicNote gerando notas estruturadas com seção de síntese e backlinks para fontes
-- [ ] Preservar integridade de formatação Markdown sem quebra de linhas existentes
-- [ ] Adicionar testes unitários em internal/compiler/compile_test.go
+- [x] Implementar AppendSection localizando cabeçalhos Markdown ou criando nova seção
+- [x] Implementar CompileTopicNote gerando notas estruturadas com seção de síntese e backlinks para fontes
+- [x] Preservar integridade de formatação Markdown sem quebra de linhas existentes
+- [x] Adicionar testes unitários em internal/compiler/compile_test.go
 
 ### T3: Sincronização Cirúrgica Automática de Notas no Banco de Dados
 **What**: Implementar rotina de sincronização cirúrgica em internal/compiler/sync.go

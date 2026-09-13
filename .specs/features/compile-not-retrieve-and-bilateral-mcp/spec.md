@@ -116,8 +116,8 @@ O My-Memory atualmente funciona como uma ferramenta exclusivamente de consulta (
 | CNR-01 | P1: Resolução Segura de Caminho e Criação de Notas Atômicas | Tasks | Implementing |
 | CNR-02 | P1: Resolução Segura de Caminho e Criação de Notas Atômicas | Tasks | Implementing |
 | CNR-03 | P1: Resolução Segura de Caminho e Criação de Notas Atômicas | Tasks | Implementing |
-| CNR-04 | P2: Apensamento Inteligente de Seções e Compilação de Busca | Tasks | Pending |
-| CNR-05 | P2: Apensamento Inteligente de Seções e Compilação de Busca | Tasks | Pending |
+| CNR-04 | P2: Apensamento Inteligente de Seções e Compilação de Busca | Tasks | Implementing |
+| CNR-05 | P2: Apensamento Inteligente de Seções e Compilação de Busca | Tasks | Implementing |
 | CNR-06 | P3: Ferramentas de Escrita Bilateral no Servidor MCP | Tasks | Pending |
 | CNR-07 | P4: Interface de Linha de Comando (mem note e mem compile) | Tasks | Pending |
 
