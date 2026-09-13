@@ -6,18 +6,14 @@ import (
 	"fmt"
 
 	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
-	"github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-// InitDB inicializa a conexão com o SQLite registrando a extensão sqlite-vec
+// InitDB inicializa a conexão com o SQLite registrando a extensão sqlite-vec globalmente
 func InitDB(dbPath string) (*sql.DB, error) {
-	sql.Register("sqlite3_vec", &sqlite3.SQLiteDriver{
-		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
-			return sqlite_vec.Auto(conn)
-		},
-	})
+	sqlite_vec.Auto()
 
-	db, err := sql.Open("sqlite3_vec", dbPath+"?_foreign_keys=on&_journal_mode=WAL")
+	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on&_journal_mode=WAL")
 	if err != nil {
 		return nil, fmt.Errorf("erro ao abrir banco: %w", err)
 	}
