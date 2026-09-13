@@ -81,10 +81,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/mcp/writer_handlers_test.go
 **Gate**: go test -v ./internal/mcp/...
 **Done when**:
-- [ ] Declarar schemas para memory_write_note, memory_append_section e memory_compile_note em internal/mcp/tools.go
-- [ ] Implementar handlers com validação de parâmetros e integração ao internal/compiler
-- [ ] Registrar ferramentas no Server em internal/mcp/server.go
-- [ ] Adicionar testes de integração JSON-RPC em internal/mcp/writer_handlers_test.go
+- [x] Declarar schemas para memory_write_note, memory_append_section e memory_compile_note em internal/mcp/tools.go
+- [x] Implementar handlers com validação de parâmetros e integração ao internal/compiler
+- [x] Registrar ferramentas no Server em internal/mcp/server.go
+- [x] Adicionar testes de integração JSON-RPC em internal/mcp/writer_handlers_test.go
 
 ### T5: Comandos CLI mem note e mem compile
 **What**: Adicionar subcomandos mem note e mem compile em cmd/mem/note.go e main.go

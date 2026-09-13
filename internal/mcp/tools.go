@@ -168,6 +168,151 @@ var (
 			},
 		},
 	}
+
+	ToolMemoryWriteNote = Tool{
+		Name:        "memory_write_note",
+		Description: "Grava ou substitui uma nota atômica em Markdown no vault com frontmatter estruturado e conexões tipadas, disparando indexação cirúrgica imediata no grafo",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Caminho relativo do arquivo Markdown dentro do vault (ex: 'concepts/auth.md')",
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "Título principal da nota (opcional, derivado do nome do arquivo se omitido)",
+				},
+				"content": map[string]any{
+					"type":        "string",
+					"description": "Conteúdo textual da nota em Markdown",
+				},
+				"tags": map[string]any{
+					"type": "array",
+					"items": map[string]any{
+						"type": "string",
+					},
+					"description": "Lista de tags conceituais para a nota (opcional)",
+				},
+				"aliases": map[string]any{
+					"type": "array",
+					"items": map[string]any{
+						"type": "string",
+					},
+					"description": "Lista de títulos alternativos ou apelidos (opcional)",
+				},
+				"note_type": map[string]any{
+					"type":        "string",
+					"description": "Classificação da nota: 'concept', 'decision', 'summary', 'entity' (padrão: 'concept')",
+				},
+				"relations": map[string]any{
+					"type": "array",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"target": map[string]any{
+								"type":        "string",
+								"description": "Nome da nota de destino conectada",
+							},
+							"relation": map[string]any{
+								"type":        "string",
+								"description": "Tipo da relação semântica (ex: 'implements', 'depends_on', 'supports', 'links_to')",
+							},
+						},
+						"required": []string{"target"},
+					},
+					"description": "Lista de arestas tipadas direcionadas para outras notas (opcional)",
+				},
+				"overwrite": map[string]any{
+					"type":        "boolean",
+					"description": "Se verdadeiro, sobrescreve arquivo existente caso já exista (padrão: false)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"path", "content"},
+		},
+	}
+
+	ToolMemoryAppendSection = Tool{
+		Name:        "memory_append_section",
+		Description: "Anexa cirurgicamente um novo bloco de texto sob um cabeçalho existente ou ao final da nota Markdown no vault, atualizando o índice imediatamente",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Caminho do arquivo Markdown dentro do vault",
+				},
+				"heading": map[string]any{
+					"type":        "string",
+					"description": "Título da seção sob a qual anexar o conteúdo (ex: '## Decisões Recentes')",
+				},
+				"content": map[string]any{
+					"type":        "string",
+					"description": "Conteúdo a ser anexado sob a seção",
+				},
+				"create_if_missing": map[string]any{
+					"type":        "boolean",
+					"description": "Se verdadeiro, cria o arquivo se ele ainda não existir (padrão: true)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"path", "heading", "content"},
+		},
+	}
+
+	ToolMemoryCompileNote = Tool{
+		Name:        "memory_compile_note",
+		Description: "Compila e sintetiza conhecimento sobre um tópico a partir de buscas híbridas no repositório (padrão Compile-not-Retrieve / Karpathy LLM Wiki), gravando nota estruturada com backlinks",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"topic": map[string]any{
+					"type":        "string",
+					"description": "Tópico ou conceito a ser investigado e compilado (ex: 'fluxo de autenticação')",
+				},
+				"target_path": map[string]any{
+					"type":        "string",
+					"description": "Caminho relativo de destino onde a nota compilada será gravada (ex: 'syntheses/auth.md')",
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "Título da nota compilada (opcional)",
+				},
+				"search_mode": map[string]any{
+					"type":        "string",
+					"enum":        []string{"hybrid", "vector", "fts"},
+					"description": "Modo de recuperação dos fragmentos fonte (padrão: 'hybrid')",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Quantidade máxima de fragmentos a sintetizar (padrão: 5)",
+				},
+				"tags": map[string]any{
+					"type": "array",
+					"items": map[string]any{
+						"type": "string",
+					},
+					"description": "Tags adicionais a incluir no frontmatter da nota compilada (opcional)",
+				},
+				"overwrite": map[string]any{
+					"type":        "boolean",
+					"description": "Se verdadeiro, sobrescreve arquivo existente (padrão: false)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"topic", "target_path"},
+		},
+	}
 )
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor

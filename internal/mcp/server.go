@@ -97,6 +97,9 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryGetHubs, NewMemoryGetHubsHandler(nil))
 	s.RegisterTool(ToolMemoryGetInsights, NewMemoryGetInsightsHandler(nil))
 	s.RegisterTool(ToolMemoryDoctor, NewMemoryDoctorHandler(nil, nil))
+	s.RegisterTool(ToolMemoryWriteNote, NewMemoryWriteNoteHandler(nil, "."))
+	s.RegisterTool(ToolMemoryAppendSection, NewMemoryAppendSectionHandler(nil, "."))
+	s.RegisterTool(ToolMemoryCompileNote, NewMemoryCompileNoteHandler(nil, nil, "."))
 
 	return s
 }
