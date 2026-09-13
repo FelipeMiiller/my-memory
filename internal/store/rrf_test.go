@@ -148,3 +148,42 @@ func TestFuseSearchResults(t *testing.T) {
 		t.Errorf("Esperava 2 fontes registradas em c1, obteve %d (%v)", len(fused[0].Sources), fused[0].Sources)
 	}
 }
+
+func TestFuseRRF_DuplicateItemsInSameSource(t *testing.T) {
+	sources := []RankedSource[string]{
+		{
+			Name:  "fts",
+			Items: []string{"A", "A", "B"}, // "A" duplicado na mesma lista não deve acumular score duas vezes da mesma fonte
+		},
+	}
+
+	results := FuseRRF(sources, 60)
+	if len(results) != 2 {
+		t.Fatalf("Esperava 2 itens únicos após desduplicação na fonte, obteve %d", len(results))
+	}
+
+	expectedScoreA := 1.0 / 61.0
+	if math.Abs(results[0].Score-expectedScoreA) > 1e-9 {
+		t.Errorf("Score de 'A' acumulou indevidamente da mesma fonte: esperado %f, obteve %f", expectedScoreA, results[0].Score)
+	}
+}
+
+func TestFuseSearchResults_FallbackToDocumentID(t *testing.T) {
+	sources := []RankedResultSource{
+		{
+			Name: "fts",
+			Results: []SearchResult{
+				{DocumentID: "doc-sem-chunk", Content: "Conteudo apenas com doc ID"},
+			},
+		},
+	}
+
+	fused := FuseSearchResults(sources, 60, 5)
+	if len(fused) != 1 {
+		t.Fatalf("Esperava 1 resultado usando fallback de DocumentID, obteve %d", len(fused))
+	}
+	if fused[0].DocumentID != "doc-sem-chunk" {
+		t.Errorf("DocumentID incorreto: obteve '%s'", fused[0].DocumentID)
+	}
+}
+
