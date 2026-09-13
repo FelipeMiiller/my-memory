@@ -9,16 +9,17 @@
 - **AD-011**: Arestas Epistêmicas e God Nodes / Hubs de Conhecimento (`docs/adr/011-arestas-epistemicas-e-god-nodes.md`)
 - **AD-012**: Benchmarks de Performance e Conexões Inesperadas (Surprising Connections) (`docs/adr/012-benchmarks-e-conexoes-inesperadas.md`)
 - **AD-013**: Higiene de Grafo, Pruning Incremental e Linter Doctor (`docs/adr/013-higiene-de-grafo-pruning-e-doctor.md`)
+- **AD-014**: Centralidade de Grafo com PageRank Ponderado (`docs/adr/014-centralidade-de-grafo-com-pagerank-ponderado.md`)
 
 ## Handoff
 
 - **Feature**: pagerank-and-graph-centrality (.specs/features/pagerank-and-graph-centrality)
-- **Phase / Task**: Phase 1 / T1
-- **Completed**: none
-- **In-progress**: T1 (Motor Matemático de PageRank em Go Puro)
-- **Next step**: Implementar internal/graph/pagerank.go e testes unitários analíticos.
+- **Phase / Task**: Completed / T6
+- **Completed**: T1, T2, T3, T4, T5, T6 (100% validado)
+- **In-progress**: none
+- **Next step**: Pronto para a próxima frente de desenvolvimento. Repositório 100% limpo e suíte de testes verde.
 - **Blockers**: none
-- **Uncommitted files**: .specs/features/pagerank-and-graph-centrality/*
+- **Uncommitted files**: none (working tree clean)
 - **Branch**: main
 
 

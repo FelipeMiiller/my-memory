@@ -4,12 +4,12 @@
 Atualmente, a identificação de nós centrais (*God Nodes* / Hubs - ADR-011) no My-Memory baseia-se exclusivamente na contagem de conexões brutas (`total_degree = in_degree + out_degree`). Essa abordagem não considera a autoridade relativa dos nós apontadores (um link de uma nota central tem o mesmo peso de um link de uma nota marginal) e não aproveita a tipagem epistêmica de arestas (links explícitos `EXTRACTED` vs inferidos `INFERRED`). É necessário introduzir um algoritmo de PageRank iterativo ponderado para identificar os verdadeiros polos conceituais do grafo de conhecimento.
 
 ## Goals
-- [ ] Implementar motor matemático de PageRank com amortecimento ($d=0.85$), redistribuição de *dangling nodes* e convergência determinística em Go puro (`internal/graph`).
-- [ ] Suportar pesos epistêmicos diferenciados por tipo de aresta (`EXTRACTED` vs `INFERRED`).
-- [ ] Integrar o cálculo de PageRank ao contrato `Store` para SQLite e PostgreSQL.
-- [ ] Atualizar a ferramenta MCP `memory_get_hubs` com suporte ao parâmetro `algorithm: "pagerank" | "degree"`.
-- [ ] Atualizar o comando CLI `mem hubs` com as flags `--algorithm`, `--damping` e `--iter`.
-- [ ] Registrar a decisão arquitetural na ADR-014.
+- [x] Implementar motor matemático de PageRank com amortecimento ($d=0.85$), redistribuição de *dangling nodes* e convergência determinística em Go puro (`internal/graph`).
+- [x] Suportar pesos epistêmicos diferenciados por tipo de aresta (`EXTRACTED` vs `INFERRED`).
+- [x] Integrar o cálculo de PageRank ao contrato `Store` para SQLite e PostgreSQL.
+- [x] Atualizar a ferramenta MCP `memory_get_hubs` com suporte ao parâmetro `algorithm: "pagerank" | "degree"`.
+- [x] Atualizar o comando CLI `mem hubs` com as flags `--algorithm`, `--damping` e `--iter`.
+- [x] Registrar a decisão arquitetural na ADR-014.
 
 ## Out of Scope
 - Alteração no algoritmo RRF de busca híbrida neste momento (PageRank funcionará primeiramente na camada estrutural e MCP/CLI).
@@ -105,21 +105,21 @@ Atualmente, a identificação de nós centrais (*God Nodes* / Hubs - ADR-011) no
 
 | Requirement ID | Story | Phase | Status |
 | -------------- | ----- | ----- | ------ |
-| RANK-01 | P1: Motor Matemático de PageRank Ponderado | Tasks | Pending |
-| RANK-02 | P1: Motor Matemático de PageRank Ponderado | Tasks | Pending |
-| RANK-03 | P2: Contrato Store e Implementações SQLite e PostgreSQL | Tasks | Pending |
-| RANK-04 | P3: Protocolo MCP memory_get_hubs com PageRank | Tasks | Pending |
-| RANK-05 | P4: Interface CLI mem hubs com Suporte a PageRank | Tasks | Pending |
-| RANK-06 | P4: Interface CLI mem hubs com Suporte a PageRank | Tasks | Pending |
+| RANK-01 | P1: Motor Matemático de PageRank Ponderado | Completed | Verified |
+| RANK-02 | P1: Motor Matemático de PageRank Ponderado | Completed | Verified |
+| RANK-03 | P2: Contrato Store e Implementações SQLite e PostgreSQL | Completed | Verified |
+| RANK-04 | P3: Protocolo MCP memory_get_hubs com PageRank | Completed | Verified |
+| RANK-05 | P4: Interface CLI mem hubs com Suporte a PageRank | Completed | Verified |
+| RANK-06 | P4: Interface CLI mem hubs com Suporte a PageRank | Completed | Verified |
 
 **Coverage:** 6 total, 6 mapped to tasks, 0 unmapped
 
 ---
 
 ## Success Criteria
-- [ ] Motor `internal/graph/pagerank.go` implementado com precisão analítica.
-- [ ] Ponderação epistêmica validada (`EXTRACTED` vs `INFERRED`).
-- [ ] `ComputePageRank` implementado em SQLite e PostgreSQL.
-- [ ] MCP `memory_get_hubs` com suporte retrocompatível a `algorithm`.
-- [ ] CLI `mem hubs` atualizado com `--algorithm`, `--damping`, `--iter`.
-- [ ] Registro formal na ADR-014.
+- [x] Motor `internal/graph/pagerank.go` implementado com precisão analítica.
+- [x] Ponderação epistêmica validada (`EXTRACTED` vs `INFERRED`).
+- [x] `ComputePageRank` implementado em SQLite e PostgreSQL.
+- [x] MCP `memory_get_hubs` com suporte retrocompatível a `algorithm`.
+- [x] CLI `mem hubs` atualizado com `--algorithm`, `--damping`, `--iter`.
+- [x] Registro formal na ADR-014.

@@ -200,6 +200,7 @@ my-memory/
   - [ADR-011: Arestas Epistêmicas e God Nodes / Hubs](docs/adr/011-arestas-epistemicas-e-god-nodes.md)
   - [ADR-012: Benchmarks de Performance e Conexões Inesperadas](docs/adr/012-benchmarks-e-conexoes-inesperadas.md)
   - [ADR-013: Higiene de Grafo, Pruning Incremental e Linter Doctor](docs/adr/013-higiene-de-grafo-pruning-e-doctor.md)
+  - [ADR-014: Centralidade de Grafo com PageRank Ponderado](docs/adr/014-centralidade-de-grafo-com-pagerank-ponderado.md)
 
 ---
 

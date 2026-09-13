@@ -100,6 +100,6 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: docs/adr/014-centralidade-de-grafo-com-pagerank-ponderado.md
 **Gate**: python .agents/skills/tlc-spec-driven/scripts/validate_spec.py .specs/features/pagerank-and-graph-centrality/spec.md
 **Done when**:
-- [ ] Criar docs/adr/014-centralidade-de-grafo-com-pagerank-ponderado.md no formato MADR
-- [ ] Implementar micro-benchmark de convergência de PageRank em internal/store/pagerank_bench_test.go
-- [ ] Atualizar CLI_GUIDE.md, REPOSITORY_BRAIN.md, README.md e STATE.md
+- [x] Criar docs/adr/014-centralidade-de-grafo-com-pagerank-ponderado.md no formato MADR
+- [x] Implementar micro-benchmark de convergência de PageRank em internal/graph/pagerank_bench_test.go
+- [x] Atualizar CLI_GUIDE.md, REPOSITORY_BRAIN.md, README.md e STATE.md

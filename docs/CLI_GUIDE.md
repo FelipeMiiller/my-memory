@@ -108,13 +108,15 @@ Audita a saúde do grafo e tabelas relacionais de conhecimento:
 
 ---
 
-### 7. `mem hubs [--top 10]` e `mem insights [--limit 10] [--min-similarity 0.70]`
-* `mem hubs`: Exibe os nós centrais (*God Nodes*) com maior centralidade estrutural de conexões.
+### 7. `mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10]` e `mem insights`
+* `mem hubs`: Exibe os nós centrais do grafo. Suporta ordenação por grau bruto (`--algorithm degree` - padrão) ou por autoridade estrutural iterativa com pesos epistêmicos (`--algorithm pagerank`).
 * `mem insights`: Descobre conexões latentes (*Surprising Connections*) entre notas com alta similaridade sem links diretos.
 
 **Exemplo:**
 ```bash
 ./bin/mem.exe hubs --top 5
+# Calculando nós centrais via PageRank com amortecimento:
+./bin/mem.exe hubs --algorithm pagerank --damping 0.85 --iter 30 --top 5
 ./bin/mem.exe insights --min-similarity 0.75
 ```
 
