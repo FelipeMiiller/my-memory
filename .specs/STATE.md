@@ -10,11 +10,11 @@
 
 ## Handoff
 
-- **Feature**: epistemic-edges-and-god-nodes (.specs/features/epistemic-edges-and-god-nodes)
-- **Phase / Task**: Complete / Todas as tasks T1-T6 finalizadas e validadas
-- **Completed**: T1, T2, T3, T4, T5, T6
-- **In-progress** (file:line): none
-- **Next step**: Próxima frente do backlog: Frente 4 (Observabilidade, Profiling e Benchmarks) ou expansão de agentes.
+- **Feature**: benchmarks-and-surprising-connections (.specs/features/benchmarks-and-surprising-connections)
+- **Phase / Task**: Tasks / T1
+- **Completed**: none
+- **In-progress** (file:line): internal/turboquant/quantizer_bench_test.go:1
+- **Next step**: Implementar suíte de micro-benchmarks em Go (T1).
 - **Blockers**: none
 - **Uncommitted files**: veja git status
 - **Branch**: main
