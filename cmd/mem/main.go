@@ -59,36 +59,93 @@ func main() {
 		dirPath := indexCmd.String("dir", "", "Caminho da pasta com arquivos Markdown")
 		force := indexCmd.Bool("force", false, "Força a reindexação completa ignorando o cache SHA-256")
 		noPrune := indexCmd.Bool("no-prune", false, "Desativa a exclusão de notas que foram removidas do disco")
-		dbPath := indexCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
-		pgURL := indexCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
-		targetRepo := indexCmd.String("repo", defaultRepo, "Identificador/slug do repositório")
+		dbPath := indexCmd.String("db", "", "Caminho do arquivo SQLite")
+		pgURL := indexCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := indexCmd.String("repo", "", "Identificador/slug do repositório")
 		indexCmd.Parse(os.Args[2:])
 
 		target := *dirPath
 		if target == "" && indexCmd.NArg() > 0 {
 			target = indexCmd.Arg(0)
 		}
+
+		// Descoberta e resolução automática de configuração do vault
+		searchDir := target
+		if searchDir == "" {
+			searchDir = "."
+		}
+		var cfg *config.Config
+		cfgPath, err := config.FindConfigFile(searchDir)
+		if err == nil {
+			if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
+				cfg = loaded
+				if target == "" {
+					dirOfCfg := filepath.Dir(cfgPath)
+					if filepath.Base(dirOfCfg) == ".memory" {
+						target = filepath.Dir(dirOfCfg)
+					} else {
+						target = dirOfCfg
+					}
+				}
+			}
+		}
+
+		if cfg == nil {
+			def := config.DefaultConfig()
+			cfg = &def
+		}
+
 		if target == "" {
-			fmt.Println("Uso: mem index [--force] [--no-prune] [--db <caminho>] [--postgres <url>] [--repo <nome>] <pasta_com_markdown>")
+			fmt.Println("Uso: mem index [--force] [--no-prune] [--db <caminho>] [--postgres <url>] [--repo <nome>] [<pasta_com_markdown>]")
+			fmt.Println("     Dica: execute 'mem init' para criar um arquivo de configuração declarativa.")
 			return
 		}
 
-		if *pgURL != "" {
-			pgStore, err := store.NewPostgresStore(*pgURL)
+		resolvedRepo := *targetRepo
+		if resolvedRepo == "" {
+			if cfg.Repository != "" {
+				resolvedRepo = cfg.Repository
+			} else if envRepo := os.Getenv("MY_MEMORY_REPO"); envRepo != "" {
+				resolvedRepo = envRepo
+			} else {
+				resolvedRepo = defaultRepo
+			}
+		}
+
+		resolvedDB := *dbPath
+		if resolvedDB == "" {
+			if cfg.Storage.SQLitePath != "" {
+				resolvedDB = cfg.Storage.SQLitePath
+			} else {
+				resolvedDB = "memory.db"
+			}
+		}
+
+		resolvedPG := *pgURL
+		if resolvedPG == "" {
+			if envPG := os.Getenv("MY_MEMORY_PG_URL"); envPG != "" {
+				resolvedPG = envPG
+			} else if cfg.Storage.Engine == "postgres" && cfg.Storage.PostgresURL != "" {
+				resolvedPG = cfg.Storage.PostgresURL
+			}
+		}
+
+		if resolvedPG != "" {
+			pgStore, err := store.NewPostgresStore(resolvedPG)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runIndexPostgres(ctx, pgStore, emb, *targetRepo, target, *force, !*noPrune)
+			runIndexPostgres(ctx, pgStore, emb, cfg, resolvedRepo, target, *force, !*noPrune)
 		} else {
-			database, err := db.InitDB(*dbPath)
+			database, err := db.InitDB(resolvedDB)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
 				os.Exit(1)
 			}
 			defer database.Close()
-			runIndexSQLite(ctx, database, emb, tq, target, *force, !*noPrune)
+			runIndexSQLite(ctx, database, emb, tq, cfg, target, *force, !*noPrune)
 		}
 
 	case "search":
@@ -413,7 +470,11 @@ search:
 	return nil
 }
 
-func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, targetRepo, rootDir string, force, prune bool) {
+func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
+	if cfg == nil {
+		def := config.DefaultConfig()
+		cfg = &def
+	}
 	fmt.Printf("🔍 Indexando notas no PostgreSQL (pgvector) para repo [%s] em: %s\n", targetRepo, rootDir)
 	totalCount := 0
 	indexedCount := 0
@@ -421,7 +482,34 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 	var activeDocIDs []string
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
+		if err != nil {
+			return nil
+		}
+
+		relPath, relErr := filepath.Rel(rootDir, path)
+		if relErr != nil {
+			relPath = path
+		}
+
+		if d.IsDir() {
+			if relPath != "." {
+				base := d.Name()
+				for _, defEx := range config.DefaultExcludedDirs {
+					if base == defEx {
+						return filepath.SkipDir
+					}
+				}
+				for _, ex := range cfg.Exclude {
+					cleanEx := strings.TrimSuffix(ex, "/**")
+					if relPath == cleanEx || strings.HasSuffix(relPath, "/"+cleanEx) {
+						return filepath.SkipDir
+					}
+				}
+			}
+			return nil
+		}
+
+		if !cfg.ShouldIndex(relPath) {
 			return nil
 		}
 
@@ -432,7 +520,7 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 		}
 		totalCount++
 		content := string(contentBytes)
-		title := strings.TrimSuffix(d.Name(), ".md")
+		title := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
 		docID := path
 		currentHash := store.CalculateContentHash(contentBytes)
 
@@ -497,7 +585,11 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 	fmt.Printf("🎉 Concluído! %d documentos processados no PostgreSQL (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
 }
 
-func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, rootDir string, force, prune bool) {
+func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, cfg *config.Config, rootDir string, force, prune bool) {
+	if cfg == nil {
+		def := config.DefaultConfig()
+		cfg = &def
+	}
 	fmt.Printf("🔍 Indexando notas no SQLite em: %s (com TurboQuant 4-bit ativado)\n", rootDir)
 	totalCount := 0
 	indexedCount := 0
@@ -505,7 +597,34 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 	var activeDocIDs []string
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
+		if err != nil {
+			return nil
+		}
+
+		relPath, relErr := filepath.Rel(rootDir, path)
+		if relErr != nil {
+			relPath = path
+		}
+
+		if d.IsDir() {
+			if relPath != "." {
+				base := d.Name()
+				for _, defEx := range config.DefaultExcludedDirs {
+					if base == defEx {
+						return filepath.SkipDir
+					}
+				}
+				for _, ex := range cfg.Exclude {
+					cleanEx := strings.TrimSuffix(ex, "/**")
+					if relPath == cleanEx || strings.HasSuffix(relPath, "/"+cleanEx) {
+						return filepath.SkipDir
+					}
+				}
+			}
+			return nil
+		}
+
+		if !cfg.ShouldIndex(relPath) {
 			return nil
 		}
 
@@ -516,7 +635,7 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 		}
 		totalCount++
 		content := string(contentBytes)
-		title := strings.TrimSuffix(d.Name(), ".md")
+		title := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
 		docID := path
 		currentHash := store.CalculateContentHash(contentBytes)
 

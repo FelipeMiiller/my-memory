@@ -79,10 +79,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/...
 **Done when**:
-- [ ] Carregar configuração ativa via config.FindConfigFile(".")
-- [ ] Usar cfg.ShouldIndex dentro de WalkDir ignorando diretórios e arquivos excluídos
-- [ ] Utilizar raiz do config como diretório alvo quando nenhum argumento for passado
-- [ ] Validar indexação respeitando exclusões declaradas
+- [x] Carregar configuração ativa via config.FindConfigFile(".")
+- [x] Usar cfg.ShouldIndex dentro de WalkDir ignorando diretórios e arquivos excluídos
+- [x] Utilizar raiz do config como diretório alvo quando nenhum argumento for passado
+- [x] Validar indexação respeitando exclusões declaradas
 
 ### T5: Integração de Config Defaults no mem search e mem mcp
 **What**: Utilizar preferências de busca do config como defaults para mem search e mem mcp
