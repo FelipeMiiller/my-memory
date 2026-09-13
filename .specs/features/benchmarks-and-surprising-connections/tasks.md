@@ -89,9 +89,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: docs/BENCHMARKS.md
 **Gate**: go test -bench=. ./internal/...
 **Done when**:
-- [ ] Documentar metodologia e ambiente de testes
-- [ ] Registrar tabelas de throughput (TurboQuant vs Float32, RRF, Hashing, Parsing)
-- [ ] Conectar BENCHMARKS.md no docs/README.md
+- [x] Documentar metodologia e ambiente de testes
+- [x] Registrar tabelas de throughput (TurboQuant vs Float32, RRF, Hashing, Parsing)
+- [x] Conectar BENCHMARKS.md no docs/README.md
 
 ### T6: ADR-012 e Validação Final
 **What**: Registrar decisão arquitetural ADR-012, atualizar STATE.md e validation.md
