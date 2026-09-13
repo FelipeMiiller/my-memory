@@ -4,12 +4,12 @@
 O My-Memory implementa cache incremental baseado em hash SHA-256 para reindexação rápida de notas Markdown existentes. No entanto, quando um arquivo `.md` é deletado do disco, a reindexação não detecta sua ausência, acumulando registros órfãos nas tabelas de documentos, chunks, índices vetoriais (`sqlite-vec`, `pgvector`, `TurboQuant`) e arestas do grafo. Além disso, os usuários e agentes de IA não dispõem de ferramentas para auditar a integridade estrutural do grafo de conhecimento, como detecção de *dead links* (wikilinks apontando para notas inexistentes), notas isoladas sem conexões (*orphan notes*), *self-loops* e consistência de vetores.
 
 ## Goals
-- [ ] Implementar detecção e pruning em cascata de arquivos deletados durante a indexação (`mem index`) no SQLite e PostgreSQL.
-- [ ] Fornecer a flag `--no-prune` na CLI para permitir indexação parcial de subpastas sem expurgo.
-- [ ] Implementar motor de diagnóstico de integridade de grafo (`DoctorReport`) no contrato `Store`.
-- [ ] Disponibilizar o comando de terminal `mem doctor [--fix]` com dashboard ASCII e métrica de saúde (*Health Score*).
-- [ ] Expor a ferramenta MCP `memory_doctor` para permitir auditoria de memória por agentes de IA.
-- [ ] Documentar a estratégia de ciclo de vida e diagnóstico na ADR-013.
+- [x] Implementar detecção e pruning em cascata de arquivos deletados durante a indexação (`mem index`) no SQLite e PostgreSQL.
+- [x] Fornecer a flag `--no-prune` na CLI para permitir indexação parcial de subpastas sem expurgo.
+- [x] Implementar motor de diagnóstico de integridade de grafo (`DoctorReport`) no contrato `Store`.
+- [x] Disponibilizar o comando de terminal `mem doctor [--fix]` com dashboard ASCII e métrica de saúde (*Health Score*).
+- [x] Expor a ferramenta MCP `memory_doctor` para permitir auditoria de memória por agentes de IA.
+- [x] Documentar a estratégia de ciclo de vida e diagnóstico na ADR-013.
 
 ## Out of Scope
 - Criação automática de arquivos de notas para resolver dead links (o agente ou usuário decide o conteúdo).
@@ -106,21 +106,21 @@ O My-Memory implementa cache incremental baseado em hash SHA-256 para reindexaç
 
 | Requirement ID | Story | Phase | Status |
 | -------------- | ----- | ----- | ------ |
-| PRUNE-01 | P1: Pruning de Arquivos Deletados no Indexador | Tasks | Pending |
-| PRUNE-02 | P1: Pruning de Arquivos Deletados no Indexador | Tasks | Pending |
-| DOCTOR-01 | P2: Motor de Diagnóstico e Linter de Grafo no Store | Tasks | Pending |
-| DOCTOR-02 | P2: Motor de Diagnóstico e Linter de Grafo no Store | Tasks | Pending |
-| DOCTOR-03 | P3: Interface CLI mem doctor | Tasks | Pending |
-| DOCTOR-04 | P4: Ferramenta MCP memory_doctor | Tasks | Pending |
+| PRUNE-01 | P1: Pruning de Arquivos Deletados no Indexador | Completed | Verified |
+| PRUNE-02 | P1: Pruning de Arquivos Deletados no Indexador | Completed | Verified |
+| DOCTOR-01 | P2: Motor de Diagnóstico e Linter de Grafo no Store | Completed | Verified |
+| DOCTOR-02 | P2: Motor de Diagnóstico e Linter de Grafo no Store | Completed | Verified |
+| DOCTOR-03 | P3: Interface CLI mem doctor | Completed | Verified |
+| DOCTOR-04 | P4: Ferramenta MCP memory_doctor | Completed | Verified |
 
 **Coverage:** 6 total, 6 mapped to tasks, 0 unmapped
 
 ---
 
 ## Success Criteria
-- [ ] `PruneDeletedDocuments` implementado e validado em SQLite e PostgreSQL.
-- [ ] Flag `--no-prune` funcional no comando `mem index`.
-- [ ] `DiagnoseHealth` e `FixHealthIssues` implementados e cobertos por testes unitários.
-- [ ] Comando CLI `mem doctor [--fix]` operacional com dashboard ASCII.
-- [ ] Ferramenta MCP `memory_doctor` disponível e testada via JSON-RPC.
-- [ ] Registro de decisão ADR-013 documentado.
+- [x] `PruneDeletedDocuments` implementado e validado em SQLite e PostgreSQL.
+- [x] Flag `--no-prune` funcional no comando `mem index`.
+- [x] `DiagnoseHealth` e `FixHealthIssues` implementados e cobertos por testes unitários.
+- [x] Comando CLI `mem doctor [--fix]` operacional com dashboard ASCII.
+- [x] Ferramenta MCP `memory_doctor` disponível e testada via JSON-RPC.
+- [x] Registro de decisão ADR-013 documentado.

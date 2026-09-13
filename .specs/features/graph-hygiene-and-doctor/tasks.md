@@ -111,6 +111,6 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7
 **Tests**: docs/adr/013-higiene-de-grafo-pruning-e-doctor.md
 **Gate**: python .agents/skills/tlc-spec-driven/scripts/validate_spec.py .specs/features/graph-hygiene-and-doctor/spec.md
 **Done when**:
-- [ ] Criar docs/adr/013-higiene-de-grafo-pruning-e-doctor.md no formato MADR
-- [ ] Atualizar docs/adr/README.md, docs/CLI_GUIDE.md e docs/REPOSITORY_BRAIN.md
-- [ ] Atualizar .specs/STATE.md e gerar validation.md
+- [x] Criar docs/adr/013-higiene-de-grafo-pruning-e-doctor.md no formato MADR
+- [x] Atualizar docs/adr/README.md, docs/CLI_GUIDE.md e docs/REPOSITORY_BRAIN.md
+- [x] Atualizar .specs/STATE.md e gerar validation.md

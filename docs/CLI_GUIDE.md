@@ -17,9 +17,10 @@ go build -o bin/mem.exe ./cmd/mem
 
 ## 📖 Comandos Disponíveis
 
-### 1. `mem index <pasta>`
+### 1. `mem index <pasta> [--force] [--no-prune]`
 Percorre recursivamente a pasta especificada procurando arquivos `.md`:
-* Salva os metadados do documento no SQLite.
+* Salva os metadados do documento e hash criptográfico SHA-256 no banco.
+* Poda automaticamente notas deletadas do disco (`PruneDeletedDocuments`). Use `--no-prune` para preservar registros ausentes.
 * Extrai os `[[wikilinks]]` e `#tags` inserindo as arestas de relacionamento no grafo.
 * Divide o conteúdo em chunks com sobreposição.
 * Gera os embeddings de 768 dimensões via Ollama (`nomic-embed-text`).
@@ -28,8 +29,8 @@ Percorre recursivamente a pasta especificada procurando arquivos `.md`:
 **Exemplo:**
 ```bash
 ./bin/mem.exe index C:/meu-vault-obsidian
-# ou dentro de um projeto:
-./bin/mem.exe index ./docs
+# ou dentro de um projeto (sem podar arquivos ausentes):
+./bin/mem.exe index --no-prune ./docs
 ```
 
 ---
@@ -86,5 +87,44 @@ Exporta o subgrafo relacional centrado em uma nota para o formato aberto **JSON 
 **Exemplo:**
 ```bash
 ./bin/mem.exe export --canvas "Arquitetura" --depth 2 --out "mapa_arquitetura.canvas"
+```
+
+---
+
+### 6. `mem doctor [--fix] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Audita a saúde do grafo e tabelas relacionais de conhecimento:
+* Identifica **Dead Links** (wikilinks apontando para notas inexistentes).
+* Identifica **Notas Órfãs** (documentos sem conexões de entrada ou saída).
+* Identifica **Self-Loops** (notas apontando reflexivamente para si mesmas).
+* Calcula o **Health Score** (0 a 100).
+* A flag `--fix` remove automaticamente conexões mortas e loops conhecidos.
+
+**Exemplo:**
+```bash
+./bin/mem.exe doctor
+# Auditando e reparando anomalias no grafo:
+./bin/mem.exe doctor --fix
+```
+
+---
+
+### 7. `mem hubs [--top 10]` e `mem insights [--limit 10] [--min-similarity 0.70]`
+* `mem hubs`: Exibe os nós centrais (*God Nodes*) com maior centralidade estrutural de conexões.
+* `mem insights`: Descobre conexões latentes (*Surprising Connections*) entre notas com alta similaridade sem links diretos.
+
+**Exemplo:**
+```bash
+./bin/mem.exe hubs --top 5
+./bin/mem.exe insights --min-similarity 0.75
+```
+
+---
+
+### 8. `mem bench`
+Executa a suíte de micro-benchmarks quantitativos da biblioteca (TurboQuant 4-bit, fusão RRF, SHA-256 e parsing) com saída tabular detalhada.
+
+**Exemplo:**
+```bash
+./bin/mem.exe bench
 ```
 

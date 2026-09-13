@@ -8,14 +8,15 @@
 - **AD-010**: Cache Incremental de Indexação com SHA-256 (`docs/adr/010-cache-incremental-de-indexacao-com-sha256.md`)
 - **AD-011**: Arestas Epistêmicas e God Nodes / Hubs de Conhecimento (`docs/adr/011-arestas-epistemicas-e-god-nodes.md`)
 - **AD-012**: Benchmarks de Performance e Conexões Inesperadas (Surprising Connections) (`docs/adr/012-benchmarks-e-conexoes-inesperadas.md`)
+- **AD-013**: Higiene de Grafo, Pruning Incremental e Linter Doctor (`docs/adr/013-higiene-de-grafo-pruning-e-doctor.md`)
 
 ## Handoff
 
-- **Feature**: benchmarks-and-surprising-connections (.specs/features/benchmarks-and-surprising-connections)
-- **Phase / Task**: Completed / T6
-- **Completed**: T1, T2, T3, T4, T5, T6 (100% validado)
+- **Feature**: graph-hygiene-and-doctor (.specs/features/graph-hygiene-and-doctor)
+- **Phase / Task**: Completed / T7
+- **Completed**: T1, T2, T3, T4, T5, T6, T7 (100% validado)
 - **In-progress**: none
-- **Next step**: Pronto para a próxima frente de desenvolvimento. Repositório 100% limpo e CI verde no commit adba059.
+- **Next step**: Pronto para a próxima frente de desenvolvimento. Repositório 100% limpo e suíte de testes verde.
 - **Blockers**: none
 - **Uncommitted files**: none (working tree clean)
 - **Branch**: main

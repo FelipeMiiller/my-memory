@@ -83,5 +83,9 @@ Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de co
 ```
 
 A IA ganha acesso automático a ferramentas com escopo de repositório:
-* `memory_search(query, repository?)`: Recupera os chunks de maior similaridade semântica (local ou multi-repo).
-* `memory_get_neighbors(node_id, repository?)`: Retorna nós vizinhos e dependências conectadas no grafo.
+* `memory_search(query, mode?, limit?, repository?)`: Recupera os chunks de maior relevância semântica, léxica ou híbrida (RRF).
+* `memory_get_neighbors(node_id, max_depth?, repository?)`: Retorna nós vizinhos e dependências conectadas no grafo via SQL recursivo.
+* `memory_export_canvas(node_id, max_depth?, repository?)`: Gera JSON Canvas 1.0 espacial para visualização gráfica no Obsidian.
+* `memory_get_hubs(top?, repository?)`: Retorna os nós com maior centralidade de conexões (*God Nodes* / Hubs).
+* `memory_get_insights(limit?, min_similarity?, repository?)`: Descobre conexões latentes (*Surprising Connections*) entre conceitos sem links diretos.
+* `memory_doctor(repository?, fix?)`: Audita a integridade do grafo (dead links, notas órfãs, self-loops e Health Score), com suporte a reparo automático.

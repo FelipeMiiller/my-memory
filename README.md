@@ -193,6 +193,13 @@ my-memory/
   - [ADR-004: Grafo com SQL Recursivo](docs/adr/004-modelagem-de-grafo-com-recursive-ctes.md)
   - [ADR-005: Markdown e Wikilinks como Fonte](docs/adr/005-markdown-com-wikilinks-como-fonte-de-verdade.md)
   - [ADR-006: Integração via MCP](docs/adr/006-integracao-com-agentes-de-ia-via-mcp.md)
+  - [ADR-007: Suporte Opcional a PostgreSQL + pgvector](docs/adr/007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md)
+  - [ADR-008: Interoperabilidade Obsidian e JSON Canvas 1.0](docs/adr/008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md)
+  - [ADR-009: Busca Híbrida com Reciprocal Rank Fusion (RRF)](docs/adr/009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md)
+  - [ADR-010: Cache Incremental de Indexação com SHA-256](docs/adr/010-cache-incremental-de-indexacao-com-sha256.md)
+  - [ADR-011: Arestas Epistêmicas e God Nodes / Hubs](docs/adr/011-arestas-epistemicas-e-god-nodes.md)
+  - [ADR-012: Benchmarks de Performance e Conexões Inesperadas](docs/adr/012-benchmarks-e-conexoes-inesperadas.md)
+  - [ADR-013: Higiene de Grafo, Pruning Incremental e Linter Doctor](docs/adr/013-higiene-de-grafo-pruning-e-doctor.md)
 
 ---
 
