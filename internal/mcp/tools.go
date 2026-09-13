@@ -133,6 +133,24 @@ var (
 			},
 		},
 	}
+
+	ToolMemoryDoctor = Tool{
+		Name:        "memory_doctor",
+		Description: "Audita a integridade do grafo e tabelas de notas, identificando dead links, notas órfãs, self-loops e calculando o Health Score",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou nome do repositório para contextualizar o diagnóstico (opcional)",
+				},
+				"fix": map[string]any{
+					"type":        "boolean",
+					"description": "Se verdadeiro, remove automaticamente anomalias conhecidas (self-loops e dead links) (padrão: false)",
+				},
+			},
+		},
+	}
 )
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor

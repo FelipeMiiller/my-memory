@@ -590,3 +590,97 @@ func TestFormatInsights_Empty(t *testing.T) {
 		t.Errorf("esperava mensagem de vazio, obteve: %s", got)
 	}
 }
+
+func TestServer_ToolsCall_MemoryDoctor_Success(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 60, "method": "tools/call", "params": {"name": "memory_doctor", "arguments": {"repository": "my-repo"}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	diagnoseCalled := false
+	srv.SetDoctorHandler(
+		func(ctx context.Context, repo string) (*DoctorReport, error) {
+			diagnoseCalled = true
+			if repo != "my-repo" {
+				t.Errorf("esperava repo 'my-repo', obteve '%s'", repo)
+			}
+			return &DoctorReport{
+				TotalDocuments: 5,
+				TotalChunks:    15,
+				TotalEdges:     10,
+				TotalNodes:     8,
+				HealthScore:    90,
+				DeadLinks: []DeadLink{
+					{SourceID: "notes/a.md", TargetID: "Ghost", Relation: "links_to"},
+				},
+				OrphanNotes: []OrphanNote{},
+				SelfLoops:   []SelfLoop{},
+			}, nil
+		},
+		nil,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	if !diagnoseCalled {
+		t.Fatalf("diagnose handler deveria ter sido chamado")
+	}
+
+	var resp Response
+	_ = json.Unmarshal(out.Bytes(), &resp)
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	_ = json.Unmarshal(resBytes, &callResult)
+
+	if len(callResult.Content) == 0 {
+		t.Fatalf("resultado vazio de tools/call")
+	}
+	text := callResult.Content[0].Text
+	if !strings.Contains(text, "Health Score: 90/100") || !strings.Contains(text, "Ghost") {
+		t.Errorf("resposta inesperada do doctor: %s", text)
+	}
+}
+
+func TestServer_ToolsCall_MemoryDoctor_WithFix(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 61, "method": "tools/call", "params": {"name": "memory_doctor", "arguments": {"fix": true}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	fixCalled := false
+	srv.SetDoctorHandler(
+		func(ctx context.Context, repo string) (*DoctorReport, error) {
+			return &DoctorReport{
+				TotalDocuments: 3,
+				HealthScore:    100,
+			}, nil
+		},
+		func(ctx context.Context, repo string) (int, error) {
+			fixCalled = true
+			return 2, nil
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	if !fixCalled {
+		t.Fatalf("fix handler deveria ter sido chamado")
+	}
+
+	var resp Response
+	_ = json.Unmarshal(out.Bytes(), &resp)
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	_ = json.Unmarshal(resBytes, &callResult)
+
+	if len(callResult.Content) == 0 || !strings.Contains(callResult.Content[0].Text, "2 arestas problemáticas removidas") {
+		t.Errorf("esperava menção ao reparo de 2 arestas, obteve: %+v", callResult)
+	}
+}
+

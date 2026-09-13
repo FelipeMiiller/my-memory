@@ -96,18 +96,19 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryExportCanvas, NewMemoryExportCanvasHandler(nil))
 	s.RegisterTool(ToolMemoryGetHubs, NewMemoryGetHubsHandler(nil))
 	s.RegisterTool(ToolMemoryGetInsights, NewMemoryGetInsightsHandler(nil))
+	s.RegisterTool(ToolMemoryDoctor, NewMemoryDoctorHandler(nil, nil))
 
 	return s
 }
 
-// RegisterHandler registra um mÃ©todo JSON-RPC customizado
+// RegisterHandler registra um método JSON-RPC customizado
 func (s *Server) RegisterHandler(method string, h HandlerFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.handlers[method] = h
 }
 
-// Run executa o loop de leitura e despacho de mensagens atÃ© EOF ou cancelamento do contexto
+// Run executa o loop de leitura e despacho de mensagens até EOF ou cancelamento do contexto
 func (s *Server) Run(ctx context.Context) error {
 	s.logger.Printf("Servidor MCP '%s' v%s iniciado", s.name, s.version)
 
@@ -145,7 +146,7 @@ func (s *Server) dispatch(ctx context.Context, req *Request) {
 
 	if !exists {
 		if !req.IsNotification() {
-			resp := NewErrorResponse(req.ID, CodeMethodNotFound, fmt.Sprintf("MÃ©todo '%s' nÃ£o encontrado", req.Method), nil)
+			resp := NewErrorResponse(req.ID, CodeMethodNotFound, fmt.Sprintf("Método '%s' não encontrado", req.Method), nil)
 			_ = s.writer.WriteResponse(resp)
 		}
 		return
@@ -158,8 +159,8 @@ func (s *Server) dispatch(ctx context.Context, req *Request) {
 
 	if err != nil {
 		var resp *Response
-		if rpcErr, ok := err.(*Error); ok {
-			resp = NewErrorResponse(req.ID, rpcErr.Code, rpcErr.Message, rpcErr.Data)
+		if mcpErr, ok := err.(*Error); ok {
+			resp = NewErrorResponse(req.ID, mcpErr.Code, mcpErr.Message, mcpErr.Data)
 		} else {
 			resp = NewErrorResponse(req.ID, CodeInternalError, err.Error(), nil)
 		}
@@ -189,7 +190,7 @@ func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (
 }
 
 func (s *Server) handleInitialized(ctx context.Context, params json.RawMessage) (any, error) {
-	s.logger.Println("Cliente confirmou inicializaÃ§Ã£o")
+	s.logger.Println("Cliente confirmou inicialização")
 	return nil, nil
 }
 

@@ -95,6 +95,51 @@ type SurprisingConnection struct {
 // InsightsFunc assinatura da função que calcula conexões latentes/inesperadas
 type InsightsFunc func(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error)
 
+// DeadLink representa um link no grafo para uma nota inexistente
+type DeadLink struct {
+	SourceID string `json:"source_id"`
+	TargetID string `json:"target_id"`
+	Relation string `json:"relation"`
+}
+
+// OrphanNote representa uma nota isolada com zero conexões
+type OrphanNote struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// SelfLoop representa uma aresta circular onde a nota aponta para si mesma
+type SelfLoop struct {
+	NodeID   string `json:"node_id"`
+	Relation string `json:"relation"`
+}
+
+// DesyncedChunk representa um chunk sem correspondência vetorial
+type DesyncedChunk struct {
+	ChunkID    string `json:"chunk_id"`
+	DocumentID string `json:"document_id"`
+	Issue      string `json:"issue"`
+}
+
+// DoctorReport agrega as métricas estruturais e anomalias de saúde do grafo
+type DoctorReport struct {
+	TotalDocuments int             `json:"total_documents"`
+	TotalChunks    int             `json:"total_chunks"`
+	TotalEdges     int             `json:"total_edges"`
+	TotalNodes     int             `json:"total_nodes"`
+	HealthScore    int             `json:"health_score"` // 0 a 100
+	DeadLinks      []DeadLink      `json:"dead_links"`
+	OrphanNotes    []OrphanNote    `json:"orphan_notes"`
+	SelfLoops      []SelfLoop      `json:"self_loops"`
+	DesyncedChunks []DesyncedChunk `json:"desynced_chunks"`
+}
+
+// DoctorDiagnoseFunc assinatura da função que diagnostica a saúde do grafo
+type DoctorDiagnoseFunc func(ctx context.Context, repo string) (*DoctorReport, error)
+
+// DoctorFixFunc assinatura da função que repara anomalias conhecidas
+type DoctorFixFunc func(ctx context.Context, repo string) (int, error)
+
 // FormatSearchResults formata os resultados da busca em texto legível
 func FormatSearchResults(results []SearchResult) string {
 	if len(results) == 0 {
@@ -539,6 +584,110 @@ func NewMemoryGetInsightsHandler(insightsFn InsightsFunc) ToolHandlerFunc {
 // SetInsightsHandler configura a função de cálculo de conexões inesperadas para memory_get_insights
 func (s *Server) SetInsightsHandler(fn InsightsFunc) {
 	s.RegisterToolHandler("memory_get_insights", NewMemoryGetInsightsHandler(fn))
+}
+
+// FormatDoctorReport formata o relatório de diagnóstico em Markdown rico para LLMs
+func FormatDoctorReport(report *DoctorReport, fixedCount int) string {
+	if report == nil {
+		return "Nenhum relatório de diagnóstico disponível."
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# 🩺 Diagnóstico de Memória & Grafo (Health Score: %d/100)\n\n", report.HealthScore))
+	sb.WriteString(fmt.Sprintf("- **Documentos**: %d | **Chunks**: %d | **Arestas**: %d | **Nós**: %d\n",
+		report.TotalDocuments, report.TotalChunks, report.TotalEdges, report.TotalNodes))
+
+	if fixedCount > 0 {
+		sb.WriteString(fmt.Sprintf("- 🛠 **Anomalias Reparadas**: %d arestas problemáticas removidas\n", fixedCount))
+	}
+	sb.WriteString("\n")
+
+	if len(report.DeadLinks) > 0 {
+		sb.WriteString(fmt.Sprintf("## 🔗 Links Quebrados (Dead Links - %d)\n", len(report.DeadLinks)))
+		for _, dl := range report.DeadLinks {
+			sb.WriteString(fmt.Sprintf("- `[[%s]]` -> `[[%s]]` (relação: `%s`)\n", dl.SourceID, dl.TargetID, dl.Relation))
+		}
+		sb.WriteString("\n")
+	} else {
+		sb.WriteString("## 🔗 Links Quebrados\n- Nenhum dead link detectado. Todas as conexões apontam para notas existentes.\n\n")
+	}
+
+	if len(report.OrphanNotes) > 0 {
+		sb.WriteString(fmt.Sprintf("## 🏝️ Notas Órfãs (Sem Conexões - %d)\n", len(report.OrphanNotes)))
+		for _, on := range report.OrphanNotes {
+			displayName := on.Title
+			if displayName == "" {
+				displayName = on.ID
+			}
+			sb.WriteString(fmt.Sprintf("- `%s` (%s)\n", displayName, on.ID))
+		}
+		sb.WriteString("\n")
+	} else {
+		sb.WriteString("## 🏝️ Notas Órfãs\n- Nenhuma nota órfã detectada. Todo o conhecimento está interligado no grafo.\n\n")
+	}
+
+	if len(report.SelfLoops) > 0 {
+		sb.WriteString(fmt.Sprintf("## 🔄 Loops Reflexivos (Self-Loops - %d)\n", len(report.SelfLoops)))
+		for _, sl := range report.SelfLoops {
+			sb.WriteString(fmt.Sprintf("- `%s` (relação: `%s`)\n", sl.NodeID, sl.Relation))
+		}
+		sb.WriteString("\n")
+	}
+
+	if len(report.DesyncedChunks) > 0 {
+		sb.WriteString(fmt.Sprintf("## ⚡ Chunks Dessincronizados (%d)\n", len(report.DesyncedChunks)))
+		for _, dc := range report.DesyncedChunks {
+			sb.WriteString(fmt.Sprintf("- Chunk `%s`: %s\n", dc.ChunkID, dc.Issue))
+		}
+		sb.WriteString("\n")
+	}
+
+	return strings.TrimSpace(sb.String())
+}
+
+// NewMemoryDoctorHandler cria o executor da ferramenta memory_doctor
+func NewMemoryDoctorHandler(diagnoseFn DoctorDiagnoseFunc, fixFn DoctorFixFunc) ToolHandlerFunc {
+	return func(ctx context.Context, args json.RawMessage) (any, error) {
+		var repo string
+		fix := false
+
+		if len(args) > 0 {
+			var rawMap map[string]json.RawMessage
+			if err := json.Unmarshal(args, &rawMap); err == nil {
+				if rawRepo, hasRepo := rawMap["repository"]; hasRepo {
+					_ = json.Unmarshal(rawRepo, &repo)
+				}
+				if rawFix, hasFix := rawMap["fix"]; hasFix {
+					_ = json.Unmarshal(rawFix, &fix)
+				}
+			}
+		}
+
+		fixedCount := 0
+		if fix && fixFn != nil {
+			n, err := fixFn(ctx, repo)
+			if err != nil {
+				return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao reparar anomalias: %v", err), nil)
+			}
+			fixedCount = n
+		}
+
+		if diagnoseFn == nil {
+			return nil, NewError(CodeInternalError, "Backend de diagnóstico não configurado", nil)
+		}
+
+		report, err := diagnoseFn(ctx, repo)
+		if err != nil {
+			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao auditar integridade da memória: %v", err), nil)
+		}
+
+		return NewTextResult(FormatDoctorReport(report, fixedCount)), nil
+	}
+}
+
+// SetDoctorHandler configura as funções de diagnóstico e reparo para memory_doctor
+func (s *Server) SetDoctorHandler(diagnoseFn DoctorDiagnoseFunc, fixFn DoctorFixFunc) {
+	s.RegisterToolHandler("memory_doctor", NewMemoryDoctorHandler(diagnoseFn, fixFn))
 }
 
 // handleToolsCall despacha a execução da ferramenta indicada no campo 'name'

@@ -85,10 +85,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7
 **Tests**: internal/mcp/handlers_test.go
 **Gate**: go test -v ./internal/mcp/...
 **Done when**:
-- [ ] Declarar ToolMemoryDoctor em tools.go
-- [ ] Implementar NewMemoryDoctorHandler e FormatDoctorReport em handlers.go
-- [ ] Expor SetDoctorHandler em server.go e registrar ferramenta
-- [ ] Adicionar testes unitários validando execução via JSON-RPC
+- [x] Declarar ToolMemoryDoctor em tools.go
+- [x] Implementar NewMemoryDoctorHandler e FormatDoctorReport em handlers.go
+- [x] Expor SetDoctorHandler em server.go e registrar ferramenta
+- [x] Adicionar testes unitários validando execução via JSON-RPC
 
 ### T6: CLI mem index com Pruning e Comando mem doctor
 **What**: Integrar pruning no comando mem index (com --no-prune) e adicionar comando mem doctor com dashboard ASCII
