@@ -61,9 +61,9 @@ T1 -> T3 -> T4
 **Tests**: internal/store/postgres_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Adicionar content_hash no schema PostgreSQL
-- [ ] Implementar GetDocumentHash e DeleteDocumentData no PostgresStore
-- [ ] Garantir conformidade com interface Store
+- [x] Adicionar content_hash no schema PostgreSQL
+- [x] Implementar GetDocumentHash e DeleteDocumentData no PostgresStore
+- [x] Garantir conformidade com interface Store
 
 ### T4: CLI mem index com Cache Incremental e Flag --force
 **What**: Integrar verificação de cache por hash e flag --force no comando mem index

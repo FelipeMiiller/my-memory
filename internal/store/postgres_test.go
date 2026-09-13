@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -37,3 +38,11 @@ func TestPostgresStore_SearchFTS_EmptyQuery(t *testing.T) {
 	}
 }
 
+func TestPostgresSchema_ContentHash(t *testing.T) {
+	if !strings.Contains(PostgresSchema, "content_hash TEXT") {
+		t.Fatalf("PostgresSchema deve conter coluna content_hash TEXT")
+	}
+	if !strings.Contains(PostgresSchema, "ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;") {
+		t.Fatalf("PostgresSchema deve conter migração retrocompatível para content_hash")
+	}
+}
