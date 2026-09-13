@@ -1,4 +1,4 @@
-﻿# Arquitetura do My-Memory
+# Arquitetura do My-Memory
 
 O **My-Memory** é uma engine de memória semântica e relacional local desenvolvida em Go, combinando o melhor de três mundos:
 1. **Obsidian**: Grafo de conhecimento orientado a notas Markdown (`[[wikilinks]]` e `#tags`).
@@ -88,3 +88,15 @@ WITH RECURSIVE traversal AS (
 )
 SELECT DISTINCT target_id FROM traversal;
 ```
+
+---
+
+## 📚 Arte Prévia e Influências
+
+O My-Memory combina ideias comprovadas da literatura e projetos abertos de ponta:
+- **`akitaonrails/ai-memory`**: Padrão *compile-not-retrieve*, busca híbrida com RRF (*Reciprocal Rank Fusion*) e Markdown no Git como fonte soberana da verdade.
+- **`Graphify-Labs/graphify`**: Classificação epistêmica de arestas (`EXTRACTED` vs `INFERRED`), identificação de *God Nodes* (conceitos de alta centralidade) e cache incremental SHA-256.
+- **`kepano/obsidian-skills`**: Especificações oficiais de *Obsidian Flavored Markdown* e geração de mapas mentais no formato aberto *JSON Canvas 1.0* (`.canvas`).
+
+Consulte o detalhamento completo em **[`docs/REFERENCES.md`](REFERENCES.md)**.
+

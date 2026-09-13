@@ -63,6 +63,25 @@ func TestTools_DefaultSchemas(t *testing.T) {
 	if !ok || len(neighborsReq) == 0 || neighborsReq[0] != "node_id" {
 		t.Errorf("esperava 'node_id' nos campos required de memory_get_neighbors, obteve %v", neighbors.InputSchema["required"])
 	}
+
+	// Verificação da ferramenta memory_export_canvas
+	canvasTool := ToolMemoryExportCanvas
+	if canvasTool.Name != "memory_export_canvas" {
+		t.Errorf("esperava nome 'memory_export_canvas', obteve '%s'", canvasTool.Name)
+	}
+	if canvasTool.Description == "" {
+		t.Errorf("esperava descrição não vazia para memory_export_canvas")
+	}
+	canvasProps, ok := canvasTool.InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("esperava properties no inputSchema de memory_export_canvas")
+	}
+	if _, ok := canvasProps["node_id"]; !ok {
+		t.Errorf("esperava propriedade 'node_id' no inputSchema de memory_export_canvas")
+	}
+	if _, ok := canvasProps["output_path"]; !ok {
+		t.Errorf("esperava propriedade 'output_path' no inputSchema de memory_export_canvas")
+	}
 }
 
 func TestServer_ToolsList(t *testing.T) {
@@ -105,6 +124,7 @@ func TestServer_ToolsList(t *testing.T) {
 
 	foundSearch := false
 	foundNeighbors := false
+	foundCanvas := false
 	for _, tool := range listResult.Tools {
 		if tool.Name == "memory_search" {
 			foundSearch = true
@@ -118,6 +138,12 @@ func TestServer_ToolsList(t *testing.T) {
 				t.Errorf("inputSchema inválido para memory_get_neighbors na resposta: %+v", tool.InputSchema)
 			}
 		}
+		if tool.Name == "memory_export_canvas" {
+			foundCanvas = true
+			if tool.InputSchema == nil || tool.InputSchema["type"] != "object" {
+				t.Errorf("inputSchema inválido para memory_export_canvas na resposta: %+v", tool.InputSchema)
+			}
+		}
 	}
 
 	if !foundSearch {
@@ -125,6 +151,9 @@ func TestServer_ToolsList(t *testing.T) {
 	}
 	if !foundNeighbors {
 		t.Errorf("ferramenta 'memory_get_neighbors' não encontrada em tools/list")
+	}
+	if !foundCanvas {
+		t.Errorf("ferramenta 'memory_export_canvas' não encontrada em tools/list")
 	}
 }
 

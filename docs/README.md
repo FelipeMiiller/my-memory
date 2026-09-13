@@ -12,6 +12,7 @@ Este documento é o **mapa central de conhecimento** do projeto **My-Memory**. E
 | **[`docs/TURBOQUANT.md`](TURBOQUANT.md)** | Matemática & Algoritmo | Teoria da quantização vetorial de 4-bit (Google DeepMind, ICLR 2026), rotações de Householder e produto escalar não-viesado. |
 | **[`docs/CLI_GUIDE.md`](CLI_GUIDE.md)** | Operação | Manual prático de comandos da CLI (`mem index`, `mem search` e modo `-tq`). |
 | **[`docs/REPOSITORY_BRAIN.md`](REPOSITORY_BRAIN.md)** | Integração com IA | Como utilizar o `my-memory` como memória de contexto dentro de projetos via **Model Context Protocol (MCP)**. |
+| **[`docs/REFERENCES.md`](REFERENCES.md)** | Arte Prévia & Referências | Referências técnicas e ecossistemas que inspiram e refinam o projeto (`graphify`, `ai-memory`, `obsidian-skills`). |
 
 ---
 
@@ -26,6 +27,8 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-004`](adr/004-modelagem-de-grafo-com-recursive-ctes.md)** — Modelagem e Travessia de Grafo com SQL Recursivo (CTEs)
 * **[`ADR-005`](adr/005-markdown-com-wikilinks-como-fonte-de-verdade.md)** — Markdown e [[Wikilinks]] como Entrada e Grafo Humano
 * **[`ADR-006`](adr/006-integracao-com-agentes-de-ia-via-mcp.md)** — Integração com Agentes de IA via Model Context Protocol (MCP)
+* **[`ADR-007`](adr/007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md)** — Suporte Opcional a PostgreSQL com pgvector e Referência Multi-Repositório
+* **[`ADR-008`](adr/008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md)** — Interoperabilidade com Obsidian Flavored Markdown e JSON Canvas 1.0
 
 ---
 
@@ -48,6 +51,16 @@ Habilidades de engenharia de software configuradas no repositório através do `
 * **Estrutura interna:**
   - `references/`: Guias de especificação, design, testes e sub-agentes.
   - `scripts/`: Validadores automáticos em Python (`validate_spec.py`, `validate_tasks.py`, `check_commit.py`, etc.).
+
+### 3.3. `obsidian-markdown`
+* **Local:** [`.agents/skills/obsidian-markdown/`](../.agents/skills/obsidian-markdown/)
+* **Descrição:** Criação e edição de notas em Obsidian Flavored Markdown (`.md`) com wikilinks estruturados, frontmatter YAML (`tags`, `aliases`), callouts e embeds.
+* **Gatilhos para IAs:** *"crie uma nota"*, *"adicione wikilinks"*, *"formate em obsidian"*, *"extraia frontmatter"*.
+
+### 3.4. `json-canvas`
+* **Local:** [`.agents/skills/json-canvas/`](../.agents/skills/json-canvas/)
+* **Descrição:** Especificação aberta JSON Canvas 1.0 (`.canvas`) para geração e manipulação de mapas mentais espaciais e grafos visuais.
+* **Gatilhos para IAs:** *"exporte para canvas"*, *"crie um json canvas"*, *"mapa mental espacial"*.
 
 ---
 

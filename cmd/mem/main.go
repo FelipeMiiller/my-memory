@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/FelipeMiiller/my-memory/internal/canvas"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/mcp"
@@ -135,6 +136,34 @@ func main() {
 
 		runMCPServer(ctx, pgStore, database, emb, *targetRepo)
 
+	case "export":
+		exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
+		canvasNode := exportCmd.String("canvas", "", "Nome ou identificador da nota raiz para exportar subgrafo para JSON Canvas (.canvas)")
+		depth := exportCmd.Int("depth", 1, "Profundidade máxima de vizinhos no grafo (padrão: 1)")
+		outFile := exportCmd.String("out", "", "Caminho do arquivo .canvas de saída (padrão: <nota>.canvas)")
+		dbPath := exportCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
+		pgURL := exportCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := exportCmd.String("repo", defaultRepo, "Identificador/slug do repositório")
+		exportCmd.Parse(os.Args[2:])
+
+		node := *canvasNode
+		if node == "" && exportCmd.NArg() > 0 {
+			node = exportCmd.Arg(0)
+		}
+		if node == "" {
+			fmt.Println("Uso: mem export --canvas <nota> [--depth 1] [--out <saida.canvas>] [--db <caminho>] [--postgres <url>] [--repo <slug>]")
+			return
+		}
+
+		if *outFile == "" {
+			safeName := strings.ReplaceAll(node, "/", "_")
+			safeName = strings.ReplaceAll(safeName, "\\", "_")
+			safeName = strings.TrimSuffix(safeName, ".md")
+			*outFile = safeName + ".canvas"
+		}
+
+		runExportCanvas(ctx, *pgURL, *dbPath, *targetRepo, node, *depth, *outFile)
+
 	default:
 		printHelp()
 	}
@@ -147,6 +176,8 @@ func printHelp() {
 	fmt.Println("      Indexa notas Markdown, links [[wikilinks]], FTS5 e vetores")
 	fmt.Println("  mem search [-tq] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
 	fmt.Println("      Busca semântica k-NN com expansão de grafo")
+	fmt.Println("  mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Exporta um subgrafo em torno de uma nota no formato aberto JSON Canvas (.canvas) do Obsidian")
 	fmt.Println("  mem mcp [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Inicia servidor Model Context Protocol via stdio para agentes de IA (Claude, Cursor, etc)")
 	fmt.Println()
@@ -410,3 +441,45 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 		fmt.Fprintf(os.Stderr, "[mcp] servidor encerrado com erro: %v\n", err)
 	}
 }
+
+func runExportCanvas(ctx context.Context, pgURL, dbPath, repo, nodeID string, maxDepth int, outputPath string) {
+	fmt.Printf("🎨 Exportando subgrafo centrado em '%s' (profundidade: %d) para JSON Canvas...\n", nodeID, maxDepth)
+
+	var neighbors []string
+	var err error
+
+	if pgURL != "" {
+		pgStore, errConn := store.NewPostgresStore(pgURL)
+		if errConn != nil {
+			fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", errConn)
+			os.Exit(1)
+		}
+		defer pgStore.Close()
+		neighbors, err = pgStore.GetNodeNeighbors(ctx, repo, nodeID, maxDepth)
+	} else {
+		database, errConn := db.InitDB(dbPath)
+		if errConn != nil {
+			fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", errConn)
+			os.Exit(1)
+		}
+		defer database.Close()
+		neighbors, err = db.GetNodeNeighbors(ctx, database, nodeID, maxDepth)
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao recuperar vizinhos do grafo: %v\n", err)
+		os.Exit(1)
+	}
+
+	c := canvas.FromNeighbors(nodeID, neighbors)
+	if err := c.SaveToFile(outputPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao salvar arquivo JSON Canvas: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("✔ Sucesso! Arquivo gerado em: %s (%d nós, %d arestas)\n", outputPath, len(c.Nodes), len(c.Edges))
+	if len(neighbors) > 0 {
+		fmt.Printf("Conexões mapeadas: %s\n", strings.Join(neighbors, ", "))
+	}
+}
+

@@ -57,6 +57,33 @@ var (
 			"required": []string{"node_id"},
 		},
 	}
+
+	ToolMemoryExportCanvas = Tool{
+		Name:        "memory_export_canvas",
+		Description: "Exporta um subgrafo centrado em node_id no formato aberto JSON Canvas 1.0 (.canvas) para visualização espacial no Obsidian",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"node_id": map[string]any{
+					"type":        "string",
+					"description": "Identificador ou nome da nota central do subgrafo",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Profundidade máxima de travessia no grafo (padrão: 1)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou nome do repositório para contextualizar a busca de conexões (opcional)",
+				},
+				"output_path": map[string]any{
+					"type":        "string",
+					"description": "Caminho de arquivo para salvar o .canvas (opcional). Se omitido, retorna a string JSON do Canvas.",
+				},
+			},
+			"required": []string{"node_id"},
+		},
+	}
 )
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor

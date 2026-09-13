@@ -15,3 +15,4 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-005](005-markdown-com-wikilinks-como-fonte-de-verdade.md)** | Markdown e [[Wikilinks]] como Entrada e Grafo Humano | Aceito | 2026-09-12 | `obsidian`, `parser`, `markdown`, `pkm` |
 | **[ADR-006](006-integracao-com-agentes-de-ia-via-mcp.md)** | Integração com Agentes de IA via Model Context Protocol (MCP) | Aceito | 2026-09-12 | `ai`, `mcp`, `claude`, `cursor`, `integration` |
 | **[ADR-007](007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md)** | Suporte Opcional a PostgreSQL com pgvector e Referência Multi-Repositório | Aceito | 2026-09-13 | `database`, `postgres`, `pgvector`, `multi-repository` |
+| **[ADR-008](008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md)** | Interoperabilidade com Obsidian Flavored Markdown e JSON Canvas 1.0 | Aceito | 2026-09-13 | `obsidian`, `markdown`, `wikilinks`, `json-canvas`, `agent-skills` |

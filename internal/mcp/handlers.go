@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/FelipeMiiller/my-memory/internal/canvas"
 )
 
 // CallToolParams define os parâmetros recebidos em uma requisição tools/call
@@ -233,14 +235,86 @@ func NewDBNeighborsHandler(database *sql.DB) NeighborsFunc {
 	}
 }
 
+// NewMemoryExportCanvasHandler cria o handler para a ferramenta memory_export_canvas
+func NewMemoryExportCanvasHandler(neighborsFn NeighborsFunc) ToolHandlerFunc {
+	return func(ctx context.Context, args json.RawMessage) (any, error) {
+		if len(args) == 0 {
+			return nil, NewError(CodeInvalidParams, "Parâmetro obrigatório ausente: 'node_id'", nil)
+		}
+
+		var rawMap map[string]json.RawMessage
+		if err := json.Unmarshal(args, &rawMap); err != nil {
+			return nil, NewError(CodeInvalidParams, "Formato JSON de argumentos inválido", err.Error())
+		}
+
+		rawNodeID, hasNodeID := rawMap["node_id"]
+		if !hasNodeID {
+			return nil, NewError(CodeInvalidParams, "Parâmetro obrigatório ausente: 'node_id'", nil)
+		}
+
+		var nodeID string
+		if err := json.Unmarshal(rawNodeID, &nodeID); err != nil {
+			return nil, NewError(CodeInvalidParams, "Tipo inválido para parâmetro 'node_id', esperava string", err.Error())
+		}
+
+		if strings.TrimSpace(nodeID) == "" {
+			return nil, NewError(CodeInvalidParams, "Parâmetro obrigatório ausente: 'node_id'", nil)
+		}
+
+		maxDepth := 1
+		if rawDepth, hasDepth := rawMap["max_depth"]; hasDepth {
+			var d int
+			if err := json.Unmarshal(rawDepth, &d); err == nil && d > 0 {
+				maxDepth = d
+			}
+		}
+
+		var repo string
+		if rawRepo, hasRepo := rawMap["repository"]; hasRepo {
+			_ = json.Unmarshal(rawRepo, &repo)
+		}
+
+		var outputPath string
+		if rawOut, hasOut := rawMap["output_path"]; hasOut {
+			_ = json.Unmarshal(rawOut, &outputPath)
+		}
+
+		if neighborsFn == nil {
+			return nil, NewError(CodeInternalError, "Backend de grafo não configurado", nil)
+		}
+
+		neighbors, err := neighborsFn(ctx, repo, nodeID, maxDepth)
+		if err != nil {
+			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro na travessia de vizinhos: %v", err), nil)
+		}
+
+		c := canvas.FromNeighbors(nodeID, neighbors)
+
+		if outputPath != "" {
+			if err := c.SaveToFile(outputPath); err != nil {
+				return nil, NewError(CodeInternalError, fmt.Sprintf("Erro salvando arquivo canvas: %v", err), nil)
+			}
+			return NewTextResult(fmt.Sprintf("JSON Canvas salvo com sucesso em '%s' (%d nós, %d arestas).", outputPath, len(c.Nodes), len(c.Edges))), nil
+		}
+
+		data, err := c.ToJSON()
+		if err != nil {
+			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro serializando JSON canvas: %v", err), nil)
+		}
+
+		return NewTextResult(string(data)), nil
+	}
+}
+
 // SetSearchHandler configura a função de busca semântica para o handler memory_search
 func (s *Server) SetSearchHandler(fn SearchFunc) {
 	s.RegisterToolHandler("memory_search", NewMemorySearchHandler(fn))
 }
 
-// SetNeighborsHandler configura a função de travessia do grafo para o handler memory_get_neighbors
+// SetNeighborsHandler configura a função de travessia do grafo para memory_get_neighbors e memory_export_canvas
 func (s *Server) SetNeighborsHandler(fn NeighborsFunc) {
 	s.RegisterToolHandler("memory_get_neighbors", NewMemoryNeighborsHandler(fn))
+	s.RegisterToolHandler("memory_export_canvas", NewMemoryExportCanvasHandler(fn))
 }
 
 // handleToolsCall despacha a execução da ferramenta indicada no campo 'name'

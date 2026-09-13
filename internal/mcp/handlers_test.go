@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -262,3 +264,83 @@ func TestServer_ToolsCall_InvalidParamsJSON(t *testing.T) {
 		t.Errorf("esperava CodeInvalidParams (-32602), obteve: %+v", resp.Error)
 	}
 }
+
+func TestServer_ToolsCall_MemoryExportCanvas_StringOutput(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 30, "method": "tools/call", "params": {"name": "memory_export_canvas", "arguments": {"node_id": "Arquitetura"}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+	srv.SetNeighborsHandler(func(ctx context.Context, repo, nodeID string, maxDepth int) ([]string, error) {
+		return []string{"Banco de Dados", "Autenticacao"}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta: %v", err)
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	_ = json.Unmarshal(resBytes, &callResult)
+
+	if len(callResult.Content) == 0 {
+		t.Fatalf("esperava conteúdo retornado")
+	}
+
+	rawJSON := callResult.Content[0].Text
+	if !strings.Contains(rawJSON, "Arquitetura.md") {
+		t.Errorf("esperava 'Arquitetura.md' no canvas retornado, obteve: %s", rawJSON)
+	}
+	if !strings.Contains(rawJSON, "nodes") || !strings.Contains(rawJSON, "edges") {
+		t.Errorf("esperava JSON Canvas válido com nodes e edges, obteve: %s", rawJSON)
+	}
+}
+
+func TestServer_ToolsCall_MemoryExportCanvas_SaveToFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	canvasPath := filepath.Join(tmpDir, "exported.canvas")
+
+	// Usamos formato JSON escapado para o caminho
+	escapedPath := strings.ReplaceAll(canvasPath, `\`, `\\`)
+	in := `{"jsonrpc": "2.0", "id": 31, "method": "tools/call", "params": {"name": "memory_export_canvas", "arguments": {"node_id": "Arquitetura", "output_path": "` + escapedPath + `"}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+	srv.SetNeighborsHandler(func(ctx context.Context, repo, nodeID string, maxDepth int) ([]string, error) {
+		return []string{"Banco de Dados"}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta: %v", err)
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	// Verifica se o arquivo foi realmente gerado no disco
+	data, err := os.ReadFile(canvasPath)
+	if err != nil {
+		t.Fatalf("esperava arquivo salvo em disco: %v", err)
+	}
+
+	if !strings.Contains(string(data), "Banco de Dados.md") {
+		t.Errorf("conteúdo salvo não contém nó esperado: %s", string(data))
+	}
+}
+

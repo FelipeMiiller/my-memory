@@ -74,3 +74,17 @@ Inicia o servidor Model Context Protocol (MCP) via `stdio` (JSON-RPC 2.0):
 # Ou conectado a uma base central PostgreSQL:
 ./bin/mem.exe mcp --postgres "postgres://user:pass@localhost:5432/memory?sslmode=disable" --repo "meu-org/meu-projeto"
 ```
+
+---
+
+### 5. `mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>]`
+Exporta o subgrafo relacional centrado em uma nota para o formato aberto **JSON Canvas 1.0 (`.canvas`)** do Obsidian:
+* Realiza a travessia de vizinhos conectados até a profundidade indicada.
+* Calcula o posicionamento radial espacial para visualização sem nós sobrepostos.
+* Gera arquivo `.canvas` pronto para ser aberto diretamente no Obsidian.
+
+**Exemplo:**
+```bash
+./bin/mem.exe export --canvas "Arquitetura" --depth 2 --out "mapa_arquitetura.canvas"
+```
+
