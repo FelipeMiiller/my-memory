@@ -1,4 +1,4 @@
-﻿module github.com/FelipeMiiller/my-memory
+module github.com/FelipeMiiller/my-memory
 
 go 1.22.0
 

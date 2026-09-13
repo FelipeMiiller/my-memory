@@ -1,4 +1,4 @@
-﻿package db
+package db
 
 const Schema = `
 -- Documentos principais

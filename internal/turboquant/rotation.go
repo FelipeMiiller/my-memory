@@ -1,4 +1,4 @@
-﻿package turboquant
+package turboquant
 
 import (
 	"math"
