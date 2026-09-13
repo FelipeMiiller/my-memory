@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -368,10 +370,19 @@ func main() {
 		dbPath := mcpCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := mcpCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := mcpCmd.String("repo", "", "Identificador padrão do repositório")
+		port := mcpCmd.Int("port", 0, "Porta para iniciar o servidor MCP via HTTP/SSE (ex: 8080)")
+		host := mcpCmd.String("host", "127.0.0.1", "Host/interface de rede para o servidor HTTP")
+		httpAddr := mcpCmd.String("http", "", "Endereço completo para o servidor HTTP (ex: :8080 ou 0.0.0.0:8080)")
+		cors := mcpCmd.Bool("cors", true, "Habilita suporte a CORS para conexões de navegadores")
 		mcpCmd.Parse(os.Args[2:])
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+
+		targetHTTP := *httpAddr
+		if targetHTTP == "" && *port > 0 {
+			targetHTTP = fmt.Sprintf("%s:%d", *host, *port)
+		}
 
 		var pgStore *store.PostgresStore
 		var database *sql.DB
@@ -398,7 +409,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao SQLite: %s\n", resolvedDB)
 		}
 
-		runMCPServer(ctx, pgStore, database, emb, resolvedRepo)
+		runMCPServer(ctx, pgStore, database, emb, resolvedRepo, targetHTTP, *cors)
 
 	case "export":
 		exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
@@ -626,8 +637,8 @@ func printHelp() {
 	fmt.Println("      Cria ou anexa seções em notas Markdown atômicas com frontmatter e sincronização imediata")
 	fmt.Println("  mem compile --topic \"<termo>\" --out \"<caminho.md>\" [--limit 5] [--mode hybrid|vector|fts]")
 	fmt.Println("      Compila e sintetiza fragmentos de busca em uma nota atômica com backlinks (Compile-not-Retrieve)")
-	fmt.Println("  mem mcp [--db <arq>] [--postgres <url>] [--repo <slug>]")
-	fmt.Println("      Inicia servidor Model Context Protocol via stdio para agentes de IA (Claude, Cursor, etc)")
+	fmt.Println("  mem mcp [--port <porta>] [--host <ip>] [--http <addr>] [--cors] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Inicia servidor Model Context Protocol via stdio (padrão) ou via HTTP/SSE na porta indicada")
 	fmt.Println("  mem version [--json]")
 	fmt.Println("      Exibe metadados de versão, commit, data de compilação e arquitetura (ou via -v, --version)")
 	fmt.Println()
@@ -1258,7 +1269,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 	}
 }
 
-func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, defaultRepo string) {
+func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, defaultRepo string, httpAddr string, corsEnabled bool) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
 
 	if pgStore != nil {
@@ -1575,6 +1586,41 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return graphview.BuildFromSQLite(ctx, database, rootNode, maxDepth, repo)
 		}, ".")
+	}
+
+	if httpAddr != "" {
+		httpSrv := mcp.NewHTTPServer(srv, mcp.HTTPServerOptions{
+			Addr:        httpAddr,
+			CORSEnabled: corsEnabled,
+			DefaultRepo: defaultRepo,
+			Logger:      log.New(os.Stderr, "[mcp-http] ", log.LstdFlags),
+		})
+
+		ctxSig, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+		defer cancel()
+
+		serverErr := make(chan error, 1)
+		go func() {
+			fmt.Fprintf(os.Stderr, "🚀 Servidor MCP HTTP/SSE ativo em http://%s\n", httpAddr)
+			fmt.Fprintf(os.Stderr, "   - Endpoint SSE:      http://%s/sse\n", httpAddr)
+			fmt.Fprintf(os.Stderr, "   - Endpoint Mensagem: http://%s/message?sessionId=<uuid>\n", httpAddr)
+			fmt.Fprintf(os.Stderr, "   - Endpoint Direto:   http://%s/mcp\n", httpAddr)
+			fmt.Fprintf(os.Stderr, "   - Diagnóstico:       http://%s/health\n", httpAddr)
+			serverErr <- httpSrv.ListenAndServe()
+		}()
+
+		select {
+		case <-ctxSig.Done():
+			fmt.Fprintf(os.Stderr, "\n[mcp] Encerrando servidor HTTP graciosamente...\n")
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			_ = httpSrv.Shutdown(shutdownCtx)
+		case err := <-serverErr:
+			if err != nil && err != http.ErrServerClosed {
+				fmt.Fprintf(os.Stderr, "[mcp] Erro fatal no servidor HTTP: %v\n", err)
+			}
+		}
+		return
 	}
 
 	if err := srv.Run(ctx); err != nil && err != context.Canceled {

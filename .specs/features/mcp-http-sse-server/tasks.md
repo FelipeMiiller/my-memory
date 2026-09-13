@@ -67,10 +67,10 @@ T1 -> T2 -> T3 -> T4
 **Tests**: cmd/mem/mcp_server_test.go
 **Gate**: go test -v -run TestMCPServer_CLI ./cmd/mem/...
 **Done when**:
-- [ ] Adicionar flags --port, --host e --http no subcomando mem mcp
-- [ ] Iniciar HTTPServer quando uma porta for especificada, ou cair no loop stdio quando omitida
-- [ ] Atualizar printHelp() documentando a nova funcionalidade de servidor de rede
-- [ ] Adicionar teste de integração em cmd/mem/mcp_server_test.go testando inicialização em porta dinâmica e shutdown
+- [x] Adicionar flags --port, --host e --http no subcomando mem mcp
+- [x] Iniciar HTTPServer quando uma porta for especificada, ou cair no loop stdio quando omitida
+- [x] Atualizar printHelp() documentando a nova funcionalidade de servidor de rede
+- [x] Adicionar teste de integração em cmd/mem/mcp_server_test.go testando inicialização em porta dinâmica e shutdown
 
 ### T4: ADR-021, Documentação Técnica e Atualização do STATE.md
 **What**: Registrar a ADR-021, atualizar guias de uso e documentar no STATE.md do TLC
