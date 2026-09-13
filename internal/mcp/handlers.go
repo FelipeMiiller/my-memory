@@ -46,17 +46,31 @@ type SearchResult struct {
 	DocumentID string   `json:"document_id"`
 	Repository string   `json:"repository,omitempty"`
 	Content    string   `json:"content"`
-	Distance   float64  `json:"distance"`
+	Distance   float64  `json:"distance,omitempty"`
+	Score      float64  `json:"score,omitempty"`
+	Sources    []string `json:"sources,omitempty"`
 	Neighbors  []string `json:"neighbors,omitempty"`
 }
 
-// SearchFunc assinatura da função que executa a busca vetorial
+// SearchFunc assinatura da função que executa a busca vetorial legada
 type SearchFunc func(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error)
+
+// SearchParams agrupa os parâmetros da busca para flexibilidade de múltiplos modos
+type SearchParams struct {
+	Repo  string
+	Query string
+	Mode  string // "hybrid" (default), "vector", "fts"
+	Limit int
+	K     int // constante RRF, default 60
+}
+
+// AdvancedSearchFunc assinatura da função que executa busca avançada suportando modo híbrido e RRF
+type AdvancedSearchFunc func(ctx context.Context, params SearchParams) ([]SearchResult, error)
 
 // NeighborsFunc assinatura da função que realiza a travessia de vizinhos no grafo
 type NeighborsFunc func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error)
 
-// FormatSearchResults formata os resultados da busca vetorial em texto legível
+// FormatSearchResults formata os resultados da busca em texto legível
 func FormatSearchResults(results []SearchResult) string {
 	if len(results) == 0 {
 		return "Nenhum resultado encontrado."
@@ -64,10 +78,21 @@ func FormatSearchResults(results []SearchResult) string {
 
 	var sb strings.Builder
 	for i, res := range results {
+		var headerParts []string
+		if res.Score > 0 {
+			headerParts = append(headerParts, fmt.Sprintf("Score RRF: %.4f", res.Score))
+		}
+		if res.Distance > 0 {
+			headerParts = append(headerParts, fmt.Sprintf("Distância: %.4f", res.Distance))
+		}
 		if res.Repository != "" {
-			fmt.Fprintf(&sb, "--- [%d] Distância: %.4f | Repositório: %s | Documento: %s ---\n", i+1, res.Distance, res.Repository, res.DocumentID)
-		} else {
-			fmt.Fprintf(&sb, "--- [%d] Distância: %.4f | Documento: %s ---\n", i+1, res.Distance, res.DocumentID)
+			headerParts = append(headerParts, fmt.Sprintf("Repositório: %s", res.Repository))
+		}
+		headerParts = append(headerParts, fmt.Sprintf("Documento: %s", res.DocumentID))
+
+		fmt.Fprintf(&sb, "--- [%d] %s ---\n", i+1, strings.Join(headerParts, " | "))
+		if len(res.Sources) > 0 {
+			fmt.Fprintf(&sb, "📊 Fontes RRF: [%s]\n", strings.Join(res.Sources, ", "))
 		}
 		sb.WriteString(res.Content)
 		sb.WriteString("\n")
@@ -96,7 +121,7 @@ func FormatNeighbors(nodeID string, neighbors []string) string {
 }
 
 // NewMemorySearchHandler cria o handler para a ferramenta memory_search
-func NewMemorySearchHandler(searchFn SearchFunc) ToolHandlerFunc {
+func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 	return func(ctx context.Context, args json.RawMessage) (any, error) {
 		if len(args) == 0 {
 			return nil, NewError(CodeInvalidParams, "Parâmetro obrigatório ausente: 'query'", nil)
@@ -129,6 +154,22 @@ func NewMemorySearchHandler(searchFn SearchFunc) ToolHandlerFunc {
 			}
 		}
 
+		mode := "hybrid"
+		if rawMode, hasMode := rawMap["mode"]; hasMode {
+			var m string
+			if err := json.Unmarshal(rawMode, &m); err == nil && strings.TrimSpace(m) != "" {
+				mode = strings.ToLower(strings.TrimSpace(m))
+			}
+		}
+
+		k := 60
+		if rawK, hasK := rawMap["k"]; hasK {
+			var val int
+			if err := json.Unmarshal(rawK, &val); err == nil && val > 0 {
+				k = val
+			}
+		}
+
 		var repo string
 		if rawRepo, hasRepo := rawMap["repository"]; hasRepo {
 			_ = json.Unmarshal(rawRepo, &repo)
@@ -138,7 +179,26 @@ func NewMemorySearchHandler(searchFn SearchFunc) ToolHandlerFunc {
 			return nil, NewError(CodeInternalError, "Backend de busca semântica não configurado", nil)
 		}
 
-		results, err := searchFn(ctx, repo, query, limit)
+		var results []SearchResult
+		var err error
+
+		switch fn := searchFn.(type) {
+		case AdvancedSearchFunc:
+			results, err = fn(ctx, SearchParams{
+				Repo:  repo,
+				Query: query,
+				Mode:  mode,
+				Limit: limit,
+				K:     k,
+			})
+		case SearchFunc:
+			results, err = fn(ctx, repo, query, limit)
+		case func(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error):
+			results, err = fn(ctx, repo, query, limit)
+		default:
+			return nil, NewError(CodeInternalError, "Tipo de função de busca não suportado", nil)
+		}
+
 		if err != nil {
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro na execução da busca: %v", err), nil)
 		}
@@ -308,6 +368,11 @@ func NewMemoryExportCanvasHandler(neighborsFn NeighborsFunc) ToolHandlerFunc {
 
 // SetSearchHandler configura a função de busca semântica para o handler memory_search
 func (s *Server) SetSearchHandler(fn SearchFunc) {
+	s.RegisterToolHandler("memory_search", NewMemorySearchHandler(fn))
+}
+
+// SetAdvancedSearchHandler configura a função de busca avançada com suporte a RRF e modos
+func (s *Server) SetAdvancedSearchHandler(fn AdvancedSearchFunc) {
 	s.RegisterToolHandler("memory_search", NewMemorySearchHandler(fn))
 }
 

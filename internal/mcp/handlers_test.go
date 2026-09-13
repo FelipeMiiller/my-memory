@@ -344,3 +344,72 @@ func TestServer_ToolsCall_MemoryExportCanvas_SaveToFile(t *testing.T) {
 	}
 }
 
+func TestServer_ToolsCall_MemorySearch_AdvancedHybrid(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 40, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"query": "turboquant", "mode": "hybrid", "limit": 3, "k": 50}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	srv.SetAdvancedSearchHandler(func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		if params.Query != "turboquant" {
+			t.Errorf("esperava query 'turboquant', obteve '%s'", params.Query)
+		}
+		if params.Mode != "hybrid" {
+			t.Errorf("esperava mode 'hybrid', obteve '%s'", params.Mode)
+		}
+		if params.Limit != 3 {
+			t.Errorf("esperava limit 3, obteve %d", params.Limit)
+		}
+		if params.K != 50 {
+			t.Errorf("esperava k 50, obteve %d", params.K)
+		}
+
+		return []SearchResult{
+			{
+				ChunkID:    "chunk-tq#1",
+				DocumentID: "docs/tq.md",
+				Content:    "TurboQuant comprime vetores em 4-bits mantendo alta fidelidade.",
+				Score:      0.0325,
+				Sources:    []string{"fts:1", "vector:1"},
+				Neighbors:  []string{"docs/embeddings.md"},
+			},
+		}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta: %v", err)
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callRes CallToolResult
+	if err := json.Unmarshal(resBytes, &callRes); err != nil {
+		t.Fatalf("falha ao converter CallToolResult: %v", err)
+	}
+
+	text := callRes.Content[0].Text
+	if !strings.Contains(text, "Score RRF: 0.0325") {
+		t.Errorf("resposta esperada com Score RRF, obteve: %s", text)
+	}
+	if !strings.Contains(text, "Fontes RRF: [fts:1, vector:1]") {
+		t.Errorf("resposta esperada com Fontes RRF, obteve: %s", text)
+	}
+}
+
+func TestFormatSearchResults_Empty(t *testing.T) {
+	got := FormatSearchResults(nil)
+	if got != "Nenhum resultado encontrado." {
+		t.Errorf("esperava 'Nenhum resultado encontrado.', obteve: %s", got)
+	}
+}
+
+

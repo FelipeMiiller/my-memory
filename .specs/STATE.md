@@ -8,13 +8,14 @@
 ## Handoff
 
 - **Feature**: hybrid-search-rrf (.specs/features/hybrid-search-rrf)
-- **Phase / Task**: Phase 3 / T4: Integração no Servidor MCP
-- **Completed**: T1, T2, T3
-- **In-progress** (file:line): internal/mcp/handlers.go:1
-- **Next step**: Atualizar schemas e handlers MCP para busca híbrida com RRF
+- **Phase / Task**: Phase 3 / T5: Integração no CLI mem search
+- **Completed**: T1, T2, T3, T4
+- **In-progress** (file:line): cmd/mem/main.go:1
+- **Next step**: Adicionar flags --mode e --k em mem search e conectar handlers no CLI
 - **Blockers**: none
 - **Uncommitted files**: veja git status
 - **Branch**: main
+
 
 
 

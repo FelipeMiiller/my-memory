@@ -74,9 +74,9 @@ T1 -> T3 -> T4
 **Tests**: internal/mcp/handlers_test.go
 **Gate**: go test -v ./internal/mcp/...
 **Done when**:
-- [ ] Atualizar tool schema memory_search para aceitar mode e k
-- [ ] Atualizar handler memory_search para chamar busca híbrida por padrão
-- [ ] Formatar saída detalhando score RRF e ranking individual das fontes
+- [x] Atualizar tool schema memory_search para aceitar mode e k
+- [x] Atualizar handler memory_search para chamar busca híbrida por padrão
+- [x] Formatar saída detalhando score RRF e ranking individual das fontes
 
 ### T5: Integração no CLI mem search
 **What**: Adicionar suporte a busca híbrida no comando de terminal mem search

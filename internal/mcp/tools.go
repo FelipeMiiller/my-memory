@@ -14,17 +14,26 @@ type ListToolsResult struct {
 var (
 	ToolMemorySearch = Tool{
 		Name:        "memory_search",
-		Description: "Busca semântica k-NN na memória de notas usando sqlite-vec ou postgres com pgvector e expansão de grafo",
+		Description: "Busca híbrida com Reciprocal Rank Fusion (RRF) combinando texto exato FTS5/tsvector, vetores k-NN e expansão de grafo",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"query": map[string]any{
 					"type":        "string",
-					"description": "Texto ou pergunta para busca semântica na base de notas",
+					"description": "Texto ou pergunta para busca na base de memória de notas",
+				},
+				"mode": map[string]any{
+					"type":        "string",
+					"enum":        []string{"hybrid", "vector", "fts"},
+					"description": "Modo de busca: 'hybrid' (padrão, RRF unificando FTS + vetores + grafo), 'vector' (apenas semântico k-NN) ou 'fts' (apenas texto exato)",
 				},
 				"limit": map[string]any{
 					"type":        "integer",
 					"description": "Número máximo de resultados a retornar (padrão: 5)",
+				},
+				"k": map[string]any{
+					"type":        "integer",
+					"description": "Constante de suavização do algoritmo RRF (padrão: 60)",
 				},
 				"repository": map[string]any{
 					"type":        "string",
