@@ -79,6 +79,9 @@ func main() {
 		mode := searchCmd.String("mode", "hybrid", "Modo de busca: 'hybrid' (FTS+vetor+grafo via RRF), 'vector' (apenas k-NN), 'fts' (apenas léxico)")
 		k := searchCmd.Int("k", 60, "Constante de suavização do algoritmo RRF (padrão: 60)")
 		limit := searchCmd.Int("limit", 5, "Número máximo de resultados (padrão: 5)")
+		decay := searchCmd.Bool("decay", false, "Ativa decaimento temporal exponencial para priorizar notas mais recentes")
+		halfLife := searchCmd.Float64("half-life", 30.0, "Tempo de meia-vida em dias para decaimento temporal (padrão: 30.0)")
+		decayWeight := searchCmd.Float64("decay-weight", 0.3, "Peso do fator temporal entre 0.0 e 1.0 (padrão: 0.3)")
 		dbPath := searchCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
 		pgURL := searchCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := searchCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
@@ -86,8 +89,15 @@ func main() {
 
 		query := strings.Join(searchCmd.Args(), " ")
 		if query == "" {
-			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [-tq] [--k 60] [--limit 5] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
+			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
 			return
+		}
+
+		decayOpts := store.DefaultDecayOptions()
+		if *decay {
+			decayOpts.Enabled = true
+			decayOpts.HalfLife = *halfLife
+			decayOpts.Weight = *decayWeight
 		}
 
 		if *pgURL != "" {
@@ -97,7 +107,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runSearchPostgres(ctx, pgStore, emb, query, *targetRepo, *mode, *limit, *k)
+			runSearchPostgres(ctx, pgStore, emb, query, *targetRepo, *mode, *limit, *k, decayOpts)
 		} else {
 			database, err := db.InitDB(*dbPath)
 			if err != nil {
@@ -105,7 +115,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runSearchSQLite(ctx, database, emb, tq, query, *mode, *useTurbo, *limit, *k)
+			runSearchSQLite(ctx, database, emb, tq, query, *mode, *useTurbo, *limit, *k, decayOpts)
 		}
 
 	case "mcp":
@@ -277,8 +287,8 @@ func printHelp() {
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
 	fmt.Println("  mem doctor [--fix] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score)")
-	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
-	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), FTS5/tsvector, vetores e grafo")
+	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
+	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), decaimento temporal, FTS5/tsvector, vetores e grafo")
 	fmt.Println("  mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exibe os nós centrais por grau (God Nodes) ou por autoridade estrutural (PageRank ponderado)")
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -470,8 +480,12 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
 }
 
-func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo, mode string, limit, k int) {
-	fmt.Printf("🔎 Buscando no PostgreSQL (pgvector) [Repo: %s, Modo: %s] por: \"%s\"\n\n", targetRepo, mode, query)
+func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions) {
+	decayInfo := ""
+	if decayOpts.Enabled {
+		decayInfo = fmt.Sprintf(" [Decay: ativo (meia-vida: %.1fd, peso: %.2f)]", decayOpts.HalfLife, decayOpts.Weight)
+	}
+	fmt.Printf("🔎 Buscando no PostgreSQL (pgvector) [Repo: %s, Modo: %s%s] por: \"%s\"\n\n", targetRepo, mode, decayInfo, query)
 
 	var results []store.SearchResult
 	var err error
@@ -494,7 +508,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		} else {
 			queryVec = vec
 		}
-		results, err = s.SearchHybridRRF(ctx, targetRepo, query, queryVec, limit, k)
+		results, err = s.SearchHybridRRFWithDecay(ctx, targetRepo, query, queryVec, limit, k, decayOpts)
 	}
 
 	if err != nil {
@@ -518,6 +532,9 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		if res.Repository != "" {
 			headers = append(headers, fmt.Sprintf("Repo: %s", res.Repository))
 		}
+		if res.UpdatedAt > 0 {
+			headers = append(headers, fmt.Sprintf("Atualizado: %s", time.Unix(res.UpdatedAt, 0).UTC().Format("2006-01-02 15:04:05")))
+		}
 		headers = append(headers, fmt.Sprintf("Documento: %s", res.DocumentID))
 
 		fmt.Printf("--- [%d] %s ---\n", i+1, strings.Join(headers, " | "))
@@ -532,12 +549,16 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 	}
 }
 
-func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int) {
+func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions) {
 	vecSubmode := "sqlite-vec"
 	if useTurbo {
 		vecSubmode = "TurboQuant"
 	}
-	fmt.Printf("🔎 Buscando no SQLite por: \"%s\" [Modo: %s (%s)]\n\n", query, mode, vecSubmode)
+	decayInfo := ""
+	if decayOpts.Enabled {
+		decayInfo = fmt.Sprintf(" [Decay: ativo (meia-vida: %.1fd, peso: %.2f)]", decayOpts.HalfLife, decayOpts.Weight)
+	}
+	fmt.Printf("🔎 Buscando no SQLite por: \"%s\" [Modo: %s (%s)%s]\n\n", query, mode, vecSubmode, decayInfo)
 
 	var results []db.SearchResult
 	var err error
@@ -564,7 +585,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		} else {
 			queryVec = vec
 		}
-		results, err = db.SearchHybridRRF(ctx, database, tq, query, queryVec, limit, k, useTurbo)
+		results, err = db.SearchHybridRRFWithDecay(ctx, database, tq, query, queryVec, limit, k, useTurbo, decayOpts)
 	}
 
 	if err != nil {
@@ -584,6 +605,9 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		}
 		if res.Distance > 0 {
 			headers = append(headers, fmt.Sprintf("Distância: %.4f", res.Distance))
+		}
+		if res.UpdatedAt > 0 {
+			headers = append(headers, fmt.Sprintf("Atualizado: %s", time.Unix(res.UpdatedAt, 0).UTC().Format("2006-01-02 15:04:05")))
 		}
 		headers = append(headers, fmt.Sprintf("Documento: %s", res.DocumentID))
 

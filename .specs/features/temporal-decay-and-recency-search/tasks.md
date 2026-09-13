@@ -90,9 +90,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/...
 **Done when**:
-- [ ] Adicionar flags --decay, --half-life e --decay-weight no flagset de busca
-- [ ] Repassar DecayOptions nos fluxos de busca SQLite e PostgreSQL
-- [ ] Atualizar printHelp e documentação do CLI
+- [x] Adicionar flags --decay, --half-life e --decay-weight no flagset de busca
+- [x] Repassar DecayOptions nos fluxos de busca SQLite e PostgreSQL
+- [x] Atualizar printHelp e documentação do CLI
 
 ### T6: ADR-015, Validação Final e Documentação
 **What**: Registrar decisão ADR-015 e atualizar manuais de documentação
