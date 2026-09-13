@@ -98,6 +98,6 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: docs/adr/011-arestas-epistemicas-e-god-nodes.md
 **Gate**: python .agents/skills/tlc-spec-driven/scripts/validate_spec.py .specs/features/epistemic-edges-and-god-nodes/spec.md
 **Done when**:
-- [ ] Registrar decisão arquitetural ADR-011
-- [ ] Atualizar .specs/STATE.md
-- [ ] Gerar relatório de validação validation.md
+- [x] Registrar decisão arquitetural ADR-011
+- [x] Atualizar .specs/STATE.md
+- [x] Gerar relatório de validação validation.md

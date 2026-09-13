@@ -1,14 +1,14 @@
-﻿# Feature: epistemic-edges-and-god-nodes
+# Feature: epistemic-edges-and-god-nodes
 
 ## Problem Statement
 No grafo de conhecimento atual do My-Memory, todas as conexões entre notas são tratadas como arestas genéricas links_to, sem distinção semântica da natureza da relação (como dependência, implementação, suporte ou contradição) e sem diferenciação entre arestas explícitas escritas pelo autor e arestas deduzidas pelo sistema. Além disso, agentes de IA e usuários não possuem um mecanismo analítico rápido para descobrir os nós mais importantes e densos do grafo (God Nodes / Hubs de conhecimento), dificultando a escolha de pontos de partida (entrypoints) adequados para exploração e síntese de contexto.
 
 ## Goals
-- [ ] Estender o parser de conexões Markdown para suportar relações tipadas (prefixos, aliases, frontmatter e tags).
-- [ ] Adicionar suporte a propriedades epistêmicas (epistemic_status e weight) nas tabelas graph_edges do SQLite e PostgreSQL.
-- [ ] Implementar algoritmo de cálculo de centralidade de grau para identificar God Nodes / Hubs de conhecimento.
-- [ ] Expor a ferramenta MCP memory_get_hubs para agentes de IA consultarem os principais conceitos centrais do repositório.
-- [ ] Adicionar o comando CLI mem hubs e atualizar a indexação mem index para persistir arestas tipadas.
+- [x] Estender o parser de conexões Markdown para suportar relações tipadas (prefixos, aliases, frontmatter e tags).
+- [x] Adicionar suporte a propriedades epistêmicas (epistemic_status e weight) nas tabelas graph_edges do SQLite e PostgreSQL.
+- [x] Implementar algoritmo de cálculo de centralidade de grau para identificar God Nodes / Hubs de conhecimento.
+- [x] Expor a ferramenta MCP memory_get_hubs para agentes de IA consultarem os principais conceitos centrais do repositório.
+- [x] Adicionar o comando CLI mem hubs e atualizar a indexação mem index para persistir arestas tipadas.
 
 ## Out of Scope
 - Algoritmo de PageRank com fator de amortecimento iterativo em tempo real (centralidade de grau é suficiente e muito mais rápida).
@@ -122,19 +122,19 @@ ame: "memory_get_hubs" verificando a resposta estruturada.
 
 | Requirement ID | Story | Phase | Status |
 | -------------- | ----- | ----- | ------ |
-| EDGE-01 | P1: Parser de Conexões Tipadas e Semânticas | Tasks | Pending |
-| EDGE-02 | P2: Persistência de Propriedades Epistêmicas no Store | Tasks | Pending |
-| EDGE-03 | P3: Cálculo de God Nodes e Hubs de Conhecimento | Tasks | Pending |
-| EDGE-04 | P4: Ferramenta MCP memory_get_hubs | Tasks | Pending |
-| EDGE-05 | P5: Comando CLI mem hubs e Indexação Integrada | Tasks | Pending |
+| EDGE-01 | P1: Parser de Conexões Tipadas e Semânticas | Complete | Implemented |
+| EDGE-02 | P2: Persistência de Propriedades Epistêmicas no Store | Complete | Implemented |
+| EDGE-03 | P3: Cálculo de God Nodes e Hubs de Conhecimento | Complete | Implemented |
+| EDGE-04 | P4: Ferramenta MCP memory_get_hubs | Complete | Implemented |
+| EDGE-05 | P5: Comando CLI mem hubs e Indexação Integrada | Complete | Implemented |
 
 **Coverage:** 5 total, 5 mapped to tasks, 0 unmapped
 
 ---
 
 ## Success Criteria
-- [ ] Testes do parser de wikilinks tipados passando com 100% de sucesso.
-- [ ] Colunas epistemic_status e weight operacionais em SQLite e PostgreSQL.
-- [ ] GetGodNodes retornando ordenação correta por grau de centralidade.
-- [ ] Ferramenta MCP memory_get_hubs registrada e testada.
-- [ ] CLI mem hubs exibindo os principais hubs de conhecimento.
+- [x] Testes do parser de wikilinks tipados passando com 100% de sucesso.
+- [x] Colunas epistemic_status e weight operacionais em SQLite e PostgreSQL.
+- [x] GetGodNodes retornando ordenação correta por grau de centralidade.
+- [x] Ferramenta MCP memory_get_hubs registrada e testada.
+- [x] CLI mem hubs exibindo os principais hubs de conhecimento.

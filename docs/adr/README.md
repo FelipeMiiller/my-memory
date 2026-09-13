@@ -18,3 +18,4 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-008](008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md)** | Interoperabilidade com Obsidian Flavored Markdown e JSON Canvas 1.0 | Aceito | 2026-09-13 | `obsidian`, `markdown`, `wikilinks`, `json-canvas`, `agent-skills` |
 | **[ADR-009](009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md)** | Busca Híbrida com Reciprocal Rank Fusion (RRF) | Aceito | 2026-09-13 | `rrf`, `hybrid-search`, `fts5`, `pgvector`, `graph` |
 | **[ADR-010](010-cache-incremental-de-indexacao-com-sha256.md)** | Cache Incremental de Indexação com SHA-256 | Aceito | 2026-09-13 | `cache`, `indexing`, `sha256`, `performance`, `ollama` |
+| **[ADR-011](011-arestas-epistemicas-e-god-nodes.md)** | Arestas Epistêmicas e God Nodes / Hubs de Conhecimento | Aceito | 2026-09-13 | `epistemic-edges`, `god-nodes`, `knowledge-hubs`, `degree-centrality`, `graphify` |
