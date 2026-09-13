@@ -49,9 +49,9 @@ T1 -> T3 -> T4
 **Tests**: internal/db/store.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Adicionar coluna content_hash na tabela documents em schema.go
-- [ ] Atualizar InsertDocument no SQLite para salvar content_hash
-- [ ] Implementar GetDocumentHash e DeleteDocumentData no SQLite
+- [x] Adicionar coluna content_hash na tabela documents em schema.go
+- [x] Atualizar InsertDocument no SQLite para salvar content_hash
+- [x] Implementar GetDocumentHash e DeleteDocumentData no SQLite
 
 ### T3: Implementação no PostgreSQL
 **What**: Adicionar content_hash no PostgreSQL e implementar consulta e deleção

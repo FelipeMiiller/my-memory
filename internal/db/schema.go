@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
     path TEXT NOT NULL UNIQUE,
     title TEXT,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    content_hash TEXT
 );
 
 -- Chunks textuais para busca fina

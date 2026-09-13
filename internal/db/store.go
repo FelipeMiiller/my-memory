@@ -22,18 +22,26 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("erro ao executar schema: %w", err)
 	}
 
+	// Migração retrocompatível: adiciona coluna content_hash se não existir
+	var colCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'content_hash'").Scan(&colCount)
+	if colCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN content_hash TEXT")
+	}
+
 	return db, nil
 }
 
-// InsertDocument salva documento e seus nós no grafo
-func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64) error {
+// InsertDocument salva documento com content_hash e seus nós no grafo
+func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash string) error {
 	_, err := db.ExecContext(ctx, `
-		INSERT INTO documents (id, path, title, updated_at)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO documents (id, path, title, updated_at, content_hash)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			title = excluded.title,
-			updated_at = excluded.updated_at
-	`, id, path, title, updatedAt)
+			updated_at = excluded.updated_at,
+			content_hash = excluded.content_hash
+	`, id, path, title, updatedAt, contentHash)
 	if err != nil {
 		return err
 	}
@@ -43,6 +51,62 @@ func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, upd
 		VALUES (?, 'note', ?)
 	`, id, title)
 	return err
+}
+
+// GetDocumentHash retorna o hash SHA-256 de conteúdo armazenado de um documento (ou "" se não existir)
+func GetDocumentHash(ctx context.Context, db *sql.DB, id string) (string, error) {
+	var hash sql.NullString
+	err := db.QueryRowContext(ctx, `
+		SELECT content_hash FROM documents
+		WHERE id = ?
+	`, id).Scan(&hash)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return hash.String, nil
+}
+
+// DeleteDocumentData remove chunks (relacional, FTS, vec, turboquant) e arestas originadas do documento
+func DeleteDocumentData(ctx context.Context, db *sql.DB, id string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Chunks FTS5, vec0 e turboquant via subquery dos chunks do documento
+	_, _ = tx.ExecContext(ctx, `
+		DELETE FROM chunks_fts WHERE chunk_id IN (SELECT id FROM chunks WHERE document_id = ?)
+	`, id)
+
+	_, _ = tx.ExecContext(ctx, `
+		DELETE FROM chunks_vec WHERE chunk_id IN (SELECT id FROM chunks WHERE document_id = ?)
+	`, id)
+
+	_, _ = tx.ExecContext(ctx, `
+		DELETE FROM chunks_turboquant WHERE chunk_id IN (SELECT id FROM chunks WHERE document_id = ?)
+	`, id)
+
+	// 2. Chunks relacionais
+	_, err = tx.ExecContext(ctx, `
+		DELETE FROM chunks WHERE document_id = ?
+	`, id)
+	if err != nil {
+		return err
+	}
+
+	// 3. Arestas do grafo onde este documento é origem (source_id)
+	_, err = tx.ExecContext(ctx, `
+		DELETE FROM graph_edges WHERE source_id = ?
+	`, id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // InsertChunk insere um pedaço de texto no relacional, FTS5 e no sqlite-vec
