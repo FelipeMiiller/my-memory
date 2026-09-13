@@ -88,9 +88,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/...
 **Done when**:
-- [ ] Adicionar flags --algorithm, --damping e --iter no flagset hubs
-- [ ] Atualizar displayHubsTable para exibir coluna de score do PageRank
-- [ ] Roteamento para SQLite e PostgreSQL
+- [x] Adicionar flags --algorithm, --damping e --iter no flagset hubs
+- [x] Atualizar displayHubsTable para exibir coluna de score do PageRank
+- [x] Roteamento para SQLite e PostgreSQL
 
 ### T6: ADR-014, Benchmarks de PageRank e Documentação
 **What**: Registrar decisão ADR-014, micro-benchmark e atualizar manuais

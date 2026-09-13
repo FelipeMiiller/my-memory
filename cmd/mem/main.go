@@ -173,6 +173,9 @@ func main() {
 	case "hubs":
 		hubsCmd := flag.NewFlagSet("hubs", flag.ExitOnError)
 		top := hubsCmd.Int("top", 10, "Número máximo de nós centrais a exibir (padrão: 10)")
+		algorithm := hubsCmd.String("algorithm", "degree", "Algoritmo de centralidade: 'degree' (grau total) ou 'pagerank' (autoridade iterativa ponderada)")
+		damping := hubsCmd.Float64("damping", 0.85, "Fator de amortecimento para PageRank (padrão: 0.85)")
+		maxIter := hubsCmd.Int("iter", 30, "Número máximo de iterações para PageRank (padrão: 30)")
 		dbPath := hubsCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
 		pgURL := hubsCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := hubsCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
@@ -185,7 +188,11 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runHubsPostgres(ctx, pgStore, *targetRepo, *top)
+			if strings.ToLower(*algorithm) == "pagerank" {
+				runPageRankPostgres(ctx, pgStore, *targetRepo, *top, *damping, *maxIter)
+			} else {
+				runHubsPostgres(ctx, pgStore, *targetRepo, *top)
+			}
 		} else {
 			database, err := db.InitDB(*dbPath)
 			if err != nil {
@@ -193,7 +200,11 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runHubsSQLite(ctx, database, *top)
+			if strings.ToLower(*algorithm) == "pagerank" {
+				runPageRankSQLite(ctx, database, *top, *damping, *maxIter)
+			} else {
+				runHubsSQLite(ctx, database, *top)
+			}
 		}
 
 	case "insights":
@@ -268,8 +279,8 @@ func printHelp() {
 	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score)")
 	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
 	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), FTS5/tsvector, vetores e grafo")
-	fmt.Println("  mem hubs [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
-	fmt.Println("      Exibe os nós centrais (God Nodes / Hubs de conhecimento) com maior centralidade de conexões")
+	fmt.Println("  mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Exibe os nós centrais por grau (God Nodes) ou por autoridade estrutural (PageRank ponderado)")
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
 	fmt.Println("  mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -654,7 +665,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			return pgStore.GetNodeNeighbors(ctx, repo, nodeID, maxDepth)
 		})
 
-		srv.SetHubsHandler(func(ctx context.Context, repo string, limit int) ([]mcp.GodNode, error) {
+		srv.SetAdvancedHubsHandler(func(ctx context.Context, repo string, limit int) ([]mcp.GodNode, error) {
 			if repo == "" {
 				repo = defaultRepo
 			}
@@ -670,6 +681,29 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					InDegree:    n.InDegree,
 					OutDegree:   n.OutDegree,
 					TotalDegree: n.TotalDegree,
+				}
+			}
+			return mcpNodes, nil
+		}, func(ctx context.Context, repo string, limit int) ([]mcp.PageRankNode, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			nodes, err := pgStore.ComputePageRank(ctx, repo, 0.85, 30)
+			if err != nil {
+				return nil, err
+			}
+			if limit > 0 && len(nodes) > limit {
+				nodes = nodes[:limit]
+			}
+			mcpNodes := make([]mcp.PageRankNode, len(nodes))
+			for i, n := range nodes {
+				mcpNodes[i] = mcp.PageRankNode{
+					ID:        n.ID,
+					Name:      n.Name,
+					Score:     n.Score,
+					Rank:      n.Rank,
+					InDegree:  n.InDegree,
+					OutDegree: n.OutDegree,
 				}
 			}
 			return mcpNodes, nil
@@ -771,7 +805,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			return db.GetNodeNeighbors(ctx, database, nodeID, maxDepth)
 		})
 
-		srv.SetHubsHandler(func(ctx context.Context, repo string, limit int) ([]mcp.GodNode, error) {
+		srv.SetAdvancedHubsHandler(func(ctx context.Context, repo string, limit int) ([]mcp.GodNode, error) {
 			nodes, err := db.GetGodNodes(ctx, database, limit)
 			if err != nil {
 				return nil, err
@@ -784,6 +818,26 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					InDegree:    n.InDegree,
 					OutDegree:   n.OutDegree,
 					TotalDegree: n.TotalDegree,
+				}
+			}
+			return mcpNodes, nil
+		}, func(ctx context.Context, repo string, limit int) ([]mcp.PageRankNode, error) {
+			nodes, err := db.ComputePageRank(ctx, database, 0.85, 30)
+			if err != nil {
+				return nil, err
+			}
+			if limit > 0 && len(nodes) > limit {
+				nodes = nodes[:limit]
+			}
+			mcpNodes := make([]mcp.PageRankNode, len(nodes))
+			for i, n := range nodes {
+				mcpNodes[i] = mcp.PageRankNode{
+					ID:        n.ID,
+					Name:      n.Name,
+					Score:     n.Score,
+					Rank:      n.Rank,
+					InDegree:  n.InDegree,
+					OutDegree: n.OutDegree,
 				}
 			}
 			return mcpNodes, nil
@@ -905,6 +959,53 @@ func displayHubsTable(hubs []store.GodNode) {
 			displayName = displayName[:35] + "..."
 		}
 		fmt.Printf("%-4d | %-40s | %-10d | %-10d | %-12d\n", i+1, displayName, h.InDegree, h.OutDegree, h.TotalDegree)
+	}
+	fmt.Println()
+}
+
+func runPageRankPostgres(ctx context.Context, s *store.PostgresStore, targetRepo string, top int, damping float64, maxIter int) {
+	fmt.Printf("🌐 Calculando autoridade de nós via PageRank no PostgreSQL para repo [%s] (top %d, d=%.2f, maxIter=%d)...\n", targetRepo, top, damping, maxIter)
+	nodes, err := s.ComputePageRank(ctx, targetRepo, damping, maxIter)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao calcular PageRank: %v\n", err)
+		os.Exit(1)
+	}
+	if top > 0 && len(nodes) > top {
+		nodes = nodes[:top]
+	}
+	displayPageRankTable(nodes)
+}
+
+func runPageRankSQLite(ctx context.Context, database *sql.DB, top int, damping float64, maxIter int) {
+	fmt.Printf("🌐 Calculando autoridade de nós via PageRank no SQLite (top %d, d=%.2f, maxIter=%d)...\n", top, damping, maxIter)
+	nodes, err := db.ComputePageRank(ctx, database, damping, maxIter)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao calcular PageRank: %v\n", err)
+		os.Exit(1)
+	}
+	if top > 0 && len(nodes) > top {
+		nodes = nodes[:top]
+	}
+	displayPageRankTable(nodes)
+}
+
+func displayPageRankTable(nodes []store.PageRankNode) {
+	if len(nodes) == 0 {
+		fmt.Println("Nenhum nó ou aresta encontrado no grafo.")
+		return
+	}
+
+	fmt.Printf("\n%-4s | %-40s | %-12s | %-10s | %-10s\n", "Rank", "Nó / Documento", "Score (PR)", "Entradas", "Saídas")
+	fmt.Println(strings.Repeat("-", 85))
+	for _, n := range nodes {
+		displayName := n.Name
+		if displayName == "" {
+			displayName = n.ID
+		}
+		if len(displayName) > 38 {
+			displayName = displayName[:35] + "..."
+		}
+		fmt.Printf("%-4d | %-40s | %-12.4f | %-10d | %-10d\n", n.Rank, displayName, n.Score, n.InDegree, n.OutDegree)
 	}
 	fmt.Println()
 }
