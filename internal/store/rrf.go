@@ -2,7 +2,9 @@ package store
 
 import (
 	"fmt"
+	"math"
 	"sort"
+	"time"
 )
 
 // DefaultRRFK define a constante padrão de suavização para RRF (k = 60).
@@ -82,8 +84,57 @@ type RankedResultSource struct {
 	Results []SearchResult
 }
 
-// FuseSearchResults funde múltiplos slices de SearchResult aplicando RRF baseado no ChunkID ou DocumentID.
-func FuseSearchResults(sources []RankedResultSource, k int, limit int) []SearchResult {
+// DecayOptions configura os parâmetros de decaimento temporal exponencial para a busca híbrida.
+type DecayOptions struct {
+	Enabled  bool    `json:"enabled"`
+	HalfLife float64 `json:"half_life"` // Meia-vida em dias (padrão: 30)
+	Weight   float64 `json:"weight"`    // Peso do decaimento w in [0.0, 1.0] (padrão: 0.3)
+	RefTime  int64   `json:"ref_time"`  // Timestamp de referência Unix em segundos (0 = time.Now().Unix())
+}
+
+// DefaultDecayOptions retorna as opções padrão recomendadas (30 dias de meia-vida, peso 0.3).
+func DefaultDecayOptions() DecayOptions {
+	return DecayOptions{
+		Enabled:  false,
+		HalfLife: 30.0,
+		Weight:   0.3,
+		RefTime:  0,
+	}
+}
+
+// CalculateTimeDecay calcula o fator multiplicador temporal com base na idade do documento,
+// tempo de meia-vida e peso de decaimento com piso assintótico:
+// Multiplier = (1 - w) + w * 2^(-deltaT / Thalf)
+// Se updatedAt <= 0, retorna 1.0 (neutro).
+func CalculateTimeDecay(updatedAt, refTime int64, halfLifeDays, weight float64) float64 {
+	if updatedAt <= 0 {
+		return 1.0
+	}
+	if refTime <= 0 {
+		refTime = time.Now().Unix()
+	}
+	deltaT := refTime - updatedAt
+	if deltaT < 0 {
+		deltaT = 0
+	}
+
+	if halfLifeDays <= 0 {
+		halfLifeDays = 30.0
+	}
+	if weight < 0.0 {
+		weight = 0.0
+	} else if weight > 1.0 {
+		weight = 1.0
+	}
+
+	tHalfSeconds := halfLifeDays * 86400.0
+	decay := math.Pow(2.0, -float64(deltaT)/tHalfSeconds)
+	multiplier := (1.0 - weight) + (weight * decay)
+	return multiplier
+}
+
+// FuseSearchResultsWithDecay funde múltiplos slices de SearchResult aplicando RRF ponderado por decaimento temporal.
+func FuseSearchResultsWithDecay(sources []RankedResultSource, k int, limit int, opts DecayOptions) []SearchResult {
 	if k <= 0 {
 		k = DefaultRRFK
 	}
@@ -96,7 +147,6 @@ func FuseSearchResults(sources []RankedResultSource, k int, limit int) []SearchR
 	}
 
 	metaMap := make(map[string]*chunkMeta)
-	var orderedKeys []string
 
 	for _, src := range sources {
 		for rankIdx, res := range src.Results {
@@ -118,7 +168,6 @@ func FuseSearchResults(sources []RankedResultSource, k int, limit int) []SearchR
 					seenSrcs: make(map[string]bool),
 				}
 				metaMap[key] = meta
-				orderedKeys = append(orderedKeys, key)
 			} else {
 				// Combina conexões de grafo se presentes
 				if len(res.Neighbors) > 0 {
@@ -129,6 +178,9 @@ func FuseSearchResults(sources []RankedResultSource, k int, limit int) []SearchR
 				}
 				if meta.result.Distance == 0 && res.Distance > 0 {
 					meta.result.Distance = res.Distance
+				}
+				if res.UpdatedAt > meta.result.UpdatedAt {
+					meta.result.UpdatedAt = res.UpdatedAt
 				}
 			}
 
@@ -143,7 +195,11 @@ func FuseSearchResults(sources []RankedResultSource, k int, limit int) []SearchR
 	fused := make([]SearchResult, 0, len(metaMap))
 	for _, meta := range metaMap {
 		res := meta.result
-		res.Score = meta.score
+		decayMult := 1.0
+		if opts.Enabled {
+			decayMult = CalculateTimeDecay(res.UpdatedAt, opts.RefTime, opts.HalfLife, opts.Weight)
+		}
+		res.Score = meta.score * decayMult
 		res.Sources = meta.sources
 		fused = append(fused, res)
 	}
@@ -163,6 +219,11 @@ func FuseSearchResults(sources []RankedResultSource, k int, limit int) []SearchR
 	}
 
 	return fused
+}
+
+// FuseSearchResults funde múltiplos slices de SearchResult aplicando RRF baseado no ChunkID ou DocumentID.
+func FuseSearchResults(sources []RankedResultSource, k int, limit int) []SearchResult {
+	return FuseSearchResultsWithDecay(sources, k, limit, DecayOptions{Enabled: false})
 }
 
 func mergeNeighbors(existing, incoming []string) []string {

@@ -13,13 +13,12 @@
 
 ## Handoff
 
-- **Feature**: pagerank-and-graph-centrality (.specs/features/pagerank-and-graph-centrality)
-- **Phase / Task**: Completed / T6
-- **Completed**: T1, T2, T3, T4, T5, T6 (100% validado)
-- **In-progress**: none
-- **Next step**: Pronto para a próxima frente de desenvolvimento. Repositório 100% limpo e suíte de testes verde.
+- **Feature**: temporal-decay-and-recency-search (.specs/features/temporal-decay-and-recency-search)
+- **Phase / Task**: Phase 1 / T2
+- **Completed**: T1 (Motor Matemático de Decaimento Temporal e Fusão RRF Ponderada)
+- **In-progress**: T2 (Enriquecimento de SearchResult com UpdatedAt e Queries SQLite)
+- **Next step**: Adicionar UpdatedAt no SearchResult do pacote db e atualizar queries com JOIN em documents.
 - **Blockers**: none
-- **Uncommitted files**: none (working tree clean)
 - **Branch**: main
 
 

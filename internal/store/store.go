@@ -17,6 +17,7 @@ type SearchResult struct {
 	Score      float64  `json:"score,omitempty"`   // Pontuação acumulada de RRF
 	Sources    []string `json:"sources,omitempty"` // Origens e posições (ex: ["fts:1", "vector:3"])
 	Neighbors  []string `json:"neighbors,omitempty"`
+	UpdatedAt  int64    `json:"updated_at,omitempty"`
 }
 
 // GodNode representa um nó com alta centralidade estrutural (in-degree + out-degree) no grafo
