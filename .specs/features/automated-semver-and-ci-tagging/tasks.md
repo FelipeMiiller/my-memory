@@ -78,8 +78,8 @@ T1 -> T2 -> T3 -> T4
 **Tests**: none
 **Gate**: python .agents/skills/tlc-spec-driven/scripts/validate_spec.py .specs/features/automated-semver-and-ci-tagging/spec.md && python .agents/skills/tlc-spec-driven/scripts/validate_tasks.py .specs/features/automated-semver-and-ci-tagging/tasks.md
 **Done when**:
-- [ ] Criar ADR-019 no formato MADR documentando SemVer, regras de commits e pipeline de CI
-- [ ] Atualizar docs/CLI_GUIDE.md com comandos de versão e flags
-- [ ] Atualizar README.md com badge/seção de versionamento e ciclo de release
-- [ ] Atualizar .specs/STATE.md registrando AD-019 e handoff
-- [ ] Validar todos os gates TLC com zero erros
+- [x] Criar ADR-019 no formato MADR documentando SemVer, regras de commits e pipeline de CI
+- [x] Atualizar docs/CLI_GUIDE.md com comandos de versão e flags
+- [x] Atualizar README.md com badge/seção de versionamento e ciclo de release
+- [x] Atualizar .specs/STATE.md registrando AD-019 e handoff
+- [x] Validar todos os gates TLC com zero erros

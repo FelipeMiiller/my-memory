@@ -219,6 +219,21 @@ Executa o padrão **Compile-not-Retrieve** (Karpathy LLM Wiki): recupera os frag
 
 ---
 
+### 14. `mem version [--json]`
+Exibe a versão do executável, hash Git do commit, data de compilação, versão do Go e arquitetura do sistema operacional. Também acessível através das flags `-v` e `--version`.
+
+**Exemplo:**
+```bash
+# Saída amigável em texto:
+./bin/mem.exe version
+# my-memory v1.0.0 (commit: f855dd4, built: 2026-09-13T21:30:00Z, go: go1.23.0, windows/amd64)
+
+# Saída estruturada em JSON (ideal para agentes e scripts):
+./bin/mem.exe version --json
+```
+
+---
+
 ## ⚙️ Configuração Declarativa do Vault (`.memory/config.yaml`)
 
 O My-Memory suporta configuração declarativa por projeto ou vault de notas. Ao executar qualquer comando, o binário procura recursivamente de baixo para cima por `.memory/config.yaml`, `.mem.yaml` ou `.mem.json`.

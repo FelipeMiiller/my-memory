@@ -19,9 +19,9 @@
 ## Handoff
 
 - **Feature**: automated-semver-and-ci-tagging (.specs/features/automated-semver-and-ci-tagging)
-- **Phase / Task**: Phase 1 / T4 (In-progress)
-- **Completed**: T1, T2, T3 (Versionamento Go, Workflow de Tagging e Build Multiplataforma)
-- **In-progress**: T4 (ADR-019, Documentação e Fechamento TLC)
-- **Next step**: Criar ADR-019, atualizar docs/CLI_GUIDE.md, README.md e validação
+- **Phase / Task**: Phase 1 / T4 (Completed)
+- **Completed**: T1, T2, T3, T4 (Versionamento Go, Workflow de Tagging, Build Multiplataforma e ADR-019)
+- **In-progress**: none
+- **Next step**: Pronto para envio para a branch main e disparo da tag v1.0.0
 - **Blockers**: none
 - **Branch**: main

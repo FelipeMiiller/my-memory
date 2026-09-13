@@ -162,6 +162,13 @@ Recupera os fragmentos mais relevantes sobre um tema e compila automaticamente u
 ./bin/mem.exe compile --topic "fluxo de autenticação e tokens" --out syntheses/auth.md --limit 5
 ```
 
+#### 9. Metadados de Versão (`mem version`)
+Exibe versão SemVer, hash Git do commit, data de compilação e arquitetura em texto ou JSON estruturado:
+```bash
+./bin/mem.exe version
+./bin/mem.exe version --json
+```
+
 ---
 
 ## 🤖 Integração com Agentes de IA (MCP)
@@ -263,6 +270,7 @@ my-memory/
   - [ADR-016: Configuração Declarativa e Auto-Scoping de Vault](docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md)
   - [ADR-017: Indexação Contínua em Tempo Real com File Watcher e Git Hooks](docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md)
   - [ADR-018: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP](docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md)
+  - [ADR-019: Versionamento Semântico Automatizado e Criação de Tags no CI](docs/adr/019-versionamento-semantico-e-tagging-ci.md)
 
 ---
 
