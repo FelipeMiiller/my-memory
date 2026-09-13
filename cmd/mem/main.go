@@ -168,6 +168,32 @@ func main() {
 
 		runExportCanvas(ctx, *pgURL, *dbPath, *targetRepo, node, *depth, *outFile)
 
+	case "hubs":
+		hubsCmd := flag.NewFlagSet("hubs", flag.ExitOnError)
+		top := hubsCmd.Int("top", 10, "Número máximo de nós centrais a exibir (padrão: 10)")
+		dbPath := hubsCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
+		pgURL := hubsCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := hubsCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
+		hubsCmd.Parse(os.Args[2:])
+
+		if *pgURL != "" {
+			pgStore, err := store.NewPostgresStore(*pgURL)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
+				os.Exit(1)
+			}
+			defer pgStore.Close()
+			runHubsPostgres(ctx, pgStore, *targetRepo, *top)
+		} else {
+			database, err := db.InitDB(*dbPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
+				os.Exit(1)
+			}
+			defer database.Close()
+			runHubsSQLite(ctx, database, *top)
+		}
+
 	default:
 		printHelp()
 	}
@@ -180,6 +206,8 @@ func printHelp() {
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 (use --force para reconstruir)")
 	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
 	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), FTS5/tsvector, vetores e grafo")
+	fmt.Println("  mem hubs [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Exibe os nós centrais (God Nodes / Hubs de conhecimento) com maior centralidade de conexões")
 	fmt.Println("  mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exporta um subgrafo em torno de uma nota no formato aberto JSON Canvas (.canvas) do Obsidian")
 	fmt.Println("  mem mcp [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -229,10 +257,10 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 			return err
 		}
 
-		// 2. Extrai e salva conexões do grafo ([[wikilinks]])
+		// 2. Extrai e salva conexões do grafo ([[wikilinks]], tags e relações tipadas)
 		connections := parser.ExtractConnections(content)
-		for _, link := range connections.OutgoingLinks {
-			_ = s.InsertEdge(ctx, targetRepo, docID, link, "links_to")
+		for _, edge := range connections.Edges {
+			_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 		}
 
 		// 3. Divide em chunks e gera embeddings
@@ -249,7 +277,7 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 		}
 
 		indexedCount++
-		fmt.Printf("✔ Indexado no Postgres: %s (%d links, %d chunks)\n", title, len(connections.OutgoingLinks), len(chunks))
+		fmt.Printf("✔ Indexado no Postgres: %s (%d arestas, %d chunks)\n", title, len(connections.Edges), len(chunks))
 		return nil
 	})
 
@@ -299,10 +327,10 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 			return err
 		}
 
-		// 2. Extrai e salva conexões do grafo ([[wikilinks]])
+		// 2. Extrai e salva conexões do grafo ([[wikilinks]], tags e relações tipadas)
 		connections := parser.ExtractConnections(content)
-		for _, link := range connections.OutgoingLinks {
-			_ = db.InsertEdge(ctx, database, docID, link, "links_to")
+		for _, edge := range connections.Edges {
+			_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 		}
 
 		// 3. Divide em chunks e gera embeddings
@@ -326,7 +354,7 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 		}
 
 		indexedCount++
-		fmt.Printf("✔ Indexado no SQLite: %s (%d links, %d chunks comprimidos)\n", title, len(connections.OutgoingLinks), len(chunks))
+		fmt.Printf("✔ Indexado no SQLite: %s (%d arestas, %d chunks comprimidos)\n", title, len(connections.Edges), len(chunks))
 		return nil
 	})
 
@@ -531,6 +559,27 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return pgStore.GetNodeNeighbors(ctx, repo, nodeID, maxDepth)
 		})
+
+		srv.SetHubsHandler(func(ctx context.Context, repo string, limit int) ([]mcp.GodNode, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			nodes, err := pgStore.GetGodNodes(ctx, repo, limit)
+			if err != nil {
+				return nil, err
+			}
+			mcpNodes := make([]mcp.GodNode, len(nodes))
+			for i, n := range nodes {
+				mcpNodes[i] = mcp.GodNode{
+					ID:          n.ID,
+					Name:        n.Name,
+					InDegree:    n.InDegree,
+					OutDegree:   n.OutDegree,
+					TotalDegree: n.TotalDegree,
+				}
+			}
+			return mcpNodes, nil
+		})
 	} else if database != nil {
 		tq := turboquant.NewQuantizer(EmbeddingDim)
 		srv.SetAdvancedSearchHandler(func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -586,6 +635,24 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 		srv.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
 			return db.GetNodeNeighbors(ctx, database, nodeID, maxDepth)
 		})
+
+		srv.SetHubsHandler(func(ctx context.Context, repo string, limit int) ([]mcp.GodNode, error) {
+			nodes, err := db.GetGodNodes(ctx, database, limit)
+			if err != nil {
+				return nil, err
+			}
+			mcpNodes := make([]mcp.GodNode, len(nodes))
+			for i, n := range nodes {
+				mcpNodes[i] = mcp.GodNode{
+					ID:          n.ID,
+					Name:        n.Name,
+					InDegree:    n.InDegree,
+					OutDegree:   n.OutDegree,
+					TotalDegree: n.TotalDegree,
+				}
+			}
+			return mcpNodes, nil
+		})
 	}
 
 	if err := srv.Run(ctx); err != nil && err != context.Canceled {
@@ -633,4 +700,46 @@ func runExportCanvas(ctx context.Context, pgURL, dbPath, repo, nodeID string, ma
 		fmt.Printf("Conexões mapeadas: %s\n", strings.Join(neighbors, ", "))
 	}
 }
+
+func runHubsPostgres(ctx context.Context, s *store.PostgresStore, targetRepo string, top int) {
+	fmt.Printf("🌟 Calculando nós centrais (God Nodes / Hubs) no PostgreSQL para repo [%s] (top %d)...\n", targetRepo, top)
+	hubs, err := s.GetGodNodes(ctx, targetRepo, top)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao buscar nós centrais: %v\n", err)
+		os.Exit(1)
+	}
+	displayHubsTable(hubs)
+}
+
+func runHubsSQLite(ctx context.Context, database *sql.DB, top int) {
+	fmt.Printf("🌟 Calculando nós centrais (God Nodes / Hubs) no SQLite (top %d)...\n", top)
+	hubs, err := db.GetGodNodes(ctx, database, top)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao buscar nós centrais: %v\n", err)
+		os.Exit(1)
+	}
+	displayHubsTable(hubs)
+}
+
+func displayHubsTable(hubs []store.GodNode) {
+	if len(hubs) == 0 {
+		fmt.Println("Nenhum nó ou aresta encontrado no grafo.")
+		return
+	}
+
+	fmt.Printf("\n%-4s | %-40s | %-10s | %-10s | %-12s\n", "Rank", "Nó / Documento", "Entradas", "Saídas", "Total Grau")
+	fmt.Println(strings.Repeat("-", 85))
+	for i, h := range hubs {
+		displayName := h.Name
+		if displayName == "" {
+			displayName = h.ID
+		}
+		if len(displayName) > 38 {
+			displayName = displayName[:35] + "..."
+		}
+		fmt.Printf("%-4d | %-40s | %-10d | %-10d | %-12d\n", i+1, displayName, h.InDegree, h.OutDegree, h.TotalDegree)
+	}
+	fmt.Println()
+}
+
 

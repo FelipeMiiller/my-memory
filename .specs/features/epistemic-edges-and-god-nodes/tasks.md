@@ -86,9 +86,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/store/... ./internal/mcp/...
 **Done when**:
-- [ ] Salvar Edges extraídas via InsertEdgeWithProps em runIndexPostgres e runIndexSQLite
-- [ ] Adicionar comando mem hubs exibindo tabela de centralidade de nós
-- [ ] Atualizar documentação do help do CLI
+- [x] Salvar Edges extraídas via InsertEdgeWithProps em runIndexPostgres e runIndexSQLite
+- [x] Adicionar comando mem hubs exibindo tabela de centralidade de nós
+- [x] Atualizar documentação do help do CLI
 
 ### T6: ADR-011 e Validação
 **What**: Documentar ADR-011, atualizar STATE.md e gerar relatório validation.md
