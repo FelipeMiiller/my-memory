@@ -1,4 +1,4 @@
-﻿# Binários e executáveis Go
+# Binários e executáveis Go
 bin/
 dist/
 *.exe
@@ -27,3 +27,5 @@ vault_test/
 *.swp
 *.swo
 .DS_Store
+__pycache__/
+*.pyc

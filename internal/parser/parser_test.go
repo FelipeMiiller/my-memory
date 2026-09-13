@@ -139,3 +139,84 @@ func TestChunkTextShort(t *testing.T) {
 		t.Errorf("Esperava %q, obteve %q", text, chunks[0])
 	}
 }
+
+func TestExtractConnections_TypedEdges(t *testing.T) {
+	markdown := `---
+title: Nota com Arestas Epistêmicas
+relations:
+  supports:
+    - TeoriaGeral
+  refutes:
+    - HipoteseLegada
+---
+
+# Desenvolvimento
+
+Este componente [[implements:Arquitetura]] e possui dependência em [[BancoDados|rel:depends_on]].
+Também conecta com [[NotaSimples]] e estende [[extends:ModuloBase]].
+Tags do documento: #arquitetura #mvp
+`
+
+	conn := ExtractConnections(markdown)
+
+	// 1. Verifica OutgoingLinks (retrocompatibilidade)
+	expectedOutgoing := []string{"Arquitetura", "BancoDados", "NotaSimples", "ModuloBase", "TeoriaGeral", "HipoteseLegada"}
+	for _, exp := range expectedOutgoing {
+		found := false
+		for _, out := range conn.OutgoingLinks {
+			if out == exp {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("OutgoingLinks deve conter %s, obteve %v", exp, conn.OutgoingLinks)
+		}
+	}
+
+	// 2. Verifica Edges tipadas e epistêmicas
+	findEdge := func(target, relation string) *EdgeConnection {
+		for _, e := range conn.Edges {
+			if e.Target == target && e.Relation == relation {
+				return &e
+			}
+		}
+		return nil
+	}
+
+	// Verifica prefixo implements
+	if e := findEdge("Arquitetura", "implements"); e == nil || e.EpistemicStatus != "EXTRACTED" || e.Weight != 1.0 {
+		t.Errorf("Aresta 'implements:Arquitetura' não encontrada ou inválida: %+v", e)
+	}
+
+	// Verifica alias rel:depends_on
+	if e := findEdge("BancoDados", "depends_on"); e == nil || e.EpistemicStatus != "EXTRACTED" {
+		t.Errorf("Aresta 'depends_on:BancoDados' não encontrada: %+v", e)
+	}
+
+	// Verifica link padrão links_to
+	if e := findEdge("NotaSimples", "links_to"); e == nil || e.EpistemicStatus != "EXTRACTED" {
+		t.Errorf("Aresta 'links_to:NotaSimples' não encontrada: %+v", e)
+	}
+
+	// Verifica prefixo extends
+	if e := findEdge("ModuloBase", "extends"); e == nil {
+		t.Errorf("Aresta 'extends:ModuloBase' não encontrada: %+v", e)
+	}
+
+	// Verifica tags como tagged_as
+	if e := findEdge("arquitetura", "tagged_as"); e == nil {
+		t.Errorf("Aresta de tag 'tagged_as:arquitetura' não encontrada: %+v", e)
+	}
+	if e := findEdge("mvp", "tagged_as"); e == nil {
+		t.Errorf("Aresta de tag 'tagged_as:mvp' não encontrada: %+v", e)
+	}
+
+	// Verifica frontmatter relations
+	if e := findEdge("TeoriaGeral", "supports"); e == nil {
+		t.Errorf("Aresta frontmatter 'supports:TeoriaGeral' não encontrada: %+v", e)
+	}
+	if e := findEdge("HipoteseLegada", "refutes"); e == nil {
+		t.Errorf("Aresta frontmatter 'refutes:HipoteseLegada' não encontrada: %+v", e)
+	}
+}
