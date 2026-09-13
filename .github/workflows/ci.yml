@@ -128,7 +128,7 @@ jobs:
         run: go mod download
 
       - name: Run SQLite Tests (CGO, FTS5 & sqlite-vec)
-        run: CGO_ENABLED=1 go test -v -cover ./internal/db/...
+        run: CGO_ENABLED=1 go test -tags "sqlite_fts5" -v -cover ./internal/db/...
 
       - name: Run PostgreSQL Integration Tests (pgvector)
         env:
@@ -139,7 +139,7 @@ jobs:
         env:
           MY_MEMORY_PG_URL: postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable
         run: |
-          CGO_ENABLED=1 go test -v -coverprofile=db-coverage.txt -covermode=atomic ./internal/db/... ./internal/store/...
+          CGO_ENABLED=1 go test -tags "sqlite_fts5" -v -coverprofile=db-coverage.txt -covermode=atomic ./internal/db/... ./internal/store/...
 
       - name: Upload DB Coverage Artifact
         uses: actions/upload-artifact@v4
@@ -168,5 +168,5 @@ jobs:
       - name: Verify CLI Compilation
         run: |
           mkdir -p bin
-          CGO_ENABLED=1 go build -v -o bin/mem ./cmd/mem
+          CGO_ENABLED=1 go build -tags "sqlite_fts5" -v -o bin/mem ./cmd/mem
           ls -lh bin/mem
