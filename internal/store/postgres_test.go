@@ -41,6 +41,17 @@ func TestPostgresStore_SearchFTS_EmptyQuery(t *testing.T) {
 	}
 }
 
+func TestPostgresStore_SearchHybridRRFWithDecay_EmptyInputs(t *testing.T) {
+	s := &PostgresStore{}
+	res, err := s.SearchHybridRRFWithDecay(nil, "repo", "   ", nil, 10, 60, DefaultDecayOptions())
+	if err != nil {
+		t.Fatalf("Esperava erro nulo para inputs vazios, obteve: %v", err)
+	}
+	if len(res) != 0 {
+		t.Errorf("Esperava resultado vazio para inputs vazios, obteve %d itens", len(res))
+	}
+}
+
 func TestPostgresSchema_ContentHash(t *testing.T) {
 	if !strings.Contains(PostgresSchema, "content_hash TEXT") {
 		t.Fatalf("PostgresSchema deve conter coluna content_hash TEXT")

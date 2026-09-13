@@ -129,6 +129,9 @@ type Store interface {
 	// SearchHybridRRF executa busca híbrida fundindo FTS, vetores e grafo via RRF
 	SearchHybridRRF(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int) ([]SearchResult, error)
 
+	// SearchHybridRRFWithDecay executa busca híbrida com RRF ponderado por decaimento temporal
+	SearchHybridRRFWithDecay(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, opts DecayOptions) ([]SearchResult, error)
+
 	// GetNodeNeighbors executa busca recursiva de nós vizinhos conectados via CTE
 	GetNodeNeighbors(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error)
 

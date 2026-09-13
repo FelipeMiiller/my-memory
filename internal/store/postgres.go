@@ -461,8 +461,10 @@ func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []f
 	vecStr := FormatVector(queryVec)
 
 	query := `
-		SELECT c.id, c.document_id, c.repository, c.content, (c.embedding <=> $1::vector) AS distance
+		SELECT c.id, c.document_id, c.repository, c.content, (c.embedding <=> $1::vector) AS distance,
+		       COALESCE(d.updated_at, 0)
 		FROM chunks c
+		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
 		ORDER BY c.embedding <=> $1::vector
 		LIMIT $3
@@ -477,7 +479,7 @@ func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []f
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &r.Distance); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &r.Distance, &r.UpdatedAt); err != nil {
 			return nil, err
 		}
 
@@ -532,8 +534,10 @@ func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string
 
 	q := `
 		SELECT c.id, c.document_id, c.repository, c.content,
-		       ts_rank(to_tsvector('simple', c.content), plainto_tsquery('simple', $1)) AS rank
+		       ts_rank(to_tsvector('simple', c.content), plainto_tsquery('simple', $1)) AS rank,
+		       COALESCE(d.updated_at, 0)
 		FROM chunks c
+		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
 		  AND to_tsvector('simple', c.content) @@ plainto_tsquery('simple', $1)
 		ORDER BY rank DESC
@@ -550,7 +554,7 @@ func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string
 	for rows.Next() {
 		var r SearchResult
 		var rank float64
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &rank); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &rank, &r.UpdatedAt); err != nil {
 			return nil, err
 		}
 		r.Distance = rank
@@ -567,6 +571,10 @@ func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string
 }
 
 func (s *PostgresStore) SearchHybridRRF(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int) ([]SearchResult, error) {
+	return s.SearchHybridRRFWithDecay(ctx, repo, query, queryVec, limit, k, DefaultDecayOptions())
+}
+
+func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, opts DecayOptions) ([]SearchResult, error) {
 	candidateLimit := limit * 2
 	if candidateLimit < 10 {
 		candidateLimit = 10
@@ -609,9 +617,10 @@ func (s *PostgresStore) SearchHybridRRF(ctx context.Context, repo string, query 
 
 		for _, n := range neighbors {
 			rows, err := s.db.QueryContext(ctx, `
-				SELECT id, document_id, repository, content
-				FROM chunks
-				WHERE document_id = $1 AND ($2 = '' OR repository = $2)
+				SELECT c.id, c.document_id, c.repository, c.content, COALESCE(d.updated_at, 0)
+				FROM chunks c
+				LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
+				WHERE c.document_id = $1 AND ($2 = '' OR repository = $2)
 				ORDER BY chunk_index
 				LIMIT 2
 			`, n, repo)
@@ -621,7 +630,7 @@ func (s *PostgresStore) SearchHybridRRF(ctx context.Context, repo string, query 
 
 			for rows.Next() {
 				var gr SearchResult
-				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Repository, &gr.Content); err == nil {
+				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Repository, &gr.Content, &gr.UpdatedAt); err == nil {
 					if !seenChunks[gr.ChunkID] {
 						seenChunks[gr.ChunkID] = true
 						graphResults = append(graphResults, gr)
@@ -632,14 +641,14 @@ func (s *PostgresStore) SearchHybridRRF(ctx context.Context, repo string, query 
 		}
 	}
 
-	// 4. Fusão RRF através de FuseSearchResults
+	// 4. Fusão RRF através de FuseSearchResultsWithDecay
 	sources := []RankedResultSource{
 		{Name: "fts", Results: ftsResults},
 		{Name: "vector", Results: vecResults},
 		{Name: "graph", Results: graphResults},
 	}
 
-	return FuseSearchResults(sources, k, limit), nil
+	return FuseSearchResultsWithDecay(sources, k, limit, opts), nil
 }
 
 // FindSurprisingConnections descobre conexões latentes entre documentos conceitualmente similares sem arestas no grafo

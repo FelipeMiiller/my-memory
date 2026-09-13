@@ -65,10 +65,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/store/postgres_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Declarar SearchHybridRRFWithDecay na interface Store
-- [ ] Atualizar queries de SearchFTS e SearchKNN no PostgresStore populando UpdatedAt
-- [ ] Implementar SearchHybridRRFWithDecay no PostgresStore
-- [ ] Validar conformidade de interface Store
+- [x] Declarar SearchHybridRRFWithDecay na interface Store
+- [x] Atualizar queries de SearchFTS e SearchKNN no PostgresStore populando UpdatedAt
+- [x] Implementar SearchHybridRRFWithDecay no PostgresStore
+- [x] Validar conformidade de interface Store
 
 ### T4: Parâmetros de Decaimento na Ferramenta MCP memory_search
 **What**: Adicionar propriedades decay, half_life e decay_weight no schema e handler de memory_search
