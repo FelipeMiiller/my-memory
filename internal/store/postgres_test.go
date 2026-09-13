@@ -154,6 +154,18 @@ func TestPostgresStore_Integration(t *testing.T) {
 		t.Errorf("GetGodNodes retornou lista vazia")
 	}
 
+	// 3.1. PageRank no PostgreSQL
+	prNodes, err := s.ComputePageRank(ctx, repo, 0.85, 20)
+	if err != nil {
+		t.Fatalf("ComputePageRank falhou: %v", err)
+	}
+	if len(prNodes) == 0 {
+		t.Errorf("ComputePageRank retornou lista vazia")
+	}
+	if prNodes[0].Rank != 1 || prNodes[0].Score <= 0 {
+		t.Errorf("Primeiro nó do PageRank PostgreSQL com rank ou score inválido: %+v", prNodes[0])
+	}
+
 	// 4. Conexões Inesperadas (Surprising Connections)
 	// Insere doc-close com embedding similar a doc-1 mas sem aresta no grafo
 	closeDocID := "doc-close"

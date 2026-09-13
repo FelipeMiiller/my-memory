@@ -63,9 +63,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/store/postgres_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Implementar ComputePageRank em internal/store/postgres.go
-- [ ] Validar conformidade de interface Store
-- [ ] Adicionar testes unitários com filtro de repositório
+- [x] Implementar ComputePageRank em internal/store/postgres.go
+- [x] Validar conformidade de interface Store
+- [x] Adicionar testes unitários com filtro de repositório
 
 ### T4: Suporte a PageRank na Ferramenta MCP memory_get_hubs
 **What**: Adicionar parâmetro algorithm no schema e handler de memory_get_hubs

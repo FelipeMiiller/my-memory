@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	_ "github.com/lib/pq"
+
+	"github.com/FelipeMiiller/my-memory/internal/graph"
 )
 
 // PostgresStore implementa a interface Store utilizando PostgreSQL e extensão pgvector
@@ -335,6 +337,124 @@ func (s *PostgresStore) GetGodNodes(ctx context.Context, repo string, limit int)
 		hubs = append(hubs, h)
 	}
 	return hubs, nil
+}
+
+// ComputePageRank calcula a autoridade dos nós no grafo PostgreSQL utilizando o algoritmo PageRank ponderado
+func (s *PostgresStore) ComputePageRank(ctx context.Context, repo string, damping float64, maxIter int) ([]PageRankNode, error) {
+	if damping <= 0 || damping >= 1.0 {
+		damping = graph.DefaultDamping
+	}
+	if maxIter <= 0 {
+		maxIter = graph.DefaultMaxIter
+	}
+
+	// 1. Carregar documentos e nós do grafo mapeando ID -> Nome
+	nameMap := make(map[string]string)
+	docRows, err := s.db.QueryContext(ctx, "SELECT id, title FROM documents WHERE ($1 = '' OR repository = $1)", repo)
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id, title string
+			if err := docRows.Scan(&id, &title); err == nil {
+				nameMap[id] = title
+			}
+		}
+	}
+
+	nodeRows, err := s.db.QueryContext(ctx, "SELECT id, name FROM graph_nodes WHERE ($1 = '' OR repository = $1)", repo)
+	if err == nil {
+		defer nodeRows.Close()
+		for nodeRows.Next() {
+			var id, name string
+			if err := nodeRows.Scan(&id, &name); err == nil {
+				if _, exists := nameMap[id]; !exists || nameMap[id] == "" {
+					nameMap[id] = name
+				}
+			}
+		}
+	}
+
+	// 2. Carregar arestas e contabilizar graus
+	inDegrees := make(map[string]int)
+	outDegrees := make(map[string]int)
+	nodesSet := make(map[string]bool)
+
+	for id := range nameMap {
+		nodesSet[id] = true
+	}
+
+	edgeQuery := `SELECT source_id, target_id, COALESCE(epistemic_status, 'EXTRACTED'), COALESCE(weight, 1.0) 
+                  FROM graph_edges 
+                  WHERE ($1 = '' OR repository = $1)`
+	edgeRows, err := s.db.QueryContext(ctx, edgeQuery, repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para pagerank postgres: %w", err)
+	}
+	defer edgeRows.Close()
+
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, edgeType string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &edgeType, &weight); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		outDegrees[src]++
+		inDegrees[tgt]++
+		edges = append(edges, graph.WeightedEdge{
+			Source: src,
+			Target: tgt,
+			Type:   edgeType,
+			Weight: weight,
+		})
+	}
+
+	var allNodes []string
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+
+	if len(allNodes) == 0 {
+		return []PageRankNode{}, nil
+	}
+
+	// 3. Executar o algoritmo de PageRank
+	scores := graph.ComputePageRank(allNodes, edges, graph.PageRankOptions{
+		DampingFactor: damping,
+		MaxIterations: maxIter,
+		Tolerance:     1e-6,
+	})
+
+	// 4. Montar slice de PageRankNode e ordenar descendentemente
+	results := make([]PageRankNode, 0, len(scores))
+	for nodeID, score := range scores {
+		name := nameMap[nodeID]
+		if name == "" {
+			name = nodeID
+		}
+		results = append(results, PageRankNode{
+			ID:        nodeID,
+			Name:      name,
+			Score:     score,
+			InDegree:  inDegrees[nodeID],
+			OutDegree: outDegrees[nodeID],
+		})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].Score != results[j].Score {
+			return results[i].Score > results[j].Score
+		}
+		return results[i].InDegree > results[j].InDegree
+	})
+
+	for i := range results {
+		results[i].Rank = i + 1
+	}
+
+	return results, nil
 }
 
 func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []float32, limit int) ([]SearchResult, error) {

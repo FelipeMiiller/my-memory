@@ -113,6 +113,9 @@ type Store interface {
 	// GetGodNodes retorna os nós centrais com maior centralidade de conexões
 	GetGodNodes(ctx context.Context, repo string, limit int) ([]GodNode, error)
 
+	// ComputePageRank calcula os nós mais autoritativos via algoritmo de PageRank ponderado
+	ComputePageRank(ctx context.Context, repo string, damping float64, maxIter int) ([]PageRankNode, error)
+
 	// FindSurprisingConnections descobre conexões latentes entre documentos conceitualmente similares sem arestas no grafo
 	FindSurprisingConnections(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error)
 
