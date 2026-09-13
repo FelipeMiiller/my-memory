@@ -482,3 +482,111 @@ func TestFormatHubs_Empty(t *testing.T) {
 		t.Errorf("esperava mensagem de vazio, obteve: %s", got)
 	}
 }
+
+func TestServer_ToolsCall_MemoryGetInsights_Success(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 50, "method": "tools/call", "params": {"name": "memory_get_insights", "arguments": {"repository": "my-org/my-repo", "limit": 3, "min_similarity": 0.80}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	srv.SetInsightsHandler(func(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error) {
+		if repo != "my-org/my-repo" {
+			t.Errorf("esperava repo 'my-org/my-repo', obteve '%s'", repo)
+		}
+		if limit != 3 {
+			t.Errorf("esperava limit 3, obteve %d", limit)
+		}
+		if minSimilarity != 0.80 {
+			t.Errorf("esperava minSimilarity 0.80, obteve %f", minSimilarity)
+		}
+		return []SurprisingConnection{
+			{
+				SourceID:   "doc-a",
+				SourceName: "Arquitetura Híbrida",
+				TargetID:   "doc-b",
+				TargetName: "Design Patterns Go",
+				Similarity: 0.875,
+				Reason:     "Alta proximidade semântica (88%) sem conexão direta no grafo",
+			},
+		}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta: %v\nSaída: %s", err, out.String())
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	if err := json.Unmarshal(resBytes, &callResult); err != nil {
+		t.Fatalf("erro ao decodificar CallToolResult: %v", err)
+	}
+
+	if len(callResult.Content) == 0 {
+		t.Fatalf("esperava conteúdo na resposta")
+	}
+
+	text := callResult.Content[0].Text
+	if !strings.Contains(text, "Arquitetura Híbrida") {
+		t.Errorf("resposta deve conter 'Arquitetura Híbrida', obteve: %s", text)
+	}
+	if !strings.Contains(text, "Design Patterns Go") {
+		t.Errorf("resposta deve conter 'Design Patterns Go', obteve: %s", text)
+	}
+	if !strings.Contains(text, "87.5%") {
+		t.Errorf("resposta deve conter '87.5%%', obteve: %s", text)
+	}
+}
+
+func TestServer_ToolsCall_MemoryGetInsights_Defaults(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 51, "method": "tools/call", "params": {"name": "memory_get_insights"}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	called := false
+	srv.SetInsightsHandler(func(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error) {
+		called = true
+		if limit != 10 {
+			t.Errorf("esperava limit default 10, obteve %d", limit)
+		}
+		if minSimilarity != 0.70 {
+			t.Errorf("esperava minSimilarity default 0.70, obteve %f", minSimilarity)
+		}
+		return []SurprisingConnection{}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	if !called {
+		t.Fatalf("handler de insights deveria ter sido chamado")
+	}
+
+	var resp Response
+	_ = json.Unmarshal(out.Bytes(), &resp)
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	_ = json.Unmarshal(resBytes, &callResult)
+	if len(callResult.Content) == 0 || !strings.Contains(callResult.Content[0].Text, "Nenhuma conexão inesperada encontrada") {
+		t.Errorf("esperava mensagem vazia de retorno, obteve: %+v", callResult)
+	}
+}
+
+func TestFormatInsights_Empty(t *testing.T) {
+	got := FormatInsights(nil)
+	if !strings.Contains(got, "Nenhuma conexão inesperada") {
+		t.Errorf("esperava mensagem de vazio, obteve: %s", got)
+	}
+}

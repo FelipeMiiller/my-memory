@@ -82,6 +82,19 @@ type GodNode struct {
 // HubsFunc assinatura da função que calcula nós centrais (God Nodes / Hubs)
 type HubsFunc func(ctx context.Context, repo string, limit int) ([]GodNode, error)
 
+// SurprisingConnection representa uma conexão latente sem link direto no grafo
+type SurprisingConnection struct {
+	SourceID   string  `json:"source_id"`
+	SourceName string  `json:"source_name"`
+	TargetID   string  `json:"target_id"`
+	TargetName string  `json:"target_name"`
+	Similarity float64 `json:"similarity"`
+	Reason     string  `json:"reason"`
+}
+
+// InsightsFunc assinatura da função que calcula conexões latentes/inesperadas
+type InsightsFunc func(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error)
+
 // FormatSearchResults formata os resultados da busca em texto legível
 func FormatSearchResults(results []SearchResult) string {
 	if len(results) == 0 {
@@ -452,6 +465,80 @@ func NewMemoryGetHubsHandler(hubsFn HubsFunc) ToolHandlerFunc {
 // SetHubsHandler configura a função de cálculo de hubs para memory_get_hubs
 func (s *Server) SetHubsHandler(fn HubsFunc) {
 	s.RegisterToolHandler("memory_get_hubs", NewMemoryGetHubsHandler(fn))
+}
+
+// FormatInsights formata a lista de conexões inesperadas em texto legível para LLMs
+func FormatInsights(connections []SurprisingConnection) string {
+	if len(connections) == 0 {
+		return "Nenhuma conexão inesperada encontrada com os critérios especificados."
+	}
+	var sb strings.Builder
+	sb.WriteString("💡 Conexões Inesperadas e Pontes Conceituais Latentes:\n\n")
+	for i, c := range connections {
+		src := c.SourceName
+		if src == "" {
+			src = c.SourceID
+		}
+		tgt := c.TargetName
+		if tgt == "" {
+			tgt = c.TargetID
+		}
+		fmt.Fprintf(&sb, "[%d] %s <--> %s (Similaridade: %.1f%%)\n",
+			i+1, src, tgt, c.Similarity*100)
+		if c.Reason != "" {
+			fmt.Fprintf(&sb, "    Razão: %s\n", c.Reason)
+		}
+		if c.SourceID != src || c.TargetID != tgt {
+			fmt.Fprintf(&sb, "    IDs: %s <--> %s\n", c.SourceID, c.TargetID)
+		}
+	}
+	return sb.String()
+}
+
+// NewMemoryGetInsightsHandler cria o handler para a ferramenta memory_get_insights
+func NewMemoryGetInsightsHandler(insightsFn InsightsFunc) ToolHandlerFunc {
+	return func(ctx context.Context, args json.RawMessage) (any, error) {
+		limit := 10
+		minSimilarity := 0.70
+		var repo string
+
+		if len(args) > 0 {
+			var rawMap map[string]json.RawMessage
+			if err := json.Unmarshal(args, &rawMap); err == nil {
+				if rawLimit, hasLimit := rawMap["limit"]; hasLimit {
+					var l int
+					if err := json.Unmarshal(rawLimit, &l); err == nil && l > 0 {
+						limit = l
+					}
+				}
+				if rawSim, hasSim := rawMap["min_similarity"]; hasSim {
+					var s float64
+					if err := json.Unmarshal(rawSim, &s); err == nil && s > 0 {
+						minSimilarity = s
+					}
+				}
+				if rawRepo, hasRepo := rawMap["repository"]; hasRepo {
+					_ = json.Unmarshal(rawRepo, &repo)
+				}
+			}
+		}
+
+		if insightsFn == nil {
+			return nil, NewError(CodeInternalError, "Backend de cálculo de insights não configurado", nil)
+		}
+
+		connections, err := insightsFn(ctx, repo, limit, minSimilarity)
+		if err != nil {
+			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao buscar insights conceituais: %v", err), nil)
+		}
+
+		return NewTextResult(FormatInsights(connections)), nil
+	}
+}
+
+// SetInsightsHandler configura a função de cálculo de conexões inesperadas para memory_get_insights
+func (s *Server) SetInsightsHandler(fn InsightsFunc) {
+	s.RegisterToolHandler("memory_get_insights", NewMemoryGetInsightsHandler(fn))
 }
 
 // handleToolsCall despacha a execução da ferramenta indicada no campo 'name'

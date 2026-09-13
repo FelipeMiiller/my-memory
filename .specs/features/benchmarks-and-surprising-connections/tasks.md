@@ -63,10 +63,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/mcp/handlers_test.go
 **Gate**: go test -v ./internal/mcp/...
 **Done when**:
-- [ ] Declarar ToolMemoryGetInsights no catálogo tools.go
-- [ ] Implementar NewMemoryGetInsightsHandler e FormatInsights em handlers.go
-- [ ] Registrar ferramenta em NewServer e expor SetInsightsHandler
-- [ ] Adicionar testes unitários validando chamadas e respostas da ferramenta
+- [x] Declarar ToolMemoryGetInsights no catálogo tools.go
+- [x] Implementar NewMemoryGetInsightsHandler e FormatInsights em handlers.go
+- [x] Registrar ferramenta em NewServer e expor SetInsightsHandler
+- [x] Adicionar testes unitários validando chamadas e respostas da ferramenta
 
 ### T4: CLI mem bench e mem insights
 **What**: Adicionar subcomandos mem bench e mem insights na CLI

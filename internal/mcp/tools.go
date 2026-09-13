@@ -111,6 +111,28 @@ var (
 			},
 		},
 	}
+
+	ToolMemoryGetInsights = Tool{
+		Name:        "memory_get_insights",
+		Description: "Retorna conexões latentes e surpreendentes (Surprising Connections) entre notas com alta similaridade sem links diretos no grafo",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Número máximo de conexões latentes a retornar (padrão: 10)",
+				},
+				"min_similarity": map[string]any{
+					"type":        "number",
+					"description": "Limiar mínimo de similaridade semântica entre as notas (padrão: 0.70)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou nome do repositório para filtrar as conexões inesperadas (opcional)",
+				},
+			},
+		},
+	}
 )
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor
