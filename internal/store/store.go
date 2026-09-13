@@ -16,6 +16,15 @@ type SearchResult struct {
 	Neighbors  []string `json:"neighbors,omitempty"`
 }
 
+// GodNode representa um nó com alta centralidade estrutural (in-degree + out-degree) no grafo
+type GodNode struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	InDegree    int    `json:"in_degree"`
+	OutDegree   int    `json:"out_degree"`
+	TotalDegree int    `json:"total_degree"`
+}
+
 // Store define o contrato agnóstico de armazenamento para SQLite e PostgreSQL
 type Store interface {
 	// InsertDocument insere ou atualiza um documento atrelado ao repositório
@@ -30,8 +39,14 @@ type Store interface {
 	// InsertChunk insere um pedaço de texto e seu vetor de embedding
 	InsertChunk(ctx context.Context, repo, chunkID, docID, content string, index int, vec []float32) error
 
-	// InsertEdge adiciona uma aresta no grafo relacional
+	// InsertEdge adiciona uma aresta padrão no grafo relacional
 	InsertEdge(ctx context.Context, repo, sourceID, targetID, relation string) error
+
+	// InsertEdgeWithProps adiciona uma aresta tipada com status epistêmico e peso no grafo
+	InsertEdgeWithProps(ctx context.Context, repo, sourceID, targetID, relation, epistemicStatus string, weight float64) error
+
+	// GetGodNodes retorna os nós centrais com maior centralidade de conexões
+	GetGodNodes(ctx context.Context, repo string, limit int) ([]GodNode, error)
 
 	// SearchKNN busca os K pedaços mais próximos vetorialmente (se repo != "", filtra por repositório)
 	SearchKNN(ctx context.Context, repo string, queryVec []float32, limit int) ([]SearchResult, error)

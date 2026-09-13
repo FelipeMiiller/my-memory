@@ -50,9 +50,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/store/store.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Definir struct GodNode no pacote store
-- [ ] Adicionar colunas epistemic_status e weight em graph_edges no schema SQLite
-- [ ] Implementar InsertEdgeWithProps e GetGodNodes no SQLite
+- [x] Definir struct GodNode no pacote store
+- [x] Adicionar colunas epistemic_status e weight em graph_edges no schema SQLite
+- [x] Implementar InsertEdgeWithProps e GetGodNodes no SQLite
 
 ### T3: Implementação no PostgreSQL
 **What**: Implementar InsertEdgeWithProps e GetGodNodes no PostgresStore

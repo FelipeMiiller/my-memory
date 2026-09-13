@@ -48,7 +48,9 @@ CREATE TABLE IF NOT EXISTS graph_nodes (
 CREATE TABLE IF NOT EXISTS graph_edges (
     source_id TEXT NOT NULL REFERENCES graph_nodes(id) ON DELETE CASCADE,
     target_id TEXT NOT NULL REFERENCES graph_nodes(id) ON DELETE CASCADE,
-    relation TEXT NOT NULL,   -- 'links_to', 'tagged_as'
+    relation TEXT NOT NULL,   -- 'links_to', 'implements', 'tagged_as'
+    epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED', -- 'EXTRACTED', 'INFERRED'
+    weight REAL NOT NULL DEFAULT 1.0,
     PRIMARY KEY (source_id, target_id, relation)
 );
 CREATE INDEX IF NOT EXISTS idx_edges_target ON graph_edges(target_id);

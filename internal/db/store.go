@@ -7,6 +7,8 @@ import (
 
 	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/FelipeMiiller/my-memory/internal/store"
 )
 
 // InitDB inicializa a conexão com o SQLite registrando a extensão sqlite-vec globalmente
@@ -27,6 +29,14 @@ func InitDB(dbPath string) (*sql.DB, error) {
 	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'content_hash'").Scan(&colCount)
 	if colCount == 0 {
 		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN content_hash TEXT")
+	}
+
+	// Migração retrocompatível: adiciona colunas epistemic_status e weight em graph_edges se não existirem
+	var edgeColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('graph_edges') WHERE name = 'epistemic_status'").Scan(&edgeColCount)
+	if edgeColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE graph_edges ADD COLUMN epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED'")
+		_, _ = db.Exec("ALTER TABLE graph_edges ADD COLUMN weight REAL NOT NULL DEFAULT 1.0")
 	}
 
 	return db, nil
@@ -164,11 +174,66 @@ func InsertTurboQuantChunk(ctx context.Context, db *sql.DB, chunkID string, scal
 	return err
 }
 
-// InsertEdge cria uma conexão no grafo
-func InsertEdge(ctx context.Context, db *sql.DB, sourceID, targetID, relation string) error {
+// InsertEdgeWithProps cria uma conexão tipada com status epistêmico e peso no grafo
+func InsertEdgeWithProps(ctx context.Context, db *sql.DB, sourceID, targetID, relation, epistemicStatus string, weight float64) error {
+	if epistemicStatus == "" {
+		epistemicStatus = "EXTRACTED"
+	}
+	if weight <= 0 {
+		weight = 1.0
+	}
+
 	_, err := db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO graph_edges (source_id, target_id, relation)
-		VALUES (?, ?, ?)
-	`, sourceID, targetID, relation)
+		INSERT INTO graph_edges (source_id, target_id, relation, epistemic_status, weight)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(source_id, target_id, relation) DO UPDATE SET
+			epistemic_status = excluded.epistemic_status,
+			weight = excluded.weight
+	`, sourceID, targetID, relation, epistemicStatus, weight)
 	return err
+}
+
+// InsertEdge cria uma conexão padrão no grafo
+func InsertEdge(ctx context.Context, db *sql.DB, sourceID, targetID, relation string) error {
+	return InsertEdgeWithProps(ctx, db, sourceID, targetID, relation, "EXTRACTED", 1.0)
+}
+
+// GetGodNodes calcula e retorna os nós com maior centralidade de grau no grafo SQLite
+func GetGodNodes(ctx context.Context, db *sql.DB, limit int) ([]store.GodNode, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	query := `
+		WITH degrees AS (
+			SELECT source_id AS node_id, 0 AS in_cnt, 1 AS out_cnt FROM graph_edges
+			UNION ALL
+			SELECT target_id AS node_id, 1 AS in_cnt, 0 AS out_cnt FROM graph_edges
+		)
+		SELECT d.node_id, COALESCE(n.name, d.node_id) AS name,
+		       SUM(d.in_cnt) AS in_degree,
+		       SUM(d.out_cnt) AS out_degree,
+		       COUNT(*) AS total_degree
+		FROM degrees d
+		LEFT JOIN graph_nodes n ON n.id = d.node_id
+		GROUP BY d.node_id
+		ORDER BY total_degree DESC, in_degree DESC
+		LIMIT ?;
+	`
+
+	rows, err := db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar god nodes sqlite: %w", err)
+	}
+	defer rows.Close()
+
+	var hubs []store.GodNode
+	for rows.Next() {
+		var h store.GodNode
+		if err := rows.Scan(&h.ID, &h.Name, &h.InDegree, &h.OutDegree, &h.TotalDegree); err != nil {
+			return nil, err
+		}
+		hubs = append(hubs, h)
+	}
+	return hubs, nil
 }
