@@ -124,17 +124,35 @@ Realiza a busca ultrarrápida utilizando os blocos compactados em 4-bits no SQLi
 
 ---
 
-### 7. `mem mcp [--db <caminho>] [--postgres <url>] [--repo <slug>]`
-Inicia o servidor Model Context Protocol (MCP) via `stdio` (JSON-RPC 2.0):
-* Exposto para agentes como Claude Code, Cursor, Windsurf e Antigravity.
-* Fornece as ferramentas `memory_search` e `memory_get_neighbors`.
-* Suporta isolamento por repositório e conexões via SQLite local ou PostgreSQL centralizado.
+### 7. `mem mcp [--port <porta>] [--host <ip>] [--http <addr>] [--cors] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Inicia o servidor Model Context Protocol (MCP) via **`stdio`** (padrão) ou como **servidor de rede HTTP / Server-Sent Events (SSE)** conforme a especificação oficial da Anthropic (ADR-021):
+* **Modo Stdio (Padrão):** Ideal para processos filhos locais gerenciados por Claude Code, Cursor, Windsurf e Antigravity.
+* **Modo Servidor de Rede (`--port` ou `--http`):** Permite acesso de agentes remotos, múltiplos clientes paralelos e dashboards web.
+* **Endpoints HTTP Disponíveis:**
+  * `GET /sse`: Inicia stream Server-Sent Events e emite o evento `endpoint`.
+  * `POST /message?sessionId=<uuid>`: Envia requisições JSON-RPC 2.0 associadas à sessão SSE ativa.
+  * `POST /mcp`: Chamada JSON-RPC direta (stateless) para scripts rápidos ou `curl`.
+  * `GET /health`: Diagnóstico com uptime, ferramentas registradas e status operacional.
+* **CORS Habilitado:** `--cors` (padrão: ativo) permite chamadas de navegadores web com preflight `OPTIONS`.
 
-**Exemplo:**
+**Exemplos:**
 ```bash
+# 1. Modo Stdio local tradicional:
 ./bin/mem.exe mcp --db memory.db
-# Ou conectado a uma base central PostgreSQL:
-./bin/mem.exe mcp --postgres "postgres://user:pass@localhost:5432/memory?sslmode=disable" --repo "meu-org/meu-projeto"
+
+# 2. Modo Servidor HTTP/SSE na porta 8080:
+./bin/mem.exe mcp --port 8080
+
+# 3. Expondo na rede local para múltiplos agentes:
+./bin/mem.exe mcp --host 0.0.0.0 --port 8080 --repo "meu-org/projeto"
+
+# 4. Verificando a saúde via curl:
+curl http://localhost:8080/health
+
+# 5. Executando busca via endpoint direto:
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_search","arguments":{"query":"arquitetura"}}}'
 ```
 
 ---

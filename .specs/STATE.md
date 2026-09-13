@@ -16,14 +16,15 @@
 - **AD-018**: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP e CLI (`docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md`)
 - **AD-019**: Versionamento Semântico Automatizado e Criação de Tags no CI (`docs/adr/019-versionamento-semantico-e-tagging-ci.md`)
 - **AD-020**: Visualizador Interativo de Grafo em HTML/SVG Standalone (`docs/adr/020-visualizador-interativo-de-grafo-em-html-svg.md`)
+- **AD-021**: Servidor MCP com Transporte HTTP e Server-Sent Events (SSE) (`docs/adr/021-servidor-mcp-com-transporte-http-sse.md`)
 
 ## Handoff
 
 - **Feature**: mcp-http-sse-server (.specs/features/mcp-http-sse-server)
-- **Phase / Task**: Phase 1 / T3 (Completed)
-- **Completed**: T1 (Servidor HTTP/SSE Core), T2 (Health, Direct RPC, CORS), T3 (Flags CLI e Runner de Rede)
-- **In-progress**: T4 (ADR-021, Documentação Técnica e Atualização do STATE.md)
-- **Next step**: Escrever docs/adr/021-servidor-mcp-com-transporte-http-sse.md, atualizar docs/adr/README.md e docs/CLI_GUIDE.md
+- **Phase / Task**: Phase 1 / T4 (Completed)
+- **Completed**: T1 (Servidor HTTP/SSE Core), T2 (Health, Direct RPC, CORS), T3 (Flags CLI e Runner de Rede), T4 (ADR-021 e Documentação)
+- **In-progress**: none
+- **Next step**: Executar Verifier TLC (validation.md) e validação final
 - **Blockers**: none
 - **Branch**: develop
 

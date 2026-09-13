@@ -80,7 +80,7 @@ T1 -> T2 -> T3 -> T4
 **Tests**: none
 **Gate**: go test -count=1 ./...
 **Done when**:
-- [ ] Criar docs/adr/021-servidor-mcp-com-transporte-http-sse.md no padrão MADR
-- [ ] Atualizar índice em docs/adr/README.md
-- [ ] Atualizar exemplos em docs/CLI_GUIDE.md com curl e configuração de clientes MCP remotos
-- [ ] Atualizar .specs/STATE.md com a decisão AD-021 e status do handoff
+- [x] Criar docs/adr/021-servidor-mcp-com-transporte-http-sse.md no padrão MADR
+- [x] Atualizar índice em docs/adr/README.md
+- [x] Atualizar exemplos em docs/CLI_GUIDE.md com curl e configuração de clientes MCP remotos
+- [x] Atualizar .specs/STATE.md com a decisão AD-021 e status do handoff
