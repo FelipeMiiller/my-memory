@@ -87,10 +87,25 @@ jobs:
       - name: Run Repo Tests
         run: go test -v -cover ./internal/repo/...
 
+      - name: Run Graph & GraphView Tests
+        run: go test -v -cover ./internal/graph/... ./internal/graphview/...
+
+      - name: Run Embedder Tests
+        run: go test -v -cover ./internal/embedder/...
+
+      - name: Run Compiler & Config Tests
+        run: go test -v -cover ./internal/compiler/... ./internal/config/...
+
+      - name: Run Watcher Tests
+        run: go test -v -cover ./internal/watcher/...
+
+      - name: Run CLI Tests
+        run: go test -v -cover ./cmd/mem/...
+
       - name: Run All Pure Tests with Coverage Report (Ubuntu)
         if: runner.os == 'Linux'
         run: |
-          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/... ./internal/store/... ./internal/canvas/... ./internal/repo/...
+          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/... ./internal/store/... ./internal/canvas/... ./internal/repo/... ./internal/graph/... ./internal/graphview/... ./internal/embedder/... ./internal/compiler/... ./internal/config/... ./internal/watcher/... ./cmd/mem/...
 
       - name: Upload Coverage Artifact (Ubuntu)
         if: runner.os == 'Linux'

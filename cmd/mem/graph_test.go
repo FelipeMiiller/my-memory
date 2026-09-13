@@ -64,3 +64,59 @@ func TestRunGraphCLI_RootSubgraph(t *testing.T) {
 		t.Errorf("HTML não contém a nota raiz concepts/auth.md")
 	}
 }
+
+func TestRunGraphCLI_DefaultRootFilename(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, err := os.Getwd()
+	if err == nil {
+		_ = os.Chdir(tmpDir)
+		defer os.Chdir(origDir)
+	}
+
+	ctx := context.Background()
+	args := []string{"export", "--root", "guides/deploy-prod.md", "--open=false", "--db", "dummy.db"}
+	err = runGraphCLI(ctx, "test-repo", args)
+	if err != nil {
+		t.Fatalf("runGraphCLI falhou: %v", err)
+	}
+
+	expectedFile := filepath.Join(tmpDir, "graph_guides_deploy-prod.html")
+	if _, err := os.Stat(expectedFile); err != nil {
+		t.Fatalf("arquivo padrão %s não foi criado", expectedFile)
+	}
+}
+
+func TestRunGraphCLI_ViewSubcommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	outPath := filepath.Join(tmpDir, "view_test.html")
+	ctx := context.Background()
+
+	args := []string{"view", "--out", outPath, "--open=false", "--db", filepath.Join(tmpDir, "dummy.db")}
+	err := runGraphCLI(ctx, "test-repo", args)
+	if err != nil {
+		t.Fatalf("runGraphCLI com subcomando view falhou: %v", err)
+	}
+
+	if _, err := os.Stat(outPath); err != nil {
+		t.Fatalf("arquivo exportado via view não encontrado: %v", err)
+	}
+}
+
+func TestRunGraphCLI_ExportError(t *testing.T) {
+	ctx := context.Background()
+	invalidOut := filepath.Join(os.TempDir(), "non_existent_folder_abc123", "sub", "graph.html")
+	args := []string{"export", "--out", invalidOut, "--open=false", "--db", "dummy.db"}
+	err := runGraphCLI(ctx, "test-repo", args)
+	if err == nil {
+		t.Fatal("esperava erro ao exportar para diretório inexistente")
+	}
+}
+
+func TestRunGraphCLI_PostgresConnectionError(t *testing.T) {
+	ctx := context.Background()
+	args := []string{"export", "--postgres", "postgres://invalid:pass@127.0.0.1:54329/nonexistent?sslmode=disable", "--open=false"}
+	err := runGraphCLI(ctx, "test-repo", args)
+	if err == nil {
+		t.Fatal("esperava erro de conexão com postgres inválido, obteve nil")
+	}
+}

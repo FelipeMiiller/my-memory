@@ -109,3 +109,120 @@ func TestMemoryVisualizeGraphTool_Call(t *testing.T) {
 		t.Errorf("HTML gravado não contém os dados do mock: %s", string(data))
 	}
 }
+
+func TestMemoryVisualizeGraphTool_InvalidJSON(t *testing.T) {
+	handler := NewMemoryVisualizeGraphHandler(nil, "")
+	_, err := handler(context.Background(), json.RawMessage(`{invalid-json`))
+	if err == nil {
+		t.Fatal("esperava erro para JSON inválido, obteve nil")
+	}
+
+	mcpErr, ok := err.(*Error)
+	if !ok || mcpErr.Code != CodeInvalidParams {
+		t.Errorf("esperado erro com código CodeInvalidParams (%d), obteve: %v", CodeInvalidParams, err)
+	}
+}
+
+func TestMemoryVisualizeGraphTool_BuilderError(t *testing.T) {
+	mockFn := func(ctx context.Context, repo, rootNode string, maxDepth int) (*graphview.GraphView, error) {
+		return nil, os.ErrPermission
+	}
+
+	handler := NewMemoryVisualizeGraphHandler(mockFn, "")
+	_, err := handler(context.Background(), json.RawMessage(`{}`))
+	if err == nil {
+		t.Fatal("esperava erro quando builder falha, obteve nil")
+	}
+
+	mcpErr, ok := err.(*Error)
+	if !ok || mcpErr.Code != CodeInternalError {
+		t.Errorf("esperado erro CodeInternalError (%d), obteve: %v", CodeInternalError, err)
+	}
+}
+
+func TestMemoryVisualizeGraphTool_NilBuilderFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+	handler := NewMemoryVisualizeGraphHandler(nil, tmpDir)
+
+	res, err := handler(context.Background(), json.RawMessage(`{"output_path": "fallback.html"}`))
+	if err != nil {
+		t.Fatalf("handler com builder nil não deveria falhar: %v", err)
+	}
+
+	result := res.(CallToolResult)
+	if len(result.Content) == 0 {
+		t.Fatal("resultado vazio")
+	}
+
+	if _, err := os.Stat(filepath.Join(tmpDir, "fallback.html")); err != nil {
+		t.Fatalf("arquivo de fallback não foi criado: %v", err)
+	}
+}
+
+func TestMemoryVisualizeGraphTool_AutoOutputPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	handler := NewMemoryVisualizeGraphHandler(nil, tmpDir)
+
+	args := json.RawMessage(`{"root_node": "concepts/deep/learning.md", "max_depth": 3}`)
+	res, err := handler(context.Background(), args)
+	if err != nil {
+		t.Fatalf("handler falhou: %v", err)
+	}
+
+	result := res.(CallToolResult)
+	text := result.Content[0].Text
+	if !strings.Contains(text, "graph_concepts_deep_learning.html") {
+		t.Errorf("esperado nome sanitizado 'graph_concepts_deep_learning.html' no resultado, obteve: %s", text)
+	}
+
+	expectedFile := filepath.Join(tmpDir, "graph_concepts_deep_learning.html")
+	if _, err := os.Stat(expectedFile); err != nil {
+		t.Fatalf("arquivo esperado %s não foi encontrado no disco", expectedFile)
+	}
+}
+
+func TestMemoryVisualizeGraphTool_ExportError(t *testing.T) {
+	handler := NewMemoryVisualizeGraphHandler(nil, "")
+
+	// Tenta gravar em subdiretório inexistente para induzir falha de exportação
+	invalidOut := filepath.Join(os.TempDir(), "non_existent_folder_abc123", "sub", "graph.html")
+	args, _ := json.Marshal(map[string]any{"output_path": invalidOut})
+
+	_, err := handler(context.Background(), args)
+	if err == nil {
+		t.Fatal("esperava erro ao tentar exportar em caminho de diretório inexistente")
+	}
+
+	mcpErr, ok := err.(*Error)
+	if !ok || mcpErr.Code != CodeInternalError {
+		t.Errorf("esperado erro CodeInternalError (%d), obteve: %v", CodeInternalError, err)
+	}
+}
+
+func TestServer_SetGraphViewHandler(t *testing.T) {
+	in := &bytes.Buffer{}
+	out := &bytes.Buffer{}
+	errLog := &bytes.Buffer{}
+
+	srv := NewServer("test-mcp", "1.0.0", in, out, errLog)
+	called := false
+	mockFn := func(ctx context.Context, repo, rootNode string, maxDepth int) (*graphview.GraphView, error) {
+		called = true
+		return &graphview.GraphView{Title: "Registered"}, nil
+	}
+
+	srv.SetGraphViewHandler(mockFn, t.TempDir())
+
+	handler := srv.toolHandlers[ToolMemoryVisualizeGraph.Name]
+	if handler == nil {
+		t.Fatalf("ferramenta %s não registrada no servidor", ToolMemoryVisualizeGraph.Name)
+	}
+
+	_, err := handler(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("execução do handler registrado falhou: %v", err)
+	}
+	if !called {
+		t.Error("esperava que mockFn tivesse sido invocado")
+	}
+}

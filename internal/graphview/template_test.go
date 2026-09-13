@@ -83,4 +83,25 @@ func TestExportHTML(t *testing.T) {
 	if info.Size() < 500 {
 		t.Errorf("tamanho do arquivo exportado muito pequeno (%d bytes)", info.Size())
 	}
+
+	// Teste de falha na gravação do arquivo (diretório inexistente)
+	invalidPath := filepath.Join(tmpDir, "missing_subdir", "deep", "view.html")
+	if err := ExportHTML(gv, invalidPath); err == nil {
+		t.Error("esperava erro ao exportar para caminho inexistente sem diretório pai")
+	}
+}
+
+func TestRenderHTML_EmptyGraph(t *testing.T) {
+	gv := &GraphView{
+		Title: "Grafo Vazio",
+	}
+
+	htmlBytes, err := RenderHTML(gv)
+	if err != nil {
+		t.Fatalf("RenderHTML não deveria falhar com grafo vazio: %v", err)
+	}
+
+	if !strings.Contains(string(htmlBytes), "Grafo Vazio") {
+		t.Errorf("deve conter título Grafo Vazio")
+	}
 }

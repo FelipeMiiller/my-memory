@@ -1,6 +1,11 @@
 package graphview
 
 import (
+	"context"
+	"database/sql/driver"
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -28,14 +33,32 @@ func TestInferNoteType(t *testing.T) {
 }
 
 func TestGetColorForType(t *testing.T) {
-	if GetColorForType("decision") != "#f43f5e" {
-		t.Errorf("GetColorForType('decision') incorreto: %s", GetColorForType("decision"))
+	cases := []struct {
+		noteType string
+		expected string
+	}{
+		{"decision", "#f43f5e"},
+		{"adr", "#f43f5e"},
+		{"concept", "#3b82f6"},
+		{"guide", "#10b981"},
+		{"howto", "#10b981"},
+		{"tutorial", "#10b981"},
+		{"reference", "#a855f7"},
+		{"doc", "#a855f7"},
+		{"docs", "#a855f7"},
+		{"synthesis", "#ec4899"},
+		{"compiled", "#ec4899"},
+		{"hub", "#eab308"},
+		{"god_node", "#eab308"},
+		{"other", "#64748b"},
+		{"unknown", "#64748b"},
 	}
-	if GetColorForType("concept") != "#3b82f6" {
-		t.Errorf("GetColorForType('concept') incorreto: %s", GetColorForType("concept"))
-	}
-	if GetColorForType("desconhecido") != "#64748b" {
-		t.Errorf("GetColorForType('desconhecido') deve cair no default: %s", GetColorForType("desconhecido"))
+
+	for _, c := range cases {
+		got := GetColorForType(c.noteType)
+		if got != c.expected {
+			t.Errorf("GetColorForType(%q) = %s; esperado %s", c.noteType, got, c.expected)
+		}
 	}
 }
 
@@ -122,5 +145,206 @@ func TestBuildGraphView_FocusedSubgraph(t *testing.T) {
 	}
 	if _, exists := nodeMap["D"]; exists {
 		t.Errorf("nó D não deveria estar presente na profundidade 2")
+	}
+}
+
+func TestBuildGraphView_HubAndDensity(t *testing.T) {
+	// Cria um hub com 12 referências apontando para ele (grau > 10)
+	hubID := "hub-node.md"
+	docs := []RawDoc{{ID: hubID, Title: "Hub Central"}}
+	var edges []RawEdge
+
+	for i := 0; i < 12; i++ {
+		leafID := fmt.Sprintf("leaf-%d.md", i)
+		docs = append(docs, RawDoc{ID: leafID, Title: leafID})
+		edges = append(edges, RawEdge{
+			Source:          leafID,
+			Target:          hubID,
+			Relation:        "depends_on",
+			EpistemicStatus: "EXTRACTED",
+			Weight:          1.0,
+		})
+	}
+
+	gv := BuildGraphView(docs, edges, "", 0, "test-hub")
+	if gv.Stats.HubCount < 1 {
+		t.Errorf("esperado ao menos 1 hub, obteve %d", gv.Stats.HubCount)
+	}
+
+	for _, n := range gv.Nodes {
+		if n.ID == hubID && !n.IsHub {
+			t.Errorf("nó %s deveria estar marcado como IsHub=true", hubID)
+		}
+	}
+
+	// Teste com grafo vazio (0 nós)
+	emptyGV := BuildGraphView(nil, nil, "", 0, "")
+	if emptyGV.Stats.TotalNodes != 0 || emptyGV.Stats.Density != 0.0 {
+		t.Errorf("grafo vazio deve ter 0 nós e densidade 0")
+	}
+
+	// Teste com apenas 1 nó isolado
+	singleGV := BuildGraphView([]RawDoc{{ID: "solo.md"}}, nil, "", 0, "")
+	if singleGV.Stats.TotalNodes != 1 || singleGV.Stats.Density != 0.0 {
+		t.Errorf("grafo com 1 nó deve ter densidade 0.0")
+	}
+}
+
+func TestBuildFromSQLite_Success(t *testing.T) {
+	db, err := setupMockDB()
+	if err != nil {
+		t.Fatalf("setupMockDB falhou: %v", err)
+	}
+	defer db.Close()
+
+	mockQueryMu.Lock()
+	mockQueryFn = func(query string) (driver.Rows, error) {
+		if strings.Contains(query, "FROM documents") {
+			return &mockRows{
+				columns: []string{"id", "title", "updated_at"},
+				rows: [][]driver.Value{
+					{"doc1.md", "Documento 1", int64(1000)},
+					{"doc2.md", "Documento 2", int64(2000)},
+				},
+			}, nil
+		}
+		if strings.Contains(query, "FROM graph_edges") {
+			return &mockRows{
+				columns: []string{"source_id", "target_id", "relation", "epistemic_status", "weight"},
+				rows: [][]driver.Value{
+					{"doc1.md", "doc2.md", "links_to", "EXTRACTED", 1.0},
+				},
+			}, nil
+		}
+		return nil, fmt.Errorf("query desconhecida: %s", query)
+	}
+	mockQueryMu.Unlock()
+
+	gv, err := BuildFromSQLite(context.Background(), db, "", 0, "mock-repo")
+	if err != nil {
+		t.Fatalf("BuildFromSQLite falhou: %v", err)
+	}
+
+	if gv.Stats.TotalNodes != 2 {
+		t.Errorf("esperado 2 nós, obteve %d", gv.Stats.TotalNodes)
+	}
+	if gv.Stats.TotalEdges != 1 {
+		t.Errorf("esperado 1 aresta, obteve %d", gv.Stats.TotalEdges)
+	}
+}
+
+func TestBuildFromSQLite_DocQueryError(t *testing.T) {
+	db, err := setupMockDB()
+	if err != nil {
+		t.Fatalf("setupMockDB falhou: %v", err)
+	}
+	defer db.Close()
+
+	mockQueryMu.Lock()
+	mockQueryFn = func(query string) (driver.Rows, error) {
+		if strings.Contains(query, "FROM documents") {
+			return nil, errors.New("falha na tabela documents")
+		}
+		return nil, nil
+	}
+	mockQueryMu.Unlock()
+
+	_, err = BuildFromSQLite(context.Background(), db, "", 0, "mock-repo")
+	if err == nil || !strings.Contains(err.Error(), "documents") {
+		t.Fatalf("esperava erro mencionando 'documents', obteve: %v", err)
+	}
+}
+
+func TestBuildFromSQLite_DocScanError(t *testing.T) {
+	db, err := setupMockDB()
+	if err != nil {
+		t.Fatalf("setupMockDB falhou: %v", err)
+	}
+	defer db.Close()
+
+	mockQueryMu.Lock()
+	mockQueryFn = func(query string) (driver.Rows, error) {
+		if strings.Contains(query, "FROM documents") {
+			// Retorna apenas 1 coluna, causando erro no Scan (espera 3 colunas)
+			return &mockRows{
+				columns: []string{"id"},
+				rows: [][]driver.Value{
+					{"doc1.md"},
+				},
+			}, nil
+		}
+		return nil, nil
+	}
+	mockQueryMu.Unlock()
+
+	_, err = BuildFromSQLite(context.Background(), db, "", 0, "mock-repo")
+	if err == nil {
+		t.Fatal("esperava erro de scan em documents, obteve nil")
+	}
+}
+
+func TestBuildFromSQLite_EdgeQueryError(t *testing.T) {
+	db, err := setupMockDB()
+	if err != nil {
+		t.Fatalf("setupMockDB falhou: %v", err)
+	}
+	defer db.Close()
+
+	mockQueryMu.Lock()
+	mockQueryFn = func(query string) (driver.Rows, error) {
+		if strings.Contains(query, "FROM documents") {
+			return &mockRows{
+				columns: []string{"id", "title", "updated_at"},
+				rows: [][]driver.Value{
+					{"doc1.md", "Doc 1", int64(1000)},
+				},
+			}, nil
+		}
+		if strings.Contains(query, "FROM graph_edges") {
+			return nil, errors.New("falha ao consultar graph_edges")
+		}
+		return nil, nil
+	}
+	mockQueryMu.Unlock()
+
+	_, err = BuildFromSQLite(context.Background(), db, "", 0, "mock-repo")
+	if err == nil || !strings.Contains(err.Error(), "graph_edges") {
+		t.Fatalf("esperava erro mencionando 'graph_edges', obteve: %v", err)
+	}
+}
+
+func TestBuildFromSQLite_EdgeScanError(t *testing.T) {
+	db, err := setupMockDB()
+	if err != nil {
+		t.Fatalf("setupMockDB falhou: %v", err)
+	}
+	defer db.Close()
+
+	mockQueryMu.Lock()
+	mockQueryFn = func(query string) (driver.Rows, error) {
+		if strings.Contains(query, "FROM documents") {
+			return &mockRows{
+				columns: []string{"id", "title", "updated_at"},
+				rows: [][]driver.Value{
+					{"doc1.md", "Doc 1", int64(1000)},
+				},
+			}, nil
+		}
+		if strings.Contains(query, "FROM graph_edges") {
+			// Retorna apenas 1 coluna, causando erro no Scan (espera 5)
+			return &mockRows{
+				columns: []string{"source_id"},
+				rows: [][]driver.Value{
+					{"doc1.md"},
+				},
+			}, nil
+		}
+		return nil, nil
+	}
+	mockQueryMu.Unlock()
+
+	_, err = BuildFromSQLite(context.Background(), db, "", 0, "mock-repo")
+	if err == nil {
+		t.Fatal("esperava erro de scan em graph_edges, obteve nil")
 	}
 }
