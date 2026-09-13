@@ -1,8 +1,8 @@
 ﻿package main
 
 import (
-	"database/sql"
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -14,7 +14,10 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/parser"
+	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 )
+
+const EmbeddingDim = 768
 
 func main() {
 	if len(os.Args) < 2 {
@@ -32,6 +35,7 @@ func main() {
 
 	ctx := context.Background()
 	emb := embedder.NewOllamaClient("", "nomic-embed-text")
+	tq := turboquant.NewQuantizer(EmbeddingDim)
 
 	switch os.Args[1] {
 	case "index":
@@ -47,15 +51,19 @@ func main() {
 			fmt.Println("Uso: mem index <pasta_com_markdown>")
 			return
 		}
-		runIndex(ctx, database, emb, target)
+		runIndex(ctx, database, emb, tq, target)
 
 	case "search":
-		if len(os.Args) < 3 {
-			fmt.Println("Uso: mem search \"sua pergunta aqui\"")
+		searchCmd := flag.NewFlagSet("search", flag.ExitOnError)
+		useTurbo := searchCmd.Bool("tq", false, "Usar busca via TurboQuant (4-bits)")
+		searchCmd.Parse(os.Args[2:])
+
+		query := strings.Join(searchCmd.Args(), " ")
+		if query == "" {
+			fmt.Println("Uso: mem search [-tq] \"sua pergunta aqui\"")
 			return
 		}
-		query := strings.Join(os.Args[2:], " ")
-		runSearch(ctx, database, emb, query)
+		runSearch(ctx, database, emb, tq, query, *useTurbo)
 
 	default:
 		printHelp()
@@ -63,14 +71,15 @@ func main() {
 }
 
 func printHelp() {
-	fmt.Println("=== My-Memory CLI ===")
+	fmt.Println("=== My-Memory CLI (com TurboQuant) ===")
 	fmt.Println("Comandos disponíveis:")
-	fmt.Println("  mem index <pasta>   - Indexa notas Markdown, extrai [[wikilinks]], gera vetores")
-	fmt.Println("  mem search <query>  - Faz busca semântica k-NN e expande o grafo de relações")
+	fmt.Println("  mem index <pasta>          - Indexa notas Markdown, links [[wikilinks]], FTS5 e TurboQuant 4-bit")
+	fmt.Println("  mem search \"<pergunta>\"    - Busca semântica k-NN via sqlite-vec padrão com expansão de grafo")
+	fmt.Println("  mem search -tq \"<pergunta>\" - Busca semântica ultrarrápida via TurboQuant (4-bits)")
 }
 
-func runIndex(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, rootDir string) {
-	fmt.Printf("🔍 Indexando notas em: %s\n", rootDir)
+func runIndex(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, rootDir string) {
+	fmt.Printf("🔍 Indexando notas em: %s (com TurboQuant 4-bit ativado)\n", rootDir)
 	count := 0
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
@@ -106,23 +115,35 @@ func runIndex(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient,
 				fmt.Printf("Aviso: falha ao gerar embedding para %s (Ollama está rodando?)\n", chunkID)
 				continue
 			}
+
+			// Inserção padrão (sqlite-vec + FTS5)
 			_ = db.InsertChunk(ctx, database, chunkID, docID, c, i, vec)
+
+			// Inserção TurboQuant (4-bit comprimido: 384 bytes)
+			cv, err := tq.Quantize(vec)
+			if err == nil {
+				_ = db.InsertTurboQuantChunk(ctx, database, chunkID, cv.Scale, cv.Data)
+			}
 		}
 
 		count++
-		fmt.Printf("✔ Indexado: %s (%d links, %d chunks)\n", title, len(connections.OutgoingLinks), len(chunks))
+		fmt.Printf("✔ Indexado: %s (%d links, %d chunks comprimidos)\n", title, len(connections.OutgoingLinks), len(chunks))
 		return nil
 	})
 
 	if err != nil {
 		fmt.Printf("Erro durante a indexação: %v\n", err)
 	} else {
-		fmt.Printf("🎉 Concluído! %d documentos processados.\n", count)
+		fmt.Printf("🎉 Concluído! %d documentos processados com TurboQuant.\n", count)
 	}
 }
 
-func runSearch(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, query string) {
-	fmt.Printf("🔎 Buscando por: \"%s\"\n\n", query)
+func runSearch(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query string, useTurbo bool) {
+	mode := "sqlite-vec (float32)"
+	if useTurbo {
+		mode = "TurboQuant (4-bit, 384 bytes)"
+	}
+	fmt.Printf("🔎 Buscando por: \"%s\" [Modo: %s]\n\n", query, mode)
 
 	queryVec, err := emb.GenerateEmbedding(query)
 	if err != nil {
@@ -130,7 +151,13 @@ func runSearch(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient
 		return
 	}
 
-	results, err := db.SearchKNN(ctx, database, queryVec, 5)
+	var results []db.SearchResult
+	if useTurbo {
+		results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, 5)
+	} else {
+		results, err = db.SearchKNN(ctx, database, queryVec, 5)
+	}
+
 	if err != nil {
 		fmt.Printf("Erro na busca: %v\n", err)
 		return

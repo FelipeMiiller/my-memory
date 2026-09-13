@@ -24,10 +24,17 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     tokenize = 'porter unicode61'
 );
 
--- Busca Vetorial via sqlite-vec (dimensão 768: nomic-embed-text)
+-- Busca Vetorial via sqlite-vec padrão (dimensão 768 float32 = 3072 bytes)
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(
     chunk_id TEXT PRIMARY KEY,
     embedding float[768]
+);
+
+-- Busca Vetorial Ultracompacta via TurboQuant (4-bit = 384 bytes por chunk)
+CREATE TABLE IF NOT EXISTS chunks_turboquant (
+    chunk_id TEXT PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
+    scale REAL NOT NULL,
+    data BLOB NOT NULL
 );
 
 -- Grafo: Nós e Arestas

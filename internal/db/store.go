@@ -11,7 +11,6 @@ import (
 
 // InitDB inicializa a conexão com o SQLite registrando a extensão sqlite-vec
 func InitDB(dbPath string) (*sql.DB, error) {
-	// Registra o driver sqlite3 customizado com sqlite-vec
 	sql.Register("sqlite3_vec", &sqlite3.SQLiteDriver{
 		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
 			return sqlite_vec.Auto(conn)
@@ -76,7 +75,7 @@ func InsertChunk(ctx context.Context, db *sql.DB, chunkID, docID, content string
 		return err
 	}
 
-	// 3. sqlite-vec (busca vetorial)
+	// 3. sqlite-vec (busca vetorial padrão float32)
 	vecBlob, err := sqlite_vec.SerializeFloat32(vec)
 	if err != nil {
 		return fmt.Errorf("erro serializando vetor: %w", err)
@@ -91,6 +90,18 @@ func InsertChunk(ctx context.Context, db *sql.DB, chunkID, docID, content string
 	}
 
 	return tx.Commit()
+}
+
+// InsertTurboQuantChunk armazena o vetor quantizado em 4-bits com fator de escala
+func InsertTurboQuantChunk(ctx context.Context, db *sql.DB, chunkID string, scale float32, data []byte) error {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO chunks_turboquant (chunk_id, scale, data)
+		VALUES (?, ?, ?)
+		ON CONFLICT(chunk_id) DO UPDATE SET
+			scale = excluded.scale,
+			data = excluded.data
+	`, chunkID, scale, data)
+	return err
 }
 
 // InsertEdge cria uma conexão no grafo
