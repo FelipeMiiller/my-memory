@@ -24,8 +24,10 @@ CREATE TABLE IF NOT EXISTS documents (
     path TEXT NOT NULL,
     title TEXT,
     updated_at BIGINT NOT NULL,
+    content_hash TEXT,
     PRIMARY KEY (repository, id)
 );
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;
 
 CREATE TABLE IF NOT EXISTS chunks (
     id TEXT NOT NULL,
@@ -93,18 +95,19 @@ func FormatVector(vec []float32) string {
 	return sb.String()
 }
 
-func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64) error {
+func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error {
 	if repo == "" {
 		repo = "default"
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO documents (id, repository, path, title, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO documents (id, repository, path, title, updated_at, content_hash)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (repository, id) DO UPDATE SET
 			title = EXCLUDED.title,
-			updated_at = EXCLUDED.updated_at
-	`, id, repo, path, title, updatedAt)
+			updated_at = EXCLUDED.updated_at,
+			content_hash = EXCLUDED.content_hash
+	`, id, repo, path, title, updatedAt, contentHash)
 	if err != nil {
 		return err
 	}
@@ -115,6 +118,43 @@ func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, titl
 		ON CONFLICT (repository, id) DO UPDATE SET
 			name = EXCLUDED.name
 	`, id, repo, title)
+	return err
+}
+
+func (s *PostgresStore) GetDocumentHash(ctx context.Context, repo, id string) (string, error) {
+	if repo == "" {
+		repo = "default"
+	}
+
+	var hash sql.NullString
+	err := s.db.QueryRowContext(ctx, `
+		SELECT content_hash FROM documents
+		WHERE repository = $1 AND id = $2
+	`, repo, id).Scan(&hash)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return hash.String, nil
+}
+
+func (s *PostgresStore) DeleteDocumentData(ctx context.Context, repo, id string) error {
+	if repo == "" {
+		repo = "default"
+	}
+
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM chunks WHERE repository = $1 AND document_id = $2
+	`, repo, id)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.db.ExecContext(ctx, `
+		DELETE FROM graph_edges WHERE repository = $1 AND source_id = $2
+	`, repo, id)
 	return err
 }
 

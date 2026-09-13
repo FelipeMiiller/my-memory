@@ -19,7 +19,13 @@ type SearchResult struct {
 // Store define o contrato agnóstico de armazenamento para SQLite e PostgreSQL
 type Store interface {
 	// InsertDocument insere ou atualiza um documento atrelado ao repositório
-	InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64) error
+	InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error
+
+	// GetDocumentHash retorna o hash SHA-256 armazenado de um documento (ou "" se não existir)
+	GetDocumentHash(ctx context.Context, repo, id string) (string, error)
+
+	// DeleteDocumentData remove chunks e arestas originadas do documento para reindexação limpa
+	DeleteDocumentData(ctx context.Context, repo, id string) error
 
 	// InsertChunk insere um pedaço de texto e seu vetor de embedding
 	InsertChunk(ctx context.Context, repo, chunkID, docID, content string, index int, vec []float32) error
