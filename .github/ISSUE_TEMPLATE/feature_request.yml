@@ -1,0 +1,35 @@
+name: Sugestão de Funcionalidade
+description: Sugira uma nova ideia, melhoria ou suporte a novas ferramentas para o My-Memory.
+title: "[FEAT]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por contribuir com novas ideias para o projeto!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema ou Motivação
+      description: Essa sugestão é motivada por algum problema ou limitação existente?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solução Proposta
+      description: Uma descrição detalhada e clara do que você gostaria que fosse implementado.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas Consideradas
+      description: Você considerou outras bibliotecas, abordagens ou soluções de contorno?
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto Adicional
+      description: Links para artigos, papers acadêmicos ou referências de código.

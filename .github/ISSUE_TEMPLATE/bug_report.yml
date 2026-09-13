@@ -1,0 +1,51 @@
+name: Relatório de Bug
+description: Reporte um problema inesperado ou falha no My-Memory.
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por dedicar seu tempo para relatar um bug! Por favor, forneça as informações abaixo para facilitar a reprodução e correção.
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição do Bug
+      description: Uma explicação clara e concisa sobre o que aconteceu.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para Reproduzir
+      description: Como reproduzir o problema?
+      placeholder: |
+        1. Rodar `mem index ./pasta`
+        2. Executar `mem search "pergunta"`
+        3. Observar o erro...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento Esperado
+      description: O que você esperava que acontecesse?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Ambiente
+      description: Informações do seu sistema operacional, versão do Go e Ollama.
+      placeholder: |
+        - SO: Windows / Linux / macOS
+        - Versão do Go: `go version`
+        - Modelo Ollama: `nomic-embed-text`
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs ou Stack Trace
+      description: Cole a saída do terminal ou mensagens de erro relevantes.
+      render: shell

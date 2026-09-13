@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussões & Dúvidas de Arquitetura
+    url: https://github.com/FelipeMiiller/my-memory/discussions
+    about: Faça perguntas, proponha ideias conceituais e converse sobre o projeto.
+  - name: Reporte de Vulnerabilidade de Segurança
+    url: https://github.com/FelipeMiiller/my-memory/security/advisories/new
+    about: Reporte falhas de segurança de forma confidencial e responsável.

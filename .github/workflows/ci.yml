@@ -67,10 +67,13 @@ jobs:
       - name: Run TurboQuant Tests
         run: go test -v -cover ./internal/turboquant/...
 
+      - name: Run MCP Server Tests
+        run: go test -v -cover ./internal/mcp/...
+
       - name: Run All Pure Tests with Coverage Report (Ubuntu)
         if: runner.os == 'Linux'
         run: |
-          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/...
+          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/...
 
       - name: Upload Coverage Artifact (Ubuntu)
         if: runner.os == 'Linux'
