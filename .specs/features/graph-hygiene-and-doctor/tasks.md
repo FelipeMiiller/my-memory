@@ -49,9 +49,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7
 **Tests**: internal/store/postgres_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Declarar método PruneDeletedDocuments na interface Store
-- [ ] Implementar PruneDeletedDocuments no PostgresStore com transação atômica
-- [ ] Validar conformidade de interface no pacote store
+- [x] Declarar método PruneDeletedDocuments na interface Store
+- [x] Implementar PruneDeletedDocuments no PostgresStore com transação atômica
+- [x] Validar conformidade de interface no pacote store
 
 ### T3: Motor de Diagnóstico e Linter no SQLite
 **What**: Implementar DiagnoseHealth e FixHealthIssues no SQLite detectando dead links, notas órfãs e self-loops

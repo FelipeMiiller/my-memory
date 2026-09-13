@@ -88,6 +88,9 @@ type Store interface {
 	// DeleteDocumentData remove chunks e arestas originadas do documento para reindexação limpa
 	DeleteDocumentData(ctx context.Context, repo, id string) error
 
+	// PruneDeletedDocuments remove documentos, chunks e arestas de arquivos ausentes do disco
+	PruneDeletedDocuments(ctx context.Context, repo, rootDir string, activeDocIDs []string) ([]string, error)
+
 	// InsertChunk insere um pedaço de texto e seu vetor de embedding
 	InsertChunk(ctx context.Context, repo, chunkID, docID, content string, index int, vec []float32) error
 
