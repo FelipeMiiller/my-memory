@@ -100,6 +100,7 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryWriteNote, NewMemoryWriteNoteHandler(nil, "."))
 	s.RegisterTool(ToolMemoryAppendSection, NewMemoryAppendSectionHandler(nil, "."))
 	s.RegisterTool(ToolMemoryCompileNote, NewMemoryCompileNoteHandler(nil, nil, "."))
+	s.RegisterTool(ToolMemoryVisualizeGraph, NewMemoryVisualizeGraphHandler(nil, "."))
 
 	return s
 }
