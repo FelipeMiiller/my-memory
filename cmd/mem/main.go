@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/canvas"
+	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/mcp"
@@ -36,6 +37,23 @@ func main() {
 	defaultRepo := repo.DetectRepository(".")
 
 	switch os.Args[1] {
+	case "init":
+		initCmd := flag.NewFlagSet("init", flag.ExitOnError)
+		repoSlug := initCmd.String("repo", defaultRepo, "Identificador/slug do repositório para o arquivo de configuração")
+		dbPath := initCmd.String("db", "memory.db", "Caminho padrão do arquivo de banco SQLite")
+		force := initCmd.Bool("force", false, "Sobrescreve o arquivo de configuração existente se já existir")
+		initCmd.Parse(os.Args[2:])
+
+		targetDir := "."
+		if initCmd.NArg() > 0 {
+			targetDir = initCmd.Arg(0)
+		}
+
+		if err := runInit(targetDir, *repoSlug, *dbPath, *force); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro ao inicializar vault: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "index":
 		indexCmd := flag.NewFlagSet("index", flag.ExitOnError)
 		dirPath := indexCmd.String("dir", "", "Caminho da pasta com arquivos Markdown")
@@ -283,7 +301,9 @@ func main() {
 func printHelp() {
 	fmt.Println("=== My-Memory CLI (SQLite / PostgreSQL com pgvector / TurboQuant / MCP) ===")
 	fmt.Println("Comandos disponíveis:")
-	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] <pasta>")
+	fmt.Println("  mem init [--repo <slug>] [--db <arq>] [--force] [<pasta>]")
+	fmt.Println("      Inicializa um novo vault criando .memory/config.yaml com configurações declarativas")
+	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
 	fmt.Println("  mem doctor [--fix] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score)")
@@ -303,6 +323,94 @@ func printHelp() {
 	fmt.Println("Variáveis de ambiente:")
 	fmt.Println("  MY_MEMORY_PG_URL - URL de conexão padrão para o PostgreSQL (ex: postgres://user:pass@localhost:5432/memory?sslmode=disable)")
 	fmt.Println("  MY_MEMORY_REPO   - Força o slug do repositório atual (sobrescreve auto-detecção git)")
+}
+
+func runInit(targetDir, repoSlug, dbPath string, force bool) error {
+	if targetDir == "" {
+		targetDir = "."
+	}
+	memDir := filepath.Join(targetDir, ".memory")
+	cfgPath := filepath.Join(memDir, "config.yaml")
+
+	if _, err := os.Stat(cfgPath); err == nil && !force {
+		fmt.Printf("⚠️ Arquivo de configuração já existe em %s. Use --force para sobrescrever.\n", cfgPath)
+		return nil
+	}
+
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		return fmt.Errorf("erro ao criar diretório .memory: %w", err)
+	}
+
+	if repoSlug == "" {
+		repoSlug = "local/vault"
+	}
+	if dbPath == "" {
+		dbPath = "memory.db"
+	}
+
+	template := fmt.Sprintf(`# ==============================================================================
+# My-Memory Vault Configuration
+# Documentação: docs/REPOSITORY_BRAIN.md e docs/CLI_GUIDE.md
+# ==============================================================================
+
+version: 1
+
+# Identificador / slug do repositório ou vault para escopo multi-tenant
+repository: %q
+
+# Nome amigável do vault de conhecimento
+vault_name: "Knowledge Vault"
+
+# Padrões glob de arquivos a serem indexados
+include:
+  - "**/*.md"
+
+# Padrões glob e diretórios ignorados durante a varredura
+exclude:
+  - ".git/**"
+  - "node_modules/**"
+  - "vendor/**"
+  - ".obsidian/**"
+  - ".trash/**"
+  - ".memory/**"
+
+# Configurações do motor de persistência
+storage:
+  engine: "sqlite"          # "sqlite" ou "postgres"
+  sqlite_path: %q     # Caminho do banco SQLite local
+  # postgres_url: "postgres://user:pass@localhost:5432/memory?sslmode=disable"
+
+# Configurações do modelo de embeddings
+embedding:
+  provider: "ollama"
+  model: "nomic-embed-text"
+  url: "http://localhost:11434"
+  dimension: 768
+
+# Preferências padrão de busca e recuperação
+search:
+  mode: "hybrid"            # "hybrid", "vector" ou "fts"
+  limit: 5                  # Número padrão de resultados
+  k: 60                     # Constante RRF (Reciprocal Rank Fusion)
+  decay: false              # Priorizar notas mais recentes por data
+  half_life: 30.0           # Meia-vida em dias para decaimento temporal
+  decay_weight: 0.3         # Peso do decaimento temporal (0.0 a 1.0)
+  use_turbo: false          # Busca quantizada 4-bit TurboQuant no SQLite
+`, repoSlug, dbPath)
+
+	if err := os.WriteFile(cfgPath, []byte(template), 0644); err != nil {
+		return fmt.Errorf("erro ao salvar arquivo de configuração: %w", err)
+	}
+
+	if _, err := config.LoadConfig(cfgPath); err != nil {
+		return fmt.Errorf("erro de validação do arquivo de configuração gerado: %w", err)
+	}
+
+	fmt.Printf("✅ Configuração inicializada com sucesso em %s\n", cfgPath)
+	fmt.Printf("   Repositório: %s\n", repoSlug)
+	fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
+	fmt.Println("   Dica: execute 'mem index' para iniciar a indexação automática.")
+	return nil
 }
 
 func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, targetRepo, rootDir string, force, prune bool) {

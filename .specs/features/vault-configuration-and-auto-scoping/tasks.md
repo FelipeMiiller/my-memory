@@ -66,10 +66,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/...
 **Done when**:
-- [ ] Adicionar case init no switch do CLI
-- [ ] Criar diretório .memory/ e gravar config.yaml com comentários explicativos
-- [ ] Suportar flags --force e --repo no comando init
-- [ ] Atualizar printHelp documentando mem init
+- [x] Adicionar case init no switch do CLI
+- [x] Criar diretório .memory/ e gravar config.yaml com comentários explicativos
+- [x] Suportar flags --force e --repo no comando init
+- [x] Atualizar printHelp documentando mem init
 
 ### T4: Integração de Config e Filtragem no mem index
 **What**: Atualizar runIndexSQLite e runIndexPostgres para filtrar arquivos via cfg.ShouldIndex

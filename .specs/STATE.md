@@ -15,10 +15,10 @@
 ## Handoff
 
 - **Feature**: vault-configuration-and-auto-scoping (.specs/features/vault-configuration-and-auto-scoping)
-- **Phase / Task**: Phase 1 / T3
-- **Completed**: T1, T2 (Motor de Filtragem de Arquivos por Regras Glob ShouldIndex)
-- **In-progress**: T3 (Subcomando CLI mem init e Geração de Template)
-- **Next step**: Adicionar subcomando mem init em cmd/mem/main.go para gerar .memory/config.yaml.
+- **Phase / Task**: Phase 1 / T4
+- **Completed**: T1, T2, T3 (Subcomando CLI mem init e Geração de Template)
+- **In-progress**: T4 (Integração de Config e Filtragem no mem index)
+- **Next step**: Integrar descoberta de config e filtragem ShouldIndex em mem index.
 - **Blockers**: none
 - **Branch**: main
 
