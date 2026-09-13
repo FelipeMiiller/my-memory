@@ -683,4 +683,3 @@ func TestServer_ToolsCall_MemoryDoctor_WithFix(t *testing.T) {
 		t.Errorf("esperava menção ao reparo de 2 arestas, obteve: %+v", callResult)
 	}
 }
-

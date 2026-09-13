@@ -328,4 +328,3 @@ func FixHealthIssues(ctx context.Context, db *sql.DB) (int, error) {
 
 	return int(loopsFixed + deadFixed), nil
 }
-
