@@ -12,13 +12,13 @@
 
 ## Handoff
 
-- **Feature**: graph-hygiene-and-doctor (.specs/features/graph-hygiene-and-doctor)
-- **Phase / Task**: Completed / T7
-- **Completed**: T1, T2, T3, T4, T5, T6, T7 (100% validado)
-- **In-progress**: none
-- **Next step**: Pronto para a próxima frente de desenvolvimento. Repositório 100% limpo e suíte de testes verde.
+- **Feature**: pagerank-and-graph-centrality (.specs/features/pagerank-and-graph-centrality)
+- **Phase / Task**: Phase 1 / T1
+- **Completed**: none
+- **In-progress**: T1 (Motor Matemático de PageRank em Go Puro)
+- **Next step**: Implementar internal/graph/pagerank.go e testes unitários analíticos.
 - **Blockers**: none
-- **Uncommitted files**: none (working tree clean)
+- **Uncommitted files**: .specs/features/pagerank-and-graph-centrality/*
 - **Branch**: main
 
 
