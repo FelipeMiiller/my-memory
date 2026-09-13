@@ -13,11 +13,11 @@
 
 - **Feature**: benchmarks-and-surprising-connections (.specs/features/benchmarks-and-surprising-connections)
 - **Phase / Task**: Completed / T6
-- **Completed**: T1, T2, T3, T4, T5, T6
+- **Completed**: T1, T2, T3, T4, T5, T6 (100% validado)
 - **In-progress**: none
-- **Next step**: Subir commits e verificar execução verde no GitHub Actions CI.
+- **Next step**: Pronto para a próxima frente de desenvolvimento. Repositório 100% limpo e CI verde no commit adba059.
 - **Blockers**: none
-- **Uncommitted files**: veja git status
+- **Uncommitted files**: none (working tree clean)
 - **Branch**: main
 
 
