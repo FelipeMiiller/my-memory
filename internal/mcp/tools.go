@@ -93,6 +93,24 @@ var (
 			"required": []string{"node_id"},
 		},
 	}
+
+	ToolMemoryGetHubs = Tool{
+		Name:        "memory_get_hubs",
+		Description: "Retorna os nós com maior centralidade de conexões (God Nodes / Hubs de conhecimento) no grafo de notas",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"top": map[string]any{
+					"type":        "integer",
+					"description": "Número máximo de nós centrais a retornar (padrão: 10)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou nome do repositório para contextualizar a busca de hubs (opcional)",
+				},
+			},
+		},
+	}
 )
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor

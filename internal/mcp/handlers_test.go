@@ -412,4 +412,75 @@ func TestFormatSearchResults_Empty(t *testing.T) {
 	}
 }
 
+func TestServer_ToolsCall_MemoryGetHubs_Success(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 50, "method": "tools/call", "params": {"name": "memory_get_hubs", "arguments": {"repository": "my-org/my-repo", "top": 5}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	srv.SetHubsHandler(func(ctx context.Context, repo string, limit int) ([]GodNode, error) {
+		if repo != "my-org/my-repo" {
+			t.Errorf("esperava repo 'my-org/my-repo', obteve '%s'", repo)
+		}
+		if limit != 5 {
+			t.Errorf("esperava limit 5, obteve %d", limit)
+		}
+		return []GodNode{
+			{
+				ID:          "Arquitetura",
+				Name:        "Arquitetura do Sistema",
+				InDegree:    10,
+				OutDegree:   4,
+				TotalDegree: 14,
+			},
+			{
+				ID:          "BancoDados",
+				Name:        "Banco de Dados",
+				InDegree:    8,
+				OutDegree:   2,
+				TotalDegree: 10,
+			},
+		}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta: %v\nSaída: %s", err, out.String())
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	if err := json.Unmarshal(resBytes, &callResult); err != nil {
+		t.Fatalf("erro ao decodificar CallToolResult: %v", err)
+	}
+
+	if len(callResult.Content) == 0 {
+		t.Fatalf("esperava conteúdo na resposta")
+	}
+
+	text := callResult.Content[0].Text
+	if !strings.Contains(text, "Arquitetura do Sistema") {
+		t.Errorf("resposta deve conter 'Arquitetura do Sistema', obteve: %s", text)
+	}
+	if !strings.Contains(text, "Grau Total: 14") {
+		t.Errorf("resposta deve conter 'Grau Total: 14', obteve: %s", text)
+	}
+}
+
+func TestFormatHubs_Empty(t *testing.T) {
+	got := FormatHubs(nil)
+	if !strings.Contains(got, "Nenhum nó central") {
+		t.Errorf("esperava mensagem de vazio, obteve: %s", got)
+	}
+}
+
 

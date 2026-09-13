@@ -74,9 +74,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/mcp/handlers_test.go
 **Gate**: go test -v ./internal/mcp/...
 **Done when**:
-- [ ] Registrar ToolMemoryGetHubs em tools.go
-- [ ] Implementar handleMemoryGetHubs no handlers.go
-- [ ] Adicionar testes unitários validando chamadas e respostas
+- [x] Registrar ToolMemoryGetHubs em tools.go
+- [x] Implementar handleMemoryGetHubs no handlers.go
+- [x] Adicionar testes unitários validando chamadas e respostas
 
 ### T5: CLI mem hubs e Indexação com Arestas Tipadas
 **What**: Adicionar comando mem hubs e salvar arestas tipadas durante mem index

@@ -70,6 +70,18 @@ type AdvancedSearchFunc func(ctx context.Context, params SearchParams) ([]Search
 // NeighborsFunc assinatura da função que realiza a travessia de vizinhos no grafo
 type NeighborsFunc func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error)
 
+// GodNode representa um nó central com alta centralidade de conexões retornado no MCP
+type GodNode struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	InDegree    int    `json:"in_degree"`
+	OutDegree   int    `json:"out_degree"`
+	TotalDegree int    `json:"total_degree"`
+}
+
+// HubsFunc assinatura da função que calcula nós centrais (God Nodes / Hubs)
+type HubsFunc func(ctx context.Context, repo string, limit int) ([]GodNode, error)
+
 // FormatSearchResults formata os resultados da busca em texto legível
 func FormatSearchResults(results []SearchResult) string {
 	if len(results) == 0 {
@@ -380,6 +392,66 @@ func (s *Server) SetAdvancedSearchHandler(fn AdvancedSearchFunc) {
 func (s *Server) SetNeighborsHandler(fn NeighborsFunc) {
 	s.RegisterToolHandler("memory_get_neighbors", NewMemoryNeighborsHandler(fn))
 	s.RegisterToolHandler("memory_export_canvas", NewMemoryExportCanvasHandler(fn))
+}
+
+// FormatHubs formata a lista de God Nodes / Hubs de conhecimento em texto legível
+func FormatHubs(hubs []GodNode) string {
+	if len(hubs) == 0 {
+		return "Nenhum nó central (God Node) encontrado no grafo."
+	}
+	var sb strings.Builder
+	sb.WriteString("🌟 Principais Nós Centrais (God Nodes / Hubs de Conhecimento):\n\n")
+	for i, h := range hubs {
+		displayName := h.Name
+		if displayName == "" {
+			displayName = h.ID
+		}
+		fmt.Fprintf(&sb, "[%d] %s (Grau Total: %d | Entrada: %d | Saída: %d)\n",
+			i+1, displayName, h.TotalDegree, h.InDegree, h.OutDegree)
+		if h.ID != displayName {
+			fmt.Fprintf(&sb, "    ID: %s\n", h.ID)
+		}
+	}
+	return sb.String()
+}
+
+// NewMemoryGetHubsHandler cria o handler para a ferramenta memory_get_hubs
+func NewMemoryGetHubsHandler(hubsFn HubsFunc) ToolHandlerFunc {
+	return func(ctx context.Context, args json.RawMessage) (any, error) {
+		top := 10
+		var repo string
+
+		if len(args) > 0 {
+			var rawMap map[string]json.RawMessage
+			if err := json.Unmarshal(args, &rawMap); err == nil {
+				if rawTop, hasTop := rawMap["top"]; hasTop {
+					var t int
+					if err := json.Unmarshal(rawTop, &t); err == nil && t > 0 {
+						top = t
+					}
+				}
+				if rawRepo, hasRepo := rawMap["repository"]; hasRepo {
+					_ = json.Unmarshal(rawRepo, &repo)
+				}
+			}
+		}
+
+		if hubsFn == nil {
+			return nil, NewError(CodeInternalError, "Backend de cálculo de hubs não configurado", nil)
+		}
+
+		hubs, err := hubsFn(ctx, repo, top)
+		if err != nil {
+			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao buscar nós centrais: %v", err), nil)
+		}
+
+		return NewTextResult(FormatHubs(hubs)), nil
+	}
+}
+
+// SetHubsHandler configura a função de cálculo de hubs para memory_get_hubs
+func (s *Server) SetHubsHandler(fn HubsFunc) {
+	s.RegisterToolHandler("memory_get_hubs", NewMemoryGetHubsHandler(fn))
 }
 
 // handleToolsCall despacha a execução da ferramenta indicada no campo 'name'

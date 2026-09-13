@@ -82,6 +82,25 @@ func TestTools_DefaultSchemas(t *testing.T) {
 	if _, ok := canvasProps["output_path"]; !ok {
 		t.Errorf("esperava propriedade 'output_path' no inputSchema de memory_export_canvas")
 	}
+
+	// Verificação da ferramenta memory_get_hubs
+	hubsTool := ToolMemoryGetHubs
+	if hubsTool.Name != "memory_get_hubs" {
+		t.Errorf("esperava nome 'memory_get_hubs', obteve '%s'", hubsTool.Name)
+	}
+	if hubsTool.Description == "" {
+		t.Errorf("esperava descrição não vazia para memory_get_hubs")
+	}
+	hubsProps, ok := hubsTool.InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("esperava properties no inputSchema de memory_get_hubs")
+	}
+	if _, ok := hubsProps["top"]; !ok {
+		t.Errorf("esperava propriedade 'top' no inputSchema de memory_get_hubs")
+	}
+	if _, ok := hubsProps["repository"]; !ok {
+		t.Errorf("esperava propriedade 'repository' no inputSchema de memory_get_hubs")
+	}
 }
 
 func TestServer_ToolsList(t *testing.T) {
@@ -125,6 +144,7 @@ func TestServer_ToolsList(t *testing.T) {
 	foundSearch := false
 	foundNeighbors := false
 	foundCanvas := false
+	foundHubs := false
 	for _, tool := range listResult.Tools {
 		if tool.Name == "memory_search" {
 			foundSearch = true
@@ -144,6 +164,12 @@ func TestServer_ToolsList(t *testing.T) {
 				t.Errorf("inputSchema inválido para memory_export_canvas na resposta: %+v", tool.InputSchema)
 			}
 		}
+		if tool.Name == "memory_get_hubs" {
+			foundHubs = true
+			if tool.InputSchema == nil || tool.InputSchema["type"] != "object" {
+				t.Errorf("inputSchema inválido para memory_get_hubs na resposta: %+v", tool.InputSchema)
+			}
+		}
 	}
 
 	if !foundSearch {
@@ -154,6 +180,9 @@ func TestServer_ToolsList(t *testing.T) {
 	}
 	if !foundCanvas {
 		t.Errorf("ferramenta 'memory_export_canvas' não encontrada em tools/list")
+	}
+	if !foundHubs {
+		t.Errorf("ferramenta 'memory_get_hubs' não encontrada em tools/list")
 	}
 }
 
