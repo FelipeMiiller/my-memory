@@ -7,11 +7,12 @@
 
 ## Handoff
 
-- **Feature**: obsidian-integration (.specs/features/obsidian-integration)
-- **Phase / Task**: Complete / Todas as tasks T1-T6 finalizadas e validadas
-- **Completed**: T1, T2, T3, T4, T5, T6
-- **In-progress** (file:line): none
-- **Next step**: Próximas evoluções inspiradas em `ai-memory` (Busca Híbrida com RRF) e `graphify` (God Nodes e Cache SHA-256).
+- **Feature**: hybrid-search-rrf (.specs/features/hybrid-search-rrf)
+- **Phase / Task**: Phase 1 / T1: Algoritmo RRF e Tipos no Store
+- **Completed**: none
+- **In-progress** (file:line): internal/store/rrf.go:1
+- **Next step**: Implementar algoritmo RRF determinístico e estender struct SearchResult e interface Store
 - **Blockers**: none
 - **Uncommitted files**: veja git status
 - **Branch**: main
+
