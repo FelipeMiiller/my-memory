@@ -51,9 +51,9 @@ T1 -> T3 -> T4
 **Tests**: internal/db/hybrid_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Implementar sanitização de termos para FTS5
-- [ ] Implementar SearchFTS contra a tabela chunks_fts
-- [ ] Implementar SearchHybridRRF combinando FTS5, vetores (sqlite-vec ou TurboQuant) e CTE de vizinhos do grafo
+- [x] Implementar sanitização de termos para FTS5
+- [x] Implementar SearchFTS contra a tabela chunks_fts
+- [x] Implementar SearchHybridRRF combinando FTS5, vetores (sqlite-vec ou TurboQuant) e CTE de vizinhos do grafo
 
 ### T3: Busca FTS e Híbrida no PostgreSQL
 **What**: Implementar busca FTS e híbrida no PostgreSQL com pgvector

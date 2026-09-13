@@ -14,8 +14,10 @@ type SearchResult struct {
 	ChunkID    string   `json:"chunk_id"`
 	DocumentID string   `json:"document_id"`
 	Content    string   `json:"content"`
-	Distance   float64  `json:"distance"`
-	Neighbors  []string `json:"neighbors"` // Conexões descobertas no grafo
+	Distance   float64  `json:"distance,omitempty"`
+	Score      float64  `json:"score,omitempty"`
+	Sources    []string `json:"sources,omitempty"`
+	Neighbors  []string `json:"neighbors,omitempty"` // Conexões descobertas no grafo
 }
 
 // SearchKNN busca os pedaços mais próximos usando sqlite-vec nativo
