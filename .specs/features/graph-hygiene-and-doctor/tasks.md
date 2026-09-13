@@ -98,10 +98,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/...
 **Done when**:
-- [ ] Integrar coleta de arquivos e chamada a PruneDeletedDocuments em runIndexSQLite e runIndexPostgres
-- [ ] Adicionar flag --no-prune no comando index
-- [ ] Implementar comando doctor com dashboard ASCII exibindo score, dead links e notas órfãs
-- [ ] Conectar SetDoctorHandler no runMCPServer
+- [x] Integrar coleta de arquivos e chamada a PruneDeletedDocuments em runIndexSQLite e runIndexPostgres
+- [x] Adicionar flag --no-prune no comando index
+- [x] Implementar comando doctor com dashboard ASCII exibindo score, dead links e notas órfãs
+- [x] Conectar SetDoctorHandler no runMCPServer
 
 ### T7: ADR-013, Documentação e Validação Final
 **What**: Registrar decisão ADR-013, atualizar documentação e STATE.md

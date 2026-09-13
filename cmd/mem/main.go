@@ -40,6 +40,7 @@ func main() {
 		indexCmd := flag.NewFlagSet("index", flag.ExitOnError)
 		dirPath := indexCmd.String("dir", "", "Caminho da pasta com arquivos Markdown")
 		force := indexCmd.Bool("force", false, "Força a reindexação completa ignorando o cache SHA-256")
+		noPrune := indexCmd.Bool("no-prune", false, "Desativa a exclusão de notas que foram removidas do disco")
 		dbPath := indexCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
 		pgURL := indexCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := indexCmd.String("repo", defaultRepo, "Identificador/slug do repositório")
@@ -50,7 +51,7 @@ func main() {
 			target = indexCmd.Arg(0)
 		}
 		if target == "" {
-			fmt.Println("Uso: mem index [--force] [--db <caminho>] [--postgres <url>] [--repo <nome>] <pasta_com_markdown>")
+			fmt.Println("Uso: mem index [--force] [--no-prune] [--db <caminho>] [--postgres <url>] [--repo <nome>] <pasta_com_markdown>")
 			return
 		}
 
@@ -61,7 +62,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runIndexPostgres(ctx, pgStore, emb, *targetRepo, target, *force)
+			runIndexPostgres(ctx, pgStore, emb, *targetRepo, target, *force, !*noPrune)
 		} else {
 			database, err := db.InitDB(*dbPath)
 			if err != nil {
@@ -69,7 +70,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runIndexSQLite(ctx, database, emb, tq, target, *force)
+			runIndexSQLite(ctx, database, emb, tq, target, *force, !*noPrune)
 		}
 
 	case "search":
@@ -227,6 +228,32 @@ func main() {
 		benchCmd.Parse(os.Args[2:])
 		runBenchmarks()
 
+	case "doctor":
+		docCmd := flag.NewFlagSet("doctor", flag.ExitOnError)
+		fix := docCmd.Bool("fix", false, "Repara automaticamente anomalias conhecidas (self-loops e dead links)")
+		dbPath := docCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
+		pgURL := docCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := docCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
+		docCmd.Parse(os.Args[2:])
+
+		if *pgURL != "" {
+			pgStore, err := store.NewPostgresStore(*pgURL)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
+				os.Exit(1)
+			}
+			defer pgStore.Close()
+			runDoctorPostgres(ctx, pgStore, *targetRepo, *fix)
+		} else {
+			database, err := db.InitDB(*dbPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
+				os.Exit(1)
+			}
+			defer database.Close()
+			runDoctorSQLite(ctx, database, *fix)
+		}
+
 	default:
 		printHelp()
 	}
@@ -235,8 +262,10 @@ func main() {
 func printHelp() {
 	fmt.Println("=== My-Memory CLI (SQLite / PostgreSQL com pgvector / TurboQuant / MCP) ===")
 	fmt.Println("Comandos disponíveis:")
-	fmt.Println("  mem index [--force] [--db <arq>] [--postgres <url>] [--repo <slug>] <pasta>")
-	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 (use --force para reconstruir)")
+	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] <pasta>")
+	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
+	fmt.Println("  mem doctor [--fix] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score)")
 	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
 	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), FTS5/tsvector, vetores e grafo")
 	fmt.Println("  mem hubs [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -255,17 +284,19 @@ func printHelp() {
 	fmt.Println("  MY_MEMORY_REPO   - Força o slug do repositório atual (sobrescreve auto-detecção git)")
 }
 
-func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, targetRepo, rootDir string, force bool) {
+func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, targetRepo, rootDir string, force, prune bool) {
 	fmt.Printf("🔍 Indexando notas no PostgreSQL (pgvector) para repo [%s] em: %s\n", targetRepo, rootDir)
 	totalCount := 0
 	indexedCount := 0
 	cachedCount := 0
+	var activeDocIDs []string
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
 			return nil
 		}
 
+		activeDocIDs = append(activeDocIDs, path)
 		contentBytes, err := os.ReadFile(path)
 		if err != nil {
 			return nil
@@ -320,22 +351,36 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 
 	if err != nil {
 		fmt.Printf("Erro durante a indexação: %v\n", err)
-	} else {
-		fmt.Printf("🎉 Concluído! %d documentos processados no PostgreSQL (%d indexados, %d em cache).\n", totalCount, indexedCount, cachedCount)
+		return
 	}
+
+	prunedCount := 0
+	if prune {
+		pruned, err := s.PruneDeletedDocuments(ctx, targetRepo, rootDir, activeDocIDs)
+		if err == nil && len(pruned) > 0 {
+			prunedCount = len(pruned)
+			for _, p := range pruned {
+				fmt.Printf("🗑  [pruned] %s (removido do disco)\n", p)
+			}
+		}
+	}
+
+	fmt.Printf("🎉 Concluído! %d documentos processados no PostgreSQL (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
 }
 
-func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, rootDir string, force bool) {
+func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, rootDir string, force, prune bool) {
 	fmt.Printf("🔍 Indexando notas no SQLite em: %s (com TurboQuant 4-bit ativado)\n", rootDir)
 	totalCount := 0
 	indexedCount := 0
 	cachedCount := 0
+	var activeDocIDs []string
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
 			return nil
 		}
 
+		activeDocIDs = append(activeDocIDs, path)
 		contentBytes, err := os.ReadFile(path)
 		if err != nil {
 			return nil
@@ -397,9 +442,21 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 
 	if err != nil {
 		fmt.Printf("Erro durante a indexação: %v\n", err)
-	} else {
-		fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache com TurboQuant).\n", totalCount, indexedCount, cachedCount)
+		return
 	}
+
+	prunedCount := 0
+	if prune {
+		pruned, err := db.PruneDeletedDocuments(ctx, database, rootDir, activeDocIDs)
+		if err == nil && len(pruned) > 0 {
+			prunedCount = len(pruned)
+			for _, p := range pruned {
+				fmt.Printf("🗑  [pruned] %s (removido do disco)\n", p)
+			}
+		}
+	}
+
+	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
 }
 
 func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo, mode string, limit, k int) {
@@ -639,6 +696,25 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return mcpConns, nil
 		})
+
+		srv.SetDoctorHandler(
+			func(ctx context.Context, repo string) (*mcp.DoctorReport, error) {
+				if repo == "" {
+					repo = defaultRepo
+				}
+				rep, err := pgStore.DiagnoseHealth(ctx, repo)
+				if err != nil {
+					return nil, err
+				}
+				return convertStoreDoctorReportToMCP(rep), nil
+			},
+			func(ctx context.Context, repo string) (int, error) {
+				if repo == "" {
+					repo = defaultRepo
+				}
+				return pgStore.FixHealthIssues(ctx, repo)
+			},
+		)
 	} else if database != nil {
 		tq := turboquant.NewQuantizer(EmbeddingDim)
 		srv.SetAdvancedSearchHandler(func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -731,6 +807,19 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return mcpConns, nil
 		})
+
+		srv.SetDoctorHandler(
+			func(ctx context.Context, repo string) (*mcp.DoctorReport, error) {
+				rep, err := db.DiagnoseHealth(ctx, database)
+				if err != nil {
+					return nil, err
+				}
+				return convertStoreDoctorReportToMCP(rep), nil
+			},
+			func(ctx context.Context, repo string) (int, error) {
+				return db.FixHealthIssues(ctx, database)
+			},
+		)
 	}
 
 	if err := srv.Run(ctx); err != nil && err != context.Canceled {
@@ -867,6 +956,153 @@ func displayInsightsTable(conns []store.SurprisingConnection) {
 		fmt.Printf("%-4d | %-30s | %-30s | %-12s | %s\n", i+1, src, tgt, simStr, c.Reason)
 	}
 	fmt.Println()
+}
+
+func runDoctorPostgres(ctx context.Context, s *store.PostgresStore, targetRepo string, fix bool) {
+	fmt.Printf("🩺 Auditando integridade do grafo no PostgreSQL [%s]...\n", targetRepo)
+	fixedCount := 0
+	if fix {
+		n, err := s.FixHealthIssues(ctx, targetRepo)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Erro ao aplicar correções: %v\n", err)
+		} else {
+			fixedCount = n
+		}
+	}
+
+	report, err := s.DiagnoseHealth(ctx, targetRepo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao diagnosticar banco: %v\n", err)
+		os.Exit(1)
+	}
+	displayDoctorReport(report, fixedCount)
+}
+
+func runDoctorSQLite(ctx context.Context, database *sql.DB, fix bool) {
+	fmt.Printf("🩺 Auditando integridade do grafo no SQLite...\n")
+	fixedCount := 0
+	if fix {
+		n, err := db.FixHealthIssues(ctx, database)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Erro ao aplicar correções: %v\n", err)
+		} else {
+			fixedCount = n
+		}
+	}
+
+	report, err := db.DiagnoseHealth(ctx, database)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao diagnosticar banco: %v\n", err)
+		os.Exit(1)
+	}
+	displayDoctorReport(report, fixedCount)
+}
+
+func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
+	if report == nil {
+		return
+	}
+
+	scoreColor := "🟢"
+	if report.HealthScore < 70 {
+		scoreColor = "🔴"
+	} else if report.HealthScore < 90 {
+		scoreColor = "🟡"
+	}
+
+	fmt.Println("\n" + strings.Repeat("=", 90))
+	fmt.Printf(" %s RELATÓRIO DE SAÚDE DA MEMÓRIA & GRAFO (Health Score: %d/100)\n", scoreColor, report.HealthScore)
+	fmt.Println(strings.Repeat("=", 90))
+	fmt.Printf(" Documentos: %d | Chunks: %d | Arestas: %d | Nós: %d\n",
+		report.TotalDocuments, report.TotalChunks, report.TotalEdges, report.TotalNodes)
+	if fixedCount > 0 {
+		fmt.Printf(" 🛠  Reparos aplicados (--fix): %d arestas problemáticas removidas\n", fixedCount)
+	}
+	fmt.Println(strings.Repeat("-", 90))
+
+	// Dead Links
+	fmt.Printf(" [🔗 Links Quebrados / Dead Links] (%d)\n", len(report.DeadLinks))
+	if len(report.DeadLinks) == 0 {
+		fmt.Println("  ✔ Nenhum link quebrado detectado. Todas as conexões apontam para notas existentes.")
+	} else {
+		for i, dl := range report.DeadLinks {
+			if i >= 15 {
+				fmt.Printf("  ... e mais %d links quebrados ocultados\n", len(report.DeadLinks)-15)
+				break
+			}
+			fmt.Printf("  - [[%s]] -> [[%s]] (relação: %s)\n", dl.SourceID, dl.TargetID, dl.Relation)
+		}
+	}
+	fmt.Println(strings.Repeat("-", 90))
+
+	// Orphan Notes
+	fmt.Printf(" [🏝️  Notas Órfãs / Sem Conexões] (%d)\n", len(report.OrphanNotes))
+	if len(report.OrphanNotes) == 0 {
+		fmt.Println("  ✔ Nenhuma nota isolada. Todos os documentos possuem ao menos 1 conexão.")
+	} else {
+		for i, on := range report.OrphanNotes {
+			if i >= 15 {
+				fmt.Printf("  ... e mais %d notas órfãs ocultadas\n", len(report.OrphanNotes)-15)
+				break
+			}
+			displayName := on.Title
+			if displayName == "" {
+				displayName = on.ID
+			}
+			fmt.Printf("  - %s (%s)\n", displayName, on.ID)
+		}
+	}
+	fmt.Println(strings.Repeat("-", 90))
+
+	// Self-Loops
+	if len(report.SelfLoops) > 0 {
+		fmt.Printf(" [🔄 Self-Loops / Conexões Reflexivas] (%d)\n", len(report.SelfLoops))
+		for _, sl := range report.SelfLoops {
+			fmt.Printf("  - %s (relação: %s)\n", sl.NodeID, sl.Relation)
+		}
+		fmt.Println(strings.Repeat("-", 90))
+	}
+
+	// Desynced Chunks
+	if len(report.DesyncedChunks) > 0 {
+		fmt.Printf(" [⚡ Chunks Sem Vetores] (%d)\n", len(report.DesyncedChunks))
+		for _, dc := range report.DesyncedChunks {
+			fmt.Printf("  - Chunk %s: %s\n", dc.ChunkID, dc.Issue)
+		}
+		fmt.Println(strings.Repeat("-", 90))
+	}
+
+	fmt.Println()
+}
+
+func convertStoreDoctorReportToMCP(rep *store.DoctorReport) *mcp.DoctorReport {
+	if rep == nil {
+		return nil
+	}
+	mcpReport := &mcp.DoctorReport{
+		TotalDocuments: rep.TotalDocuments,
+		TotalChunks:    rep.TotalChunks,
+		TotalEdges:     rep.TotalEdges,
+		TotalNodes:     rep.TotalNodes,
+		HealthScore:    rep.HealthScore,
+		DeadLinks:      make([]mcp.DeadLink, len(rep.DeadLinks)),
+		OrphanNotes:    make([]mcp.OrphanNote, len(rep.OrphanNotes)),
+		SelfLoops:      make([]mcp.SelfLoop, len(rep.SelfLoops)),
+		DesyncedChunks: make([]mcp.DesyncedChunk, len(rep.DesyncedChunks)),
+	}
+	for i, dl := range rep.DeadLinks {
+		mcpReport.DeadLinks[i] = mcp.DeadLink{SourceID: dl.SourceID, TargetID: dl.TargetID, Relation: dl.Relation}
+	}
+	for i, on := range rep.OrphanNotes {
+		mcpReport.OrphanNotes[i] = mcp.OrphanNote{ID: on.ID, Title: on.Title}
+	}
+	for i, sl := range rep.SelfLoops {
+		mcpReport.SelfLoops[i] = mcp.SelfLoop{NodeID: sl.NodeID, Relation: sl.Relation}
+	}
+	for i, dc := range rep.DesyncedChunks {
+		mcpReport.DesyncedChunks[i] = mcp.DesyncedChunk{ChunkID: dc.ChunkID, DocumentID: dc.DocumentID, Issue: dc.Issue}
+	}
+	return mcpReport
 }
 
 type BenchMetric struct {
