@@ -73,9 +73,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7
 **Tests**: internal/store/doctor_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Declarar DiagnoseHealth e FixHealthIssues na interface Store
-- [ ] Implementar DiagnoseHealth e FixHealthIssues para PostgreSQL em internal/store/doctor.go
-- [ ] Adicionar testes unitários asserindo paridade comportamental com SQLite
+- [x] Declarar DiagnoseHealth e FixHealthIssues na interface Store
+- [x] Implementar DiagnoseHealth e FixHealthIssues para PostgreSQL em internal/store/doctor.go
+- [x] Adicionar testes unitários asserindo paridade comportamental com SQLite
 
 ### T5: Ferramenta MCP memory_doctor e Handlers
 **What**: Declarar ToolMemoryDoctor, registrar em NewServer e implementar NewMemoryDoctorHandler

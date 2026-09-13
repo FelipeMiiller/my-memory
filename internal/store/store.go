@@ -118,6 +118,12 @@ type Store interface {
 	// GetNodeNeighbors executa busca recursiva de nós vizinhos conectados via CTE
 	GetNodeNeighbors(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error)
 
+	// DiagnoseHealth audita a integridade do grafo gerando um relatório de saúde
+	DiagnoseHealth(ctx context.Context, repo string) (*DoctorReport, error)
+
+	// FixHealthIssues repara problemas comuns como self-loops e links mortos
+	FixHealthIssues(ctx context.Context, repo string) (int, error)
+
 	// Close encerra a conexão com o banco de dados
 	Close() error
 }
