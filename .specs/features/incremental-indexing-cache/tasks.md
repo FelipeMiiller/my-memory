@@ -73,10 +73,10 @@ T1 -> T3 -> T4
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/store/... ./internal/mcp/...
 **Done when**:
-- [ ] Adicionar flag --force no subcomando mem index
-- [ ] Pular arquivos cujo SHA-256 coincida com o hash persistido
-- [ ] Limpar chunks antigos antes de reindexar arquivos modificados
-- [ ] Exibir sumário de indexação com contagem de notas novas vs em cache
+- [x] Adicionar flag --force no subcomando mem index
+- [x] Pular arquivos cujo SHA-256 coincida com o hash persistido
+- [x] Limpar chunks antigos antes de reindexar arquivos modificados
+- [x] Exibir sumário de indexação com contagem de notas novas vs em cache
 
 ### T5: ADR-010 e Fechamento
 **What**: Documentar ADR-010 e gerar relatório de validação da feature

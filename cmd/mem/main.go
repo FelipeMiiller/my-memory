@@ -38,6 +38,7 @@ func main() {
 	case "index":
 		indexCmd := flag.NewFlagSet("index", flag.ExitOnError)
 		dirPath := indexCmd.String("dir", "", "Caminho da pasta com arquivos Markdown")
+		force := indexCmd.Bool("force", false, "Força a reindexação completa ignorando o cache SHA-256")
 		dbPath := indexCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
 		pgURL := indexCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := indexCmd.String("repo", defaultRepo, "Identificador/slug do repositório")
@@ -48,7 +49,7 @@ func main() {
 			target = indexCmd.Arg(0)
 		}
 		if target == "" {
-			fmt.Println("Uso: mem index [--db <caminho>] [--postgres <url>] [--repo <nome>] <pasta_com_markdown>")
+			fmt.Println("Uso: mem index [--force] [--db <caminho>] [--postgres <url>] [--repo <nome>] <pasta_com_markdown>")
 			return
 		}
 
@@ -59,7 +60,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runIndexPostgres(ctx, pgStore, emb, *targetRepo, target)
+			runIndexPostgres(ctx, pgStore, emb, *targetRepo, target, *force)
 		} else {
 			database, err := db.InitDB(*dbPath)
 			if err != nil {
@@ -67,7 +68,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runIndexSQLite(ctx, database, emb, tq, target)
+			runIndexSQLite(ctx, database, emb, tq, target, *force)
 		}
 
 	case "search":
@@ -175,8 +176,8 @@ func main() {
 func printHelp() {
 	fmt.Println("=== My-Memory CLI (SQLite / PostgreSQL com pgvector / TurboQuant / MCP) ===")
 	fmt.Println("Comandos disponíveis:")
-	fmt.Println("  mem index [--db <arq>] [--postgres <url>] [--repo <slug>] <pasta>")
-	fmt.Println("      Indexa notas Markdown, links [[wikilinks]], FTS5 e vetores")
+	fmt.Println("  mem index [--force] [--db <arq>] [--postgres <url>] [--repo <slug>] <pasta>")
+	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 (use --force para reconstruir)")
 	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
 	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), FTS5/tsvector, vetores e grafo")
 	fmt.Println("  mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -189,9 +190,11 @@ func printHelp() {
 	fmt.Println("  MY_MEMORY_REPO   - Força o slug do repositório atual (sobrescreve auto-detecção git)")
 }
 
-func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, targetRepo, rootDir string) {
+func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, targetRepo, rootDir string, force bool) {
 	fmt.Printf("🔍 Indexando notas no PostgreSQL (pgvector) para repo [%s] em: %s\n", targetRepo, rootDir)
-	count := 0
+	totalCount := 0
+	indexedCount := 0
+	cachedCount := 0
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
@@ -202,12 +205,27 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 		if err != nil {
 			return nil
 		}
+		totalCount++
 		content := string(contentBytes)
 		title := strings.TrimSuffix(d.Name(), ".md")
 		docID := path
+		currentHash := store.CalculateContentHash(contentBytes)
 
-		// 1. Salva documento
-		if err := s.InsertDocument(ctx, targetRepo, docID, path, title, time.Now().Unix()); err != nil {
+		// Verificação de cache incremental via SHA-256
+		if !force {
+			storedHash, err := s.GetDocumentHash(ctx, targetRepo, docID)
+			if err == nil && storedHash != "" && storedHash == currentHash {
+				cachedCount++
+				fmt.Printf("⏩ [cached] %s (inalterado)\n", title)
+				return nil
+			}
+		}
+
+		// Limpa chunks e arestas antigas antes da reindexação limpa
+		_ = s.DeleteDocumentData(ctx, targetRepo, docID)
+
+		// 1. Salva documento com content_hash
+		if err := s.InsertDocument(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash); err != nil {
 			return err
 		}
 
@@ -230,7 +248,7 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 			_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)
 		}
 
-		count++
+		indexedCount++
 		fmt.Printf("✔ Indexado no Postgres: %s (%d links, %d chunks)\n", title, len(connections.OutgoingLinks), len(chunks))
 		return nil
 	})
@@ -238,13 +256,15 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 	if err != nil {
 		fmt.Printf("Erro durante a indexação: %v\n", err)
 	} else {
-		fmt.Printf("🎉 Concluído! %d documentos processados no PostgreSQL.\n", count)
+		fmt.Printf("🎉 Concluído! %d documentos processados no PostgreSQL (%d indexados, %d em cache).\n", totalCount, indexedCount, cachedCount)
 	}
 }
 
-func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, rootDir string) {
+func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, rootDir string, force bool) {
 	fmt.Printf("🔍 Indexando notas no SQLite em: %s (com TurboQuant 4-bit ativado)\n", rootDir)
-	count := 0
+	totalCount := 0
+	indexedCount := 0
+	cachedCount := 0
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
@@ -255,12 +275,27 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 		if err != nil {
 			return nil
 		}
+		totalCount++
 		content := string(contentBytes)
 		title := strings.TrimSuffix(d.Name(), ".md")
 		docID := path
+		currentHash := store.CalculateContentHash(contentBytes)
 
-		// 1. Salva documento
-		if err := db.InsertDocument(ctx, database, docID, path, title, time.Now().Unix()); err != nil {
+		// Verificação de cache incremental via SHA-256
+		if !force {
+			storedHash, err := db.GetDocumentHash(ctx, database, docID)
+			if err == nil && storedHash != "" && storedHash == currentHash {
+				cachedCount++
+				fmt.Printf("⏩ [cached] %s (inalterado)\n", title)
+				return nil
+			}
+		}
+
+		// Limpa chunks e arestas antigas antes da reindexação limpa
+		_ = db.DeleteDocumentData(ctx, database, docID)
+
+		// 1. Salva documento com content_hash
+		if err := db.InsertDocument(ctx, database, docID, path, title, time.Now().Unix(), currentHash); err != nil {
 			return err
 		}
 
@@ -290,7 +325,7 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 			}
 		}
 
-		count++
+		indexedCount++
 		fmt.Printf("✔ Indexado no SQLite: %s (%d links, %d chunks comprimidos)\n", title, len(connections.OutgoingLinks), len(chunks))
 		return nil
 	})
@@ -298,7 +333,7 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 	if err != nil {
 		fmt.Printf("Erro durante a indexação: %v\n", err)
 	} else {
-		fmt.Printf("🎉 Concluído! %d documentos processados com TurboQuant.\n", count)
+		fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache com TurboQuant).\n", totalCount, indexedCount, cachedCount)
 	}
 }
 
