@@ -116,7 +116,23 @@ Indexa documentos respeitando as regras declaradas de `include` e `exclude`. Se 
 ./bin/mem.exe index ./suas-notas
 ```
 
-#### 3. Busca Híbrida e Decaimento Temporal (RRF + FTS5 + k-NN + Grafo)
+#### 3. Monitoramento em Tempo Real (`mem watch`)
+Monitora o vault em segundo plano com debouncing inteligente (padrão 500ms) e reindexa cirurgicamente apenas notas criadas, modificadas ou deletadas:
+```bash
+./bin/mem.exe watch
+```
+
+#### 4. Automação Pré-Commit com Git Hooks (`mem hook`)
+Garante que notas Markdown sejam sincronizadas no grafo e no índice vetorial antes de cada commit no Git:
+```bash
+# Instalar pre-commit hook:
+./bin/mem.exe hook install
+
+# Desinstalar pre-commit hook:
+./bin/mem.exe hook uninstall
+```
+
+#### 5. Busca Híbrida e Decaimento Temporal (RRF + FTS5 + k-NN + Grafo)
 Executa busca híbrida unificada via Reciprocal Rank Fusion (RRF), com suporte opcional a decaimento temporal exponencial (ADR-015) para priorizar notas mais recentes:
 ```bash
 ./bin/mem.exe search "como funciona o fluxo de autenticação?"
@@ -124,7 +140,7 @@ Executa busca híbrida unificada via Reciprocal Rank Fusion (RRF), com suporte o
 ./bin/mem.exe search --decay --half-life 15 --decay-weight 0.5 "decisões recentes de arquitetura"
 ```
 
-#### 4. Busca Ultracompacta com TurboQuant (4-bits)
+#### 6. Busca Ultracompacta com TurboQuant (4-bits)
 Executa a busca ultraveloz projetada sobre os vetores quantizados:
 ```bash
 ./bin/mem.exe search -tq "como funciona o fluxo de autenticação?"
@@ -184,8 +200,10 @@ my-memory/
 │   ├── graph/              # Algoritmos de grafo (PageRank ponderado, God Nodes)
 │   ├── mcp/                # Servidor MCP (JSON-RPC 2.0, framing, tools)
 │   ├── parser/             # Extração de [[wikilinks]], tags e chunking
+│   ├── repo/               # Detecção e normalização de slug de repositório Git
 │   ├── store/              # Interfaces unificadas de armazenamento e PostgreSQL com pgvector
-│   └── turboquant/         # Rotações de Householder e quantizador 4-bit
+│   ├── turboquant/         # Rotações de Householder e quantizador 4-bit
+│   └── watcher/            # File watcher em tempo real, debouncing e reindexação cirúrgica
 ├── docs/                   # Documentação detalhada e ADRs
 │   ├── adr/                # Decisões de Arquitetura em formato MADR
 │   ├── ARCHITECTURE.md     # Detalhamento de schemas e fluxo de dados
@@ -220,6 +238,7 @@ my-memory/
   - [ADR-014: Centralidade de Grafo com PageRank Ponderado](docs/adr/014-centralidade-de-grafo-com-pagerank-ponderado.md)
   - [ADR-015: Decaimento Temporal Exponencial na Busca Híbrida](docs/adr/015-decaimento-temporal-exponencial-na-busca-hibrida.md)
   - [ADR-016: Configuração Declarativa e Auto-Scoping de Vault](docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md)
+  - [ADR-017: Indexação Contínua em Tempo Real com File Watcher e Git Hooks](docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md)
 
 ---
 

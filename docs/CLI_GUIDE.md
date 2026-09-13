@@ -53,7 +53,46 @@ Percorre recursivamente os arquivos do vault respeitando as regras declarativas 
 
 ---
 
-### 2. `mem search "<pergunta>" [--mode hybrid|vector|fts] [--decay] [--half-life 30] [--decay-weight 0.3]`
+### 3. `mem watch [--debounce <ms>] [--interval <ms>] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]`
+Monitora continuamente alterações de arquivos Markdown no vault em tempo real:
+* **Detecção Automática**: Identifica criação, modificação e deleção de notas Markdown em segundo plano sem necessidade de CGO.
+* **Debouncing Amortecido**: Agrupa rajadas de salvamento contínuo (padrão: 500ms) executadas por editores de código e pelo Obsidian para evitar chamadas redundantes ao Ollama.
+* **Reindexação Cirúrgica**: Processa exclusivamente o arquivo alterado (documento, arestas, chunks e embeddings), sem reindexar o restante do vault.
+* **Purga Automática**: Deleta instantaneamente do índice notas que foram removidas do disco.
+* **Encerramento Gracioso**: Suporta encerramento seguro via `Ctrl+C` (`SIGINT`/`SIGTERM`).
+
+**Exemplo:**
+```bash
+# Iniciar monitoramento em tempo real no vault atual:
+./bin/mem.exe watch
+
+# Customizando intervalo de polling e janela de debounce:
+./bin/mem.exe watch --debounce 300 --interval 500
+```
+
+---
+
+### 4. `mem hook <install|uninstall> [--force] [<pasta>]`
+Gerencia a instalação do Git Pre-Commit Hook para garantir integridade do índice de conhecimento antes de cada commit:
+* `install`: Localiza a pasta `.git/hooks` e grava o script executável `pre-commit` assinado pelo My-Memory.
+* Protege hooks de outros linters existentes, exigindo `--force` apenas se houver conflito com ferramentas externas.
+* `uninstall`: Remove de forma limpa e idempotente o hook pre-commit instalado pelo My-Memory.
+
+**Exemplo:**
+```bash
+# Instalar o hook pre-commit no repositório atual:
+./bin/mem.exe hook install
+
+# Forçar instalação sobrescrevendo hooks desconhecidos:
+./bin/mem.exe hook install --force
+
+# Desinstalar o hook:
+./bin/mem.exe hook uninstall
+```
+
+---
+
+### 5. `mem search "<pergunta>" [--mode hybrid|vector|fts] [--decay] [--half-life 30] [--decay-weight 0.3]`
 Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato FTS5/tsvector, vetores semânticos k-NN e expansão de grafo:
 * `--mode`: Escolhe entre `hybrid` (padrão, fusão RRF), `vector` (apenas semântico k-NN) ou `fts` (apenas texto exato).
 * `--decay`: Ativa o decaimento temporal exponencial ponderado (ADR-015) para priorizar notas mais recentes no ranking final.
@@ -72,7 +111,7 @@ Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato
 
 ---
 
-### 3. `mem search -tq "<pergunta>"` (Modo TurboQuant)
+### 6. `mem search -tq "<pergunta>"` (Modo TurboQuant)
 Realiza a busca ultrarrápida utilizando os blocos compactados em 4-bits no SQLite:
 * Rotaciona o vetor da query via Householder.
 * Calcula o produto escalar não-viesado diretamente sobre os BLOBs comprimidos.
@@ -85,7 +124,7 @@ Realiza a busca ultrarrápida utilizando os blocos compactados em 4-bits no SQLi
 
 ---
 
-### 4. `mem mcp [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+### 7. `mem mcp [--db <caminho>] [--postgres <url>] [--repo <slug>]`
 Inicia o servidor Model Context Protocol (MCP) via `stdio` (JSON-RPC 2.0):
 * Exposto para agentes como Claude Code, Cursor, Windsurf e Antigravity.
 * Fornece as ferramentas `memory_search` e `memory_get_neighbors`.
@@ -100,7 +139,7 @@ Inicia o servidor Model Context Protocol (MCP) via `stdio` (JSON-RPC 2.0):
 
 ---
 
-### 5. `mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>]`
+### 8. `mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>]`
 Exporta o subgrafo relacional centrado em uma nota para o formato aberto **JSON Canvas 1.0 (`.canvas`)** do Obsidian:
 * Realiza a travessia de vizinhos conectados até a profundidade indicada.
 * Calcula o posicionamento radial espacial para visualização sem nós sobrepostos.
@@ -113,7 +152,7 @@ Exporta o subgrafo relacional centrado em uma nota para o formato aberto **JSON 
 
 ---
 
-### 6. `mem doctor [--fix] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+### 9. `mem doctor [--fix] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
 Audita a saúde do grafo e tabelas relacionais de conhecimento:
 * Identifica **Dead Links** (wikilinks apontando para notas inexistentes).
 * Identifica **Notas Órfãs** (documentos sem conexões de entrada ou saída).
@@ -130,7 +169,7 @@ Audita a saúde do grafo e tabelas relacionais de conhecimento:
 
 ---
 
-### 7. `mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10]` e `mem insights`
+### 10. `mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10]` e `mem insights`
 * `mem hubs`: Exibe os nós centrais do grafo. Suporta ordenação por grau bruto (`--algorithm degree` - padrão) ou por autoridade estrutural iterativa com pesos epistêmicos (`--algorithm pagerank`).
 * `mem insights`: Descobre conexões latentes (*Surprising Connections*) entre notas com alta similaridade sem links diretos.
 
@@ -144,7 +183,7 @@ Audita a saúde do grafo e tabelas relacionais de conhecimento:
 
 ---
 
-### 8. `mem bench`
+### 11. `mem bench`
 Executa a suíte de micro-benchmarks quantitativos da biblioteca (TurboQuant 4-bit, fusão RRF, SHA-256 e parsing) com saída tabular detalhada.
 
 **Exemplo:**
@@ -198,6 +237,11 @@ search:
   half_life: 30.0           # Meia-vida em dias
   decay_weight: 0.3         # Peso do decaimento
   use_turbo: false          # TurboQuant 4-bit
+
+# Monitoramento em tempo real (mem watch)
+watcher:
+  debounce_ms: 500          # Janela de amortecimento para agrupar rajadas
+  interval_ms: 1000         # Intervalo de polling periódico
 ```
 
 ### 🏆 Ordem de Precedência (Prioridade):

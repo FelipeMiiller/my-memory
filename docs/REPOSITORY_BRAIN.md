@@ -92,6 +92,27 @@ A IA ganha acesso automático a ferramentas com escopo de repositório:
 * `memory_search(query, mode?, limit?, repository?, decay?, half_life?, decay_weight?)`: Recupera os chunks de maior relevância semântica, léxica ou híbrida (RRF), com suporte a decaimento temporal exponencial (ADR-015).
 * `memory_get_neighbors(node_id, max_depth?, repository?)`: Retorna nós vizinhos e dependências conectadas no grafo via SQL recursivo.
 * `memory_export_canvas(node_id, max_depth?, repository?)`: Gera JSON Canvas 1.0 espacial para visualização gráfica no Obsidian.
-* `memory_get_hubs(top?, repository?, algorithm?)`: Retorna os nós com maior centralidade de conexões (*God Nodes* / Hubs) via grau ou autoridade PageRank ponderada.
-* `memory_get_insights(limit?, min_similarity?, repository?)`: Descobre conexões latentes (*Surprising Connections*) entre conceitos sem links diretos.
 * `memory_doctor(repository?, fix?)`: Audita a integridade do grafo (dead links, notas órfãs, self-loops e Health Score), com suporte a reparo automático.
+
+---
+
+## 🔄 Sincronização Contínua em Tempo Real e Git Hooks
+
+Para manter a memória do repositório sempre alinhada com as anotações do time sem esforço manual:
+
+### 1. Monitoramento em Segundo Plano (`mem watch`)
+Durante sessões de desenvolvimento ou escrita no Obsidian:
+```bash
+mem watch
+```
+O `mem watch` utiliza um debouncer inteligente que consolida rajadas de salvamento contínuo e reindexa cirurgicamente as notas modificadas ou deletadas em frações de segundo, mantendo as ferramentas MCP sempre atualizadas para os agentes de IA.
+
+### 2. Automação Pré-Commit com Git Hooks (`mem hook`)
+Para garantir que nenhuma alteração em notas de documentação ou decisões seja commitada sem estar indexada no banco vetorial e grafo relacional:
+```bash
+mem hook install
+```
+Isso instala um script pre-commit leve e não-invasivo em `.git/hooks/pre-commit` que roda `mem index` antes de finalizar o commit. Para remover a qualquer momento:
+```bash
+mem hook uninstall
+```

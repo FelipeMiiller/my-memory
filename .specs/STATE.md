@@ -12,14 +12,15 @@
 - **AD-014**: Centralidade de Grafo com PageRank Ponderado (`docs/adr/014-centralidade-de-grafo-com-pagerank-ponderado.md`)
 - **AD-015**: Decaimento Temporal Exponencial na Busca Híbrida (`docs/adr/015-decaimento-temporal-exponencial-na-busca-hibrida.md`)
 - **AD-016**: Configuração Declarativa e Auto-Scoping de Vault (`docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md`)
+- **AD-017**: Indexação Contínua em Tempo Real com File Watcher e Git Hooks (`docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md`)
 
 ## Handoff
 
 - **Feature**: live-indexing-and-file-watcher (.specs/features/live-indexing-and-file-watcher)
-- **Phase / Task**: Phase 1 / T6
-- **Completed**: T1, T2, T3, T4, T5 (Integração com Auto-Scoping e Configuração Declarativa)
-- **In-progress**: T6 (ADR-017, Validação Final e Documentação)
-- **Next step**: Criar ADR-017, atualizar documentação (README.md, CLI_GUIDE.md, REPOSITORY_BRAIN.md), gerar validation.md e validar gates.
+- **Phase / Task**: Phase 1 / T6 (Completed)
+- **Completed**: T1, T2, T3, T4, T5, T6 (ADR-017, Validação Final e Documentação)
+- **In-progress**: none
+- **Next step**: Pronto para a próxima grande capacidade do roadmap de referências.
 - **Blockers**: none
 - **Branch**: main
 
