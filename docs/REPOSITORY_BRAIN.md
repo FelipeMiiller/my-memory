@@ -1,4 +1,4 @@
-﻿# Repositório Autoconsciente (Repository Brain)
+# Repositório Autoconsciente (Repository Brain)
 
 Este documento descreve como integrar o `my-memory` dentro do repositório de qualquer projeto para fornecer à Inteligência Artificial (Claude Code, Cursor, Antigravity, Copilot) uma memória semântica e relacional viva.
 
@@ -52,8 +52,9 @@ meu-projeto/
 ## 🔌 Integração com Model Context Protocol (MCP)
 
 Ferramentas como Claude Code, Cursor e Antigravity suportam servidores MCP nativamente.
-Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou equivalente:
+Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de configuração do Claude:
 
+### Modo 1: SQLite Local (Zero-Config)
 ```json
 {
   "mcpServers": {
@@ -65,7 +66,22 @@ Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou equiv
 }
 ```
 
-A IA ganha acesso automático a ferramentas:
-* `memory_search(query)`: Recupera os chunks de maior similaridade semântica.
-* `memory_get_neighbors(symbol)`: Retorna nós vizinhos e dependências no grafo.
-* `memory_get_decision(topic)`: Consulta os ADRs e decisões arquiteturais vigentes.
+### Modo 2: PostgreSQL Centralizado com pgvector (Multi-Repositório)
+```json
+{
+  "mcpServers": {
+    "my-memory": {
+      "command": "mem",
+      "args": [
+        "mcp",
+        "--postgres", "postgres://user:pass@localhost:5432/memory?sslmode=disable",
+        "--repo", "meu-org/meu-projeto"
+      ]
+    }
+  }
+}
+```
+
+A IA ganha acesso automático a ferramentas com escopo de repositório:
+* `memory_search(query, repository?)`: Recupera os chunks de maior similaridade semântica (local ou multi-repo).
+* `memory_get_neighbors(node_id, repository?)`: Retorna nós vizinhos e dependências conectadas no grafo.

@@ -1,4 +1,4 @@
-﻿# Guia da Linha de Comando (CLI)
+# Guia da Linha de Comando (CLI)
 
 O executável `mem` fornece uma interface direta para indexação e consulta semântica da base de conhecimento.
 
@@ -35,20 +35,22 @@ Percorre recursivamente a pasta especificada procurando arquivos `.md`:
 ---
 
 ### 2. `mem search "<pergunta>"`
-Realiza a busca semântica k-NN padrão utilizando a extensão `sqlite-vec`:
+Realiza a busca semântica k-NN padrão utilizando a extensão `sqlite-vec` ou `pgvector`:
 * Calcula o embedding da pergunta.
-* Busca os 5 chunks com menor distância de cosseno.
+* Busca os chunks com menor distância de cosseno.
 * Realiza a **expansão de grafo** via SQL recursivo para trazer notas conectadas.
 
 **Exemplo:**
 ```bash
 ./bin/mem.exe search "como funciona o fluxo de autenticacao?"
+# Filtrando por repositório ou conectando ao PostgreSQL:
+./bin/mem.exe search --postgres "postgres://user:pass@localhost:5432/memory?sslmode=disable" --repo "meu-org/meu-projeto" "fluxo de autenticacao"
 ```
 
 ---
 
 ### 3. `mem search -tq "<pergunta>"` (Modo TurboQuant)
-Realiza a busca ultrarrápida utilizando os blocos compactados em 4-bits:
+Realiza a busca ultrarrápida utilizando os blocos compactados em 4-bits no SQLite:
 * Rotaciona o vetor da query via Householder.
 * Calcula o produto escalar não-viesado diretamente sobre os BLOBs comprimidos.
 * Aplica a mesma expansão de grafo sobre os resultados.
@@ -56,4 +58,19 @@ Realiza a busca ultrarrápida utilizando os blocos compactados em 4-bits:
 **Exemplo:**
 ```bash
 ./bin/mem.exe search -tq "qual a regra para calculo de comissao?"
+```
+
+---
+
+### 4. `mem mcp [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Inicia o servidor Model Context Protocol (MCP) via `stdio` (JSON-RPC 2.0):
+* Exposto para agentes como Claude Code, Cursor, Windsurf e Antigravity.
+* Fornece as ferramentas `memory_search` e `memory_get_neighbors`.
+* Suporta isolamento por repositório e conexões via SQLite local ou PostgreSQL centralizado.
+
+**Exemplo:**
+```bash
+./bin/mem.exe mcp --db memory.db
+# Ou conectado a uma base central PostgreSQL:
+./bin/mem.exe mcp --postgres "postgres://user:pass@localhost:5432/memory?sslmode=disable" --repo "meu-org/meu-projeto"
 ```
