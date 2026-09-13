@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/canvas"
@@ -21,6 +23,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/repo"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
+	"github.com/FelipeMiiller/my-memory/internal/watcher"
 )
 
 const EmbeddingDim = 768
@@ -147,6 +150,58 @@ func main() {
 			defer database.Close()
 			runIndexSQLite(ctx, database, emb, tq, cfg, target, *force, !*noPrune)
 		}
+
+	case "watch":
+		watchCmd := flag.NewFlagSet("watch", flag.ExitOnError)
+		dirPath := watchCmd.String("dir", "", "Caminho da pasta com notas Markdown (padrão: raiz do vault configurado)")
+		debounceMs := watchCmd.Int("debounce", 500, "Janela de debounce em milissegundos (padrão: 500)")
+		intervalMs := watchCmd.Int("interval", 1000, "Intervalo de polling em milissegundos (padrão: 1000)")
+		dbPath := watchCmd.String("db", "", "Caminho do arquivo SQLite")
+		pgURL := watchCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := watchCmd.String("repo", "", "Identificador/slug do repositório")
+		watchCmd.Parse(os.Args[2:])
+
+		target := *dirPath
+		if target == "" && watchCmd.NArg() > 0 {
+			target = watchCmd.Arg(0)
+		}
+
+		searchDir := target
+		if searchDir == "" {
+			searchDir = "."
+		}
+
+		var cfg *config.Config
+		cfgPath, err := config.FindConfigFile(searchDir)
+		if err == nil {
+			if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
+				cfg = loaded
+				if target == "" {
+					dirOfCfg := filepath.Dir(cfgPath)
+					if filepath.Base(dirOfCfg) == ".memory" {
+						target = filepath.Dir(dirOfCfg)
+					} else {
+						target = dirOfCfg
+					}
+				}
+			}
+		}
+
+		if cfg == nil {
+			def := config.DefaultConfig()
+			cfg = &def
+		}
+
+		if target == "" {
+			target = "."
+		}
+
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+
+		debounceDur := time.Duration(*debounceMs) * time.Millisecond
+		intervalDur := time.Duration(*intervalMs) * time.Millisecond
+
+		runWatch(ctx, emb, tq, cfg, resolvedRepo, resolvedDB, resolvedPG, target, debounceDur, intervalDur)
 
 	case "search":
 		searchCmd := flag.NewFlagSet("search", flag.ExitOnError)
@@ -440,6 +495,8 @@ func printHelp() {
 	fmt.Println("      Inicializa um novo vault criando .memory/config.yaml com configurações declarativas")
 	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
+	fmt.Println("  mem watch [--debounce <ms>] [--interval <ms>] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
+	fmt.Println("      Monitora continuamente o vault em segundo plano e reindexa notas em tempo real")
 	fmt.Println("  mem doctor [--fix] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score)")
 	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
@@ -546,6 +603,106 @@ search:
 	fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
 	fmt.Println("   Dica: execute 'mem index' para iniciar a indexação automática.")
 	return nil
+}
+
+func runWatch(
+	ctx context.Context,
+	emb *embedder.OllamaClient,
+	tq *turboquant.Quantizer,
+	cfg *config.Config,
+	targetRepo, dbPath, pgURL, rootDir string,
+	debounce, interval time.Duration,
+) {
+	absRoot, err := filepath.Abs(rootDir)
+	if err == nil {
+		rootDir = absRoot
+	}
+
+	var pgStore *store.PostgresStore
+	var database *sql.DB
+
+	if pgURL != "" {
+		s, err := store.NewPostgresStore(pgURL)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
+			os.Exit(1)
+		}
+		defer s.Close()
+		pgStore = s
+		fmt.Printf("👀 [live-watch] Conectado ao PostgreSQL (pgvector) para repo [%s]\n", targetRepo)
+	} else {
+		d, err := db.InitDB(dbPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
+			os.Exit(1)
+		}
+		defer d.Close()
+		database = d
+		fmt.Printf("👀 [live-watch] Conectado ao SQLite (%s)\n", dbPath)
+	}
+
+	w := watcher.NewWatcher(rootDir, cfg, interval, debounce)
+
+	sigCtx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	fmt.Printf("🔍 Monitorando alterações em: %s\n", rootDir)
+	fmt.Printf("   Debounce: %v | Polling: %v\n", debounce, interval)
+	fmt.Println("   Pressione Ctrl+C para encerrar o monitoramento.")
+
+	events := w.Start(sigCtx)
+
+	for {
+		select {
+		case <-sigCtx.Done():
+			fmt.Println("\n🛑 Encerrando monitoramento contínuo...")
+			w.Stop()
+			fmt.Println("👋 Monitoramento finalizado com sucesso.")
+			return
+
+		case ev, ok := <-events:
+			if !ok {
+				return
+			}
+			switch ev.Type {
+			case watcher.EventCreate, watcher.EventModify:
+				var res *watcher.IndexResult
+				var idxErr error
+
+				if pgStore != nil {
+					res, idxErr = watcher.IndexSingleFilePostgres(sigCtx, pgStore, emb, targetRepo, ev.Path, false)
+				} else {
+					res, idxErr = watcher.IndexSingleFileSQLite(sigCtx, database, emb, tq, ev.Path, false)
+				}
+
+				if idxErr != nil {
+					fmt.Printf("❌ Erro ao indexar %s: %v\n", ev.RelPath, idxErr)
+				} else if res != nil {
+					if res.Action == "cached" {
+						fmt.Printf("⏩ [live-cached] %s (sem alterações de conteúdo)\n", ev.RelPath)
+					} else {
+						fmt.Printf("✔ [live-indexed] %s (%d arestas, %d chunks em %v)\n", ev.RelPath, res.EdgesCount, res.ChunksCount, res.Duration.Round(time.Millisecond))
+					}
+				}
+
+			case watcher.EventDelete:
+				var res *watcher.IndexResult
+				var purgeErr error
+
+				if pgStore != nil {
+					res, purgeErr = watcher.PurgeSingleFilePostgres(sigCtx, pgStore, targetRepo, ev.Path)
+				} else {
+					res, purgeErr = watcher.PurgeSingleFileSQLite(sigCtx, database, ev.Path)
+				}
+
+				if purgeErr != nil {
+					fmt.Printf("❌ Erro ao purgar %s: %v\n", ev.RelPath, purgeErr)
+				} else if res != nil {
+					fmt.Printf("🗑  [live-purged] %s (removido do índice)\n", ev.RelPath)
+				}
+			}
+		}
+	}
 }
 
 func resolveConfig() *config.Config {

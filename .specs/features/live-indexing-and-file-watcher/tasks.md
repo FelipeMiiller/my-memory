@@ -67,10 +67,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/watch_test.go
 **Gate**: go test -v ./cmd/mem/...
 **Done when**:
-- [ ] Adicionar case watch no switch do CLI
-- [ ] Suportar flags --debounce, --interval, --db, --postgres e --repo
-- [ ] Tratar sinais do sistema operacional (SIGINT/SIGTERM) para encerramento gracioso
-- [ ] Atualizar printHelp documentando o comando mem watch
+- [x] Adicionar case watch no switch do CLI
+- [x] Suportar flags --debounce, --interval, --db, --postgres e --repo
+- [x] Tratar sinais do sistema operacional (SIGINT/SIGTERM) para encerramento gracioso
+- [x] Atualizar printHelp documentando o comando mem watch
 
 ### T4: Gerenciador de Git Hooks
 **What**: Implementar comandos mem hook install e mem hook uninstall em cmd/mem/hook.go
