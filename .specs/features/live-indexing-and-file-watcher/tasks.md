@@ -93,9 +93,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/watch_test.go
 **Gate**: go test -v ./cmd/mem/... ./internal/...
 **Done when**:
-- [ ] Utilizar auto-scoping de config.FindConfigFile quando nenhum diretório for passado em mem watch
-- [ ] Carregar debounce e storage defaults a partir da configuração do vault
-- [ ] Validar operação contínua do watcher em conjunto com a configuração declarativa
+- [x] Utilizar auto-scoping de config.FindConfigFile quando nenhum diretório for passado em mem watch
+- [x] Carregar debounce e storage defaults a partir da configuração do vault
+- [x] Validar operação contínua do watcher em conjunto com a configuração declarativa
 
 ### T6: ADR-017, Validação Final e Documentação
 **What**: Registrar decisão ADR-017 e atualizar manuais de documentação

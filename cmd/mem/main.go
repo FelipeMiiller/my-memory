@@ -198,8 +198,23 @@ func main() {
 
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
 
-		debounceDur := time.Duration(*debounceMs) * time.Millisecond
-		intervalDur := time.Duration(*intervalMs) * time.Millisecond
+		setFlags := make(map[string]bool)
+		watchCmd.Visit(func(f *flag.Flag) {
+			setFlags[f.Name] = true
+		})
+
+		debounceVal := *debounceMs
+		if !setFlags["debounce"] && cfg.Watcher.DebounceMs > 0 {
+			debounceVal = cfg.Watcher.DebounceMs
+		}
+
+		intervalVal := *intervalMs
+		if !setFlags["interval"] && cfg.Watcher.IntervalMs > 0 {
+			intervalVal = cfg.Watcher.IntervalMs
+		}
+
+		debounceDur := time.Duration(debounceVal) * time.Millisecond
+		intervalDur := time.Duration(intervalVal) * time.Millisecond
 
 		runWatch(ctx, emb, tq, cfg, resolvedRepo, resolvedDB, resolvedPG, target, debounceDur, intervalDur)
 
@@ -625,6 +640,11 @@ search:
   half_life: 30.0           # Meia-vida em dias para decaimento temporal
   decay_weight: 0.3         # Peso do decaimento temporal (0.0 a 1.0)
   use_turbo: false          # Busca quantizada 4-bit TurboQuant no SQLite
+
+# Configurações do monitoramento contínuo em tempo real (mem watch)
+watcher:
+  debounce_ms: 500          # Janela de debounce para agrupar rajadas de gravação
+  interval_ms: 1000         # Intervalo de polling periódico
 `, repoSlug, dbPath)
 
 	if err := os.WriteFile(cfgPath, []byte(template), 0644); err != nil {

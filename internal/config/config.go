@@ -37,6 +37,12 @@ type SearchConfig struct {
 	UseTurbo    bool    `yaml:"use_turbo,omitempty" json:"use_turbo,omitempty"`       // Usar quantização 4-bit TurboQuant no SQLite
 }
 
+// WatcherConfig define os parâmetros para monitoramento contínuo de arquivos em tempo real
+type WatcherConfig struct {
+	DebounceMs int `yaml:"debounce_ms,omitempty" json:"debounce_ms,omitempty"` // Janela de debounce em milissegundos (default: 500)
+	IntervalMs int `yaml:"interval_ms,omitempty" json:"interval_ms,omitempty"` // Intervalo de polling em milissegundos (default: 1000)
+}
+
 // Config estrutura raiz de configuração declarativa do vault / repositório
 type Config struct {
 	Version    int             `yaml:"version" json:"version"`
@@ -47,6 +53,7 @@ type Config struct {
 	Storage    StorageConfig   `yaml:"storage,omitempty" json:"storage,omitempty"`
 	Embedding  EmbeddingConfig `yaml:"embedding,omitempty" json:"embedding,omitempty"`
 	Search     SearchConfig    `yaml:"search,omitempty" json:"search,omitempty"`
+	Watcher    WatcherConfig   `yaml:"watcher,omitempty" json:"watcher,omitempty"`
 }
 
 // DefaultConfig retorna as configurações padrão do My-Memory
@@ -82,6 +89,10 @@ func DefaultConfig() Config {
 			HalfLife:    30.0,
 			DecayWeight: 0.3,
 			UseTurbo:    false,
+		},
+		Watcher: WatcherConfig{
+			DebounceMs: 500,
+			IntervalMs: 1000,
 		},
 	}
 }

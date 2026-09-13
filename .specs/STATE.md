@@ -16,10 +16,10 @@
 ## Handoff
 
 - **Feature**: live-indexing-and-file-watcher (.specs/features/live-indexing-and-file-watcher)
-- **Phase / Task**: Phase 1 / T5
-- **Completed**: T1, T2, T3, T4 (Gerenciador de Git Hooks)
-- **In-progress**: T5 (Integração com Auto-Scoping e Configuração Declarativa)
-- **Next step**: Conectar mem watch e hooks ao arquivo .memory/config.yaml do vault.
+- **Phase / Task**: Phase 1 / T6
+- **Completed**: T1, T2, T3, T4, T5 (Integração com Auto-Scoping e Configuração Declarativa)
+- **In-progress**: T6 (ADR-017, Validação Final e Documentação)
+- **Next step**: Criar ADR-017, atualizar documentação (README.md, CLI_GUIDE.md, REPOSITORY_BRAIN.md), gerar validation.md e validar gates.
 - **Blockers**: none
 - **Branch**: main
 

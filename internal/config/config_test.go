@@ -30,6 +30,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Search.HalfLife != 30.0 {
 		t.Errorf("esperava half_life 30.0, obteve %f", cfg.Search.HalfLife)
 	}
+	if cfg.Watcher.DebounceMs != 500 {
+		t.Errorf("esperava debounce_ms 500, obteve %d", cfg.Watcher.DebounceMs)
+	}
+	if cfg.Watcher.IntervalMs != 1000 {
+		t.Errorf("esperava interval_ms 1000, obteve %d", cfg.Watcher.IntervalMs)
+	}
 	if len(cfg.Exclude) == 0 {
 		t.Errorf("esperava excludes padrão, obteve lista vazia")
 	}
@@ -95,6 +101,8 @@ func TestLoadAndSaveConfig(t *testing.T) {
 	cfg.Search.Limit = 10
 	cfg.Search.Decay = true
 	cfg.Search.HalfLife = 14.5
+	cfg.Watcher.DebounceMs = 250
+	cfg.Watcher.IntervalMs = 800
 
 	if err := SaveConfig(cfgPath, &cfg); err != nil {
 		t.Fatalf("erro ao salvar config: %v", err)
@@ -122,6 +130,12 @@ func TestLoadAndSaveConfig(t *testing.T) {
 	}
 	if loaded.Search.HalfLife != 14.5 {
 		t.Errorf("esperava half_life 14.5, obteve %f", loaded.Search.HalfLife)
+	}
+	if loaded.Watcher.DebounceMs != 250 {
+		t.Errorf("esperava debounce_ms 250, obteve %d", loaded.Watcher.DebounceMs)
+	}
+	if loaded.Watcher.IntervalMs != 800 {
+		t.Errorf("esperava interval_ms 800, obteve %d", loaded.Watcher.IntervalMs)
 	}
 	if loaded.Storage.Engine != "sqlite" {
 		t.Errorf("esperava storage engine 'sqlite', obteve '%s'", loaded.Storage.Engine)
