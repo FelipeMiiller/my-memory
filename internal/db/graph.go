@@ -31,9 +31,8 @@ func SearchKNN(ctx context.Context, db *sql.DB, queryVec []float32, limit int) (
 	SELECT c.id, c.document_id, c.content, v.distance
 	FROM chunks_vec v
 	JOIN chunks c ON c.id = v.chunk_id
-	WHERE v.embedding MATCH ?
+	WHERE v.embedding MATCH ? AND k = ?
 	ORDER BY v.distance
-	LIMIT ?
 	`
 
 	rows, err := db.QueryContext(ctx, query, vecBlob, limit)
