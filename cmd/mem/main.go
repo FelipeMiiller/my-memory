@@ -546,6 +546,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "version", "--version", "-v":
+		if err := runVersionCLI(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	default:
 		printHelp()
 	}
@@ -580,6 +586,8 @@ func printHelp() {
 	fmt.Println("      Compila e sintetiza fragmentos de busca em uma nota atômica com backlinks (Compile-not-Retrieve)")
 	fmt.Println("  mem mcp [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Inicia servidor Model Context Protocol via stdio para agentes de IA (Claude, Cursor, etc)")
+	fmt.Println("  mem version [--json]")
+	fmt.Println("      Exibe metadados de versão, commit, data de compilação e arquitetura (ou via -v, --version)")
 	fmt.Println()
 	fmt.Println("Variáveis de ambiente:")
 	fmt.Println("  MY_MEMORY_PG_URL - URL de conexão padrão para o PostgreSQL (ex: postgres://user:pass@localhost:5432/memory?sslmode=disable)")

@@ -14,19 +14,14 @@
 - **AD-016**: Configuração Declarativa e Auto-Scoping de Vault (`docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md`)
 - **AD-017**: Indexação Contínua em Tempo Real com File Watcher e Git Hooks (`docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md`)
 - **AD-018**: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP e CLI (`docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md`)
+- **AD-019**: Versionamento Semântico Automatizado e Criação de Tags no CI (`docs/adr/019-versionamento-semantico-e-tagging-ci.md`)
 
 ## Handoff
 
-- **Feature**: compile-not-retrieve-and-bilateral-mcp (.specs/features/compile-not-retrieve-and-bilateral-mcp)
-- **Phase / Task**: Phase 1 / T6 (Completed)
-- **Completed**: T1, T2, T3, T4, T5, T6 (ADR-018, Validação Final e Documentação)
-- **In-progress**: none
-- **Next step**: Pronto para a próxima grande capacidade do roadmap de referências.
+- **Feature**: automated-semver-and-ci-tagging (.specs/features/automated-semver-and-ci-tagging)
+- **Phase / Task**: Phase 1 / T2 (In-progress)
+- **Completed**: T1 (Metadados de Compilação e Subcomando mem version)
+- **In-progress**: T2 (Análise de Conventional Commits e Workflow de Tagging)
+- **Next step**: Criar .github/workflows/release.yml e lógica determinística de bump SemVer
 - **Blockers**: none
 - **Branch**: main
-
-
-
-
-
-
