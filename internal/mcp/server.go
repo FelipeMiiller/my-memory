@@ -88,6 +88,10 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterHandler("initialize", s.handleInitialize)
 	s.RegisterHandler("notifications/initialized", s.handleInitialized)
 	s.RegisterHandler("ping", s.handlePing)
+	s.RegisterHandler("tools/list", s.handleToolsList)
+
+	s.RegisterTool(ToolMemorySearch, nil)
+	s.RegisterTool(ToolMemoryGetNeighbors, nil)
 
 	return s
 }

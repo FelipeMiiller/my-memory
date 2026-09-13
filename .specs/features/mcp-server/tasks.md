@@ -1,4 +1,4 @@
-﻿# MCP Server Tasks
+# MCP Server Tasks
 
 ## Execution Protocol (MANDATORY -- do not skip)
 
@@ -135,9 +135,9 @@ T4 -> T5
 
 **Done when**:
 
-- [ ] Tool definition with JSON Schema input definition
-- [ ] `tools/list` returns memory_search and memory_get_neighbors
-- [ ] Unit tests verify tool schema definitions
+- [x] Tool definition with JSON Schema input definition
+- [x] `tools/list` returns memory_search and memory_get_neighbors
+- [x] Unit tests verify tool schema definitions
 - [x] Quick gate passes: `go test -v ./internal/mcp/...`
 
 **Tests**: unit

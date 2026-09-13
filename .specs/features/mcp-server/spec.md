@@ -86,9 +86,9 @@ Every ambiguity is resolved or recorded here - nothing is left silently unclear.
 
 | Requirement ID | Story | Phase | Status |
 | -------------- | ----- | ----- | ------ |
-| MCP-01 | P1: Handshake e Descoberta de Ferramentas | Design | Pending |
-| MCP-02 | P1: Handshake e Descoberta de Ferramentas | Design | Pending |
-| MCP-03 | P1: Handshake e Descoberta de Ferramentas | Design | Pending |
+| MCP-01 | P1: Handshake e Descoberta de Ferramentas | Implementation | Implemented |
+| MCP-02 | P1: Handshake e Descoberta de Ferramentas | Implementation | Implemented |
+| MCP-03 | P1: Handshake e Descoberta de Ferramentas | Implementation | Implemented |
 | MCP-04 | P2: Execução de Busca e Travessia de Grafo | Design | Pending |
 | MCP-05 | P2: Execução de Busca e Travessia de Grafo | Design | Pending |
 
