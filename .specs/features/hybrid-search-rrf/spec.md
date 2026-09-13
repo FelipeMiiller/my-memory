@@ -111,7 +111,7 @@ A recuperação de contexto baseada exclusivamente em embeddings vetoriais (k-NN
 | RRF-02 | P1: Algoritmo de Fusão RRF e Estrutura Unificada | Tasks | Verified |
 | RRF-03 | P2: Busca Híbrida no SQLite (FTS5 + k-NN/TurboQuant + Grafo CTE) | Tasks | Verified |
 | RRF-04 | P2: Busca Híbrida no SQLite (FTS5 + k-NN/TurboQuant + Grafo CTE) | Tasks | Verified |
-| RRF-05 | P3: Busca Híbrida no PostgreSQL com pgvector | Tasks | Pending |
+| RRF-05 | P3: Busca Híbrida no PostgreSQL com pgvector | Tasks | Verified |
 | RRF-06 | P4: Integração MCP e CLI (memory_search e mem search) | Tasks | Pending |
 | RRF-07 | P4: Integração MCP e CLI (memory_search e mem search) | Tasks | Pending |
 

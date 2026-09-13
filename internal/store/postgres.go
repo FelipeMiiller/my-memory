@@ -56,7 +56,10 @@ CREATE TABLE IF NOT EXISTS graph_edges (
 );
 
 CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(repository, target_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING gin(to_tsvector('simple', content));
 `
+
+var _ Store = (*PostgresStore)(nil)
 
 // NewPostgresStore conecta e inicializa o schema do PostgreSQL
 func NewPostgresStore(connStr string) (*PostgresStore, error) {
@@ -210,6 +213,123 @@ func (s *PostgresStore) GetNodeNeighbors(ctx context.Context, repo string, nodeI
 		}
 	}
 	return neighbors, nil
+}
+
+func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error) {
+	if strings.TrimSpace(query) == "" {
+		return nil, nil
+	}
+
+	q := `
+		SELECT c.id, c.document_id, c.repository, c.content,
+		       ts_rank(to_tsvector('simple', c.content), plainto_tsquery('simple', $1)) AS rank
+		FROM chunks c
+		WHERE ($2 = '' OR c.repository = $2)
+		  AND to_tsvector('simple', c.content) @@ plainto_tsquery('simple', $1)
+		ORDER BY rank DESC
+		LIMIT $3
+	`
+
+	rows, err := s.db.QueryContext(ctx, q, query, repo, limit)
+	if err != nil {
+		return nil, fmt.Errorf("erro na busca textual postgres: %w", err)
+	}
+	defer rows.Close()
+
+	var results []SearchResult
+	for rows.Next() {
+		var r SearchResult
+		var rank float64
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &rank); err != nil {
+			return nil, err
+		}
+		r.Distance = rank
+
+		neighbors, err := s.GetNodeNeighbors(ctx, r.Repository, r.DocumentID, 1)
+		if err == nil {
+			r.Neighbors = neighbors
+		}
+
+		results = append(results, r)
+	}
+
+	return results, nil
+}
+
+func (s *PostgresStore) SearchHybridRRF(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int) ([]SearchResult, error) {
+	candidateLimit := limit * 2
+	if candidateLimit < 10 {
+		candidateLimit = 10
+	}
+
+	// 1. Busca textual via FTS
+	var ftsResults []SearchResult
+	if strings.TrimSpace(query) != "" {
+		ftsResults, _ = s.SearchFTS(ctx, repo, query, candidateLimit)
+	}
+
+	// 2. Busca vetorial via pgvector
+	var vecResults []SearchResult
+	if len(queryVec) > 0 {
+		vecResults, _ = s.SearchKNN(ctx, repo, queryVec, candidateLimit)
+	}
+
+	// 3. Expansão de vizinhos estruturais no grafo a partir das sementes mais relevantes
+	seedDocs := make(map[string]bool)
+	for _, r := range ftsResults {
+		if len(seedDocs) >= 3 {
+			break
+		}
+		seedDocs[r.DocumentID] = true
+	}
+	for _, r := range vecResults {
+		if len(seedDocs) >= 6 {
+			break
+		}
+		seedDocs[r.DocumentID] = true
+	}
+
+	var graphResults []SearchResult
+	seenChunks := make(map[string]bool)
+	for seed := range seedDocs {
+		neighbors, err := s.GetNodeNeighbors(ctx, repo, seed, 1)
+		if err != nil {
+			continue
+		}
+
+		for _, n := range neighbors {
+			rows, err := s.db.QueryContext(ctx, `
+				SELECT id, document_id, repository, content
+				FROM chunks
+				WHERE document_id = $1 AND ($2 = '' OR repository = $2)
+				ORDER BY chunk_index
+				LIMIT 2
+			`, n, repo)
+			if err != nil {
+				continue
+			}
+
+			for rows.Next() {
+				var gr SearchResult
+				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Repository, &gr.Content); err == nil {
+					if !seenChunks[gr.ChunkID] {
+						seenChunks[gr.ChunkID] = true
+						graphResults = append(graphResults, gr)
+					}
+				}
+			}
+			rows.Close()
+		}
+	}
+
+	// 4. Fusão RRF através de FuseSearchResults
+	sources := []RankedResultSource{
+		{Name: "fts", Results: ftsResults},
+		{Name: "vector", Results: vecResults},
+		{Name: "graph", Results: graphResults},
+	}
+
+	return FuseSearchResults(sources, k, limit), nil
 }
 
 func (s *PostgresStore) Close() error {

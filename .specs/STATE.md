@@ -8,12 +8,13 @@
 ## Handoff
 
 - **Feature**: hybrid-search-rrf (.specs/features/hybrid-search-rrf)
-- **Phase / Task**: Phase 2 / T3: Busca FTS e Híbrida no PostgreSQL
-- **Completed**: T1, T2
-- **In-progress** (file:line): internal/store/postgres.go:1
-- **Next step**: Implementar busca FTS e SearchHybridRRF no PostgreSQL com pgvector e CTE
+- **Phase / Task**: Phase 3 / T4: Integração no Servidor MCP
+- **Completed**: T1, T2, T3
+- **In-progress** (file:line): internal/mcp/handlers.go:1
+- **Next step**: Atualizar schemas e handlers MCP para busca híbrida com RRF
 - **Blockers**: none
 - **Uncommitted files**: veja git status
 - **Branch**: main
+
 
 

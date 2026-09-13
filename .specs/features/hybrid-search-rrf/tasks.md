@@ -63,8 +63,8 @@ T1 -> T3 -> T4
 **Tests**: internal/store/postgres_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Implementar SearchFTS usando tsvector/plainto_tsquery e ts_rank
-- [ ] Implementar SearchHybridRRF combinando FTS, SearchKNN e CTE GetNodeNeighbors filtrados por repositório
+- [x] Implementar SearchFTS usando tsvector/plainto_tsquery e ts_rank
+- [x] Implementar SearchHybridRRF combinando FTS, SearchKNN e CTE GetNodeNeighbors filtrados por repositório
 
 ### T4: Integração no Servidor MCP
 **What**: Expor busca híbrida como padrão na tool memory_search
