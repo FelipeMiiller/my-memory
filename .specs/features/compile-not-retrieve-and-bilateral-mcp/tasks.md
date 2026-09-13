@@ -68,10 +68,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/compiler/sync_test.go
 **Gate**: go test -v ./internal/compiler/...
 **Done when**:
-- [ ] Integrar chamada de reindexação cirúrgica utilizando rotinas de watcher.IndexSingleFile
-- [ ] Tratar gracioso em caso de indisponibilidade momentânea do embedder Ollama
-- [ ] Atualizar tabela de documentos, chunks, FTS e arestas de grafo instantaneamente
-- [ ] Adicionar testes unitários em internal/compiler/sync_test.go
+- [x] Integrar chamada de reindexação cirúrgica utilizando rotinas de watcher.IndexSingleFile
+- [x] Tratar gracioso em caso de indisponibilidade momentânea do embedder Ollama
+- [x] Atualizar tabela de documentos, chunks, FTS e arestas de grafo instantaneamente
+- [x] Adicionar testes unitários em internal/compiler/sync_test.go
 
 ### T4: Ferramentas de Escrita Bilateral no Servidor MCP
 **What**: Declarar schemas e implementar handlers MCP para escrita e compilação em internal/mcp/writer_handlers.go
