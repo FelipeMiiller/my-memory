@@ -23,6 +23,9 @@ jobs:
           go-version: "1.23"
           cache: true
 
+      - name: Install Dependencies
+        run: go mod download
+
       - name: Check Formatting (gofmt)
         run: |
           unformatted=$(gofmt -l .)
@@ -64,7 +67,7 @@ jobs:
       - name: Run TurboQuant Tests
         run: go test -v -cover ./internal/turboquant/...
 
-      - name: Run All Tests with Coverage Report (Ubuntu)
+      - name: Run All Pure Tests with Coverage Report (Ubuntu)
         if: runner.os == 'Linux'
         run: |
           go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/...
