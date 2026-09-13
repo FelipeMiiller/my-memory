@@ -53,11 +53,11 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/watcher/indexer_test.go
 **Gate**: go test -v ./internal/watcher/...
 **Done when**:
-- [ ] Implementar IndexSingleFile para SQLite e PostgreSQL
-- [ ] Atualizar documento, hash SHA-256, arestas de grafo, chunks e embeddings de arquivo único
-- [ ] Implementar PurgeSingleFile para limpar chunks e arestas em caso de remoção de nota
-- [ ] Otimizar verificação com cache SHA-256 evitando gerar embeddings desnecessários
-- [ ] Adicionar testes unitários para atualização e exclusão cirúrgica
+- [x] Implementar IndexSingleFile para SQLite e PostgreSQL
+- [x] Atualizar documento, hash SHA-256, arestas de grafo, chunks e embeddings de arquivo único
+- [x] Implementar PurgeSingleFile para limpar chunks e arestas em caso de remoção de nota
+- [x] Otimizar verificação com cache SHA-256 evitando gerar embeddings desnecessários
+- [x] Adicionar testes unitários para atualização e exclusão cirúrgica
 
 ### T3: Subcomando CLI mem watch
 **What**: Adicionar subcomando mem watch com suporte a cancelamento gracioso em cmd/mem/main.go

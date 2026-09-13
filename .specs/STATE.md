@@ -16,10 +16,10 @@
 ## Handoff
 
 - **Feature**: live-indexing-and-file-watcher (.specs/features/live-indexing-and-file-watcher)
-- **Phase / Task**: Phase 1 / T2
-- **Completed**: T1 (Motor de Watcher e Debounce)
-- **In-progress**: T2 (Reindexação Cirúrgica em Tempo Real)
-- **Next step**: Implementar IndexSingleFile e PurgeSingleFile em internal/watcher/indexer.go.
+- **Phase / Task**: Phase 1 / T3
+- **Completed**: T1, T2 (Reindexação Cirúrgica em Tempo Real)
+- **In-progress**: T3 (Subcomando CLI mem watch)
+- **Next step**: Adicionar subcomando mem watch com suporte a cancelamento gracioso em cmd/mem/main.go.
 - **Blockers**: none
 - **Branch**: main
 
