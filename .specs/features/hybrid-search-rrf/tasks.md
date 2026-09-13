@@ -97,6 +97,6 @@ T1 -> T3 -> T4
 **Tests**: docs/adr/009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md
 **Gate**: python .agents/skills/tlc-spec-driven/scripts/validate_spec.py .specs/features/hybrid-search-rrf/spec.md
 **Done when**:
-- [ ] Registrar decisão arquitetural ADR-009
-- [ ] Atualizar .specs/STATE.md
-- [ ] Gerar relatório validation.md
+- [x] Registrar decisão arquitetural ADR-009
+- [x] Atualizar .specs/STATE.md
+- [x] Gerar relatório validation.md

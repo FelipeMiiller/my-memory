@@ -120,7 +120,7 @@ A recuperação de contexto baseada exclusivamente em embeddings vetoriais (k-NN
 ---
 
 ## Success Criteria
-- [ ] 100% de precisão nos testes unitários do algoritmo RRF com validação de empates, pesos e múltiplos rankings.
-- [ ] Busca híbrida funcional no SQLite e PostgreSQL com pontuação combinada de FTS, vetores e grafo.
-- [ ] Handlers do MCP memory_search atualizados com modo híbrido por padrão.
-- [ ] CLI mem search exibindo resultados híbridos com fontes de ranking e scores.
+- [x] 100% de precisão nos testes unitários do algoritmo RRF com validação de empates, pesos e múltiplos rankings.
+- [x] Busca híbrida funcional no SQLite e PostgreSQL com pontuação combinada de FTS, vetores e grafo.
+- [x] Handlers do MCP memory_search atualizados com modo híbrido por padrão.
+- [x] CLI mem search exibindo resultados híbridos com fontes de ranking e scores.
