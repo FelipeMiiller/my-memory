@@ -203,6 +203,41 @@ func main() {
 
 		runWatch(ctx, emb, tq, cfg, resolvedRepo, resolvedDB, resolvedPG, target, debounceDur, intervalDur)
 
+	case "hook":
+		if len(os.Args) < 3 {
+			fmt.Println("Uso: mem hook <install|uninstall> [--force] [<pasta>]")
+			os.Exit(1)
+		}
+		subAction := os.Args[2]
+		hookCmd := flag.NewFlagSet("hook", flag.ExitOnError)
+		force := hookCmd.Bool("force", false, "Sobrescreve hooks existentes que não pertençam ao My-Memory")
+		hookCmd.Parse(os.Args[3:])
+
+		targetDir := "."
+		if hookCmd.NArg() > 0 {
+			targetDir = hookCmd.Arg(0)
+		}
+
+		switch subAction {
+		case "install":
+			path, err := InstallGitHook(targetDir, *force)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Erro ao instalar pre-commit hook: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("✅ Git pre-commit hook instalado com sucesso em: %s\n", path)
+		case "uninstall":
+			err := UninstallGitHook(targetDir)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Erro ao desinstalar pre-commit hook: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("✅ Git pre-commit hook removido com sucesso.")
+		default:
+			fmt.Printf("Ação desconhecida: '%s'. Use 'install' ou 'uninstall'.\n", subAction)
+			os.Exit(1)
+		}
+
 	case "search":
 		searchCmd := flag.NewFlagSet("search", flag.ExitOnError)
 		useTurbo := searchCmd.Bool("tq", false, "Usar busca via TurboQuant (4-bits, SQLite)")
@@ -497,6 +532,8 @@ func printHelp() {
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
 	fmt.Println("  mem watch [--debounce <ms>] [--interval <ms>] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Monitora continuamente o vault em segundo plano e reindexa notas em tempo real")
+	fmt.Println("  mem hook <install|uninstall> [--force] [<pasta>]")
+	fmt.Println("      Instala ou remove o Git pre-commit hook para indexação automática pré-commit")
 	fmt.Println("  mem doctor [--fix] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score)")
 	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")

@@ -16,10 +16,10 @@
 ## Handoff
 
 - **Feature**: live-indexing-and-file-watcher (.specs/features/live-indexing-and-file-watcher)
-- **Phase / Task**: Phase 1 / T4
-- **Completed**: T1, T2, T3 (Subcomando CLI mem watch)
-- **In-progress**: T4 (Gerenciador de Git Hooks)
-- **Next step**: Implementar comandos mem hook install e mem hook uninstall em cmd/mem/hook.go.
+- **Phase / Task**: Phase 1 / T5
+- **Completed**: T1, T2, T3, T4 (Gerenciador de Git Hooks)
+- **In-progress**: T5 (Integração com Auto-Scoping e Configuração Declarativa)
+- **Next step**: Conectar mem watch e hooks ao arquivo .memory/config.yaml do vault.
 - **Blockers**: none
 - **Branch**: main
 

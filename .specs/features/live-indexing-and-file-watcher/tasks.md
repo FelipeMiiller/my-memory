@@ -80,10 +80,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/hook_test.go
 **Gate**: go test -v ./cmd/mem/...
 **Done when**:
-- [ ] Implementar rotina para localizar diretório .git e subpasta hooks
-- [ ] Gravar script pre-commit com permissões de execução executando validação e indexação
-- [ ] Implementar remoção limpa do script via mem hook uninstall
-- [ ] Adicionar testes unitários validando instalação e desinstalação
+- [x] Implementar rotina para localizar diretório .git e subpasta hooks
+- [x] Gravar script pre-commit com permissões de execução executando validação e indexação
+- [x] Implementar remoção limpa do script via mem hook uninstall
+- [x] Adicionar testes unitários validando instalação e desinstalação
 
 ### T5: Integração com Auto-Scoping e Configuração Declarativa
 **What**: Conectar mem watch e hooks ao arquivo .memory/config.yaml do vault
