@@ -193,6 +193,32 @@ Executa a suíte de micro-benchmarks quantitativos da biblioteca (TurboQuant 4-b
 
 ---
 
+### 12. `mem note <create|append> [opções] <caminho>`
+Cria ou anexa seções em notas atômicas em Markdown com frontmatter YAML limpo e sincronização cirúrgica imediata no banco de dados e grafo:
+* `create`: Cria nota atômica com frontmatter (`title`, `type`, `tags`, `aliases`) e corpo Markdown. Rejeita sobrescrita a menos que `--overwrite` seja passado.
+* `append`: Anexa texto cirurgicamente antes da próxima seção de mesmo nível ou cria nova seção caso não exista.
+
+**Exemplo:**
+```bash
+# Criar nota atômica:
+./bin/mem.exe note create --title "Padrão de Autenticação" --tags "auth,security" --type "concept" concepts/auth.md
+
+# Anexar nova seção:
+./bin/mem.exe note append --heading "## Sessões e Cookies" concepts/auth.md "Configurar cookies com flags HttpOnly e SameSite=Strict."
+```
+
+---
+
+### 13. `mem compile --topic "<termo>" --out "<caminho.md>" [--limit 5] [--mode hybrid|vector|fts]`
+Executa o padrão **Compile-not-Retrieve** (Karpathy LLM Wiki): recupera os fragmentos mais relevantes sobre um tópico via busca híbrida e gera uma nota consolidada com seção de síntese e backlinks tipados (`[[rel:derived_from:Doc]]`), sincronizando instantaneamente no grafo.
+
+**Exemplo:**
+```bash
+./bin/mem.exe compile --topic "decisões de banco de dados e sqlite" --out syntheses/db-decisions.md --limit 5
+```
+
+---
+
 ## ⚙️ Configuração Declarativa do Vault (`.memory/config.yaml`)
 
 O My-Memory suporta configuração declarativa por projeto ou vault de notas. Ao executar qualquer comando, o binário procura recursivamente de baixo para cima por `.memory/config.yaml`, `.mem.yaml` ou `.mem.json`.

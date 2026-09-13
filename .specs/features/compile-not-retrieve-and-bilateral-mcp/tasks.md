@@ -107,8 +107,8 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: none
 **Gate**: go test -v ./cmd/mem/... ./internal/...
 **Done when**:
-- [ ] Redigir ADR-018 no formato MADR detalhando o padrão Compile-not-Retrieve e escrita bilateral
-- [ ] Atualizar docs/adr/README.md adicionando a ADR-018
-- [ ] Atualizar README.md, docs/CLI_GUIDE.md e docs/REPOSITORY_BRAIN.md
-- [ ] Atualizar .specs/STATE.md com o novo status
-- [ ] Validar suíte completa de testes e gates do TLC
+- [x] Redigir ADR-018 no formato MADR detalhando o padrão Compile-not-Retrieve e escrita bilateral
+- [x] Atualizar docs/adr/README.md adicionando a ADR-018
+- [x] Atualizar README.md, docs/CLI_GUIDE.md e docs/REPOSITORY_BRAIN.md
+- [x] Atualizar .specs/STATE.md com o novo status
+- [x] Validar suíte completa de testes e gates do TLC

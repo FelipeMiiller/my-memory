@@ -146,6 +146,22 @@ Executa a busca ultraveloz projetada sobre os vetores quantizados:
 ./bin/mem.exe search -tq "como funciona o fluxo de autenticação?"
 ```
 
+#### 7. Criação e Edição de Notas Atômicas (`mem note`)
+Permite criar notas Markdown com frontmatter estruturado (`title`, `type`, `tags`, `aliases`) e apensar seções sob cabeçalhos, acionando sincronização cirúrgica imediata no banco:
+```bash
+# Criar nova nota atômica:
+./bin/mem.exe note create --title "Arquitetura de Mensageria" --tags "kafka,eventos" --type "concept" concepts/mensageria.md
+
+# Anexar seção cirurgicamente:
+./bin/mem.exe note append --heading "## Boas Práticas" concepts/mensageria.md "Utilizar idempotência nos consumidores."
+```
+
+#### 8. Síntese e Compilação de Tópicos (`mem compile` / *Compile-not-Retrieve*)
+Recupera os fragmentos mais relevantes sobre um tema e compila automaticamente uma nota atômica estruturada com backlinks (`[[rel:derived_from:...]]`), eliminando custos de contexto repetitivo para agentes de IA:
+```bash
+./bin/mem.exe compile --topic "fluxo de autenticação e tokens" --out syntheses/auth.md --limit 5
+```
+
 ---
 
 ## 🤖 Integração com Agentes de IA (MCP)
@@ -184,6 +200,13 @@ O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)*
 | :--- | :--- |
 | `memory_search` | Busca híbrida (RRF) unificando FTS, vetores e grafo, com decaimento temporal exponencial opcional (`decay`, `half_life`, `decay_weight`). |
 | `memory_get_neighbors` | Expande nós e documentos conectados no grafo através de travessia recursiva SQL. |
+| `memory_write_note` | Grava ou atualiza notas atômicas no vault com frontmatter e conexões tipadas, disparando sincronização imediata no grafo. |
+| `memory_append_section` | Anexa cirurgicamente blocos de texto sob seções existentes ou novas sem quebrar a estrutura do documento. |
+| `memory_compile_note` | Compila e sintetiza conhecimento sobre um tópico a partir de buscas híbridas (padrão *Compile-not-Retrieve*), gerando nota com backlinks. |
+| `memory_get_hubs` | Identifica nós centrais de alta densidade por grau (God Nodes) ou por autoridade estrutural (PageRank ponderado). |
+| `memory_get_insights` | Descobre conexões latentes e surpreendentes (*Surprising Connections*) entre conceitos sem links diretos. |
+| `memory_doctor` | Audita e repara a integridade do grafo (dead links, notas órfãs, self-loops e Health Score). |
+| `memory_export_canvas` | Exporta subgrafos no formato espacial JSON Canvas 1.0 (`.canvas`) do Obsidian. |
 
 ---
 
@@ -239,6 +262,7 @@ my-memory/
   - [ADR-015: Decaimento Temporal Exponencial na Busca Híbrida](docs/adr/015-decaimento-temporal-exponencial-na-busca-hibrida.md)
   - [ADR-016: Configuração Declarativa e Auto-Scoping de Vault](docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md)
   - [ADR-017: Indexação Contínua em Tempo Real com File Watcher e Git Hooks](docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md)
+  - [ADR-018: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP](docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md)
 
 ---
 

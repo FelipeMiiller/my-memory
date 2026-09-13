@@ -91,6 +91,9 @@ Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de co
 A IA ganha acesso automático a ferramentas com escopo de repositório:
 * `memory_search(query, mode?, limit?, repository?, decay?, half_life?, decay_weight?)`: Recupera os chunks de maior relevância semântica, léxica ou híbrida (RRF), com suporte a decaimento temporal exponencial (ADR-015).
 * `memory_get_neighbors(node_id, max_depth?, repository?)`: Retorna nós vizinhos e dependências conectadas no grafo via SQL recursivo.
+* `memory_write_note(path, content, title?, tags?, aliases?, note_type?, relations?, overwrite?, repository?)`: Cria ou atualiza notas atômicas no vault com frontmatter e conexões tipadas, disparando indexação cirúrgica imediata.
+* `memory_append_section(path, heading, content, create_if_missing?, repository?)`: Anexa seções e blocos de conteúdo sob cabeçalhos Markdown existentes ou novos.
+* `memory_compile_note(topic, target_path, title?, search_mode?, limit?, tags?, overwrite?, repository?)`: Sintetiza conhecimento sobre um tópico a partir de buscas no repositório (padrão *Compile-not-Retrieve*), gravando nota estruturada com backlinks.
 * `memory_export_canvas(node_id, max_depth?, repository?)`: Gera JSON Canvas 1.0 espacial para visualização gráfica no Obsidian.
 * `memory_doctor(repository?, fix?)`: Audita a integridade do grafo (dead links, notas órfãs, self-loops e Health Score), com suporte a reparo automático.
 

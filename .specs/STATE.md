@@ -13,12 +13,13 @@
 - **AD-015**: Decaimento Temporal Exponencial na Busca Híbrida (`docs/adr/015-decaimento-temporal-exponencial-na-busca-hibrida.md`)
 - **AD-016**: Configuração Declarativa e Auto-Scoping de Vault (`docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md`)
 - **AD-017**: Indexação Contínua em Tempo Real com File Watcher e Git Hooks (`docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md`)
+- **AD-018**: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP e CLI (`docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md`)
 
 ## Handoff
 
-- **Feature**: live-indexing-and-file-watcher (.specs/features/live-indexing-and-file-watcher)
+- **Feature**: compile-not-retrieve-and-bilateral-mcp (.specs/features/compile-not-retrieve-and-bilateral-mcp)
 - **Phase / Task**: Phase 1 / T6 (Completed)
-- **Completed**: T1, T2, T3, T4, T5, T6 (ADR-017, Validação Final e Documentação)
+- **Completed**: T1, T2, T3, T4, T5, T6 (ADR-018, Validação Final e Documentação)
 - **In-progress**: none
 - **Next step**: Pronto para a próxima grande capacidade do roadmap de referências.
 - **Blockers**: none
