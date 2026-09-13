@@ -42,16 +42,17 @@ func NewTextResult(text string) CallToolResult {
 type SearchResult struct {
 	ChunkID    string   `json:"chunk_id"`
 	DocumentID string   `json:"document_id"`
+	Repository string   `json:"repository,omitempty"`
 	Content    string   `json:"content"`
 	Distance   float64  `json:"distance"`
 	Neighbors  []string `json:"neighbors,omitempty"`
 }
 
 // SearchFunc assinatura da função que executa a busca vetorial
-type SearchFunc func(ctx context.Context, query string, limit int) ([]SearchResult, error)
+type SearchFunc func(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error)
 
 // NeighborsFunc assinatura da função que realiza a travessia de vizinhos no grafo
-type NeighborsFunc func(ctx context.Context, nodeID string, maxDepth int) ([]string, error)
+type NeighborsFunc func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error)
 
 // FormatSearchResults formata os resultados da busca vetorial em texto legível
 func FormatSearchResults(results []SearchResult) string {
@@ -61,7 +62,11 @@ func FormatSearchResults(results []SearchResult) string {
 
 	var sb strings.Builder
 	for i, res := range results {
-		fmt.Fprintf(&sb, "--- [%d] Distância: %.4f | Documento: %s ---\n", i+1, res.Distance, res.DocumentID)
+		if res.Repository != "" {
+			fmt.Fprintf(&sb, "--- [%d] Distância: %.4f | Repositório: %s | Documento: %s ---\n", i+1, res.Distance, res.Repository, res.DocumentID)
+		} else {
+			fmt.Fprintf(&sb, "--- [%d] Distância: %.4f | Documento: %s ---\n", i+1, res.Distance, res.DocumentID)
+		}
 		sb.WriteString(res.Content)
 		sb.WriteString("\n")
 		if len(res.Neighbors) > 0 {
@@ -122,11 +127,16 @@ func NewMemorySearchHandler(searchFn SearchFunc) ToolHandlerFunc {
 			}
 		}
 
+		var repo string
+		if rawRepo, hasRepo := rawMap["repository"]; hasRepo {
+			_ = json.Unmarshal(rawRepo, &repo)
+		}
+
 		if searchFn == nil {
 			return nil, NewError(CodeInternalError, "Backend de busca semântica não configurado", nil)
 		}
 
-		results, err := searchFn(ctx, query, limit)
+		results, err := searchFn(ctx, repo, query, limit)
 		if err != nil {
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro na execução da busca: %v", err), nil)
 		}
@@ -169,11 +179,16 @@ func NewMemoryNeighborsHandler(neighborsFn NeighborsFunc) ToolHandlerFunc {
 			}
 		}
 
+		var repo string
+		if rawRepo, hasRepo := rawMap["repository"]; hasRepo {
+			_ = json.Unmarshal(rawRepo, &repo)
+		}
+
 		if neighborsFn == nil {
 			return nil, NewError(CodeInternalError, "Backend de grafo não configurado", nil)
 		}
 
-		neighbors, err := neighborsFn(ctx, nodeID, maxDepth)
+		neighbors, err := neighborsFn(ctx, repo, nodeID, maxDepth)
 		if err != nil {
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro na travessia de vizinhos: %v", err), nil)
 		}
@@ -184,7 +199,7 @@ func NewMemoryNeighborsHandler(neighborsFn NeighborsFunc) ToolHandlerFunc {
 
 // NewDBNeighborsHandler cria uma função de busca de vizinhos consultando o banco SQLite via Recursive CTE
 func NewDBNeighborsHandler(database *sql.DB) NeighborsFunc {
-	return func(ctx context.Context, nodeID string, maxDepth int) ([]string, error) {
+	return func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
 		cteQuery := `
 		WITH RECURSIVE traversal AS (
 			SELECT target_id, 1 AS depth

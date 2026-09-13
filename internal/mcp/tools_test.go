@@ -29,6 +29,9 @@ func TestTools_DefaultSchemas(t *testing.T) {
 	if _, ok := props["query"]; !ok {
 		t.Errorf("esperava propriedade 'query' no inputSchema de memory_search")
 	}
+	if _, ok := props["repository"]; !ok {
+		t.Errorf("esperava propriedade 'repository' no inputSchema de memory_search")
+	}
 	required, ok := search.InputSchema["required"].([]string)
 	if !ok || len(required) == 0 || required[0] != "query" {
 		t.Errorf("esperava 'query' nos campos required de memory_search, obteve %v", search.InputSchema["required"])
@@ -52,6 +55,9 @@ func TestTools_DefaultSchemas(t *testing.T) {
 	}
 	if _, ok := neighborsProps["node_id"]; !ok {
 		t.Errorf("esperava propriedade 'node_id' no inputSchema de memory_get_neighbors")
+	}
+	if _, ok := neighborsProps["repository"]; !ok {
+		t.Errorf("esperava propriedade 'repository' no inputSchema de memory_get_neighbors")
 	}
 	neighborsReq, ok := neighbors.InputSchema["required"].([]string)
 	if !ok || len(neighborsReq) == 0 || neighborsReq[0] != "node_id" {

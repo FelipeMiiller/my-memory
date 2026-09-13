@@ -10,12 +10,15 @@ import (
 )
 
 func TestServer_ToolsCall_MemorySearch_Success(t *testing.T) {
-	in := `{"jsonrpc": "2.0", "id": 20, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"query": "arquitetura", "limit": 2}}}` + "\n"
+	in := `{"jsonrpc": "2.0", "id": 20, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"repository": "my-org/my-repo", "query": "arquitetura", "limit": 2}}}` + "\n"
 	var out bytes.Buffer
 
 	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
 
-	srv.SetSearchHandler(func(ctx context.Context, query string, limit int) ([]SearchResult, error) {
+	srv.SetSearchHandler(func(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error) {
+		if repo != "my-org/my-repo" {
+			t.Errorf("esperava repo 'my-org/my-repo', obteve '%s'", repo)
+		}
 		if query != "arquitetura" {
 			t.Errorf("esperava query 'arquitetura', obteve '%s'", query)
 		}
@@ -26,6 +29,7 @@ func TestServer_ToolsCall_MemorySearch_Success(t *testing.T) {
 			{
 				ChunkID:    "doc1#0",
 				DocumentID: "docs/arch.md",
+				Repository: repo,
 				Content:    "Este documento detalha a arquitetura do sistema.",
 				Distance:   0.1234,
 				Neighbors:  []string{"docs/intro.md", "docs/spec.md"},
@@ -80,7 +84,7 @@ func TestServer_ToolsCall_MemorySearch_EmptyQuery(t *testing.T) {
 	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
 
 	called := false
-	srv.SetSearchHandler(func(ctx context.Context, query string, limit int) ([]SearchResult, error) {
+	srv.SetSearchHandler(func(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error) {
 		called = true
 		return nil, nil
 	})
@@ -142,12 +146,15 @@ func TestServer_ToolsCall_MemorySearch_MissingQuery(t *testing.T) {
 }
 
 func TestServer_ToolsCall_MemoryGetNeighbors_Success(t *testing.T) {
-	in := `{"jsonrpc": "2.0", "id": 23, "method": "tools/call", "params": {"name": "memory_get_neighbors", "arguments": {"node_id": "docs/architecture.md", "max_depth": 2}}}` + "\n"
+	in := `{"jsonrpc": "2.0", "id": 23, "method": "tools/call", "params": {"name": "memory_get_neighbors", "arguments": {"repository": "my-org/my-repo", "node_id": "docs/architecture.md", "max_depth": 2}}}` + "\n"
 	var out bytes.Buffer
 
 	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
 
-	srv.SetNeighborsHandler(func(ctx context.Context, nodeID string, maxDepth int) ([]string, error) {
+	srv.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
+		if repo != "my-org/my-repo" {
+			t.Errorf("esperava repo 'my-org/my-repo', obteve '%s'", repo)
+		}
 		if nodeID != "docs/architecture.md" {
 			t.Errorf("esperava nodeID 'docs/architecture.md', obteve '%s'", nodeID)
 		}

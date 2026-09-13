@@ -14,3 +14,4 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-004](004-modelagem-de-grafo-com-recursive-ctes.md)** | Modelagem e Travessia de Grafo com SQL Recursivo (CTEs) | Aceito | 2026-09-12 | `graph`, `sqlite`, `sql`, `knowledge-graph` |
 | **[ADR-005](005-markdown-com-wikilinks-como-fonte-de-verdade.md)** | Markdown e [[Wikilinks]] como Entrada e Grafo Humano | Aceito | 2026-09-12 | `obsidian`, `parser`, `markdown`, `pkm` |
 | **[ADR-006](006-integracao-com-agentes-de-ia-via-mcp.md)** | Integração com Agentes de IA via Model Context Protocol (MCP) | Aceito | 2026-09-12 | `ai`, `mcp`, `claude`, `cursor`, `integration` |
+| **[ADR-007](007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md)** | Suporte Opcional a PostgreSQL com pgvector e Referência Multi-Repositório | Aceito | 2026-09-13 | `database`, `postgres`, `pgvector`, `multi-repository` |

@@ -187,9 +187,9 @@ T4 -> T5
 
 **Done when**:
 
-- [ ] `mem mcp [--db path]` subcommand starts server
-- [ ] Stdio correctly pipes stdin/stdout while logs use stderr
-- [ ] Build gate passes: `go test -v ./internal/... && go build -o bin/mem.exe ./cmd/mem`
+- [x] `mem mcp [--db path]` subcommand starts server
+- [x] Stdio correctly pipes stdin/stdout while logs use stderr
+- [x] Build gate passes: `go test -v ./internal/... && go build -o bin/mem.exe ./cmd/mem`
 
 **Tests**: none
 **Gate**: build

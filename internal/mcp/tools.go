@@ -14,7 +14,7 @@ type ListToolsResult struct {
 var (
 	ToolMemorySearch = Tool{
 		Name:        "memory_search",
-		Description: "Busca semântica k-NN na memória de notas usando sqlite-vec e expansão de conexões no grafo",
+		Description: "Busca semântica k-NN na memória de notas usando sqlite-vec ou postgres com pgvector e expansão de grafo",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -25,6 +25,10 @@ var (
 				"limit": map[string]any{
 					"type":        "integer",
 					"description": "Número máximo de resultados a retornar (padrão: 5)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou nome do repositório para filtrar a busca (opcional). Se omitido, busca no repositório padrão ou global.",
 				},
 			},
 			"required": []string{"query"},
@@ -44,6 +48,10 @@ var (
 				"max_depth": map[string]any{
 					"type":        "integer",
 					"description": "Profundidade máxima de travessia no grafo (padrão: 1)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou nome do repositório para contextualizar a travessia de vizinhos (opcional).",
 				},
 			},
 			"required": []string{"node_id"},
