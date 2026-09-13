@@ -92,9 +92,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/...
 **Done when**:
-- [ ] Utilizar valores de cfg.Search (modo, limit, k, decay, half_life) como fallbacks no flagset de busca
-- [ ] Utilizar configurações de backend (SQLite/PostgreSQL) e repo do config no servidor MCP
-- [ ] Garantir que flags explícitas de terminal mantenham prioridade máxima sobre o arquivo
+- [x] Utilizar valores de cfg.Search (modo, limit, k, decay, half_life) como fallbacks no flagset de busca
+- [x] Utilizar configurações de backend (SQLite/PostgreSQL) e repo do config no servidor MCP
+- [x] Garantir que flags explícitas de terminal mantenham prioridade máxima sobre o arquivo
 
 ### T6: ADR-016, Validação Final e Documentação
 **What**: Registrar decisão ADR-016 e atualizar manuais de documentação

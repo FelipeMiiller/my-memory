@@ -151,15 +151,15 @@ func main() {
 	case "search":
 		searchCmd := flag.NewFlagSet("search", flag.ExitOnError)
 		useTurbo := searchCmd.Bool("tq", false, "Usar busca via TurboQuant (4-bits, SQLite)")
-		mode := searchCmd.String("mode", "hybrid", "Modo de busca: 'hybrid' (FTS+vetor+grafo via RRF), 'vector' (apenas k-NN), 'fts' (apenas léxico)")
-		k := searchCmd.Int("k", 60, "Constante de suavização do algoritmo RRF (padrão: 60)")
-		limit := searchCmd.Int("limit", 5, "Número máximo de resultados (padrão: 5)")
+		mode := searchCmd.String("mode", "", "Modo de busca: 'hybrid' (FTS+vetor+grafo via RRF), 'vector' (apenas k-NN), 'fts' (apenas léxico)")
+		k := searchCmd.Int("k", 0, "Constante de suavização do algoritmo RRF (padrão: 60)")
+		limit := searchCmd.Int("limit", 0, "Número máximo de resultados (padrão: 5)")
 		decay := searchCmd.Bool("decay", false, "Ativa decaimento temporal exponencial para priorizar notas mais recentes")
-		halfLife := searchCmd.Float64("half-life", 30.0, "Tempo de meia-vida em dias para decaimento temporal (padrão: 30.0)")
-		decayWeight := searchCmd.Float64("decay-weight", 0.3, "Peso do fator temporal entre 0.0 e 1.0 (padrão: 0.3)")
-		dbPath := searchCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
-		pgURL := searchCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
-		targetRepo := searchCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
+		halfLife := searchCmd.Float64("half-life", 0.0, "Tempo de meia-vida em dias para decaimento temporal (padrão: 30.0)")
+		decayWeight := searchCmd.Float64("decay-weight", -1.0, "Peso do fator temporal entre 0.0 e 1.0 (padrão: 0.3)")
+		dbPath := searchCmd.String("db", "", "Caminho do arquivo SQLite")
+		pgURL := searchCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := searchCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
 		searchCmd.Parse(os.Args[2:])
 
 		query := strings.Join(searchCmd.Args(), " ")
@@ -168,73 +168,139 @@ func main() {
 			return
 		}
 
-		decayOpts := store.DefaultDecayOptions()
-		if *decay {
-			decayOpts.Enabled = true
-			decayOpts.HalfLife = *halfLife
-			decayOpts.Weight = *decayWeight
+		cfg := resolveConfig()
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+
+		setFlags := make(map[string]bool)
+		searchCmd.Visit(func(f *flag.Flag) {
+			setFlags[f.Name] = true
+		})
+
+		resolvedMode := *mode
+		if !setFlags["mode"] {
+			if cfg.Search.Mode != "" {
+				resolvedMode = cfg.Search.Mode
+			} else {
+				resolvedMode = "hybrid"
+			}
 		}
 
-		if *pgURL != "" {
-			pgStore, err := store.NewPostgresStore(*pgURL)
+		resolvedLimit := *limit
+		if !setFlags["limit"] {
+			if cfg.Search.Limit > 0 {
+				resolvedLimit = cfg.Search.Limit
+			} else {
+				resolvedLimit = 5
+			}
+		}
+
+		resolvedK := *k
+		if !setFlags["k"] {
+			if cfg.Search.K > 0 {
+				resolvedK = cfg.Search.K
+			} else {
+				resolvedK = 60
+			}
+		}
+
+		resolvedDecay := *decay
+		if !setFlags["decay"] {
+			resolvedDecay = cfg.Search.Decay
+		}
+
+		resolvedHalfLife := *halfLife
+		if !setFlags["half-life"] {
+			if cfg.Search.HalfLife > 0 {
+				resolvedHalfLife = cfg.Search.HalfLife
+			} else {
+				resolvedHalfLife = 30.0
+			}
+		}
+
+		resolvedDecayWeight := *decayWeight
+		if !setFlags["decay-weight"] {
+			if cfg.Search.DecayWeight >= 0 {
+				resolvedDecayWeight = cfg.Search.DecayWeight
+			} else {
+				resolvedDecayWeight = 0.3
+			}
+		}
+
+		resolvedUseTurbo := *useTurbo
+		if !setFlags["tq"] {
+			resolvedUseTurbo = cfg.Search.UseTurbo
+		}
+
+		decayOpts := store.DefaultDecayOptions()
+		if resolvedDecay {
+			decayOpts.Enabled = true
+			decayOpts.HalfLife = resolvedHalfLife
+			decayOpts.Weight = resolvedDecayWeight
+		}
+
+		if resolvedPG != "" {
+			pgStore, err := store.NewPostgresStore(resolvedPG)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runSearchPostgres(ctx, pgStore, emb, query, *targetRepo, *mode, *limit, *k, decayOpts)
+			runSearchPostgres(ctx, pgStore, emb, query, resolvedRepo, resolvedMode, resolvedLimit, resolvedK, decayOpts)
 		} else {
-			database, err := db.InitDB(*dbPath)
+			database, err := db.InitDB(resolvedDB)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
 				os.Exit(1)
 			}
 			defer database.Close()
-			runSearchSQLite(ctx, database, emb, tq, query, *mode, *useTurbo, *limit, *k, decayOpts)
+			runSearchSQLite(ctx, database, emb, tq, query, resolvedMode, resolvedUseTurbo, resolvedLimit, resolvedK, decayOpts)
 		}
 
 	case "mcp":
 		mcpCmd := flag.NewFlagSet("mcp", flag.ExitOnError)
-		dbPath := mcpCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
-		pgURL := mcpCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
-		targetRepo := mcpCmd.String("repo", defaultRepo, "Identificador padrão do repositório")
+		dbPath := mcpCmd.String("db", "", "Caminho do arquivo SQLite")
+		pgURL := mcpCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := mcpCmd.String("repo", "", "Identificador padrão do repositório")
 		mcpCmd.Parse(os.Args[2:])
+
+		cfg := resolveConfig()
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
 
 		var pgStore *store.PostgresStore
 		var database *sql.DB
 		var err error
 
-		if *pgURL != "" {
-			pgStore, err = store.NewPostgresStore(*pgURL)
+		if resolvedPG != "" {
+			pgStore, err = store.NewPostgresStore(resolvedPG)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "[mcp] Erro conectando ao PostgreSQL: %v\n", err)
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao PostgreSQL com pgvector (repo padrão: %s)\n", *targetRepo)
+			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao PostgreSQL com pgvector (repo padrão: %s)\n", resolvedRepo)
 		} else {
-			if _, statErr := os.Stat(*dbPath); os.IsNotExist(statErr) {
-				fmt.Fprintf(os.Stderr, "[mcp] Aviso: Banco de dados '%s' não encontrado. Um novo banco será criado na primeira gravação.\n", *dbPath)
+			if _, statErr := os.Stat(resolvedDB); os.IsNotExist(statErr) {
+				fmt.Fprintf(os.Stderr, "[mcp] Aviso: Banco de dados '%s' não encontrado. Um novo banco será criado na primeira gravação.\n", resolvedDB)
 			}
-			database, err = db.InitDB(*dbPath)
+			database, err = db.InitDB(resolvedDB)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "[mcp] Erro inicializando banco SQLite: %v\n", err)
 				os.Exit(1)
 			}
 			defer database.Close()
-			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao SQLite: %s\n", *dbPath)
+			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao SQLite: %s\n", resolvedDB)
 		}
 
-		runMCPServer(ctx, pgStore, database, emb, *targetRepo)
+		runMCPServer(ctx, pgStore, database, emb, resolvedRepo)
 
 	case "export":
 		exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
 		canvasNode := exportCmd.String("canvas", "", "Nome ou identificador da nota raiz para exportar subgrafo para JSON Canvas (.canvas)")
 		depth := exportCmd.Int("depth", 1, "Profundidade máxima de vizinhos no grafo (padrão: 1)")
 		outFile := exportCmd.String("out", "", "Caminho do arquivo .canvas de saída (padrão: <nota>.canvas)")
-		dbPath := exportCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
-		pgURL := exportCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
-		targetRepo := exportCmd.String("repo", defaultRepo, "Identificador/slug do repositório")
+		dbPath := exportCmd.String("db", "", "Caminho do arquivo SQLite")
+		pgURL := exportCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := exportCmd.String("repo", "", "Identificador/slug do repositório")
 		exportCmd.Parse(os.Args[2:])
 
 		node := *canvasNode
@@ -246,6 +312,9 @@ func main() {
 			return
 		}
 
+		cfg := resolveConfig()
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+
 		if *outFile == "" {
 			safeName := strings.ReplaceAll(node, "/", "_")
 			safeName = strings.ReplaceAll(safeName, "\\", "_")
@@ -253,7 +322,7 @@ func main() {
 			*outFile = safeName + ".canvas"
 		}
 
-		runExportCanvas(ctx, *pgURL, *dbPath, *targetRepo, node, *depth, *outFile)
+		runExportCanvas(ctx, resolvedPG, resolvedDB, resolvedRepo, node, *depth, *outFile)
 
 	case "hubs":
 		hubsCmd := flag.NewFlagSet("hubs", flag.ExitOnError)
@@ -261,25 +330,28 @@ func main() {
 		algorithm := hubsCmd.String("algorithm", "degree", "Algoritmo de centralidade: 'degree' (grau total) ou 'pagerank' (autoridade iterativa ponderada)")
 		damping := hubsCmd.Float64("damping", 0.85, "Fator de amortecimento para PageRank (padrão: 0.85)")
 		maxIter := hubsCmd.Int("iter", 30, "Número máximo de iterações para PageRank (padrão: 30)")
-		dbPath := hubsCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
-		pgURL := hubsCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
-		targetRepo := hubsCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
+		dbPath := hubsCmd.String("db", "", "Caminho do arquivo SQLite")
+		pgURL := hubsCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := hubsCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
 		hubsCmd.Parse(os.Args[2:])
 
-		if *pgURL != "" {
-			pgStore, err := store.NewPostgresStore(*pgURL)
+		cfg := resolveConfig()
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+
+		if resolvedPG != "" {
+			pgStore, err := store.NewPostgresStore(resolvedPG)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
 				os.Exit(1)
 			}
 			defer pgStore.Close()
 			if strings.ToLower(*algorithm) == "pagerank" {
-				runPageRankPostgres(ctx, pgStore, *targetRepo, *top, *damping, *maxIter)
+				runPageRankPostgres(ctx, pgStore, resolvedRepo, *top, *damping, *maxIter)
 			} else {
-				runHubsPostgres(ctx, pgStore, *targetRepo, *top)
+				runHubsPostgres(ctx, pgStore, resolvedRepo, *top)
 			}
 		} else {
-			database, err := db.InitDB(*dbPath)
+			database, err := db.InitDB(resolvedDB)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
 				os.Exit(1)
@@ -296,21 +368,24 @@ func main() {
 		insightsCmd := flag.NewFlagSet("insights", flag.ExitOnError)
 		limit := insightsCmd.Int("limit", 10, "Número máximo de conexões inesperadas a exibir (padrão: 10)")
 		minSim := insightsCmd.Float64("min-similarity", 0.70, "Limiar mínimo de similaridade semântica (padrão: 0.70)")
-		dbPath := insightsCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
-		pgURL := insightsCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
-		targetRepo := insightsCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
+		dbPath := insightsCmd.String("db", "", "Caminho do arquivo SQLite")
+		pgURL := insightsCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := insightsCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
 		insightsCmd.Parse(os.Args[2:])
 
-		if *pgURL != "" {
-			pgStore, err := store.NewPostgresStore(*pgURL)
+		cfg := resolveConfig()
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+
+		if resolvedPG != "" {
+			pgStore, err := store.NewPostgresStore(resolvedPG)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runInsightsPostgres(ctx, pgStore, *targetRepo, *limit, *minSim)
+			runInsightsPostgres(ctx, pgStore, resolvedRepo, *limit, *minSim)
 		} else {
-			database, err := db.InitDB(*dbPath)
+			database, err := db.InitDB(resolvedDB)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
 				os.Exit(1)
@@ -327,21 +402,24 @@ func main() {
 	case "doctor":
 		docCmd := flag.NewFlagSet("doctor", flag.ExitOnError)
 		fix := docCmd.Bool("fix", false, "Repara automaticamente anomalias conhecidas (self-loops e dead links)")
-		dbPath := docCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
-		pgURL := docCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
-		targetRepo := docCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
+		dbPath := docCmd.String("db", "", "Caminho do arquivo SQLite")
+		pgURL := docCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := docCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
 		docCmd.Parse(os.Args[2:])
 
-		if *pgURL != "" {
-			pgStore, err := store.NewPostgresStore(*pgURL)
+		cfg := resolveConfig()
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+
+		if resolvedPG != "" {
+			pgStore, err := store.NewPostgresStore(resolvedPG)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runDoctorPostgres(ctx, pgStore, *targetRepo, *fix)
+			runDoctorPostgres(ctx, pgStore, resolvedRepo, *fix)
 		} else {
-			database, err := db.InitDB(*dbPath)
+			database, err := db.InitDB(resolvedDB)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
 				os.Exit(1)
@@ -468,6 +546,55 @@ search:
 	fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
 	fmt.Println("   Dica: execute 'mem index' para iniciar a indexação automática.")
 	return nil
+}
+
+func resolveConfig() *config.Config {
+	cfgPath, err := config.FindConfigFile(".")
+	if err == nil {
+		if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
+			return loaded
+		}
+	}
+	def := config.DefaultConfig()
+	return &def
+}
+
+func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaultRepo string) (repo string, db string, pg string) {
+	if cfg == nil {
+		def := config.DefaultConfig()
+		cfg = &def
+	}
+
+	repo = targetRepo
+	if repo == "" {
+		if cfg.Repository != "" {
+			repo = cfg.Repository
+		} else if envRepo := os.Getenv("MY_MEMORY_REPO"); envRepo != "" {
+			repo = envRepo
+		} else {
+			repo = defaultRepo
+		}
+	}
+
+	db = dbPath
+	if db == "" {
+		if cfg.Storage.SQLitePath != "" {
+			db = cfg.Storage.SQLitePath
+		} else {
+			db = "memory.db"
+		}
+	}
+
+	pg = pgURL
+	if pg == "" {
+		if envPG := os.Getenv("MY_MEMORY_PG_URL"); envPG != "" {
+			pg = envPG
+		} else if cfg.Storage.Engine == "postgres" && cfg.Storage.PostgresURL != "" {
+			pg = cfg.Storage.PostgresURL
+		}
+	}
+
+	return repo, db, pg
 }
 
 func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {

@@ -15,10 +15,10 @@
 ## Handoff
 
 - **Feature**: vault-configuration-and-auto-scoping (.specs/features/vault-configuration-and-auto-scoping)
-- **Phase / Task**: Phase 1 / T5
-- **Completed**: T1, T2, T3, T4 (Integração de Config e Filtragem no mem index)
-- **In-progress**: T5 (Integração de Config Defaults no mem search e mem mcp)
-- **Next step**: Integrar fallbacks de busca e MCP a partir do arquivo de configuração.
+- **Phase / Task**: Phase 1 / T6
+- **Completed**: T1, T2, T3, T4, T5 (Integração de Config Defaults no mem search e mem mcp)
+- **In-progress**: T6 (ADR-016, Validação Final e Documentação)
+- **Next step**: Escrever ADR-016, atualizar documentação (docs/, README.md), gerar validation.md e validar spec.
 - **Blockers**: none
 - **Branch**: main
 
