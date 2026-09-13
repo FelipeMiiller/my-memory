@@ -52,3 +52,20 @@ func BenchmarkDotProduct_Float32(b *testing.B) {
 		_ = exactDotProduct(v1, v2)
 	}
 }
+
+func BenchmarkDequantize_4Bit(b *testing.B) {
+	dim := 768
+	q := NewQuantizer(dim)
+	rng := rand.New(rand.NewSource(42))
+	vec := generateRandomVector(dim, rng)
+	compressed, err := q.Quantize(vec)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = q.Dequantize(compressed)
+	}
+}

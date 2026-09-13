@@ -71,3 +71,28 @@ func (r *Rotator) Rotate(x []float32) []float32 {
 
 	return out
 }
+
+// RotateInverse aplica a inversa da rotação ortogonal: x = R^T * y
+// Aplica as reflexões de Householder na ordem inversa (H_1 * ... * H_k * y)
+func (r *Rotator) RotateInverse(y []float32) []float32 {
+	if len(y) != r.dim {
+		return y
+	}
+
+	out := make([]float32, r.dim)
+	copy(out, y)
+
+	for i := len(r.reflectors) - 1; i >= 0; i-- {
+		v := r.reflectors[i]
+		var dot float32
+		for j := 0; j < r.dim; j++ {
+			dot += v[j] * out[j]
+		}
+		twoDot := 2.0 * dot
+		for j := 0; j < r.dim; j++ {
+			out[j] -= twoDot * v[j]
+		}
+	}
+
+	return out
+}

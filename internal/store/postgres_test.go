@@ -154,9 +154,37 @@ func TestPostgresStore_Integration(t *testing.T) {
 		t.Errorf("GetGodNodes retornou lista vazia")
 	}
 
-	// 4. DeleteDocumentData
+	// 4. Conexões Inesperadas (Surprising Connections)
+	// Insere doc-close com embedding similar a doc-1 mas sem aresta no grafo
+	closeDocID := "doc-close"
+	_ = s.InsertDocument(ctx, repo, closeDocID, "notes/close.md", "Close Note", time.Now().Unix(), "hashclose")
+	_ = s.InsertChunk(ctx, repo, "doc-close#0", closeDocID, "Conteudo quase identico para teste", 0, dummyVec)
+
+	// doc-1 e doc-2 tem aresta. doc-1 e doc-close NÃO tem aresta.
+	surprising, err := s.FindSurprisingConnections(ctx, repo, 10, 0.50)
+	if err != nil {
+		t.Fatalf("FindSurprisingConnections falhou: %v", err)
+	}
+	foundClose := false
+	for _, sc := range surprising {
+		if (sc.SourceID == docID && sc.TargetID == closeDocID) || (sc.SourceID == closeDocID && sc.TargetID == docID) {
+			foundClose = true
+		}
+		if (sc.SourceID == docID && sc.TargetID == "doc-2") || (sc.SourceID == "doc-2" && sc.TargetID == docID) {
+			t.Errorf("doc-1 e doc-2 tem aresta direta e NÃO deveriam ser retornados como conexão inesperada!")
+		}
+		if sc.SourceID == sc.TargetID {
+			t.Errorf("Conexão inesperada reflexiva encontrada: %s == %s", sc.SourceID, sc.TargetID)
+		}
+	}
+	if !foundClose {
+		t.Errorf("Esperava encontrar conexao inesperada entre doc-1 e doc-close")
+	}
+
+	// 5. DeleteDocumentData
 	err = s.DeleteDocumentData(ctx, repo, docID)
 	if err != nil {
 		t.Fatalf("DeleteDocumentData falhou: %v", err)
 	}
+	_ = s.DeleteDocumentData(ctx, repo, closeDocID)
 }

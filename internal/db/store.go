@@ -3,12 +3,16 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
+	"math"
+	"sort"
 
 	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/FelipeMiiller/my-memory/internal/store"
+	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 )
 
 // InitDB inicializa a conexão com o SQLite registrando a extensão sqlite-vec globalmente
@@ -240,4 +244,218 @@ func GetGodNodes(ctx context.Context, db *sql.DB, limit int) ([]store.GodNode, e
 		hubs = append(hubs, h)
 	}
 	return hubs, nil
+}
+
+// FindSurprisingConnections descobre conexões latentes entre notas com alta similaridade sem arestas no grafo SQLite
+func FindSurprisingConnections(ctx context.Context, db *sql.DB, limit int, minSimilarity float64) ([]store.SurprisingConnection, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if minSimilarity <= 0 {
+		minSimilarity = 0.70
+	}
+
+	// 1. Carrega todas as arestas existentes para anti-join rápido em memória
+	edgeRows, err := db.QueryContext(ctx, `SELECT source_id, target_id FROM graph_edges`)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas sqlite: %w", err)
+	}
+	defer edgeRows.Close()
+
+	linked := make(map[string]bool)
+	for edgeRows.Next() {
+		var src, tgt string
+		if err := edgeRows.Scan(&src, &tgt); err == nil {
+			linked[src+"->"+tgt] = true
+			linked[tgt+"->"+src] = true
+		}
+	}
+
+	// 2. Carrega todos os documentos
+	docRows, err := db.QueryContext(ctx, `SELECT id, COALESCE(title, id) FROM documents ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar documentos sqlite: %w", err)
+	}
+	defer docRows.Close()
+
+	type docInfo struct {
+		id    string
+		title string
+	}
+	var docs []docInfo
+	for docRows.Next() {
+		var di docInfo
+		if err := docRows.Scan(&di.id, &di.title); err == nil {
+			docs = append(docs, di)
+		}
+	}
+
+	if len(docs) < 2 {
+		return []store.SurprisingConnection{}, nil
+	}
+
+	// 3. Tenta carregar vetores float32 de chunks_vec
+	docVectors := make(map[string][][]float32)
+	vecRows, err := db.QueryContext(ctx, `
+		SELECT c.document_id, v.embedding
+		FROM chunks_vec v
+		JOIN chunks c ON c.id = v.chunk_id
+	`)
+	if err == nil {
+		defer vecRows.Close()
+		for vecRows.Next() {
+			var docID string
+			var blob []byte
+			if err := vecRows.Scan(&docID, &blob); err == nil && len(blob) > 0 {
+				vec := deserializeFloat32(blob)
+				if len(vec) > 0 {
+					docVectors[docID] = append(docVectors[docID], vec)
+				}
+			}
+		}
+	}
+
+	// Se chunks_vec estiver vazio, tenta carregar de chunks_turboquant descompactando
+	if len(docVectors) == 0 {
+		tqRows, err := db.QueryContext(ctx, `
+			SELECT c.document_id, tq.scale, tq.data
+			FROM chunks_turboquant tq
+			JOIN chunks c ON c.id = tq.chunk_id
+		`)
+		if err == nil {
+			defer tqRows.Close()
+			tq := turboquant.NewQuantizer(768)
+			for tqRows.Next() {
+				var docID string
+				var scale float32
+				var data []byte
+				if err := tqRows.Scan(&docID, &scale, &data); err == nil && len(data) > 0 {
+					cv := &turboquant.CompressedVector{
+						Dim:   768,
+						Scale: scale,
+						Data:  data,
+					}
+					vec := tq.Dequantize(cv)
+					if len(vec) > 0 {
+						docVectors[docID] = append(docVectors[docID], vec)
+					}
+				}
+			}
+		}
+	}
+
+	var results []store.SurprisingConnection
+
+	if len(docVectors) > 0 {
+		for i := 0; i < len(docs); i++ {
+			for j := i + 1; j < len(docs); j++ {
+				d1 := docs[i]
+				d2 := docs[j]
+
+				if linked[d1.id+"->"+d2.id] {
+					continue
+				}
+
+				vecs1 := docVectors[d1.id]
+				vecs2 := docVectors[d2.id]
+				if len(vecs1) == 0 || len(vecs2) == 0 {
+					continue
+				}
+
+				var maxSim float64
+				for _, v1 := range vecs1 {
+					for _, v2 := range vecs2 {
+						sim := store.CosineSimilarity(v1, v2)
+						if sim > maxSim {
+							maxSim = sim
+						}
+					}
+				}
+
+				if maxSim >= minSimilarity {
+					results = append(results, store.SurprisingConnection{
+						SourceID:   d1.id,
+						SourceName: d1.title,
+						TargetID:   d2.id,
+						TargetName: d2.title,
+						Similarity: maxSim,
+						Reason:     fmt.Sprintf("Alta proximidade semântica (%.0f%%) sem conexão direta no grafo", maxSim*100),
+					})
+				}
+			}
+		}
+	} else {
+		// Fallback léxico: Jaccard sobre o conteúdo dos chunks
+		contentRows, err := db.QueryContext(ctx, `
+			SELECT document_id, content FROM chunks ORDER BY document_id, chunk_index
+		`)
+		if err == nil {
+			defer contentRows.Close()
+			docContent := make(map[string]string)
+			for contentRows.Next() {
+				var docID, content string
+				if err := contentRows.Scan(&docID, &content); err == nil {
+					if existing, ok := docContent[docID]; ok {
+						docContent[docID] = existing + " " + content
+					} else {
+						docContent[docID] = content
+					}
+				}
+			}
+
+			for i := 0; i < len(docs); i++ {
+				for j := i + 1; j < len(docs); j++ {
+					d1 := docs[i]
+					d2 := docs[j]
+
+					if linked[d1.id+"->"+d2.id] {
+						continue
+					}
+
+					c1 := docContent[d1.id]
+					c2 := docContent[d2.id]
+					if c1 == "" || c2 == "" {
+						continue
+					}
+
+					sim := store.CalculateJaccardSimilarity(c1, c2)
+					if sim >= minSimilarity {
+						results = append(results, store.SurprisingConnection{
+							SourceID:   d1.id,
+							SourceName: d1.title,
+							TargetID:   d2.id,
+							TargetName: d2.title,
+							Similarity: sim,
+							Reason:     fmt.Sprintf("Alta sobreposição léxica (%.0f%%) sem conexão direta no grafo", sim*100),
+						})
+					}
+				}
+			}
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Similarity > results[j].Similarity
+	})
+
+	if len(results) > limit {
+		results = results[:limit]
+	}
+	if results == nil {
+		results = []store.SurprisingConnection{}
+	}
+	return results, nil
+}
+
+func deserializeFloat32(b []byte) []float32 {
+	n := len(b) / 4
+	if n == 0 {
+		return nil
+	}
+	res := make([]float32, n)
+	for i := 0; i < n; i++ {
+		bits := binary.LittleEndian.Uint32(b[i*4 : (i+1)*4])
+		res[i] = math.Float32frombits(bits)
+	}
+	return res
 }

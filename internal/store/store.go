@@ -2,6 +2,9 @@ package store
 
 import (
 	"context"
+	"math"
+	"strings"
+	"unicode"
 )
 
 // SearchResult representa um trecho relevante retornado na busca
@@ -23,6 +26,16 @@ type GodNode struct {
 	InDegree    int    `json:"in_degree"`
 	OutDegree   int    `json:"out_degree"`
 	TotalDegree int    `json:"total_degree"`
+}
+
+// SurprisingConnection representa uma conexão semântica/conceitual latente sem link direto no grafo
+type SurprisingConnection struct {
+	SourceID   string  `json:"source_id"`
+	SourceName string  `json:"source_name"`
+	TargetID   string  `json:"target_id"`
+	TargetName string  `json:"target_name"`
+	Similarity float64 `json:"similarity"`
+	Reason     string  `json:"reason"`
 }
 
 // Store define o contrato agnóstico de armazenamento para SQLite e PostgreSQL
@@ -48,6 +61,9 @@ type Store interface {
 	// GetGodNodes retorna os nós centrais com maior centralidade de conexões
 	GetGodNodes(ctx context.Context, repo string, limit int) ([]GodNode, error)
 
+	// FindSurprisingConnections descobre conexões latentes entre documentos conceitualmente similares sem arestas no grafo
+	FindSurprisingConnections(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error)
+
 	// SearchKNN busca os K pedaços mais próximos vetorialmente (se repo != "", filtra por repositório)
 	SearchKNN(ctx context.Context, repo string, queryVec []float32, limit int) ([]SearchResult, error)
 
@@ -62,4 +78,70 @@ type Store interface {
 
 	// Close encerra a conexão com o banco de dados
 	Close() error
+}
+
+// CosineSimilarity calcula a similaridade de cosseno entre dois vetores float32
+func CosineSimilarity(a, b []float32) float64 {
+	if len(a) != len(b) || len(a) == 0 {
+		return 0
+	}
+	var dot, normA, normB float64
+	for i := range a {
+		va := float64(a[i])
+		vb := float64(b[i])
+		dot += va * vb
+		normA += va * va
+		normB += vb * vb
+	}
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
+}
+
+// CalculateJaccardSimilarity calcula a similaridade léxica de Jaccard baseada no conjunto de palavras
+func CalculateJaccardSimilarity(textA, textB string) float64 {
+	wordsA := TokenizeWords(textA)
+	wordsB := TokenizeWords(textB)
+	if len(wordsA) == 0 || len(wordsB) == 0 {
+		return 0
+	}
+	union := make(map[string]bool)
+	for w := range wordsA {
+		union[w] = true
+	}
+	for w := range wordsB {
+		union[w] = true
+	}
+	if len(union) == 0 {
+		return 0
+	}
+	intersection := 0
+	for w := range wordsA {
+		if wordsB[w] {
+			intersection++
+		}
+	}
+	return float64(intersection) / float64(len(union))
+}
+
+// TokenizeWords extrai palavras minúsculas únicas com 3 ou mais caracteres alfanuméricos
+func TokenizeWords(s string) map[string]bool {
+	words := make(map[string]bool)
+	var current strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			current.WriteRune(r)
+		} else if current.Len() > 0 {
+			w := current.String()
+			if len(w) >= 3 {
+				words[w] = true
+			}
+			current.Reset()
+		}
+	}
+	if current.Len() >= 3 {
+		words[current.String()] = true
+	}
+	return words
 }

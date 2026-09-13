@@ -50,10 +50,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/store/store_test.go, internal/store/postgres_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Declarar struct SurprisingConnection e método FindSurprisingConnections na interface Store
-- [ ] Implementar FindSurprisingConnections no SQLite cruzando similaridade e anti-join em graph_edges
-- [ ] Implementar FindSurprisingConnections no PostgreSQL com filtro de repositório e min_similarity
-- [ ] Adicionar testes unitários validando a detecção de conexões não linkadas
+- [x] Declarar struct SurprisingConnection e método FindSurprisingConnections na interface Store
+- [x] Implementar FindSurprisingConnections no SQLite cruzando similaridade e anti-join em graph_edges
+- [x] Implementar FindSurprisingConnections no PostgreSQL com filtro de repositório e min_similarity
+- [x] Adicionar testes unitários validando a detecção de conexões não linkadas
 
 ### T3: Ferramenta MCP memory_get_insights
 **What**: Registrar e implementar a ferramenta memory_get_insights no servidor MCP

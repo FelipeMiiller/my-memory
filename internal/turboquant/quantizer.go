@@ -119,3 +119,28 @@ func (q *Quantizer) DotProduct(rotatedQuery []float32, cv *CompressedVector) flo
 	// Reconverte usando o fator de escala original: (Scale / 7.0) * sum
 	return (cv.Scale / 7.0) * sum
 }
+
+// Dequantize descompacta o vetor de 4-bits de volta para o espaço original float32
+func (q *Quantizer) Dequantize(cv *CompressedVector) []float32 {
+	if cv == nil || cv.Dim == 0 {
+		return nil
+	}
+	dim := cv.Dim
+	data := cv.Data
+	rotated := make([]float32, dim)
+
+	step := cv.Scale / 7.0
+	for i := 0; i < dim; i += 2 {
+		b := data[i/2]
+		u0 := int(b & 0x0F)
+		rotated[i] = step * float32(u0-7)
+
+		if i+1 < dim {
+			u1 := int((b >> 4) & 0x0F)
+			rotated[i+1] = step * float32(u1-7)
+		}
+	}
+
+	// Inverte a rotação ortogonal: R^T * rotated (como R é ortogonal, a inversa é a transposta)
+	return q.rotator.RotateInverse(rotated)
+}

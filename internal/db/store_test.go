@@ -108,9 +108,80 @@ func TestSQLiteStore_Lifecycle(t *testing.T) {
 		t.Errorf("GetGodNodes retornou lista vazia")
 	}
 
-	// 4. DeleteDocumentData
+	// 4. Conexões Inesperadas (Surprising Connections)
+	// Insere doc-close com embedding similar a test-doc sem aresta
+	closeDocID := "doc-close"
+	_ = InsertDocument(ctx, database, closeDocID, "notes/close.md", "Close Note", time.Now().Unix(), "closehash")
+	_ = InsertChunk(ctx, database, "doc-close#0", closeDocID, "Texto muito proximo para teste", 0, dummyVec)
+
+	// test-doc e target-doc têm aresta. test-doc e doc-close NÃO têm aresta.
+	surprising, err := FindSurprisingConnections(ctx, database, 10, 0.50)
+	if err != nil {
+		t.Fatalf("FindSurprisingConnections falhou: %v", err)
+	}
+	foundClose := false
+	for _, sc := range surprising {
+		if (sc.SourceID == docID && sc.TargetID == closeDocID) || (sc.SourceID == closeDocID && sc.TargetID == docID) {
+			foundClose = true
+		}
+		if (sc.SourceID == docID && sc.TargetID == "target-doc") || (sc.SourceID == "target-doc" && sc.TargetID == docID) {
+			t.Errorf("test-doc e target-doc têm aresta direta e NÃO devem ser conexão inesperada!")
+		}
+		if sc.SourceID == sc.TargetID {
+			t.Errorf("Conexão inesperada reflexiva encontrada: %s == %s", sc.SourceID, sc.TargetID)
+		}
+	}
+	if !foundClose {
+		t.Errorf("Esperava encontrar conexão inesperada entre test-doc e doc-close")
+	}
+
+	// 5. DeleteDocumentData
 	err = DeleteDocumentData(ctx, database, docID)
 	if err != nil {
 		t.Fatalf("DeleteDocumentData falhou: %v", err)
+	}
+}
+
+func TestSQLite_FindSurprisingConnections_LexicalFallback(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_lexical.db")
+	database, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+
+	// Insere documentos apenas com texto (sem vetores em chunks_vec ou chunks_turboquant)
+	_ = InsertDocument(ctx, database, "doc-1", "doc1.md", "Microservices Architecture", time.Now().Unix(), "h1")
+	_, _ = database.ExecContext(ctx, `INSERT INTO chunks (id, document_id, chunk_index, content) VALUES ('doc-1#0', 'doc-1', 0, 'arquitetura distribuída microsserviços resiliência')`)
+
+	_ = InsertDocument(ctx, database, "doc-2", "doc2.md", "Resilient Architecture", time.Now().Unix(), "h2")
+	_, _ = database.ExecContext(ctx, `INSERT INTO chunks (id, document_id, chunk_index, content) VALUES ('doc-2#0', 'doc-2', 0, 'arquitetura distribuída resiliência alta disponibilidade')`)
+
+	_ = InsertDocument(ctx, database, "doc-3", "doc3.md", "Pasta Recipes", time.Now().Unix(), "h3")
+	_, _ = database.ExecContext(ctx, `INSERT INTO chunks (id, document_id, chunk_index, content) VALUES ('doc-3#0', 'doc-3', 0, 'culinária italiana massas molho receitas')`)
+
+	// Conexão inesperada léxica entre doc-1 e doc-2
+	results, err := FindSurprisingConnections(ctx, database, 10, 0.40)
+	if err != nil {
+		t.Fatalf("FindSurprisingConnections falhou: %v", err)
+	}
+
+	found := false
+	for _, sc := range results {
+		if (sc.SourceID == "doc-1" && sc.TargetID == "doc-2") || (sc.SourceID == "doc-2" && sc.TargetID == "doc-1") {
+			found = true
+			if sc.Similarity < 0.40 {
+				t.Errorf("Similaridade esperada >= 0.40, obteve %f", sc.Similarity)
+			}
+		}
+		if sc.TargetID == "doc-3" || sc.SourceID == "doc-3" {
+			t.Errorf("doc-3 é culinária e não deve ter sobreposição suficiente com doc-1 ou doc-2")
+		}
+	}
+
+	if !found {
+		t.Fatalf("Fallback léxico não detectou conexão surpreendente entre doc-1 e doc-2")
 	}
 }

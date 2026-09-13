@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -437,6 +438,159 @@ func (s *PostgresStore) SearchHybridRRF(ctx context.Context, repo string, query 
 	}
 
 	return FuseSearchResults(sources, k, limit), nil
+}
+
+// FindSurprisingConnections descobre conexões latentes entre documentos conceitualmente similares sem arestas no grafo
+func (s *PostgresStore) FindSurprisingConnections(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if minSimilarity <= 0 {
+		minSimilarity = 0.70
+	}
+
+	// 1. Verifica se existem embeddings calculados no repositório
+	var vectorCount int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM chunks
+		WHERE ($1 = '' OR repository = $1) AND embedding IS NOT NULL
+	`, repo).Scan(&vectorCount)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao verificar vetores postgres: %w", err)
+	}
+
+	// Se houver vetores, executa busca via pgvector cosine distance (<=>)
+	if vectorCount > 0 {
+		query := `
+			SELECT 
+				c1.document_id AS source_id,
+				COALESCE(d1.title, c1.document_id) AS source_name,
+				c2.document_id AS target_id,
+				COALESCE(d2.title, c2.document_id) AS target_name,
+				MAX(1.0 - (c1.embedding <=> c2.embedding)) AS similarity
+			FROM chunks c1
+			JOIN chunks c2 ON c1.document_id < c2.document_id AND c1.repository = c2.repository
+			JOIN documents d1 ON d1.repository = c1.repository AND d1.id = c1.document_id
+			JOIN documents d2 ON d2.repository = c2.repository AND d2.id = c2.document_id
+			WHERE ($1 = '' OR c1.repository = $1)
+			  AND c1.embedding IS NOT NULL
+			  AND c2.embedding IS NOT NULL
+			  AND NOT EXISTS (
+				  SELECT 1 FROM graph_edges e
+				  WHERE e.repository = c1.repository
+					AND ((e.source_id = c1.document_id AND e.target_id = c2.document_id)
+					  OR (e.source_id = c2.document_id AND e.target_id = c1.document_id))
+			  )
+			GROUP BY c1.document_id, d1.title, c2.document_id, d2.title
+			HAVING MAX(1.0 - (c1.embedding <=> c2.embedding)) >= $2
+			ORDER BY similarity DESC
+			LIMIT $3;
+		`
+		rows, err := s.db.QueryContext(ctx, query, repo, minSimilarity, limit)
+		if err != nil {
+			return nil, fmt.Errorf("erro ao buscar conexoes inesperadas vetoriais postgres: %w", err)
+		}
+		defer rows.Close()
+
+		var results []SurprisingConnection
+		for rows.Next() {
+			var conn SurprisingConnection
+			if err := rows.Scan(&conn.SourceID, &conn.SourceName, &conn.TargetID, &conn.TargetName, &conn.Similarity); err != nil {
+				return nil, err
+			}
+			conn.Reason = fmt.Sprintf("Alta proximidade semântica (%.0f%%) sem conexão direta no grafo", conn.Similarity*100)
+			results = append(results, conn)
+		}
+		if results == nil {
+			results = []SurprisingConnection{}
+		}
+		return results, nil
+	}
+
+	// 2. Fallback Léxico (Jaccard) caso embeddings não estejam disponíveis
+	return s.findSurprisingConnectionsLexical(ctx, repo, limit, minSimilarity)
+}
+
+func (s *PostgresStore) findSurprisingConnectionsLexical(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT d.id, COALESCE(d.title, d.id), COALESCE(string_agg(c.content, ' '), '')
+		FROM documents d
+		LEFT JOIN chunks c ON c.repository = d.repository AND c.document_id = d.id
+		WHERE ($1 = '' OR d.repository = $1)
+		GROUP BY d.id, d.title
+		ORDER BY d.id
+	`, repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar documentos para analise lexica: %w", err)
+	}
+	defer rows.Close()
+
+	type docEntry struct {
+		id      string
+		title   string
+		content string
+	}
+	var docs []docEntry
+	for rows.Next() {
+		var de docEntry
+		if err := rows.Scan(&de.id, &de.title, &de.content); err == nil {
+			docs = append(docs, de)
+		}
+	}
+
+	edgeRows, err := s.db.QueryContext(ctx, `
+		SELECT source_id, target_id FROM graph_edges
+		WHERE ($1 = '' OR repository = $1)
+	`, repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar arestas: %w", err)
+	}
+	defer edgeRows.Close()
+
+	linked := make(map[string]bool)
+	for edgeRows.Next() {
+		var src, tgt string
+		if err := edgeRows.Scan(&src, &tgt); err == nil {
+			linked[src+"->"+tgt] = true
+			linked[tgt+"->"+src] = true
+		}
+	}
+
+	var results []SurprisingConnection
+	for i := 0; i < len(docs); i++ {
+		for j := i + 1; j < len(docs); j++ {
+			d1 := docs[i]
+			d2 := docs[j]
+
+			if linked[d1.id+"->"+d2.id] {
+				continue
+			}
+
+			sim := CalculateJaccardSimilarity(d1.content, d2.content)
+			if sim >= minSimilarity {
+				results = append(results, SurprisingConnection{
+					SourceID:   d1.id,
+					SourceName: d1.title,
+					TargetID:   d2.id,
+					TargetName: d2.title,
+					Similarity: sim,
+					Reason:     fmt.Sprintf("Alta sobreposição léxica (%.0f%%) sem conexão direta no grafo", sim*100),
+				})
+			}
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Similarity > results[j].Similarity
+	})
+
+	if len(results) > limit {
+		results = results[:limit]
+	}
+	if results == nil {
+		results = []SurprisingConnection{}
+	}
+	return results, nil
 }
 
 func (s *PostgresStore) Close() error {
