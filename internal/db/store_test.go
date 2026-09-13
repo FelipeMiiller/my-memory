@@ -108,6 +108,18 @@ func TestSQLiteStore_Lifecycle(t *testing.T) {
 		t.Errorf("GetGodNodes retornou lista vazia")
 	}
 
+	// 3.1. PageRank no SQLite
+	prNodes, err := ComputePageRank(ctx, database, 0.85, 20)
+	if err != nil {
+		t.Fatalf("ComputePageRank falhou: %v", err)
+	}
+	if len(prNodes) == 0 {
+		t.Errorf("ComputePageRank retornou lista vazia")
+	}
+	if prNodes[0].Rank != 1 || prNodes[0].Score <= 0 {
+		t.Errorf("Primeiro nó do PageRank com rank ou score inválido: %+v", prNodes[0])
+	}
+
 	// 4. Conexões Inesperadas (Surprising Connections)
 	// Insere doc-close com embedding similar a test-doc sem aresta
 	closeDocID := "doc-close"

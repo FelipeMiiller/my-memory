@@ -28,6 +28,16 @@ type GodNode struct {
 	TotalDegree int    `json:"total_degree"`
 }
 
+// PageRankNode representa um nó com autoridade calculada via algoritmo de PageRank ponderado
+type PageRankNode struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Score     float64 `json:"score"`
+	Rank      int     `json:"rank"`
+	InDegree  int     `json:"in_degree"`
+	OutDegree int     `json:"out_degree"`
+}
+
 // SurprisingConnection representa uma conexão semântica/conceitual latente sem link direto no grafo
 type SurprisingConnection struct {
 	SourceID   string  `json:"source_id"`

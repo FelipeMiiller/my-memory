@@ -51,9 +51,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/store/pagerank_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Declarar PageRankNode e método ComputePageRank no pacote store
-- [ ] Implementar ComputePageRank em internal/db/store.go carregando nós e arestas ativas
-- [ ] Adicionar testes unitários validando ordenação decrescente por score no SQLite
+- [x] Declarar PageRankNode e método ComputePageRank no pacote store
+- [x] Implementar ComputePageRank em internal/db/store.go carregando nós e arestas ativas
+- [x] Adicionar testes unitários validando ordenação decrescente por score no SQLite
 
 ### T3: Implementação de ComputePageRank no PostgreSQL
 **What**: Implementar ComputePageRank no PostgresStore com isolamento por repositório

@@ -12,6 +12,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 )
@@ -571,4 +572,119 @@ func deserializeFloat32(b []byte) []float32 {
 		res[i] = math.Float32frombits(bits)
 	}
 	return res
+}
+
+// ComputePageRank calcula a autoridade dos nós no grafo SQLite utilizando o algoritmo PageRank ponderado
+func ComputePageRank(ctx context.Context, db *sql.DB, damping float64, maxIter int) ([]store.PageRankNode, error) {
+	if damping <= 0 || damping >= 1.0 {
+		damping = graph.DefaultDamping
+	}
+	if maxIter <= 0 {
+		maxIter = graph.DefaultMaxIter
+	}
+
+	// 1. Carregar nós conhecidos e mapear ID -> Nome
+	nameMap := make(map[string]string)
+	docRows, err := db.QueryContext(ctx, "SELECT id, title FROM documents")
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id, title string
+			if err := docRows.Scan(&id, &title); err == nil {
+				nameMap[id] = title
+			}
+		}
+	}
+
+	nodeRows, err := db.QueryContext(ctx, "SELECT id, name FROM graph_nodes")
+	if err == nil {
+		defer nodeRows.Close()
+		for nodeRows.Next() {
+			var id, name string
+			if err := nodeRows.Scan(&id, &name); err == nil {
+				if _, exists := nameMap[id]; !exists || nameMap[id] == "" {
+					nameMap[id] = name
+				}
+			}
+		}
+	}
+
+	// 2. Carregar arestas do grafo e calcular in/out-degrees
+	inDegrees := make(map[string]int)
+	outDegrees := make(map[string]int)
+	nodesSet := make(map[string]bool)
+
+	for id := range nameMap {
+		nodesSet[id] = true
+	}
+
+	edgeRows, err := db.QueryContext(ctx, "SELECT source_id, target_id, COALESCE(epistemic_status, 'EXTRACTED'), COALESCE(weight, 1.0) FROM graph_edges")
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para pagerank: %w", err)
+	}
+	defer edgeRows.Close()
+
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, edgeType string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &edgeType, &weight); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		outDegrees[src]++
+		inDegrees[tgt]++
+		edges = append(edges, graph.WeightedEdge{
+			Source: src,
+			Target: tgt,
+			Type:   edgeType,
+			Weight: weight,
+		})
+	}
+
+	var allNodes []string
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+
+	if len(allNodes) == 0 {
+		return []store.PageRankNode{}, nil
+	}
+
+	// 3. Executar o algoritmo de PageRank
+	scores := graph.ComputePageRank(allNodes, edges, graph.PageRankOptions{
+		DampingFactor: damping,
+		MaxIterations: maxIter,
+		Tolerance:     1e-6,
+	})
+
+	// 4. Montar slice de PageRankNode e ordenar descendentemente
+	results := make([]store.PageRankNode, 0, len(scores))
+	for nodeID, score := range scores {
+		name := nameMap[nodeID]
+		if name == "" {
+			name = nodeID
+		}
+		results = append(results, store.PageRankNode{
+			ID:        nodeID,
+			Name:      name,
+			Score:     score,
+			InDegree:  inDegrees[nodeID],
+			OutDegree: outDegrees[nodeID],
+		})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].Score != results[j].Score {
+			return results[i].Score > results[j].Score
+		}
+		return results[i].InDegree > results[j].InDegree
+	})
+
+	for i := range results {
+		results[i].Rank = i + 1
+	}
+
+	return results, nil
 }
