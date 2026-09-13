@@ -53,10 +53,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/config/glob_test.go
 **Gate**: go test -v ./internal/config/...
 **Done when**:
-- [ ] Implementar normalização de separadores de caminho (/ e \)
-- [ ] Implementar ShouldIndex avaliando lista de Exclude e Include via patterns glob
-- [ ] Ignorar pastas de sistema por padrão (.git, node_modules, vendor, .obsidian, .trash, .memory)
-- [ ] Adicionar testes unitários para múltiplos cenários de inclusão e exclusão
+- [x] Implementar normalização de separadores de caminho (/ e \)
+- [x] Implementar ShouldIndex avaliando lista de Exclude e Include via patterns glob
+- [x] Ignorar pastas de sistema por padrão (.git, node_modules, vendor, .obsidian, .trash, .memory)
+- [x] Adicionar testes unitários para múltiplos cenários de inclusão e exclusão
 
 ### T3: Subcomando CLI mem init e Geração de Template
 **What**: Adicionar subcomando mem init em cmd/mem/main.go para gerar .memory/config.yaml
