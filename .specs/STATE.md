@@ -15,11 +15,11 @@
 
 ## Handoff
 
-- **Feature**: vault-configuration-and-auto-scoping (.specs/features/vault-configuration-and-auto-scoping)
-- **Phase / Task**: Phase 1 / T6 (Completed)
-- **Completed**: T1, T2, T3, T4, T5, T6 (100% Concluído)
-- **In-progress**: none
-- **Next step**: Ready for next roadmap feature.
+- **Feature**: live-indexing-and-file-watcher (.specs/features/live-indexing-and-file-watcher)
+- **Phase / Task**: Phase 1 / T2
+- **Completed**: T1 (Motor de Watcher e Debounce)
+- **In-progress**: T2 (Reindexação Cirúrgica em Tempo Real)
+- **Next step**: Implementar IndexSingleFile e PurgeSingleFile em internal/watcher/indexer.go.
 - **Blockers**: none
 - **Branch**: main
 
