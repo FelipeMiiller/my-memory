@@ -14,10 +14,10 @@
 ## Handoff
 
 - **Feature**: temporal-decay-and-recency-search (.specs/features/temporal-decay-and-recency-search)
-- **Phase / Task**: Phase 1 / T2
-- **Completed**: T1 (Motor Matemático de Decaimento Temporal e Fusão RRF Ponderada)
-- **In-progress**: T2 (Enriquecimento de SearchResult com UpdatedAt e Queries SQLite)
-- **Next step**: Adicionar UpdatedAt no SearchResult do pacote db e atualizar queries com JOIN em documents.
+- **Phase / Task**: Phase 1 / T3
+- **Completed**: T1 (Motor Matemático de Decaimento Temporal e Fusão RRF Ponderada), T2 (Enriquecimento de SearchResult com UpdatedAt e Queries SQLite)
+- **In-progress**: T3 (Suporte a Decaimento Temporal no PostgreSQL e Interface Store)
+- **Next step**: Implementar SearchHybridRRFWithDecay no PostgresStore e atualizar contrato da interface Store.
 - **Blockers**: none
 - **Branch**: main
 

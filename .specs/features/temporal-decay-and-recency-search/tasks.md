@@ -52,10 +52,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/db/hybrid_test.go
 **Gate**: go test -v ./internal/db/...
 **Done when**:
-- [ ] Adicionar campo UpdatedAt em SearchResult no pacote db e store
-- [ ] Atualizar queries SQL em internal/db/hybrid.go e internal/db/graph.go com JOIN em documents.updated_at
-- [ ] Implementar SearchHybridRRFWithDecay no SQLite
-- [ ] Validar preenchimento de UpdatedAt em testes
+- [x] Adicionar campo UpdatedAt em SearchResult no pacote db e store
+- [x] Atualizar queries SQL em internal/db/hybrid.go e internal/db/graph.go com JOIN em documents.updated_at
+- [x] Implementar SearchHybridRRFWithDecay no SQLite
+- [x] Validar preenchimento de UpdatedAt em testes
 
 ### T3: Suporte a Decaimento Temporal no PostgreSQL e Interface Store
 **What**: Implementar SearchHybridRRFWithDecay no PostgresStore e atualizar contrato da interface Store

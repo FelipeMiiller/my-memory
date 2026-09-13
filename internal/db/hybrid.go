@@ -18,9 +18,10 @@ func SearchFTS(ctx context.Context, database *sql.DB, query string, limit int) (
 	}
 
 	q := `
-	SELECT c.id, c.document_id, c.content, fts.rank
+	SELECT c.id, c.document_id, c.content, fts.rank, COALESCE(d.updated_at, 0)
 	FROM chunks_fts fts
 	JOIN chunks c ON c.id = fts.chunk_id
+	LEFT JOIN documents d ON d.id = c.document_id
 	WHERE chunks_fts MATCH ?
 	ORDER BY fts.rank
 	LIMIT ?
@@ -36,7 +37,7 @@ func SearchFTS(ctx context.Context, database *sql.DB, query string, limit int) (
 	for rows.Next() {
 		var r SearchResult
 		var rank float64
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &rank); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &rank, &r.UpdatedAt); err != nil {
 			return nil, err
 		}
 		// Distância invertida/normalizada baseada no rank BM25
@@ -55,6 +56,11 @@ func SearchFTS(ctx context.Context, database *sql.DB, query string, limit int) (
 
 // SearchHybridRRF funde busca textual FTS5, busca vetorial (sqlite-vec ou TurboQuant) e vizinhos no grafo via RRF
 func SearchHybridRRF(ctx context.Context, database *sql.DB, q *turboquant.Quantizer, query string, queryVec []float32, limit, k int, useTurbo bool) ([]SearchResult, error) {
+	return SearchHybridRRFWithDecay(ctx, database, q, query, queryVec, limit, k, useTurbo, store.DefaultDecayOptions())
+}
+
+// SearchHybridRRFWithDecay funde busca textual FTS5, busca vetorial e vizinhos no grafo aplicando RRF e decaimento temporal
+func SearchHybridRRFWithDecay(ctx context.Context, database *sql.DB, q *turboquant.Quantizer, query string, queryVec []float32, limit, k int, useTurbo bool, opts store.DecayOptions) ([]SearchResult, error) {
 	candidateLimit := limit * 2
 	if candidateLimit < 10 {
 		candidateLimit = 10
@@ -101,10 +107,11 @@ func SearchHybridRRF(ctx context.Context, database *sql.DB, q *turboquant.Quanti
 
 		for _, n := range neighbors {
 			rows, err := database.QueryContext(ctx, `
-				SELECT id, document_id, content
-				FROM chunks
-				WHERE document_id = ?
-				ORDER BY chunk_index
+				SELECT c.id, c.document_id, c.content, COALESCE(d.updated_at, 0)
+				FROM chunks c
+				LEFT JOIN documents d ON d.id = c.document_id
+				WHERE c.document_id = ?
+				ORDER BY c.chunk_index
 				LIMIT 2
 			`, n)
 			if err != nil {
@@ -113,7 +120,7 @@ func SearchHybridRRF(ctx context.Context, database *sql.DB, q *turboquant.Quanti
 
 			for rows.Next() {
 				var gr SearchResult
-				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Content); err == nil {
+				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Content, &gr.UpdatedAt); err == nil {
 					if !seenChunks[gr.ChunkID] {
 						seenChunks[gr.ChunkID] = true
 						graphResults = append(graphResults, gr)
@@ -124,14 +131,14 @@ func SearchHybridRRF(ctx context.Context, database *sql.DB, q *turboquant.Quanti
 		}
 	}
 
-	// 4. Fusão RRF através de store.FuseSearchResults
+	// 4. Fusão RRF com decaimento temporal através de store.FuseSearchResultsWithDecay
 	sources := []store.RankedResultSource{
 		{Name: "fts", Results: toStoreResults(ftsResults)},
 		{Name: "vector", Results: toStoreResults(vecResults)},
 		{Name: "graph", Results: toStoreResults(graphResults)},
 	}
 
-	fusedStoreResults := store.FuseSearchResults(sources, k, limit)
+	fusedStoreResults := store.FuseSearchResultsWithDecay(sources, k, limit, opts)
 	return fromStoreResults(fusedStoreResults), nil
 }
 
@@ -146,6 +153,7 @@ func toStoreResults(items []SearchResult) []store.SearchResult {
 			Score:      it.Score,
 			Sources:    it.Sources,
 			Neighbors:  it.Neighbors,
+			UpdatedAt:  it.UpdatedAt,
 		}
 	}
 	return res
@@ -162,6 +170,7 @@ func fromStoreResults(items []store.SearchResult) []SearchResult {
 			Score:      it.Score,
 			Sources:    it.Sources,
 			Neighbors:  it.Neighbors,
+			UpdatedAt:  it.UpdatedAt,
 		}
 	}
 	return res

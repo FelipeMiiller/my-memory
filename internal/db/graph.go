@@ -18,6 +18,7 @@ type SearchResult struct {
 	Score      float64  `json:"score,omitempty"`
 	Sources    []string `json:"sources,omitempty"`
 	Neighbors  []string `json:"neighbors,omitempty"` // Conexões descobertas no grafo
+	UpdatedAt  int64    `json:"updated_at,omitempty"`
 }
 
 // SearchKNN busca os pedaços mais próximos usando sqlite-vec nativo
@@ -28,9 +29,10 @@ func SearchKNN(ctx context.Context, db *sql.DB, queryVec []float32, limit int) (
 	}
 
 	query := `
-	SELECT c.id, c.document_id, c.content, v.distance
+	SELECT c.id, c.document_id, c.content, v.distance, COALESCE(d.updated_at, 0)
 	FROM chunks_vec v
 	JOIN chunks c ON c.id = v.chunk_id
+	LEFT JOIN documents d ON d.id = c.document_id
 	WHERE v.embedding MATCH ? AND k = ?
 	ORDER BY v.distance
 	`
@@ -44,7 +46,7 @@ func SearchKNN(ctx context.Context, db *sql.DB, queryVec []float32, limit int) (
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Distance); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Distance, &r.UpdatedAt); err != nil {
 			return nil, err
 		}
 
@@ -64,9 +66,10 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 	rotatedQuery := q.RotateQuery(queryVec)
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT tq.chunk_id, c.document_id, c.content, tq.scale, tq.data
+		SELECT tq.chunk_id, c.document_id, c.content, tq.scale, tq.data, COALESCE(d.updated_at, 0)
 		FROM chunks_turboquant tq
 		JOIN chunks c ON c.id = tq.chunk_id
+		LEFT JOIN documents d ON d.id = c.document_id
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao consultar chunks turboquant: %w", err)
@@ -78,6 +81,7 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 		documentID string
 		content    string
 		score      float32
+		updatedAt  int64
 	}
 
 	var items []scoredItem
@@ -85,8 +89,9 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 		var chunkID, docID, content string
 		var scale float32
 		var data []byte
+		var updatedAt int64
 
-		if err := rows.Scan(&chunkID, &docID, &content, &scale, &data); err != nil {
+		if err := rows.Scan(&chunkID, &docID, &content, &scale, &data, &updatedAt); err != nil {
 			continue
 		}
 
@@ -102,6 +107,7 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 			documentID: docID,
 			content:    content,
 			score:      dot,
+			updatedAt:  updatedAt,
 		})
 	}
 
@@ -126,6 +132,7 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 			Content:    it.content,
 			Distance:   dist,
 			Neighbors:  neighbors,
+			UpdatedAt:  it.updatedAt,
 		})
 	}
 
