@@ -94,10 +94,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/note_test.go
 **Gate**: go test -v ./cmd/mem/...
 **Done when**:
-- [ ] Implementar subcomandos note create e note append com flags completas
-- [ ] Implementar subcomando compile buscando tópicos e gerando nota atômica compilada
-- [ ] Integrar subcomandos ao switch principal em cmd/mem/main.go e atualizar printHelp
-- [ ] Adicionar testes unitários em cmd/mem/note_test.go
+- [x] Implementar subcomandos note create e note append com flags completas
+- [x] Implementar subcomando compile buscando tópicos e gerando nota atômica compilada
+- [x] Integrar subcomandos ao switch principal em cmd/mem/main.go e atualizar printHelp
+- [x] Adicionar testes unitários em cmd/mem/note_test.go
 
 ### T6: ADR-018, Validação Final e Documentação
 **What**: Registrar decisão de arquitetura na ADR-018 e atualizar documentação do projeto

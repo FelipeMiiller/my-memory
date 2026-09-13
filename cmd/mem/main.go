@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/canvas"
+	"github.com/FelipeMiiller/my-memory/internal/compiler"
 	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
@@ -533,6 +534,18 @@ func main() {
 			runDoctorSQLite(ctx, database, *fix)
 		}
 
+	case "note":
+		if err := runNoteCLI(ctx, emb, tq, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "compile":
+		if err := runCompileCLI(ctx, emb, tq, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	default:
 		printHelp()
 	}
@@ -561,6 +574,10 @@ func printHelp() {
 	fmt.Println("      Exporta um subgrafo em torno de uma nota no formato aberto JSON Canvas (.canvas) do Obsidian")
 	fmt.Println("  mem bench")
 	fmt.Println("      Executa micro-benchmarks de performance (TurboQuant, RRF, SHA-256, Parsing) com resumo tabular")
+	fmt.Println("  mem note <create|append> [opções] <caminho>")
+	fmt.Println("      Cria ou anexa seções em notas Markdown atômicas com frontmatter e sincronização imediata")
+	fmt.Println("  mem compile --topic \"<termo>\" --out \"<caminho.md>\" [--limit 5] [--mode hybrid|vector|fts]")
+	fmt.Println("      Compila e sintetiza fragmentos de busca em uma nota atômica com backlinks (Compile-not-Retrieve)")
 	fmt.Println("  mem mcp [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Inicia servidor Model Context Protocol via stdio para agentes de IA (Claude, Cursor, etc)")
 	fmt.Println()
@@ -1195,7 +1212,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
 
 	if pgStore != nil {
-		srv.SetAdvancedSearchHandler(func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+		pgSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
 			repo := params.Repo
 			if repo == "" {
 				repo = defaultRepo
@@ -1259,7 +1276,10 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				}
 			}
 			return mcpResults, nil
-		})
+		}
+		srv.SetAdvancedSearchHandler(pgSearchFunc)
+		syncEngine := compiler.NewSyncEngine(nil, pgStore, emb, nil, defaultRepo)
+		srv.SetCompilerEngine(syncEngine, pgSearchFunc, ".")
 
 		srv.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
 			if repo == "" {
@@ -1354,7 +1374,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 		)
 	} else if database != nil {
 		tq := turboquant.NewQuantizer(EmbeddingDim)
-		srv.SetAdvancedSearchHandler(func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
 			limit := params.Limit
 			if limit <= 0 {
 				limit = 5
@@ -1413,7 +1433,10 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				}
 			}
 			return mcpResults, nil
-		})
+		}
+		srv.SetAdvancedSearchHandler(dbSearchFunc)
+		syncEngine := compiler.NewSyncEngine(database, nil, emb, tq, defaultRepo)
+		srv.SetCompilerEngine(syncEngine, dbSearchFunc, ".")
 
 		srv.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
 			return db.GetNodeNeighbors(ctx, database, nodeID, maxDepth)
