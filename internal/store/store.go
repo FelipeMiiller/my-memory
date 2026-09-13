@@ -11,8 +11,8 @@ type SearchResult struct {
 	Repository string   `json:"repository,omitempty"`
 	Content    string   `json:"content"`
 	Distance   float64  `json:"distance,omitempty"`
-	Score      float64  `json:"score,omitempty"`      // Pontuação acumulada de RRF
-	Sources    []string `json:"sources,omitempty"`    // Origens e posições (ex: ["fts:1", "vector:3"])
+	Score      float64  `json:"score,omitempty"`   // Pontuação acumulada de RRF
+	Sources    []string `json:"sources,omitempty"` // Origens e posições (ex: ["fts:1", "vector:3"])
 	Neighbors  []string `json:"neighbors,omitempty"`
 }
 

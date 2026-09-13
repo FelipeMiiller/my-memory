@@ -70,10 +70,19 @@ jobs:
       - name: Run MCP Server Tests
         run: go test -v -cover ./internal/mcp/...
 
+      - name: Run Store Tests
+        run: go test -v -cover ./internal/store/...
+
+      - name: Run Canvas Tests
+        run: go test -v -cover ./internal/canvas/...
+
+      - name: Run Repo Tests
+        run: go test -v -cover ./internal/repo/...
+
       - name: Run All Pure Tests with Coverage Report (Ubuntu)
         if: runner.os == 'Linux'
         run: |
-          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/...
+          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/... ./internal/store/... ./internal/canvas/... ./internal/repo/...
 
       - name: Upload Coverage Artifact (Ubuntu)
         if: runner.os == 'Linux'

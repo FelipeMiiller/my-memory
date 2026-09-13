@@ -741,5 +741,3 @@ func displayHubsTable(hubs []store.GodNode) {
 	}
 	fmt.Println()
 }
-
-

@@ -186,4 +186,3 @@ func TestFuseSearchResults_FallbackToDocumentID(t *testing.T) {
 		t.Errorf("DocumentID incorreto: obteve '%s'", fused[0].DocumentID)
 	}
 }
-

@@ -482,5 +482,3 @@ func TestFormatHubs_Empty(t *testing.T) {
 		t.Errorf("esperava mensagem de vazio, obteve: %s", got)
 	}
 }
-
-

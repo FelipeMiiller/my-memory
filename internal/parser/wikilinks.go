@@ -26,22 +26,22 @@ type EdgeConnection struct {
 // LinkTarget representa a dissecação completa de um link estilo Obsidian
 type LinkTarget struct {
 	Raw       string `json:"raw"`
-	Target    string `json:"target"`              // Nome da nota de destino normalizado (ex: "Arquitetura")
-	Relation  string `json:"relation,omitempty"`   // Tipo da relação ("implements", "depends_on", "links_to", etc)
-	Anchor    string `json:"anchor,omitempty"`    // Cabeçalho / seção (ex: "Visão Geral")
-	BlockID   string `json:"block_id,omitempty"`  // Identificador de bloco (ex: "^c182")
-	Alias     string `json:"alias,omitempty"`     // Rótulo ou texto de exibição (ex: "Visão")
-	IsEmbed   bool   `json:"is_embed"`            // Verdadeiro se for ![[...]]
-	IsSameDoc bool   `json:"is_same_doc"`         // Verdadeiro se for link interno [[#Secao]]
+	Target    string `json:"target"`             // Nome da nota de destino normalizado (ex: "Arquitetura")
+	Relation  string `json:"relation,omitempty"` // Tipo da relação ("implements", "depends_on", "links_to", etc)
+	Anchor    string `json:"anchor,omitempty"`   // Cabeçalho / seção (ex: "Visão Geral")
+	BlockID   string `json:"block_id,omitempty"` // Identificador de bloco (ex: "^c182")
+	Alias     string `json:"alias,omitempty"`    // Rótulo ou texto de exibição (ex: "Visão")
+	IsEmbed   bool   `json:"is_embed"`           // Verdadeiro se for ![[...]]
+	IsSameDoc bool   `json:"is_same_doc"`        // Verdadeiro se for link interno [[#Secao]]
 }
 
 // ExtractedConnections consolida conexões extraídas do Markdown e frontmatter
 type ExtractedConnections struct {
-	OutgoingLinks []string         `json:"outgoing_links"` // Alvos externos únicos (retrocompatível)
-	Edges         []EdgeConnection `json:"edges,omitempty"`  // Arestas tipadas dirigidas
-	Links         []LinkTarget     `json:"links"`          // Detalhes completos de cada wikilink
-	Tags          []string         `json:"tags"`           // União de tags do frontmatter e inline
-	Aliases       []string         `json:"aliases"`        // Aliases declarados no frontmatter
+	OutgoingLinks []string         `json:"outgoing_links"`  // Alvos externos únicos (retrocompatível)
+	Edges         []EdgeConnection `json:"edges,omitempty"` // Arestas tipadas dirigidas
+	Links         []LinkTarget     `json:"links"`           // Detalhes completos de cada wikilink
+	Tags          []string         `json:"tags"`            // União de tags do frontmatter e inline
+	Aliases       []string         `json:"aliases"`         // Aliases declarados no frontmatter
 	Frontmatter   *Frontmatter     `json:"frontmatter,omitempty"`
 }
 
