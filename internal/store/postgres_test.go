@@ -1,8 +1,11 @@
 package store
 
 import (
+	"context"
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFormatVector(t *testing.T) {
@@ -72,5 +75,88 @@ func TestGodNode_Struct(t *testing.T) {
 	}
 	if node.TotalDegree != node.InDegree+node.OutDegree {
 		t.Fatalf("TotalDegree inconsistente: %d != %d", node.TotalDegree, node.InDegree+node.OutDegree)
+	}
+}
+
+func TestPostgresStore_Integration(t *testing.T) {
+	pgURL := os.Getenv("MY_MEMORY_PG_URL")
+	if pgURL == "" {
+		t.Skip("Pulando teste de integração PostgreSQL: MY_MEMORY_PG_URL não configurada")
+	}
+
+	ctx := context.Background()
+	s, err := NewPostgresStore(pgURL)
+	if err != nil {
+		t.Fatalf("Falha ao conectar no PostgreSQL (%s): %v", pgURL, err)
+	}
+	defer s.Close()
+
+	repo := "test-repo"
+	docID := "doc-1"
+
+	// 1. InsertDocument e GetDocumentHash
+	err = s.InsertDocument(ctx, repo, docID, "notes/test.md", "Test Note", time.Now().Unix(), "hash123")
+	if err != nil {
+		t.Fatalf("InsertDocument falhou: %v", err)
+	}
+
+	hash, err := s.GetDocumentHash(ctx, repo, docID)
+	if err != nil {
+		t.Fatalf("GetDocumentHash falhou: %v", err)
+	}
+	if hash != "hash123" {
+		t.Errorf("GetDocumentHash = %q; esperava 'hash123'", hash)
+	}
+
+	// 2. Chunks e busca vetorial + FTS
+	dummyVec := make([]float32, 768)
+	dummyVec[0] = 1.0
+	err = s.InsertChunk(ctx, repo, "doc-1#0", docID, "Conteúdo de teste sobre inteligência artificial e grafos", 0, dummyVec)
+	if err != nil {
+		t.Fatalf("InsertChunk falhou: %v", err)
+	}
+
+	ftsRes, err := s.SearchFTS(ctx, repo, "inteligência", 5)
+	if err != nil {
+		t.Fatalf("SearchFTS falhou: %v", err)
+	}
+	if len(ftsRes) == 0 {
+		t.Errorf("SearchFTS não retornou resultados para 'inteligência'")
+	}
+
+	knnRes, err := s.SearchKNN(ctx, repo, dummyVec, 5)
+	if err != nil {
+		t.Fatalf("SearchKNN falhou: %v", err)
+	}
+	if len(knnRes) == 0 {
+		t.Errorf("SearchKNN não retornou resultados")
+	}
+
+	// 3. Arestas tipadas e GodNodes
+	err = s.InsertEdgeWithProps(ctx, repo, docID, "doc-2", "depends_on", "EXTRACTED", 1.0)
+	if err != nil {
+		t.Fatalf("InsertEdgeWithProps falhou: %v", err)
+	}
+
+	neighbors, err := s.GetNodeNeighbors(ctx, repo, docID, 1)
+	if err != nil {
+		t.Fatalf("GetNodeNeighbors falhou: %v", err)
+	}
+	if len(neighbors) == 0 || neighbors[0] != "doc-2" {
+		t.Errorf("GetNodeNeighbors = %v; esperava ['doc-2']", neighbors)
+	}
+
+	godNodes, err := s.GetGodNodes(ctx, repo, 5)
+	if err != nil {
+		t.Fatalf("GetGodNodes falhou: %v", err)
+	}
+	if len(godNodes) == 0 {
+		t.Errorf("GetGodNodes retornou lista vazia")
+	}
+
+	// 4. DeleteDocumentData
+	err = s.DeleteDocumentData(ctx, repo, docID)
+	if err != nil {
+		t.Fatalf("DeleteDocumentData falhou: %v", err)
 	}
 }

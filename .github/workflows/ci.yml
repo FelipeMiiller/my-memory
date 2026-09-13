@@ -92,9 +92,65 @@ jobs:
           path: coverage.txt
           retention-days: 7
 
+  database-tests:
+    name: Database Integration Tests (SQLite & PostgreSQL with pgvector)
+    needs: lint
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      - name: Install CGO dependencies (SQLite & GCC)
+        run: sudo apt-get update && sudo apt-get install -y gcc libsqlite3-dev
+
+      - name: Download Go Dependencies
+        run: go mod download
+
+      - name: Run SQLite Tests (CGO, FTS5 & sqlite-vec)
+        run: CGO_ENABLED=1 go test -v -cover ./internal/db/...
+
+      - name: Run PostgreSQL Integration Tests (pgvector)
+        env:
+          MY_MEMORY_PG_URL: postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable
+        run: go test -v -run TestPostgresStore_ ./internal/store/...
+
+      - name: Run SQLite & PostgreSQL Combined Coverage
+        env:
+          MY_MEMORY_PG_URL: postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable
+        run: |
+          CGO_ENABLED=1 go test -v -coverprofile=db-coverage.txt -covermode=atomic ./internal/db/... ./internal/store/...
+
+      - name: Upload DB Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-coverage-report
+          path: db-coverage.txt
+          retention-days: 7
+
   build-verification:
     name: Build Verification
-    needs: unit-tests
+    needs: [unit-tests, database-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
