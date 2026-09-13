@@ -39,6 +39,18 @@ var (
 					"type":        "string",
 					"description": "Slug ou nome do repositório para filtrar a busca (opcional). Se omitido, busca no repositório padrão ou global.",
 				},
+				"decay": map[string]any{
+					"type":        "boolean",
+					"description": "Ativa o decaimento temporal exponencial para priorizar notas mais recentes na busca híbrida (padrão: false)",
+				},
+				"half_life": map[string]any{
+					"type":        "number",
+					"description": "Tempo de meia-vida em dias para a curva de decaimento temporal (padrão: 30.0)",
+				},
+				"decay_weight": map[string]any{
+					"type":        "number",
+					"description": "Peso do fator temporal entre 0.0 (sem efeito) e 1.0 (decaimento máximo) (padrão: 0.3)",
+				},
 			},
 			"required": []string{"query"},
 		},

@@ -78,9 +78,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/mcp/handlers_test.go
 **Gate**: go test -v ./internal/mcp/...
 **Done when**:
-- [ ] Adicionar decay, half_life e decay_weight em ToolMemorySearch em tools.go
-- [ ] Atualizar NewMemorySearchHandler para repassar DecayOptions ao executor de busca
-- [ ] Adicionar testes JSON-RPC validando execução com decay=true
+- [x] Adicionar decay, half_life e decay_weight em ToolMemorySearch em tools.go
+- [x] Atualizar NewMemorySearchHandler para repassar DecayOptions ao executor de busca
+- [x] Adicionar testes JSON-RPC validando execução com decay=true
 
 ### T5: Flags de Decaimento no Comando CLI mem search
 **What**: Adicionar flags --decay, --half-life e --decay-weight no subcomando mem search

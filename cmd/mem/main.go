@@ -635,7 +635,17 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				if embErr == nil {
 					queryVec = vec
 				}
-				pgResults, err = pgStore.SearchHybridRRF(ctx, repo, params.Query, queryVec, limit, k)
+				decayOpts := store.DefaultDecayOptions()
+				if params.Decay {
+					decayOpts.Enabled = true
+					if params.HalfLife > 0 {
+						decayOpts.HalfLife = params.HalfLife
+					}
+					if params.DecayWeight >= 0 {
+						decayOpts.Weight = params.DecayWeight
+					}
+				}
+				pgResults, err = pgStore.SearchHybridRRFWithDecay(ctx, repo, params.Query, queryVec, limit, k, decayOpts)
 			}
 
 			if err != nil {
@@ -653,6 +663,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					Score:      r.Score,
 					Sources:    r.Sources,
 					Neighbors:  r.Neighbors,
+					UpdatedAt:  r.UpdatedAt,
 				}
 			}
 			return mcpResults, nil
@@ -779,7 +790,17 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				if embErr == nil {
 					queryVec = vec
 				}
-				dbResults, err = db.SearchHybridRRF(ctx, database, tq, params.Query, queryVec, limit, k, false)
+				decayOpts := store.DefaultDecayOptions()
+				if params.Decay {
+					decayOpts.Enabled = true
+					if params.HalfLife > 0 {
+						decayOpts.HalfLife = params.HalfLife
+					}
+					if params.DecayWeight >= 0 {
+						decayOpts.Weight = params.DecayWeight
+					}
+				}
+				dbResults, err = db.SearchHybridRRFWithDecay(ctx, database, tq, params.Query, queryVec, limit, k, false, decayOpts)
 			}
 
 			if err != nil {
@@ -796,6 +817,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					Score:      r.Score,
 					Sources:    r.Sources,
 					Neighbors:  r.Neighbors,
+					UpdatedAt:  r.UpdatedAt,
 				}
 			}
 			return mcpResults, nil

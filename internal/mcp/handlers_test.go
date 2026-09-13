@@ -756,3 +756,84 @@ func TestServer_ToolsCall_MemoryDoctor_WithFix(t *testing.T) {
 		t.Errorf("esperava menção ao reparo de 2 arestas, obteve: %+v", callResult)
 	}
 }
+
+func TestToolMemorySearch_SchemaDecayProperties(t *testing.T) {
+	props, ok := ToolMemorySearch.InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("InputSchema properties inválido")
+	}
+	if _, exists := props["decay"]; !exists {
+		t.Errorf("esperava propriedade 'decay' no schema de ToolMemorySearch")
+	}
+	if _, exists := props["half_life"]; !exists {
+		t.Errorf("esperava propriedade 'half_life' no schema de ToolMemorySearch")
+	}
+	if _, exists := props["decay_weight"]; !exists {
+		t.Errorf("esperava propriedade 'decay_weight' no schema de ToolMemorySearch")
+	}
+}
+
+func TestServer_ToolsCall_MemorySearch_WithDecay(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 70, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"query": "deep learning", "decay": true, "half_life": 15.0, "decay_weight": 0.5}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	called := false
+	srv.SetAdvancedSearchHandler(func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		called = true
+		if !params.Decay {
+			t.Errorf("esperava Decay true, obteve %v", params.Decay)
+		}
+		if params.HalfLife != 15.0 {
+			t.Errorf("esperava HalfLife 15.0, obteve %f", params.HalfLife)
+		}
+		if params.DecayWeight != 0.5 {
+			t.Errorf("esperava DecayWeight 0.5, obteve %f", params.DecayWeight)
+		}
+		return []SearchResult{
+			{
+				ChunkID:    "c_1",
+				DocumentID: "notes/ai.md",
+				Content:    "pesquisa recente sobre transformers",
+				Score:      0.035,
+				UpdatedAt:  1700000000,
+			},
+		}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	if !called {
+		t.Fatalf("SetAdvancedSearchHandler deveria ter sido invocado")
+	}
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta JSON-RPC: %v", err)
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	if err := json.Unmarshal(resBytes, &callResult); err != nil {
+		t.Fatalf("erro ao decodificar CallToolResult: %v", err)
+	}
+
+	if len(callResult.Content) == 0 {
+		t.Fatalf("resultado vazio de tools/call")
+	}
+	text := callResult.Content[0].Text
+	if !strings.Contains(text, "Atualizado em:") {
+		t.Errorf("esperava 'Atualizado em:' no texto formatado, obteve: %s", text)
+	}
+	if !strings.Contains(text, "notes/ai.md") {
+		t.Errorf("esperava 'notes/ai.md' no texto, obteve: %s", text)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/canvas"
 )
@@ -50,6 +51,7 @@ type SearchResult struct {
 	Score      float64  `json:"score,omitempty"`
 	Sources    []string `json:"sources,omitempty"`
 	Neighbors  []string `json:"neighbors,omitempty"`
+	UpdatedAt  int64    `json:"updated_at,omitempty"`
 }
 
 // SearchFunc assinatura da função que executa a busca vetorial legada
@@ -57,11 +59,14 @@ type SearchFunc func(ctx context.Context, repo string, query string, limit int) 
 
 // SearchParams agrupa os parâmetros da busca para flexibilidade de múltiplos modos
 type SearchParams struct {
-	Repo  string
-	Query string
-	Mode  string // "hybrid" (default), "vector", "fts"
-	Limit int
-	K     int // constante RRF, default 60
+	Repo        string
+	Query       string
+	Mode        string // "hybrid" (default), "vector", "fts"
+	Limit       int
+	K           int     // constante RRF, default 60
+	Decay       bool    // ativa decaimento temporal exponencial
+	HalfLife    float64 // meia-vida em dias (padrão: 30.0)
+	DecayWeight float64 // peso do decaimento temporal w in [0.0, 1.0] (padrão: 0.3)
 }
 
 // AdvancedSearchFunc assinatura da função que executa busca avançada suportando modo híbrido e RRF
@@ -171,6 +176,9 @@ func FormatSearchResults(results []SearchResult) string {
 		if res.Repository != "" {
 			headerParts = append(headerParts, fmt.Sprintf("Repositório: %s", res.Repository))
 		}
+		if res.UpdatedAt > 0 {
+			headerParts = append(headerParts, fmt.Sprintf("Atualizado em: %s", time.Unix(res.UpdatedAt, 0).UTC().Format("2006-01-02 15:04:05")))
+		}
 		headerParts = append(headerParts, fmt.Sprintf("Documento: %s", res.DocumentID))
 
 		fmt.Fprintf(&sb, "--- [%d] %s ---\n", i+1, strings.Join(headerParts, " | "))
@@ -253,6 +261,30 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 			}
 		}
 
+		decay := false
+		if rawDecay, hasDecay := rawMap["decay"]; hasDecay {
+			var d bool
+			if err := json.Unmarshal(rawDecay, &d); err == nil {
+				decay = d
+			}
+		}
+
+		halfLife := 30.0
+		if rawHalfLife, hasHalfLife := rawMap["half_life"]; hasHalfLife {
+			var hl float64
+			if err := json.Unmarshal(rawHalfLife, &hl); err == nil && hl > 0 {
+				halfLife = hl
+			}
+		}
+
+		decayWeight := 0.3
+		if rawDecayWeight, hasDecayWeight := rawMap["decay_weight"]; hasDecayWeight {
+			var dw float64
+			if err := json.Unmarshal(rawDecayWeight, &dw); err == nil && dw >= 0.0 && dw <= 1.0 {
+				decayWeight = dw
+			}
+		}
+
 		var repo string
 		if rawRepo, hasRepo := rawMap["repository"]; hasRepo {
 			_ = json.Unmarshal(rawRepo, &repo)
@@ -268,11 +300,14 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 		switch fn := searchFn.(type) {
 		case AdvancedSearchFunc:
 			results, err = fn(ctx, SearchParams{
-				Repo:  repo,
-				Query: query,
-				Mode:  mode,
-				Limit: limit,
-				K:     k,
+				Repo:        repo,
+				Query:       query,
+				Mode:        mode,
+				Limit:       limit,
+				K:           k,
+				Decay:       decay,
+				HalfLife:    halfLife,
+				DecayWeight: decayWeight,
 			})
 		case SearchFunc:
 			results, err = fn(ctx, repo, query, limit)
