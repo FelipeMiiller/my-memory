@@ -86,6 +86,6 @@ T1 -> T3 -> T4
 **Tests**: docs/adr/010-cache-incremental-de-indexacao-com-sha256.md
 **Gate**: python .agents/skills/tlc-spec-driven/scripts/validate_spec.py .specs/features/incremental-indexing-cache/spec.md
 **Done when**:
-- [ ] Registrar decisão arquitetural ADR-010
-- [ ] Atualizar .specs/STATE.md
-- [ ] Gerar relatório validation.md
+- [x] Registrar decisão arquitetural ADR-010
+- [x] Atualizar .specs/STATE.md
+- [x] Gerar relatório validation.md
