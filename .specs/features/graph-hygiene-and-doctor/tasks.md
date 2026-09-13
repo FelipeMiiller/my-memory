@@ -61,9 +61,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7
 **Tests**: internal/store/doctor_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Implementar DiagnoseHealth no SQLite com detecção de dead links, orphan notes, self loops e health score
-- [ ] Implementar FixHealthIssues no SQLite expurgando self-loops e links quebrados
-- [ ] Adicionar testes unitários validando relatórios de diagnóstico e correções
+- [x] Implementar DiagnoseHealth no SQLite com detecção de dead links, orphan notes, self loops e health score
+- [x] Implementar FixHealthIssues no SQLite expurgando self-loops e links quebrados
+- [x] Adicionar testes unitários validando relatórios de diagnóstico e correções
 
 ### T4: Motor de Diagnóstico e Linter no PostgreSQL
 **What**: Implementar DiagnoseHealth e FixHealthIssues no PostgresStore
