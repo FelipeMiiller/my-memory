@@ -483,6 +483,79 @@ func TestFormatHubs_Empty(t *testing.T) {
 	}
 }
 
+func TestServer_ToolsCall_MemoryGetHubs_PageRank(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 45, "method": "tools/call", "params": {"name": "memory_get_hubs", "arguments": {"repository": "my-org/my-repo", "top": 3, "algorithm": "pagerank"}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	srv.SetAdvancedHubsHandler(nil, func(ctx context.Context, repo string, limit int) ([]PageRankNode, error) {
+		if repo != "my-org/my-repo" {
+			t.Errorf("esperava repo 'my-org/my-repo', obteve '%s'", repo)
+		}
+		if limit != 3 {
+			t.Errorf("esperava limit 3, obteve %d", limit)
+		}
+		return []PageRankNode{
+			{
+				ID:        "doc-core",
+				Name:      "Core Arquitetural",
+				Score:     0.3540,
+				Rank:      1,
+				InDegree:  15,
+				OutDegree: 3,
+			},
+			{
+				ID:        "doc-db",
+				Name:      "Camada de Banco",
+				Score:     0.2810,
+				Rank:      2,
+				InDegree:  10,
+				OutDegree: 2,
+			},
+		}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta: %v\nSaída: %s", err, out.String())
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	if err := json.Unmarshal(resBytes, &callResult); err != nil {
+		t.Fatalf("erro ao decodificar CallToolResult: %v", err)
+	}
+
+	if len(callResult.Content) == 0 {
+		t.Fatalf("esperava conteúdo na resposta")
+	}
+
+	text := callResult.Content[0].Text
+	if !strings.Contains(text, "Core Arquitetural") {
+		t.Errorf("resposta deve conter 'Core Arquitetural', obteve: %s", text)
+	}
+	if !strings.Contains(text, "Score: 0.3540 (35.40%)") {
+		t.Errorf("resposta deve conter 'Score: 0.3540 (35.40%%)', obteve: %s", text)
+	}
+}
+
+func TestFormatPageRankHubs_Empty(t *testing.T) {
+	got := FormatPageRankHubs(nil)
+	if !strings.Contains(got, "Nenhum nó encontrado") {
+		t.Errorf("esperava mensagem de vazio, obteve: %s", got)
+	}
+}
+
 func TestServer_ToolsCall_MemoryGetInsights_Success(t *testing.T) {
 	in := `{"jsonrpc": "2.0", "id": 50, "method": "tools/call", "params": {"name": "memory_get_insights", "arguments": {"repository": "my-org/my-repo", "limit": 3, "min_similarity": 0.80}}}` + "\n"
 	var out bytes.Buffer

@@ -82,6 +82,19 @@ type GodNode struct {
 // HubsFunc assinatura da função que calcula nós centrais (God Nodes / Hubs)
 type HubsFunc func(ctx context.Context, repo string, limit int) ([]GodNode, error)
 
+// PageRankNode representa um nó com autoridade calculada via PageRank retornado no MCP
+type PageRankNode struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Score     float64 `json:"score"`
+	Rank      int     `json:"rank"`
+	InDegree  int     `json:"in_degree"`
+	OutDegree int     `json:"out_degree"`
+}
+
+// PageRankFunc assinatura da função que calcula autoridade de nós via PageRank
+type PageRankFunc func(ctx context.Context, repo string, limit int) ([]PageRankNode, error)
+
 // SurprisingConnection representa uma conexão latente sem link direto no grafo
 type SurprisingConnection struct {
 	SourceID   string  `json:"source_id"`
@@ -473,10 +486,33 @@ func FormatHubs(hubs []GodNode) string {
 	return sb.String()
 }
 
-// NewMemoryGetHubsHandler cria o handler para a ferramenta memory_get_hubs
-func NewMemoryGetHubsHandler(hubsFn HubsFunc) ToolHandlerFunc {
+// FormatPageRankHubs formata a lista de nós centrais calculados via PageRank em texto legível para LLMs
+func FormatPageRankHubs(nodes []PageRankNode) string {
+	if len(nodes) == 0 {
+		return "Nenhum nó encontrado para o cálculo de PageRank no grafo."
+	}
+	var sb strings.Builder
+	sb.WriteString("🌐 Principais Nós por Autoridade PageRank (Top Hubs):\n\n")
+	for i, n := range nodes {
+		displayName := n.Name
+		if displayName == "" {
+			displayName = n.ID
+		}
+		percentage := n.Score * 100.0
+		fmt.Fprintf(&sb, "[%d] %s — Score: %.4f (%.2f%%) | Entrada: %d | Saída: %d\n",
+			i+1, displayName, n.Score, percentage, n.InDegree, n.OutDegree)
+		if n.ID != displayName {
+			fmt.Fprintf(&sb, "    ID: %s\n", n.ID)
+		}
+	}
+	return sb.String()
+}
+
+// NewAdvancedMemoryGetHubsHandler cria o handler para a ferramenta memory_get_hubs com suporte a grau ou PageRank
+func NewAdvancedMemoryGetHubsHandler(hubsFn HubsFunc, prFn PageRankFunc) ToolHandlerFunc {
 	return func(ctx context.Context, args json.RawMessage) (any, error) {
 		top := 10
+		algorithm := "degree"
 		var repo string
 
 		if len(args) > 0 {
@@ -491,7 +527,24 @@ func NewMemoryGetHubsHandler(hubsFn HubsFunc) ToolHandlerFunc {
 				if rawRepo, hasRepo := rawMap["repository"]; hasRepo {
 					_ = json.Unmarshal(rawRepo, &repo)
 				}
+				if rawAlgo, hasAlgo := rawMap["algorithm"]; hasAlgo {
+					var algoStr string
+					if err := json.Unmarshal(rawAlgo, &algoStr); err == nil && algoStr != "" {
+						algorithm = strings.ToLower(strings.TrimSpace(algoStr))
+					}
+				}
 			}
+		}
+
+		if algorithm == "pagerank" {
+			if prFn == nil {
+				return nil, NewError(CodeInternalError, "Backend de cálculo de PageRank não configurado", nil)
+			}
+			nodes, err := prFn(ctx, repo, top)
+			if err != nil {
+				return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao calcular PageRank dos nós: %v", err), nil)
+			}
+			return NewTextResult(FormatPageRankHubs(nodes)), nil
 		}
 
 		if hubsFn == nil {
@@ -507,9 +560,19 @@ func NewMemoryGetHubsHandler(hubsFn HubsFunc) ToolHandlerFunc {
 	}
 }
 
-// SetHubsHandler configura a função de cálculo de hubs para memory_get_hubs
+// NewMemoryGetHubsHandler cria o handler para a ferramenta memory_get_hubs
+func NewMemoryGetHubsHandler(hubsFn HubsFunc) ToolHandlerFunc {
+	return NewAdvancedMemoryGetHubsHandler(hubsFn, nil)
+}
+
+// SetHubsHandler configura a função de cálculo de hubs padrão para memory_get_hubs
 func (s *Server) SetHubsHandler(fn HubsFunc) {
-	s.RegisterToolHandler("memory_get_hubs", NewMemoryGetHubsHandler(fn))
+	s.SetAdvancedHubsHandler(fn, nil)
+}
+
+// SetAdvancedHubsHandler configura as funções de cálculo de hubs por grau e por PageRank
+func (s *Server) SetAdvancedHubsHandler(hubsFn HubsFunc, prFn PageRankFunc) {
+	s.RegisterToolHandler("memory_get_hubs", NewAdvancedMemoryGetHubsHandler(hubsFn, prFn))
 }
 
 // FormatInsights formata a lista de conexões inesperadas em texto legível para LLMs

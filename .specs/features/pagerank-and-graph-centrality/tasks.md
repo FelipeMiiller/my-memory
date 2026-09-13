@@ -75,10 +75,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/mcp/handlers_test.go
 **Gate**: go test -v ./internal/mcp/...
 **Done when**:
-- [ ] Atualizar schema de ToolMemoryGetHubs com propriedade algorithm (degree | pagerank)
-- [ ] Atualizar NewMemoryGetHubsHandler para executar cálculo de PageRank quando solicitado
-- [ ] Formatar saída Markdown detalhada com scores e ranking
-- [ ] Adicionar testes JSON-RPC para tool call com algorithm=pagerank
+- [x] Atualizar schema de ToolMemoryGetHubs com propriedade algorithm (degree | pagerank)
+- [x] Atualizar NewMemoryGetHubsHandler para executar cálculo de PageRank quando solicitado
+- [x] Formatar saída Markdown detalhada com scores e ranking
+- [x] Adicionar testes JSON-RPC para tool call com algorithm=pagerank
 
 ### T5: Suporte a PageRank no Comando CLI mem hubs
 **What**: Integrar flags --algorithm, --damping e --iter no subcomando mem hubs

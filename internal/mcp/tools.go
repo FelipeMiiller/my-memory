@@ -108,6 +108,11 @@ var (
 					"type":        "string",
 					"description": "Slug ou nome do repositório para contextualizar a busca de hubs (opcional)",
 				},
+				"algorithm": map[string]any{
+					"type":        "string",
+					"enum":        []string{"degree", "pagerank"},
+					"description": "Algoritmo de centralidade: 'degree' (grau total in+out) ou 'pagerank' (autoridade estrutural iterativa ponderada). Padrão: 'degree'",
+				},
 			},
 		},
 	}
