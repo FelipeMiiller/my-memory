@@ -78,3 +78,4 @@ go build -v -o bin/mem.exe ./cmd/mem
 1. **Codificação de Arquivos:** Todo arquivo criado ou modificado deve ser estritamente **UTF-8 sem BOM**.
 2. **Commits Atômicos:** Utilize a convenção *Conventional Commits* (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`).
 3. **Não altere convenções sem ADR:** Qualquer mudança de banco de dados, biblioteca de vetores ou arquitetura exige a criação de um novo ADR na pasta `docs/adr/`.
+4. **Execução Obrigatória de Testes após Cada Tarefa:** SEMPRE que finalizar uma tarefa, alteração de código ou refatoração, o agente DEVE OBRIGATORIAMENTE executar os testes (`go test -v ./...` ou os pacotes impactados). Nenhuma tarefa é considerada pronta nem pode ser commitada sem que os testes passem com 100% de aprovação.
