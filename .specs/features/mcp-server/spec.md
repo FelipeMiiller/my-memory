@@ -89,8 +89,8 @@ Every ambiguity is resolved or recorded here - nothing is left silently unclear.
 | MCP-01 | P1: Handshake e Descoberta de Ferramentas | Implementation | Implemented |
 | MCP-02 | P1: Handshake e Descoberta de Ferramentas | Implementation | Implemented |
 | MCP-03 | P1: Handshake e Descoberta de Ferramentas | Implementation | Implemented |
-| MCP-04 | P2: Execução de Busca e Travessia de Grafo | Design | Pending |
-| MCP-05 | P2: Execução de Busca e Travessia de Grafo | Design | Pending |
+| MCP-04 | P2: Execução de Busca e Travessia de Grafo | Implementation | Implemented |
+| MCP-05 | P2: Execução de Busca e Travessia de Grafo | Implementation | Implemented |
 
 **Coverage:** 5 total, 5 mapped to stories, 0 unmapped
 

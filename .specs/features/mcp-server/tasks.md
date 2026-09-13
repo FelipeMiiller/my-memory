@@ -161,10 +161,10 @@ T4 -> T5
 
 **Done when**:
 
-- [ ] Handler executes vector search and returns formatted content
-- [ ] Handler executes graph traversal and returns neighbors
-- [ ] Unit tests verify tools/call dispatching and error responses
-- [ ] Full gate passes: `go test -v ./internal/...`
+- [x] Handler executes vector search and returns formatted content
+- [x] Handler executes graph traversal and returns neighbors
+- [x] Unit tests verify tools/call dispatching and error responses
+- [x] Full gate passes: `go test -v ./internal/...`
 
 **Tests**: unit
 **Gate**: full
