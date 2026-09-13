@@ -19,10 +19,11 @@
 
 ## Handoff
 
-- **Feature**: interactive-html-graph-visualizer (.specs/features/interactive-html-graph-visualizer)
-- **Phase / Task**: Phase 1 / T5 (Completed)
-- **Completed**: T1, T2, T3, T4, T5 (GraphView Core, Renderizador HTML, CLI, MCP e ADR-020)
-- **In-progress**: none
-- **Next step**: Pronto para commit na branch develop
+- **Feature**: mcp-http-sse-server (.specs/features/mcp-http-sse-server)
+- **Phase / Task**: Phase 1 / T1 (In-progress)
+- **Completed**: Specify, Design e Tasks validados (validate_spec e validate_tasks passando)
+- **In-progress**: T1 (Servidor HTTP/SSE Core e Gerenciamento de Sessões)
+- **Next step**: Implementar internal/mcp/http_server.go e internal/mcp/http_server_test.go
 - **Blockers**: none
 - **Branch**: develop
+
