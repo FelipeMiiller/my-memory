@@ -86,8 +86,8 @@ T1 -> T3 -> T4
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/store/... ./internal/mcp/...
 **Done when**:
-- [ ] Adicionar flags --mode e --k no comando mem search
-- [ ] Exibir scores RRF, fontes e vizinhos no terminal
+- [x] Adicionar flags --mode e --k no comando mem search
+- [x] Exibir scores RRF, fontes e vizinhos no terminal
 
 ### T6: ADR-009 e Fechamento
 **What**: Documentar ADR-009 e gerar relatório de validação da feature

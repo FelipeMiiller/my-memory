@@ -8,13 +8,14 @@
 ## Handoff
 
 - **Feature**: hybrid-search-rrf (.specs/features/hybrid-search-rrf)
-- **Phase / Task**: Phase 3 / T5: Integração no CLI mem search
-- **Completed**: T1, T2, T3, T4
-- **In-progress** (file:line): cmd/mem/main.go:1
-- **Next step**: Adicionar flags --mode e --k em mem search e conectar handlers no CLI
+- **Phase / Task**: Phase 3 / T6: ADR-009 e Fechamento
+- **Completed**: T1, T2, T3, T4, T5
+- **In-progress** (file:line): docs/adr/009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md:1
+- **Next step**: Documentar ADR-009, registrar decisão AD-009 no STATE.md e gerar validation.md
 - **Blockers**: none
 - **Uncommitted files**: veja git status
 - **Branch**: main
+
 
 
 

@@ -73,6 +73,9 @@ func main() {
 	case "search":
 		searchCmd := flag.NewFlagSet("search", flag.ExitOnError)
 		useTurbo := searchCmd.Bool("tq", false, "Usar busca via TurboQuant (4-bits, SQLite)")
+		mode := searchCmd.String("mode", "hybrid", "Modo de busca: 'hybrid' (FTS+vetor+grafo via RRF), 'vector' (apenas k-NN), 'fts' (apenas léxico)")
+		k := searchCmd.Int("k", 60, "Constante de suavização do algoritmo RRF (padrão: 60)")
+		limit := searchCmd.Int("limit", 5, "Número máximo de resultados (padrão: 5)")
 		dbPath := searchCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
 		pgURL := searchCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := searchCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
@@ -80,7 +83,7 @@ func main() {
 
 		query := strings.Join(searchCmd.Args(), " ")
 		if query == "" {
-			fmt.Println("Uso: mem search [-tq] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
+			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [-tq] [--k 60] [--limit 5] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
 			return
 		}
 
@@ -91,7 +94,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runSearchPostgres(ctx, pgStore, emb, query, *targetRepo)
+			runSearchPostgres(ctx, pgStore, emb, query, *targetRepo, *mode, *limit, *k)
 		} else {
 			database, err := db.InitDB(*dbPath)
 			if err != nil {
@@ -99,7 +102,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runSearchSQLite(ctx, database, emb, tq, query, *useTurbo)
+			runSearchSQLite(ctx, database, emb, tq, query, *mode, *useTurbo, *limit, *k)
 		}
 
 	case "mcp":
@@ -174,8 +177,8 @@ func printHelp() {
 	fmt.Println("Comandos disponíveis:")
 	fmt.Println("  mem index [--db <arq>] [--postgres <url>] [--repo <slug>] <pasta>")
 	fmt.Println("      Indexa notas Markdown, links [[wikilinks]], FTS5 e vetores")
-	fmt.Println("  mem search [-tq] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
-	fmt.Println("      Busca semântica k-NN com expansão de grafo")
+	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
+	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), FTS5/tsvector, vetores e grafo")
 	fmt.Println("  mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exporta um subgrafo em torno de uma nota no formato aberto JSON Canvas (.canvas) do Obsidian")
 	fmt.Println("  mem mcp [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -299,16 +302,33 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 	}
 }
 
-func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo string) {
-	fmt.Printf("🔎 Buscando no PostgreSQL (pgvector) [Repo: %s] por: \"%s\"\n\n", targetRepo, query)
+func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo, mode string, limit, k int) {
+	fmt.Printf("🔎 Buscando no PostgreSQL (pgvector) [Repo: %s, Modo: %s] por: \"%s\"\n\n", targetRepo, mode, query)
 
-	queryVec, err := emb.GenerateEmbedding(query)
-	if err != nil {
-		fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", err)
-		return
+	var results []store.SearchResult
+	var err error
+
+	switch strings.ToLower(mode) {
+	case "fts":
+		results, err = s.SearchFTS(ctx, targetRepo, query, limit)
+	case "vector":
+		queryVec, embErr := emb.GenerateEmbedding(query)
+		if embErr != nil {
+			fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", embErr)
+			return
+		}
+		results, err = s.SearchKNN(ctx, targetRepo, queryVec, limit)
+	default: // hybrid
+		var queryVec []float32
+		vec, embErr := emb.GenerateEmbedding(query)
+		if embErr != nil {
+			fmt.Printf("Aviso: Ollama offline ou falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+		} else {
+			queryVec = vec
+		}
+		results, err = s.SearchHybridRRF(ctx, targetRepo, query, queryVec, limit, k)
 	}
 
-	results, err := s.SearchKNN(ctx, targetRepo, queryVec, 5)
 	if err != nil {
 		fmt.Printf("Erro na busca: %v\n", err)
 		return
@@ -320,7 +340,22 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 	}
 
 	for i, res := range results {
-		fmt.Printf("--- [%d] Distância: %.4f | Repo: %s | Documento: %s ---\n", i+1, res.Distance, res.Repository, res.DocumentID)
+		var headers []string
+		if res.Score > 0 {
+			headers = append(headers, fmt.Sprintf("Score RRF: %.4f", res.Score))
+		}
+		if res.Distance > 0 {
+			headers = append(headers, fmt.Sprintf("Distância: %.4f", res.Distance))
+		}
+		if res.Repository != "" {
+			headers = append(headers, fmt.Sprintf("Repo: %s", res.Repository))
+		}
+		headers = append(headers, fmt.Sprintf("Documento: %s", res.DocumentID))
+
+		fmt.Printf("--- [%d] %s ---\n", i+1, strings.Join(headers, " | "))
+		if len(res.Sources) > 0 {
+			fmt.Printf("📊 Fontes RRF: [%s]\n", strings.Join(res.Sources, ", "))
+		}
 		fmt.Println(res.Content)
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
@@ -329,24 +364,39 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 	}
 }
 
-func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query string, useTurbo bool) {
-	mode := "sqlite-vec (float32)"
+func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int) {
+	vecSubmode := "sqlite-vec"
 	if useTurbo {
-		mode = "TurboQuant (4-bit, 384 bytes)"
+		vecSubmode = "TurboQuant"
 	}
-	fmt.Printf("🔎 Buscando no SQLite por: \"%s\" [Modo: %s]\n\n", query, mode)
-
-	queryVec, err := emb.GenerateEmbedding(query)
-	if err != nil {
-		fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", err)
-		return
-	}
+	fmt.Printf("🔎 Buscando no SQLite por: \"%s\" [Modo: %s (%s)]\n\n", query, mode, vecSubmode)
 
 	var results []db.SearchResult
-	if useTurbo {
-		results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, 5)
-	} else {
-		results, err = db.SearchKNN(ctx, database, queryVec, 5)
+	var err error
+
+	switch strings.ToLower(mode) {
+	case "fts":
+		results, err = db.SearchFTS(ctx, database, query, limit)
+	case "vector":
+		queryVec, embErr := emb.GenerateEmbedding(query)
+		if embErr != nil {
+			fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", embErr)
+			return
+		}
+		if useTurbo {
+			results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+		} else {
+			results, err = db.SearchKNN(ctx, database, queryVec, limit)
+		}
+	default: // hybrid
+		var queryVec []float32
+		vec, embErr := emb.GenerateEmbedding(query)
+		if embErr != nil {
+			fmt.Printf("Aviso: Ollama offline ou falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+		} else {
+			queryVec = vec
+		}
+		results, err = db.SearchHybridRRF(ctx, database, tq, query, queryVec, limit, k, useTurbo)
 	}
 
 	if err != nil {
@@ -360,7 +410,19 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 	}
 
 	for i, res := range results {
-		fmt.Printf("--- [%d] Distância: %.4f | Documento: %s ---\n", i+1, res.Distance, res.DocumentID)
+		var headers []string
+		if res.Score > 0 {
+			headers = append(headers, fmt.Sprintf("Score RRF: %.4f", res.Score))
+		}
+		if res.Distance > 0 {
+			headers = append(headers, fmt.Sprintf("Distância: %.4f", res.Distance))
+		}
+		headers = append(headers, fmt.Sprintf("Documento: %s", res.DocumentID))
+
+		fmt.Printf("--- [%d] %s ---\n", i+1, strings.Join(headers, " | "))
+		if len(res.Sources) > 0 {
+			fmt.Printf("📊 Fontes RRF: [%s]\n", strings.Join(res.Sources, ", "))
+		}
 		fmt.Println(res.Content)
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
@@ -373,16 +435,41 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
 
 	if pgStore != nil {
-		srv.SetSearchHandler(func(ctx context.Context, repo string, query string, limit int) ([]mcp.SearchResult, error) {
+		srv.SetAdvancedSearchHandler(func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+			repo := params.Repo
 			if repo == "" {
 				repo = defaultRepo
 			}
-			queryVec, err := emb.GenerateEmbedding(query)
-			if err != nil {
-				return nil, fmt.Errorf("falha ao gerar embedding: %w", err)
+			limit := params.Limit
+			if limit <= 0 {
+				limit = 5
+			}
+			k := params.K
+			if k <= 0 {
+				k = 60
 			}
 
-			pgResults, err := pgStore.SearchKNN(ctx, repo, queryVec, limit)
+			var pgResults []store.SearchResult
+			var err error
+
+			switch params.Mode {
+			case "fts":
+				pgResults, err = pgStore.SearchFTS(ctx, repo, params.Query, limit)
+			case "vector":
+				queryVec, embErr := emb.GenerateEmbedding(params.Query)
+				if embErr != nil {
+					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
+				}
+				pgResults, err = pgStore.SearchKNN(ctx, repo, queryVec, limit)
+			default: // hybrid
+				var queryVec []float32
+				vec, embErr := emb.GenerateEmbedding(params.Query)
+				if embErr == nil {
+					queryVec = vec
+				}
+				pgResults, err = pgStore.SearchHybridRRF(ctx, repo, params.Query, queryVec, limit, k)
+			}
+
 			if err != nil {
 				return nil, err
 			}
@@ -395,6 +482,8 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					Repository: r.Repository,
 					Content:    r.Content,
 					Distance:   r.Distance,
+					Score:      r.Score,
+					Sources:    r.Sources,
 					Neighbors:  r.Neighbors,
 				}
 			}
@@ -408,13 +497,38 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			return pgStore.GetNodeNeighbors(ctx, repo, nodeID, maxDepth)
 		})
 	} else if database != nil {
-		srv.SetSearchHandler(func(ctx context.Context, repo string, query string, limit int) ([]mcp.SearchResult, error) {
-			queryVec, err := emb.GenerateEmbedding(query)
-			if err != nil {
-				return nil, fmt.Errorf("falha ao gerar embedding: %w", err)
+		tq := turboquant.NewQuantizer(EmbeddingDim)
+		srv.SetAdvancedSearchHandler(func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+			limit := params.Limit
+			if limit <= 0 {
+				limit = 5
+			}
+			k := params.K
+			if k <= 0 {
+				k = 60
 			}
 
-			dbResults, err := db.SearchKNN(ctx, database, queryVec, limit)
+			var dbResults []db.SearchResult
+			var err error
+
+			switch params.Mode {
+			case "fts":
+				dbResults, err = db.SearchFTS(ctx, database, params.Query, limit)
+			case "vector":
+				queryVec, embErr := emb.GenerateEmbedding(params.Query)
+				if embErr != nil {
+					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
+				}
+				dbResults, err = db.SearchKNN(ctx, database, queryVec, limit)
+			default: // hybrid
+				var queryVec []float32
+				vec, embErr := emb.GenerateEmbedding(params.Query)
+				if embErr == nil {
+					queryVec = vec
+				}
+				dbResults, err = db.SearchHybridRRF(ctx, database, tq, params.Query, queryVec, limit, k, false)
+			}
+
 			if err != nil {
 				return nil, err
 			}
@@ -426,6 +540,8 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					DocumentID: r.DocumentID,
 					Content:    r.Content,
 					Distance:   r.Distance,
+					Score:      r.Score,
+					Sources:    r.Sources,
 					Neighbors:  r.Neighbors,
 				}
 			}
