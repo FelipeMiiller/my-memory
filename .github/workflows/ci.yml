@@ -38,6 +38,14 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Python Release Script Tests
+        run: python scripts/release/test_calculate_version.py
+
   unit-tests:
     name: Unit Tests (${{ matrix.os }})
     needs: lint
@@ -165,8 +173,12 @@ jobs:
       - name: Install CGO dependencies (SQLite & GCC)
         run: sudo apt-get update && sudo apt-get install -y gcc libsqlite3-dev
 
-      - name: Verify CLI Compilation
+      - name: Verify CLI Compilation with Embedded Metadata
         run: |
           mkdir -p bin
-          CGO_ENABLED=1 go build -tags "sqlite_fts5" -v -o bin/mem ./cmd/mem
+          CGO_ENABLED=1 go build -tags "sqlite_fts5" \
+            -ldflags "-s -w -X main.Version=v1.0.0-ci -X main.GitCommit=${{ github.sha }} -X main.BuildDate=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            -v -o bin/mem ./cmd/mem
           ls -lh bin/mem
+          ./bin/mem version
+          ./bin/mem version --json
