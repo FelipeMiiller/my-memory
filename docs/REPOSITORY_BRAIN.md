@@ -14,12 +14,18 @@ Este documento descreve como integrar o `my-memory` dentro do repositório de qu
 
 ## 📂 Estrutura Padrão Recomendada no Projeto
 
-Em qualquer projeto de software, crie a pasta `.memory/`:
+Para inicializar a estrutura recomendada em qualquer projeto de software, basta rodar:
+
+```bash
+mem init --repo "minha-org/meu-projeto"
+```
+
+O comando cria a pasta `.memory/` e o arquivo de configuração declarativa `config.yaml`:
 
 ```text
 meu-projeto/
 ├── .memory/
-│   ├── config.json          # Regras de inclusão/exclusão de arquivos
+│   ├── config.yaml          # Configuração declarativa de storage, include/exclude e busca
 │   ├── rules.md             # Instruções obrigatórias para a IA
 │   ├── decisions/           # Notas de decisões de arquitetura em Markdown
 │   │   ├── 001-autenticacao.md
@@ -36,13 +42,13 @@ meu-projeto/
 ## ⚡ Estratégia de Versionamento
 
 ### Opção 1: Banco Compilado Localmente (Recomendada)
-* Mantenha os arquivos `.md` e o código no Git.
+* Mantenha os arquivos `.md`, `config.yaml` e o código no Git.
 * O arquivo `.memory/memory.db` fica no `.gitignore`.
-* Ao clonar ou atualizar o projeto, basta rodar:
+* Ao clonar ou atualizar o projeto, basta rodar diretamente:
   ```bash
-  mem index .
+  mem index
   ```
-  O Go reconstrói o banco em poucos segundos localmente.
+  O My-Memory detecta automaticamente o arquivo de configuração `.memory/config.yaml`, aplica os filtros declarados e reconstrói o banco com cache incremental SHA-256.
 
 ### Opção 2: Banco Versionado Compacto com TurboQuant
 * Se quiser commitar o `memory.db` no repositório para evitar etapa de indexação para outros desenvolvedores, o **TurboQuant** reduz o peso dos vetores em 88%, viabilizando manter o arquivo `.db` pequeno e gerenciável no histórico do Git.

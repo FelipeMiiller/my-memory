@@ -17,19 +17,37 @@ go build -o bin/mem.exe ./cmd/mem
 
 ## 📖 Comandos Disponíveis
 
-### 1. `mem index <pasta> [--force] [--no-prune]`
-Percorre recursivamente a pasta especificada procurando arquivos `.md`:
+### 1. `mem init [--repo <slug>] [--db <caminho>] [--force] [<pasta>]`
+Inicializa um novo vault criando a pasta `.memory/` e gerando o arquivo de configuração declarativa `config.yaml` com comentários explicativos:
+* `--repo`: Slug do repositório/vault (padrão: inferido do Git ou `local/vault`).
+* `--db`: Caminho do banco SQLite padrão (padrão: `memory.db`).
+* `--force`: Sobrescreve o arquivo caso já exista.
+
+**Exemplo:**
+```bash
+./bin/mem.exe init --repo "empresa/meu-vault"
+```
+
+---
+
+### 2. `mem index [<pasta>] [--force] [--no-prune]`
+Percorre recursivamente os arquivos do vault respeitando as regras declarativas de `include` e `exclude`:
+* **Auto-scoping**: Se `<pasta>` for omitida, descobre automaticamente a raiz do vault procurando `.memory/config.yaml` de forma ascendente.
 * Salva os metadados do documento e hash criptográfico SHA-256 no banco.
 * Poda automaticamente notas deletadas do disco (`PruneDeletedDocuments`). Use `--no-prune` para preservar registros ausentes.
 * Extrai os `[[wikilinks]]` e `#tags` inserindo as arestas de relacionamento no grafo.
-* Divide o conteúdo em chunks com sobreposição.
+* Pula automaticamente diretórios de sistema (`.git`, `node_modules`, `vendor`, `.obsidian`, `.trash`, `.memory`) via `filepath.SkipDir`.
 * Gera os embeddings de 768 dimensões via Ollama (`nomic-embed-text`).
 * Insere no `sqlite-vec` (vetor completo) e no `chunks_turboquant` (comprimido em 4-bits).
 
 **Exemplo:**
 ```bash
+# Executando no diretório do vault (auto-scoping ativo):
+./bin/mem.exe index
+
+# Ou especificando uma pasta explicitamente:
 ./bin/mem.exe index C:/meu-vault-obsidian
-# ou dentro de um projeto (sem podar arquivos ausentes):
+# Sem podar arquivos ausentes:
 ./bin/mem.exe index --no-prune ./docs
 ```
 
@@ -133,4 +151,59 @@ Executa a suíte de micro-benchmarks quantitativos da biblioteca (TurboQuant 4-b
 ```bash
 ./bin/mem.exe bench
 ```
+
+---
+
+## ⚙️ Configuração Declarativa do Vault (`.memory/config.yaml`)
+
+O My-Memory suporta configuração declarativa por projeto ou vault de notas. Ao executar qualquer comando, o binário procura recursivamente de baixo para cima por `.memory/config.yaml`, `.mem.yaml` ou `.mem.json`.
+
+### Exemplo de `.memory/config.yaml`:
+```yaml
+version: 1
+repository: "minha-org/vault-conhecimento"
+vault_name: "Knowledge Vault"
+
+# Padrões glob de arquivos a indexar
+include:
+  - "**/*.md"
+
+# Padrões glob de arquivos e pastas ignorados
+exclude:
+  - ".git/**"
+  - "node_modules/**"
+  - "vendor/**"
+  - ".obsidian/**"
+  - ".trash/**"
+  - ".memory/**"
+
+# Persistência
+storage:
+  engine: "sqlite"          # "sqlite" ou "postgres"
+  sqlite_path: "memory.db"
+
+# Embeddings
+embedding:
+  provider: "ollama"
+  model: "nomic-embed-text"
+  url: "http://localhost:11434"
+  dimension: 768
+
+# Preferências padrão de busca
+search:
+  mode: "hybrid"            # "hybrid", "vector" ou "fts"
+  limit: 5
+  k: 60
+  decay: false              # Decaimento temporal ativado
+  half_life: 30.0           # Meia-vida em dias
+  decay_weight: 0.3         # Peso do decaimento
+  use_turbo: false          # TurboQuant 4-bit
+```
+
+### 🏆 Ordem de Precedência (Prioridade):
+1. **Flags de Terminal**: (`--mode`, `--limit`, `--decay`, `--repo`, `--db`, etc.)
+2. **Variáveis de Ambiente**: (`MY_MEMORY_PG_URL`, `MY_MEMORY_REPO`)
+3. **Arquivo de Configuração**: (`.memory/config.yaml` ou `.mem.yaml`)
+4. **Defaults de Código**: (`DefaultConfig()`)
+
 

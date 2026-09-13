@@ -98,13 +98,25 @@ go build -o bin/mem.exe ./cmd/mem
 
 ### Uso da CLI
 
-#### 1. Indexar uma pasta com notas Markdown
-Indexa documentos, extrai wikilinks, calcula embeddings no Ollama e gera índices `sqlite-vec`, `FTS5` e `TurboQuant`:
+### Uso da CLI
+
+#### 1. Inicializar a Configuração Declarativa do Vault (`mem init`)
+Cria a pasta `.memory/` e o arquivo `config.yaml` documentado com as regras de indexação, persistência e busca do vault:
 ```bash
+./bin/mem.exe init --repo "minha-org/meu-vault"
+```
+
+#### 2. Indexar com Auto-Scoping e Filtragem Glob (`mem index`)
+Indexa documentos respeitando as regras declaradas de `include` e `exclude`. Se nenhum caminho for especificado, detecta automaticamente a raiz do vault:
+```bash
+# Auto-scoping ativo (descobre .memory/config.yaml na pasta atual ou ascendente):
+./bin/mem.exe index
+
+# Ou especificando um diretório explícito:
 ./bin/mem.exe index ./suas-notas
 ```
 
-#### 2. Busca Híbrida e Decaimento Temporal (RRF + FTS5 + k-NN + Grafo)
+#### 3. Busca Híbrida e Decaimento Temporal (RRF + FTS5 + k-NN + Grafo)
 Executa busca híbrida unificada via Reciprocal Rank Fusion (RRF), com suporte opcional a decaimento temporal exponencial (ADR-015) para priorizar notas mais recentes:
 ```bash
 ./bin/mem.exe search "como funciona o fluxo de autenticação?"
@@ -112,7 +124,7 @@ Executa busca híbrida unificada via Reciprocal Rank Fusion (RRF), com suporte o
 ./bin/mem.exe search --decay --half-life 15 --decay-weight 0.5 "decisões recentes de arquitetura"
 ```
 
-#### 3. Busca Ultracompacta com TurboQuant (4-bits)
+#### 4. Busca Ultracompacta com TurboQuant (4-bits)
 Executa a busca ultraveloz projetada sobre os vetores quantizados:
 ```bash
 ./bin/mem.exe search -tq "como funciona o fluxo de autenticação?"
@@ -164,12 +176,15 @@ O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)*
 ```text
 my-memory/
 ├── cmd/
-│   └── mem/                # Ponto de entrada da CLI (index, search, mcp)
+│   └── mem/                # Ponto de entrada da CLI (init, index, search, mcp, doctor, hubs, insights, export)
 ├── internal/
+│   ├── config/             # Configuração declarativa, descoberta ascendente e filtragem glob
 │   ├── db/                 # Schemas SQLite, FTS5, sqlite-vec e queries CTE
 │   ├── embedder/           # Integração com Ollama (nomic-embed-text)
+│   ├── graph/              # Algoritmos de grafo (PageRank ponderado, God Nodes)
 │   ├── mcp/                # Servidor MCP (JSON-RPC 2.0, framing, tools)
 │   ├── parser/             # Extração de [[wikilinks]], tags e chunking
+│   ├── store/              # Interfaces unificadas de armazenamento e PostgreSQL com pgvector
 │   └── turboquant/         # Rotações de Householder e quantizador 4-bit
 ├── docs/                   # Documentação detalhada e ADRs
 │   ├── adr/                # Decisões de Arquitetura em formato MADR
@@ -203,6 +218,8 @@ my-memory/
   - [ADR-012: Benchmarks de Performance e Conexões Inesperadas](docs/adr/012-benchmarks-e-conexoes-inesperadas.md)
   - [ADR-013: Higiene de Grafo, Pruning Incremental e Linter Doctor](docs/adr/013-higiene-de-grafo-pruning-e-doctor.md)
   - [ADR-014: Centralidade de Grafo com PageRank Ponderado](docs/adr/014-centralidade-de-grafo-com-pagerank-ponderado.md)
+  - [ADR-015: Decaimento Temporal Exponencial na Busca Híbrida](docs/adr/015-decaimento-temporal-exponencial-na-busca-hibrida.md)
+  - [ADR-016: Configuração Declarativa e Auto-Scoping de Vault](docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md)
 
 ---
 

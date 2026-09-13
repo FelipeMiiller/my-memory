@@ -104,6 +104,6 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md
 **Gate**: python .agents/skills/tlc-spec-driven/scripts/validate_spec.py .specs/features/vault-configuration-and-auto-scoping/spec.md
 **Done when**:
-- [ ] Criar docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md no formato MADR
-- [ ] Atualizar docs/adr/README.md, docs/CLI_GUIDE.md, docs/REPOSITORY_BRAIN.md e README.md
-- [ ] Atualizar STATE.md e gerar validation.md com veredicto PASS
+- [x] Criar docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md no formato MADR
+- [x] Atualizar docs/adr/README.md, docs/CLI_GUIDE.md, docs/REPOSITORY_BRAIN.md e README.md
+- [x] Atualizar STATE.md e gerar validation.md com veredicto PASS

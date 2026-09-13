@@ -11,14 +11,15 @@
 - **AD-013**: Higiene de Grafo, Pruning Incremental e Linter Doctor (`docs/adr/013-higiene-de-grafo-pruning-e-doctor.md`)
 - **AD-014**: Centralidade de Grafo com PageRank Ponderado (`docs/adr/014-centralidade-de-grafo-com-pagerank-ponderado.md`)
 - **AD-015**: Decaimento Temporal Exponencial na Busca Híbrida (`docs/adr/015-decaimento-temporal-exponencial-na-busca-hibrida.md`)
+- **AD-016**: Configuração Declarativa e Auto-Scoping de Vault (`docs/adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md`)
 
 ## Handoff
 
 - **Feature**: vault-configuration-and-auto-scoping (.specs/features/vault-configuration-and-auto-scoping)
-- **Phase / Task**: Phase 1 / T6
-- **Completed**: T1, T2, T3, T4, T5 (Integração de Config Defaults no mem search e mem mcp)
-- **In-progress**: T6 (ADR-016, Validação Final e Documentação)
-- **Next step**: Escrever ADR-016, atualizar documentação (docs/, README.md), gerar validation.md e validar spec.
+- **Phase / Task**: Phase 1 / T6 (Completed)
+- **Completed**: T1, T2, T3, T4, T5, T6 (100% Concluído)
+- **In-progress**: none
+- **Next step**: Ready for next roadmap feature.
 - **Blockers**: none
 - **Branch**: main
 
