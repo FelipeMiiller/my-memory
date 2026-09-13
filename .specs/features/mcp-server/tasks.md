@@ -108,10 +108,10 @@ T4 -> T5
 
 **Done when**:
 
-- [ ] Server handles `initialize` returning protocol version and capabilities
-- [ ] Server handles `notifications/initialized` and `ping`
-- [ ] Diagnostic logs routed to stderr
-- [ ] Unit tests cover handshake flow
+- [x] Server handles `initialize` returning protocol version and capabilities
+- [x] Server handles `notifications/initialized` and `ping`
+- [x] Diagnostic logs routed to stderr
+- [x] Unit tests cover handshake flow
 - [x] Quick gate passes: `go test -v ./internal/mcp/...`
 
 **Tests**: unit
