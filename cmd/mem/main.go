@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -194,6 +195,38 @@ func main() {
 			runHubsSQLite(ctx, database, *top)
 		}
 
+	case "insights":
+		insightsCmd := flag.NewFlagSet("insights", flag.ExitOnError)
+		limit := insightsCmd.Int("limit", 10, "Número máximo de conexões inesperadas a exibir (padrão: 10)")
+		minSim := insightsCmd.Float64("min-similarity", 0.70, "Limiar mínimo de similaridade semântica (padrão: 0.70)")
+		dbPath := insightsCmd.String("db", "memory.db", "Caminho do arquivo SQLite")
+		pgURL := insightsCmd.String("postgres", os.Getenv("MY_MEMORY_PG_URL"), "URL de conexão PostgreSQL (com pgvector)")
+		targetRepo := insightsCmd.String("repo", defaultRepo, "Identificador/slug do repositório para filtrar")
+		insightsCmd.Parse(os.Args[2:])
+
+		if *pgURL != "" {
+			pgStore, err := store.NewPostgresStore(*pgURL)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
+				os.Exit(1)
+			}
+			defer pgStore.Close()
+			runInsightsPostgres(ctx, pgStore, *targetRepo, *limit, *minSim)
+		} else {
+			database, err := db.InitDB(*dbPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
+				os.Exit(1)
+			}
+			defer database.Close()
+			runInsightsSQLite(ctx, database, *limit, *minSim)
+		}
+
+	case "bench":
+		benchCmd := flag.NewFlagSet("bench", flag.ExitOnError)
+		benchCmd.Parse(os.Args[2:])
+		runBenchmarks()
+
 	default:
 		printHelp()
 	}
@@ -208,8 +241,12 @@ func printHelp() {
 	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), FTS5/tsvector, vetores e grafo")
 	fmt.Println("  mem hubs [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exibe os nós centrais (God Nodes / Hubs de conhecimento) com maior centralidade de conexões")
+	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
 	fmt.Println("  mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exporta um subgrafo em torno de uma nota no formato aberto JSON Canvas (.canvas) do Obsidian")
+	fmt.Println("  mem bench")
+	fmt.Println("      Executa micro-benchmarks de performance (TurboQuant, RRF, SHA-256, Parsing) com resumo tabular")
 	fmt.Println("  mem mcp [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Inicia servidor Model Context Protocol via stdio para agentes de IA (Claude, Cursor, etc)")
 	fmt.Println()
@@ -580,6 +617,28 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return mcpNodes, nil
 		})
+
+		srv.SetInsightsHandler(func(ctx context.Context, repo string, limit int, minSimilarity float64) ([]mcp.SurprisingConnection, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			conns, err := pgStore.FindSurprisingConnections(ctx, repo, limit, minSimilarity)
+			if err != nil {
+				return nil, err
+			}
+			mcpConns := make([]mcp.SurprisingConnection, len(conns))
+			for i, c := range conns {
+				mcpConns[i] = mcp.SurprisingConnection{
+					SourceID:   c.SourceID,
+					SourceName: c.SourceName,
+					TargetID:   c.TargetID,
+					TargetName: c.TargetName,
+					Similarity: c.Similarity,
+					Reason:     c.Reason,
+				}
+			}
+			return mcpConns, nil
+		})
 	} else if database != nil {
 		tq := turboquant.NewQuantizer(EmbeddingDim)
 		srv.SetAdvancedSearchHandler(func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -652,6 +711,25 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				}
 			}
 			return mcpNodes, nil
+		})
+
+		srv.SetInsightsHandler(func(ctx context.Context, repo string, limit int, minSimilarity float64) ([]mcp.SurprisingConnection, error) {
+			conns, err := db.FindSurprisingConnections(ctx, database, limit, minSimilarity)
+			if err != nil {
+				return nil, err
+			}
+			mcpConns := make([]mcp.SurprisingConnection, len(conns))
+			for i, c := range conns {
+				mcpConns[i] = mcp.SurprisingConnection{
+					SourceID:   c.SourceID,
+					SourceName: c.SourceName,
+					TargetID:   c.TargetID,
+					TargetName: c.TargetName,
+					Similarity: c.Similarity,
+					Reason:     c.Reason,
+				}
+			}
+			return mcpConns, nil
 		})
 	}
 
@@ -740,4 +818,246 @@ func displayHubsTable(hubs []store.GodNode) {
 		fmt.Printf("%-4d | %-40s | %-10d | %-10d | %-12d\n", i+1, displayName, h.InDegree, h.OutDegree, h.TotalDegree)
 	}
 	fmt.Println()
+}
+
+func runInsightsPostgres(ctx context.Context, s *store.PostgresStore, targetRepo string, limit int, minSim float64) {
+	fmt.Printf("💡 Descobrindo conexões inesperadas no PostgreSQL para repo [%s] (mín. %.0f%%, limite: %d)...\n", targetRepo, minSim*100, limit)
+	conns, err := s.FindSurprisingConnections(ctx, targetRepo, limit, minSim)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao buscar conexões inesperadas: %v\n", err)
+		os.Exit(1)
+	}
+	displayInsightsTable(conns)
+}
+
+func runInsightsSQLite(ctx context.Context, database *sql.DB, limit int, minSim float64) {
+	fmt.Printf("💡 Descobrindo conexões inesperadas no SQLite (mín. %.0f%%, limite: %d)...\n", minSim*100, limit)
+	conns, err := db.FindSurprisingConnections(ctx, database, limit, minSim)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao buscar conexões inesperadas: %v\n", err)
+		os.Exit(1)
+	}
+	displayInsightsTable(conns)
+}
+
+func displayInsightsTable(conns []store.SurprisingConnection) {
+	if len(conns) == 0 {
+		fmt.Println("Nenhuma conexão inesperada encontrada com os critérios especificados.")
+		return
+	}
+
+	fmt.Printf("\n%-4s | %-30s | %-30s | %-12s | %s\n", "Rank", "Origem", "Destino", "Similaridade", "Razão / Detalhes")
+	fmt.Println(strings.Repeat("-", 115))
+	for i, c := range conns {
+		src := c.SourceName
+		if src == "" {
+			src = c.SourceID
+		}
+		if len(src) > 28 {
+			src = src[:25] + "..."
+		}
+		tgt := c.TargetName
+		if tgt == "" {
+			tgt = c.TargetID
+		}
+		if len(tgt) > 28 {
+			tgt = tgt[:25] + "..."
+		}
+		simStr := fmt.Sprintf("%.1f%%", c.Similarity*100)
+		fmt.Printf("%-4d | %-30s | %-30s | %-12s | %s\n", i+1, src, tgt, simStr, c.Reason)
+	}
+	fmt.Println()
+}
+
+type BenchMetric struct {
+	Name        string
+	Iterations  int
+	Duration    time.Duration
+	NsPerOp     int64
+	BytesPerOp  int64
+	AllocsPerOp int64
+	Throughput  string
+}
+
+func runBenchLoop(name string, duration time.Duration, bytesProcessed int64, fn func()) BenchMetric {
+	for i := 0; i < 5; i++ {
+		fn()
+	}
+
+	var startMem, endMem runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&startMem)
+
+	start := time.Now()
+	iters := 0
+	for time.Since(start) < duration {
+		fn()
+		iters++
+	}
+	elapsed := time.Since(start)
+	runtime.ReadMemStats(&endMem)
+
+	if iters == 0 {
+		iters = 1
+	}
+
+	allocBytes := int64(endMem.TotalAlloc - startMem.TotalAlloc)
+	allocs := int64(endMem.Mallocs - startMem.Mallocs)
+
+	nsPerOp := elapsed.Nanoseconds() / int64(iters)
+	bPerOp := allocBytes / int64(iters)
+	aPerOp := allocs / int64(iters)
+
+	var tp string
+	if bytesProcessed > 0 {
+		mb := float64(bytesProcessed*int64(iters)) / (1024 * 1024)
+		sec := elapsed.Seconds()
+		if sec > 0 {
+			tp = fmt.Sprintf("%.2f MB/s", mb/sec)
+		}
+	} else {
+		tp = "-"
+	}
+
+	return BenchMetric{
+		Name:        name,
+		Iterations:  iters,
+		Duration:    elapsed,
+		NsPerOp:     nsPerOp,
+		BytesPerOp:  bPerOp,
+		AllocsPerOp: aPerOp,
+		Throughput:  tp,
+	}
+}
+
+func formatLatency(ns int64) string {
+	if ns < 1000 {
+		return fmt.Sprintf("%d ns/op", ns)
+	} else if ns < 1000000 {
+		return fmt.Sprintf("%.2f µs/op", float64(ns)/1000.0)
+	} else if ns < 1000000000 {
+		return fmt.Sprintf("%.2f ms/op", float64(ns)/1000000.0)
+	}
+	return fmt.Sprintf("%.2f s/op", float64(ns)/1000000000.0)
+}
+
+func formatBytes(b int64) string {
+	if b < 1024 {
+		return fmt.Sprintf("%d B/op", b)
+	} else if b < 1024*1024 {
+		return fmt.Sprintf("%.1f KB/op", float64(b)/1024.0)
+	}
+	return fmt.Sprintf("%.1f MB/op", float64(b)/(1024.0*1024.0))
+}
+
+func displayBenchTable(metrics []BenchMetric) {
+	fmt.Println("\n" + strings.Repeat("=", 98))
+	fmt.Printf(" %-30s | %-10s | %-13s | %-11s | %-9s | %s\n",
+		"Micro-Benchmark", "Iterações", "Latência", "Memória", "Alocações", "Throughput")
+	fmt.Println(strings.Repeat("-", 98))
+	for _, m := range metrics {
+		fmt.Printf(" %-30s | %-10d | %-13s | %-11s | %-9s | %s\n",
+			m.Name, m.Iterations, formatLatency(m.NsPerOp), formatBytes(m.BytesPerOp), fmt.Sprintf("%d/op", m.AllocsPerOp), m.Throughput)
+	}
+	fmt.Println(strings.Repeat("=", 98) + "\n")
+}
+
+func runBenchmarks() {
+	fmt.Println("🚀 Executando suíte de micro-benchmarks do My-Memory...")
+	fmt.Println("Avaliando: TurboQuant 4-bit, Reciprocal Rank Fusion (RRF), SHA-256 Hashing e Markdown Parsing")
+
+	dim := EmbeddingDim
+	tq := turboquant.NewQuantizer(dim)
+
+	v1 := make([]float32, dim)
+	v2 := make([]float32, dim)
+	for i := range v1 {
+		v1[i] = float32((i*7+13)%100) / 100.0
+		v2[i] = float32((i*11+17)%100) / 100.0
+	}
+	compressed, _ := tq.Quantize(v1)
+	rotatedQuery := tq.RotateQuery(v2)
+
+	buf64K := make([]byte, 64*1024)
+	for i := range buf64K {
+		buf64K[i] = byte(i % 256)
+	}
+	buf1M := make([]byte, 1024*1024)
+	for i := range buf1M {
+		buf1M[i] = byte(i % 256)
+	}
+
+	generateSources := func(n int) []store.RankedResultSource {
+		fts := make([]store.SearchResult, n)
+		vec := make([]store.SearchResult, n)
+		for i := 0; i < n; i++ {
+			fts[i] = store.SearchResult{ChunkID: fmt.Sprintf("doc-%d#0", i), DocumentID: fmt.Sprintf("doc-%d", i)}
+			vec[i] = store.SearchResult{ChunkID: fmt.Sprintf("doc-%d#0", (i+n/2)%n), DocumentID: fmt.Sprintf("doc-%d", (i+n/2)%n)}
+		}
+		return []store.RankedResultSource{
+			{Name: "fts", Results: fts},
+			{Name: "vector", Results: vec},
+		}
+	}
+	sources100 := generateSources(100)
+	sources1000 := generateSources(1000)
+
+	sampleMarkdown := `# Arquitetura do Sistema My-Memory
+Este documento descreve a integração com [[sqlite-vec]] e [[pgvector]].
+Conexão epistêmica: [[ADR-007]] e [[turboquant]].
+#architecture #ai-memory #go #database
+
+## Chunks e Embeddings
+Usamos representações vetoriais de 768 dimensões comprimidas com [[TurboQuant 4-bit]].
+A velocidade de busca é maximizada com [[RRF]] e CTEs recursivas.
+`
+
+	dur := 150 * time.Millisecond
+	var metrics []BenchMetric
+
+	metrics = append(metrics, runBenchLoop("TurboQuant Quantize (4-bit)", dur, 0, func() {
+		_, _ = tq.Quantize(v1)
+	}))
+
+	metrics = append(metrics, runBenchLoop("TurboQuant Dequantize (4-bit)", dur, 0, func() {
+		_ = tq.Dequantize(compressed)
+	}))
+
+	metrics = append(metrics, runBenchLoop("TurboQuant Dot Product (4-bit)", dur, 0, func() {
+		_ = tq.DotProduct(rotatedQuery, compressed)
+	}))
+
+	metrics = append(metrics, runBenchLoop("Float32 Dot Product (768-dim)", dur, 0, func() {
+		var sum float32
+		for i := 0; i < dim; i++ {
+			sum += v1[i] * v2[i]
+		}
+		_ = sum
+	}))
+
+	metrics = append(metrics, runBenchLoop("RRF Fusão (100 itens)", dur, 0, func() {
+		_ = store.FuseSearchResults(sources100, 60, 10)
+	}))
+
+	metrics = append(metrics, runBenchLoop("RRF Fusão (1.000 itens)", dur, 0, func() {
+		_ = store.FuseSearchResults(sources1000, 60, 20)
+	}))
+
+	metrics = append(metrics, runBenchLoop("SHA-256 Hashing (64 KB)", dur, int64(len(buf64K)), func() {
+		_ = store.CalculateContentHash(buf64K)
+	}))
+
+	metrics = append(metrics, runBenchLoop("SHA-256 Hashing (1 MB)", dur, int64(len(buf1M)), func() {
+		_ = store.CalculateContentHash(buf1M)
+	}))
+
+	metrics = append(metrics, runBenchLoop("Markdown Conexões (Wikilinks)", dur, int64(len(sampleMarkdown)), func() {
+		_ = parser.ExtractConnections(sampleMarkdown)
+	}))
+
+	metrics = append(metrics, runBenchLoop("Markdown Chunking (200w/30o)", dur, int64(len(sampleMarkdown)), func() {
+		_ = parser.ChunkText(sampleMarkdown, 200, 30)
+	}))
+
+	displayBenchTable(metrics)
 }

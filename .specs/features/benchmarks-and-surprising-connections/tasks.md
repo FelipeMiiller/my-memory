@@ -76,10 +76,10 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: cmd/mem/main.go
 **Gate**: go test -v ./internal/store/... ./internal/mcp/...
 **Done when**:
-- [ ] Implementar comando mem bench executando benchmarks programáticos com saída tabular
-- [ ] Implementar comando mem insights consultando e exibindo tabela ASCII de conexões latentes
-- [ ] Conectar SetInsightsHandler no runMCPServer para SQLite e PostgreSQL
-- [ ] Atualizar documentação do help do CLI
+- [x] Implementar comando mem bench executando benchmarks programáticos com saída tabular
+- [x] Implementar comando mem insights consultando e exibindo tabela ASCII de conexões latentes
+- [x] Conectar SetInsightsHandler no runMCPServer para SQLite e PostgreSQL
+- [x] Atualizar documentação do help do CLI
 
 ### T5: Relatório de Performance docs/BENCHMARKS.md
 **What**: Consolidar métricas aferidas da suíte em docs/BENCHMARKS.md

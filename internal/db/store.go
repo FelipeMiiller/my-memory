@@ -8,7 +8,6 @@ import (
 	"math"
 	"sort"
 
-	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/FelipeMiiller/my-memory/internal/store"
@@ -17,7 +16,7 @@ import (
 
 // InitDB inicializa a conexão com o SQLite registrando a extensão sqlite-vec globalmente
 func InitDB(dbPath string) (*sql.DB, error) {
-	sqlite_vec.Auto()
+	initSqliteVec()
 
 	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on&_journal_mode=WAL")
 	if err != nil {
@@ -150,7 +149,7 @@ func InsertChunk(ctx context.Context, db *sql.DB, chunkID, docID, content string
 	}
 
 	// 3. sqlite-vec (busca vetorial padrão float32)
-	vecBlob, err := sqlite_vec.SerializeFloat32(vec)
+	vecBlob, err := serializeFloat32(vec)
 	if err != nil {
 		return fmt.Errorf("erro serializando vetor: %w", err)
 	}

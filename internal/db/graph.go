@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
-	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 )
 
 type SearchResult struct {
@@ -22,7 +21,7 @@ type SearchResult struct {
 
 // SearchKNN busca os pedaços mais próximos usando sqlite-vec nativo
 func SearchKNN(ctx context.Context, db *sql.DB, queryVec []float32, limit int) ([]SearchResult, error) {
-	vecBlob, err := sqlite_vec.SerializeFloat32(queryVec)
+	vecBlob, err := serializeFloat32(queryVec)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao serializar vetor de busca: %w", err)
 	}
