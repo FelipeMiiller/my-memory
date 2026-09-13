@@ -62,9 +62,9 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: internal/store/postgres_test.go
 **Gate**: go test -v ./internal/store/...
 **Done when**:
-- [ ] Adicionar colunas epistemic_status e weight em PostgresSchema
-- [ ] Implementar InsertEdgeWithProps e GetGodNodes no PostgresStore
-- [ ] Garantir conformidade com a interface Store
+- [x] Adicionar colunas epistemic_status e weight em PostgresSchema
+- [x] Implementar InsertEdgeWithProps e GetGodNodes no PostgresStore
+- [x] Garantir conformidade com a interface Store
 
 ### T4: Ferramenta MCP memory_get_hubs
 **What**: Registrar e implementar a ferramenta memory_get_hubs no servidor MCP

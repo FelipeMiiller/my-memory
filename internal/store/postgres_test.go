@@ -46,3 +46,31 @@ func TestPostgresSchema_ContentHash(t *testing.T) {
 		t.Fatalf("PostgresSchema deve conter migração retrocompatível para content_hash")
 	}
 }
+
+func TestPostgresSchema_EpistemicEdges(t *testing.T) {
+	if !strings.Contains(PostgresSchema, "epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED'") {
+		t.Fatalf("PostgresSchema deve conter coluna epistemic_status")
+	}
+	if !strings.Contains(PostgresSchema, "weight REAL NOT NULL DEFAULT 1.0") {
+		t.Fatalf("PostgresSchema deve conter coluna weight")
+	}
+	if !strings.Contains(PostgresSchema, "ALTER TABLE graph_edges ADD COLUMN IF NOT EXISTS epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED';") {
+		t.Fatalf("PostgresSchema deve conter migração para epistemic_status")
+	}
+	if !strings.Contains(PostgresSchema, "ALTER TABLE graph_edges ADD COLUMN IF NOT EXISTS weight REAL NOT NULL DEFAULT 1.0;") {
+		t.Fatalf("PostgresSchema deve conter migração para weight")
+	}
+}
+
+func TestGodNode_Struct(t *testing.T) {
+	node := GodNode{
+		ID:          "Arquitetura",
+		Name:        "Arquitetura",
+		InDegree:    5,
+		OutDegree:   3,
+		TotalDegree: 8,
+	}
+	if node.TotalDegree != node.InDegree+node.OutDegree {
+		t.Fatalf("TotalDegree inconsistente: %d != %d", node.TotalDegree, node.InDegree+node.OutDegree)
+	}
+}

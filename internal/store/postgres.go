@@ -53,9 +53,13 @@ CREATE TABLE IF NOT EXISTS graph_edges (
     target_id TEXT NOT NULL,
     repository TEXT NOT NULL,
     relation TEXT NOT NULL,
+    epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED',
+    weight REAL NOT NULL DEFAULT 1.0,
     PRIMARY KEY (repository, source_id, target_id, relation),
     FOREIGN KEY (repository, source_id) REFERENCES graph_nodes(repository, id) ON DELETE CASCADE
 );
+ALTER TABLE graph_edges ADD COLUMN IF NOT EXISTS epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED';
+ALTER TABLE graph_edges ADD COLUMN IF NOT EXISTS weight REAL NOT NULL DEFAULT 1.0;
 
 CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(repository, target_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING gin(to_tsvector('simple', content));
@@ -174,17 +178,68 @@ func (s *PostgresStore) InsertChunk(ctx context.Context, repo, chunkID, docID, c
 	return err
 }
 
-func (s *PostgresStore) InsertEdge(ctx context.Context, repo, sourceID, targetID, relation string) error {
+func (s *PostgresStore) InsertEdgeWithProps(ctx context.Context, repo, sourceID, targetID, relation, epistemicStatus string, weight float64) error {
 	if repo == "" {
 		repo = "default"
 	}
+	if epistemicStatus == "" {
+		epistemicStatus = "EXTRACTED"
+	}
+	if weight <= 0 {
+		weight = 1.0
+	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO graph_edges (source_id, target_id, repository, relation)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (repository, source_id, target_id, relation) DO NOTHING
-	`, sourceID, targetID, repo, relation)
+		INSERT INTO graph_edges (source_id, target_id, repository, relation, epistemic_status, weight)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (repository, source_id, target_id, relation) DO UPDATE SET
+			epistemic_status = EXCLUDED.epistemic_status,
+			weight = EXCLUDED.weight
+	`, sourceID, targetID, repo, relation, epistemicStatus, weight)
 	return err
+}
+
+func (s *PostgresStore) InsertEdge(ctx context.Context, repo, sourceID, targetID, relation string) error {
+	return s.InsertEdgeWithProps(ctx, repo, sourceID, targetID, relation, "EXTRACTED", 1.0)
+}
+
+func (s *PostgresStore) GetGodNodes(ctx context.Context, repo string, limit int) ([]GodNode, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	query := `
+		WITH degrees AS (
+			SELECT source_id AS node_id, 0 AS in_cnt, 1 AS out_cnt FROM graph_edges WHERE ($1 = '' OR repository = $1)
+			UNION ALL
+			SELECT target_id AS node_id, 1 AS in_cnt, 0 AS out_cnt FROM graph_edges WHERE ($1 = '' OR repository = $1)
+		)
+		SELECT d.node_id, COALESCE(n.name, d.node_id) AS name,
+		       SUM(d.in_cnt) AS in_degree,
+		       SUM(d.out_cnt) AS out_degree,
+		       COUNT(*) AS total_degree
+		FROM degrees d
+		LEFT JOIN graph_nodes n ON n.id = d.node_id AND ($1 = '' OR n.repository = $1)
+		GROUP BY d.node_id, n.name
+		ORDER BY total_degree DESC, in_degree DESC
+		LIMIT $2;
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, repo, limit)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao buscar god nodes postgres: %w", err)
+	}
+	defer rows.Close()
+
+	var hubs []GodNode
+	for rows.Next() {
+		var h GodNode
+		if err := rows.Scan(&h.ID, &h.Name, &h.InDegree, &h.OutDegree, &h.TotalDegree); err != nil {
+			return nil, err
+		}
+		hubs = append(hubs, h)
+	}
+	return hubs, nil
 }
 
 func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []float32, limit int) ([]SearchResult, error) {
