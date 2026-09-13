@@ -20,10 +20,10 @@
 ## Handoff
 
 - **Feature**: mcp-http-sse-server (.specs/features/mcp-http-sse-server)
-- **Phase / Task**: Phase 1 / T1 (In-progress)
-- **Completed**: Specify, Design e Tasks validados (validate_spec e validate_tasks passando)
-- **In-progress**: T1 (Servidor HTTP/SSE Core e Gerenciamento de Sessões)
-- **Next step**: Implementar internal/mcp/http_server.go e internal/mcp/http_server_test.go
+- **Phase / Task**: Phase 1 / T2 (Completed)
+- **Completed**: T1 (Servidor HTTP/SSE Core e Sessões), T2 (Health, Direct RPC e CORS)
+- **In-progress**: T3 (Extensão da CLI mem mcp com Flags de Rede)
+- **Next step**: Integrar flags --port/--http em cmd/mem/main.go e testes
 - **Blockers**: none
 - **Branch**: develop
 

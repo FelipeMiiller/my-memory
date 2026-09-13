@@ -109,8 +109,8 @@ Atualmente, o servidor Model Context Protocol (**MCP**) do My-Memory opera exclu
 | MCP-01 | Transporte SSE (GET /sse com evento endpoint) | verified |
 | MCP-02 | Despacho JSON-RPC via POST /message | verified |
 | MCP-03 | Limpeza e isolamento de sessões ativas | verified |
-| MCP-04 | Endpoint de diagnóstico e prontidão GET /health | pending |
-| MCP-05 | Endpoint RPC direto POST /mcp | pending |
-| MCP-06 | Middleware CORS e suporte a preflight OPTIONS | pending |
+| MCP-04 | Endpoint de diagnóstico e prontidão GET /health | verified |
+| MCP-05 | Endpoint RPC direto POST /mcp | verified |
+| MCP-06 | Middleware CORS e suporte a preflight OPTIONS | verified |
 | MCP-07 | Flags CLI `--port`, `--host`, `--http` e shutdown gracioso | pending |
 | MCP-08 | Documentação técnica e ADR-021 | pending |

@@ -54,10 +54,10 @@ T1 -> T2 -> T3 -> T4
 **Tests**: internal/mcp/http_server_test.go
 **Gate**: go test -v -run "TestHTTPServer_Health|TestHTTPServer_DirectRPC|TestHTTPServer_CORS" ./internal/mcp/...
 **Done when**:
-- [ ] Implementar handleHealth retornando JSON com status, uptime, total de tools e repositório padrão
-- [ ] Implementar handleDirectRPC permitindo invocar ferramentas via POST /mcp sem necessidade de stream SSE
-- [ ] Implementar middleware withCORS com suporte a preflight OPTIONS (HTTP 204)
-- [ ] Adicionar testes unitários para /health, /mcp e CORS em internal/mcp/http_server_test.go
+- [x] Implementar handleHealth retornando JSON com status, uptime, total de tools e repositório padrão
+- [x] Implementar handleDirectRPC permitindo invocar ferramentas via POST /mcp sem necessidade de stream SSE
+- [x] Implementar middleware withCORS com suporte a preflight OPTIONS (HTTP 204)
+- [x] Adicionar testes unitários para /health, /mcp e CORS em internal/mcp/http_server_test.go
 
 ### T3: Extensão da CLI mem mcp com Flags de Rede
 **What**: Estender comando mem mcp em cmd/mem/main.go para suportar --port, --host e --http com fallback stdio
