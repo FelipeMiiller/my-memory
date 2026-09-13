@@ -52,10 +52,10 @@ T1 -> T2 -> T3 -> T4
 **Tests**: .github/workflows/release.yml
 **Gate**: python -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"
 **Done when**:
-- [ ] Criar workflow acionado em push para branch main dependente do sucesso de testes
-- [ ] Implementar inspeção determinística de Conventional Commits (BREAKING CHANGE: -> major, feat: -> minor, fix: -> patch)
-- [ ] Configurar baseline inicial para v1.0.0 na ausência de tags prévias
-- [ ] Automatizar criação e push da tag Git anotada vX.Y.Z com permissões adequadas
+- [x] Criar workflow acionado em push para branch main dependente do sucesso de testes
+- [x] Implementar inspeção determinística de Conventional Commits (BREAKING CHANGE: -> major, feat: -> minor, fix: -> patch)
+- [x] Configurar baseline inicial para v1.0.0 na ausência de tags prévias
+- [x] Automatizar criação e push da tag Git anotada vX.Y.Z com permissões adequadas
 
 ### T3: Matriz de Build Multiplataforma e Publicação de GitHub Release
 **What**: Configurar build cruzado com ldflags e publicação de release com changelog e somas SHA256
@@ -65,10 +65,10 @@ T1 -> T2 -> T3 -> T4
 **Tests**: .github/workflows/release.yml
 **Gate**: go test -v ./cmd/mem/...
 **Done when**:
-- [ ] Adicionar etapa de compilação cruzada para linux/amd64 e windows/amd64 injetando -ldflags
-- [ ] Gerar arquivos compactados (.tar.gz e .zip) e checksums SHA256
-- [ ] Publicar GitHub Release oficial com release notes geradas a partir dos commits
-- [ ] Garantir que commits não-releasáveis (ex: docs, chore) não gerem releases redundantes
+- [x] Adicionar etapa de compilação cruzada para linux/amd64 e windows/amd64 injetando -ldflags
+- [x] Gerar arquivos compactados (.tar.gz e .zip) e checksums SHA256
+- [x] Publicar GitHub Release oficial com release notes geradas a partir dos commits
+- [x] Garantir que commits não-releasáveis (ex: docs, chore) não gerem releases redundantes
 
 ### T4: ADR-019, Documentação e Fechamento TLC
 **What**: Registrar decisão de arquitetura ADR-019, atualizar guias e validar conformidade TLC

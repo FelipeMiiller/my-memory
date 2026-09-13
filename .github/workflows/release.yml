@@ -1,0 +1,191 @@
+name: Release & Tagging Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      force_bump:
+        description: "Forçar tipo de bump SemVer"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - "patch"
+          - "minor"
+          - "major"
+
+permissions:
+  contents: write
+
+jobs:
+  check-eligibility:
+    name: Check Release Eligibility & SemVer Bump
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.calc.outputs.should_release }}
+      next_tag: ${{ steps.calc.outputs.next_tag }}
+      bump_type: ${{ steps.calc.outputs.bump_type }}
+      commit_count: ${{ steps.calc.outputs.commit_count }}
+    steps:
+      - name: Checkout Repository (Full History)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Python Unit Tests
+        run: python scripts/release/test_calculate_version.py
+
+      - name: Calculate Next Version & Generate Changelog
+        id: calc
+        run: |
+          mkdir -p dist
+          FORCE_ARG=""
+          if [ -n "${{ github.event.inputs.force_bump }}" ]; then
+            FORCE_ARG="--force-bump ${{ github.event.inputs.force_bump }}"
+          fi
+          python scripts/release/calculate_version.py \
+            --initial-version "v1.0.0" \
+            --github-output "$GITHUB_OUTPUT" \
+            --changelog-file "dist/CHANGELOG.md" \
+            $FORCE_ARG
+
+      - name: Upload Changelog Artifact
+        if: steps.calc.outputs.should_release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-changelog
+          path: dist/CHANGELOG.md
+          retention-days: 1
+
+  build-binaries:
+    name: Build Release Binary (${{ matrix.os }})
+    needs: check-eligibility
+    if: needs.check-eligibility.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            archive_ext: tar.gz
+            bin_name: mem
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            archive_ext: zip
+            bin_name: mem.exe
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      - name: Install CGO dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y gcc libsqlite3-dev
+
+      - name: Download Go Dependencies
+        run: go mod download
+
+      - name: Get Build Date (ISO 8601)
+        id: date
+        shell: bash
+        run: echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Compile Binary with Embedded Metadata (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist
+          TAG="${{ needs.check-eligibility.outputs.next_tag }}"
+          COMMIT="${{ github.sha }}"
+          BUILD_DATE="${{ steps.date.outputs.date }}"
+          CGO_ENABLED=1 go build -tags "sqlite_fts5" \
+            -ldflags "-s -w -X main.Version=${TAG} -X main.GitCommit=${COMMIT} -X main.BuildDate=${BUILD_DATE}" \
+            -v -o dist/mem ./cmd/mem
+          tar -czvf "dist/my-memory-${TAG}-linux-amd64.tar.gz" -C dist mem
+
+      - name: Compile Binary with Embedded Metadata (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          $TAG = "${{ needs.check-eligibility.outputs.next_tag }}"
+          $COMMIT = "${{ github.sha }}"
+          $BUILD_DATE = "${{ steps.date.outputs.date }}"
+          go build -tags "sqlite_fts5" `
+            -ldflags "-s -w -X main.Version=$TAG -X main.GitCommit=$COMMIT -X main.BuildDate=$BUILD_DATE" `
+            -v -o dist/mem.exe ./cmd/mem
+          Compress-Archive -Path dist/mem.exe -DestinationPath "dist/my-memory-$TAG-windows-amd64.zip"
+
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.${{ matrix.archive_ext }}
+          retention-days: 1
+
+  publish-release:
+    name: Publish Tag & GitHub Release
+    needs: [check-eligibility, build-binaries]
+    if: needs.check-eligibility.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-downloads
+
+      - name: Organize Release Assets & Generate Checksums
+        run: |
+          mkdir -p release-assets
+          find release-downloads -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-assets/ \;
+          if [ -f release-downloads/release-changelog/CHANGELOG.md ]; then
+            cp release-downloads/release-changelog/CHANGELOG.md release-assets/CHANGELOG.md
+          fi
+          cd release-assets
+          sha256sum my-memory-* > checksums.txt
+          cat checksums.txt
+
+      - name: Create and Push Git Tag
+        run: |
+          TAG="${{ needs.check-eligibility.outputs.next_tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.check-eligibility.outputs.next_tag }}
+          name: Release ${{ needs.calculate-version.outputs.next_tag || needs.check-eligibility.outputs.next_tag }}
+          body_path: release-assets/CHANGELOG.md
+          files: |
+            release-assets/*.tar.gz
+            release-assets/*.zip
+            release-assets/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

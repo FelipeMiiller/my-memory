@@ -19,9 +19,9 @@
 ## Handoff
 
 - **Feature**: automated-semver-and-ci-tagging (.specs/features/automated-semver-and-ci-tagging)
-- **Phase / Task**: Phase 1 / T2 (In-progress)
-- **Completed**: T1 (Metadados de Compilação e Subcomando mem version)
-- **In-progress**: T2 (Análise de Conventional Commits e Workflow de Tagging)
-- **Next step**: Criar .github/workflows/release.yml e lógica determinística de bump SemVer
+- **Phase / Task**: Phase 1 / T4 (In-progress)
+- **Completed**: T1, T2, T3 (Versionamento Go, Workflow de Tagging e Build Multiplataforma)
+- **In-progress**: T4 (ADR-019, Documentação e Fechamento TLC)
+- **Next step**: Criar ADR-019, atualizar docs/CLI_GUIDE.md, README.md e validação
 - **Blockers**: none
 - **Branch**: main

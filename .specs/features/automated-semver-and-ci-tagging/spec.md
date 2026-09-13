@@ -108,10 +108,10 @@ WHEN release artifacts are ready THEN the CI pipeline SHALL create a GitHub Rele
 | -------------- | ---------- | ------ | ----------------- |
 | TAG-01 | P1: Metadados de Compilação e Subcomando mem version | Verified | Tasks |
 | TAG-02 | P1: Metadados de Compilação e Subcomando mem version | Verified | Tasks |
-| TAG-03 | P2: Automação de Tagging SemVer e Release no GitHub Actions | Pending | Tasks |
-| TAG-04 | P2: Automação de Tagging SemVer e Release no GitHub Actions | Pending | Tasks |
-| TAG-05 | P2: Automação de Tagging SemVer e Release no GitHub Actions | Pending | Tasks |
-| TAG-06 | P2: Automação de Tagging SemVer e Release no GitHub Actions | Pending | Tasks |
+| TAG-03 | P2: Automação de Tagging SemVer e Release no GitHub Actions | Verified | Tasks |
+| TAG-04 | P2: Automação de Tagging SemVer e Release no GitHub Actions | Verified | Tasks |
+| TAG-05 | P2: Automação de Tagging SemVer e Release no GitHub Actions | Verified | Tasks |
+| TAG-06 | P2: Automação de Tagging SemVer e Release no GitHub Actions | Verified | Tasks |
 
 **Coverage:** 6 total, 6 mapped to tasks, 0 unmapped
 
