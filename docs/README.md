@@ -28,8 +28,11 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-004`](adr/004-modelagem-de-grafo-com-recursive-ctes.md)** — Modelagem e Travessia de Grafo com SQL Recursivo (CTEs)
 * **[`ADR-005`](adr/005-markdown-com-wikilinks-como-fonte-de-verdade.md)** — Markdown e [[Wikilinks]] como Entrada e Grafo Humano
 * **[`ADR-006`](adr/006-integracao-com-agentes-de-ia-via-mcp.md)** — Integração com Agentes de IA via Model Context Protocol (MCP)
-* **[`ADR-007`](adr/007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md)** — Suporte Opcional a PostgreSQL com pgvector e Referência Multi-Repositório
 * **[`ADR-008`](adr/008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md)** — Interoperabilidade com Obsidian Flavored Markdown e JSON Canvas 1.0
+* **[`ADR-009`](adr/009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md)** — Busca Híbrida com Reciprocal Rank Fusion (RRF)
+* **[`ADR-010`](adr/010-cache-incremental-de-indexacao-com-sha256.md)** — Cache Incremental de Indexação com SHA-256
+* **[`ADR-011`](adr/011-arestas-epistemicas-e-god-nodes.md)** — Arestas Epistêmicas e God Nodes / Hubs de Conhecimento
+* **[`ADR-012`](adr/012-benchmarks-e-conexoes-inesperadas.md)** — Benchmarks de Performance e Conexões Inesperadas (Surprising Connections)
 
 ---
 

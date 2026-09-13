@@ -101,6 +101,6 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Tests**: docs/adr/012-benchmarks-e-conexoes-inesperadas.md
 **Gate**: python .agents/skills/tlc-spec-driven/scripts/validate_spec.py .specs/features/benchmarks-and-surprising-connections/spec.md
 **Done when**:
-- [ ] Registrar decisão arquitetural ADR-012
-- [ ] Atualizar docs/adr/README.md e .specs/STATE.md
-- [ ] Gerar relatório de validação validation.md com cobertura de requisitos
+- [x] Registrar decisão arquitetural ADR-012
+- [x] Atualizar docs/adr/README.md e .specs/STATE.md
+- [x] Gerar relatório de validação validation.md com cobertura de requisitos

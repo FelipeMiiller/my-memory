@@ -19,3 +19,4 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-009](009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md)** | Busca Híbrida com Reciprocal Rank Fusion (RRF) | Aceito | 2026-09-13 | `rrf`, `hybrid-search`, `fts5`, `pgvector`, `graph` |
 | **[ADR-010](010-cache-incremental-de-indexacao-com-sha256.md)** | Cache Incremental de Indexação com SHA-256 | Aceito | 2026-09-13 | `cache`, `indexing`, `sha256`, `performance`, `ollama` |
 | **[ADR-011](011-arestas-epistemicas-e-god-nodes.md)** | Arestas Epistêmicas e God Nodes / Hubs de Conhecimento | Aceito | 2026-09-13 | `epistemic-edges`, `god-nodes`, `knowledge-hubs`, `degree-centrality`, `graphify` |
+| **[ADR-012](012-benchmarks-e-conexoes-inesperadas.md)** | Benchmarks de Performance e Conexões Inesperadas (Surprising Connections) | Aceito | 2026-09-13 | `benchmarks`, `performance`, `surprising-connections`, `turboquant`, `rrf`, `mcp` |
