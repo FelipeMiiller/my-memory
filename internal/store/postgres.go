@@ -189,6 +189,18 @@ func (s *PostgresStore) InsertEdgeWithProps(ctx context.Context, repo, sourceID,
 		weight = 1.0
 	}
 
+	// Garante que nós de origem e destino existam para satisfazer integridade referencial
+	_, _ = s.db.ExecContext(ctx, `
+		INSERT INTO graph_nodes (id, repository, type, name)
+		VALUES ($1, $2, 'note', $1)
+		ON CONFLICT (repository, id) DO NOTHING
+	`, sourceID, repo)
+	_, _ = s.db.ExecContext(ctx, `
+		INSERT INTO graph_nodes (id, repository, type, name)
+		VALUES ($1, $2, 'note', $1)
+		ON CONFLICT (repository, id) DO NOTHING
+	`, targetID, repo)
+
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO graph_edges (source_id, target_id, repository, relation, epistemic_status, weight)
 		VALUES ($1, $2, $3, $4, $5, $6)

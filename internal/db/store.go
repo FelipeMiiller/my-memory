@@ -183,6 +183,10 @@ func InsertEdgeWithProps(ctx context.Context, db *sql.DB, sourceID, targetID, re
 		weight = 1.0
 	}
 
+	// Garante que nós de origem e destino existam para satisfazer integridade referencial
+	_, _ = db.ExecContext(ctx, `INSERT OR IGNORE INTO graph_nodes (id, type, name) VALUES (?, 'note', ?)`, sourceID, sourceID)
+	_, _ = db.ExecContext(ctx, `INSERT OR IGNORE INTO graph_nodes (id, type, name) VALUES (?, 'note', ?)`, targetID, targetID)
+
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO graph_edges (source_id, target_id, relation, epistemic_status, weight)
 		VALUES (?, ?, ?, ?, ?)
