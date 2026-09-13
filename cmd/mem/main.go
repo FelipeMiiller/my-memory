@@ -19,6 +19,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
+	"github.com/FelipeMiiller/my-memory/internal/graphview"
 	"github.com/FelipeMiiller/my-memory/internal/mcp"
 	"github.com/FelipeMiiller/my-memory/internal/parser"
 	"github.com/FelipeMiiller/my-memory/internal/repo"
@@ -402,19 +403,52 @@ func main() {
 	case "export":
 		exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
 		canvasNode := exportCmd.String("canvas", "", "Nome ou identificador da nota raiz para exportar subgrafo para JSON Canvas (.canvas)")
+		htmlOut := exportCmd.String("html", "", "Exporta visualização interativa do grafo para arquivo HTML standalone")
 		depth := exportCmd.Int("depth", 1, "Profundidade máxima de vizinhos no grafo (padrão: 1)")
 		outFile := exportCmd.String("out", "", "Caminho do arquivo .canvas de saída (padrão: <nota>.canvas)")
+		openHTML := exportCmd.Bool("open", false, "Abre automaticamente o arquivo no navegador (apenas para exportação HTML)")
 		dbPath := exportCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := exportCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := exportCmd.String("repo", "", "Identificador/slug do repositório")
 		exportCmd.Parse(os.Args[2:])
+
+		if *htmlOut != "" || (exportCmd.NArg() > 0 && strings.HasSuffix(exportCmd.Arg(0), ".html")) {
+			targetOut := *htmlOut
+			if targetOut == "" && exportCmd.NArg() > 0 {
+				targetOut = exportCmd.Arg(0)
+			}
+			var gArgs []string
+			if *openHTML {
+				gArgs = append(gArgs, "view")
+			} else {
+				gArgs = append(gArgs, "export")
+			}
+			gArgs = append(gArgs, "--out", targetOut, "--depth", fmt.Sprintf("%d", *depth))
+			if *canvasNode != "" {
+				gArgs = append(gArgs, "--root", *canvasNode)
+			}
+			if *dbPath != "" {
+				gArgs = append(gArgs, "--db", *dbPath)
+			}
+			if *pgURL != "" {
+				gArgs = append(gArgs, "--postgres", *pgURL)
+			}
+			if *targetRepo != "" {
+				gArgs = append(gArgs, "--repo", *targetRepo)
+			}
+			if err := runGraphCLI(ctx, defaultRepo, gArgs); err != nil {
+				fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
 
 		node := *canvasNode
 		if node == "" && exportCmd.NArg() > 0 {
 			node = exportCmd.Arg(0)
 		}
 		if node == "" {
-			fmt.Println("Uso: mem export --canvas <nota> [--depth 1] [--out <saida.canvas>] [--db <caminho>] [--postgres <url>] [--repo <slug>]")
+			fmt.Println("Uso: mem export --canvas <nota> [--depth 1] [--out <saida.canvas>] ou mem export --html <saida.html>")
 			return
 		}
 
@@ -429,6 +463,12 @@ func main() {
 		}
 
 		runExportCanvas(ctx, resolvedPG, resolvedDB, resolvedRepo, node, *depth, *outFile)
+
+	case "graph":
+		if err := runGraphCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
 
 	case "hubs":
 		hubsCmd := flag.NewFlagSet("hubs", flag.ExitOnError)
@@ -576,8 +616,10 @@ func printHelp() {
 	fmt.Println("      Exibe os nós centrais por grau (God Nodes) ou por autoridade estrutural (PageRank ponderado)")
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
-	fmt.Println("  mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
-	fmt.Println("      Exporta um subgrafo em torno de uma nota no formato aberto JSON Canvas (.canvas) do Obsidian")
+	fmt.Println("  mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Visualizador interativo de grafo em HTML/SVG standalone com física de forças, busca e PageRank")
+	fmt.Println("  mem export [--canvas <nota>] [--html <saida.html>] [--depth 1] [--out <arquivo>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Exporta o grafo para JSON Canvas 1.0 (.canvas) do Obsidian ou visualizador HTML standalone interativo")
 	fmt.Println("  mem bench")
 	fmt.Println("      Executa micro-benchmarks de performance (TurboQuant, RRF, SHA-256, Parsing) com resumo tabular")
 	fmt.Println("  mem note <create|append> [opções] <caminho>")
@@ -1380,6 +1422,13 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				return pgStore.FixHealthIssues(ctx, repo)
 			},
 		)
+
+		srv.SetGraphViewHandler(func(ctx context.Context, repo, rootNode string, maxDepth int) (*graphview.GraphView, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return graphview.BuildFromPostgres(ctx, pgStore, repo, rootNode, maxDepth)
+		}, ".")
 	} else if database != nil {
 		tq := turboquant.NewQuantizer(EmbeddingDim)
 		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -1519,6 +1568,13 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				return db.FixHealthIssues(ctx, database)
 			},
 		)
+
+		srv.SetGraphViewHandler(func(ctx context.Context, repo, rootNode string, maxDepth int) (*graphview.GraphView, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return graphview.BuildFromSQLite(ctx, database, rootNode, maxDepth, repo)
+		}, ".")
 	}
 
 	if err := srv.Run(ctx); err != nil && err != context.Canceled {
