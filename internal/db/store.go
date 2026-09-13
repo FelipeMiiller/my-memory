@@ -6,7 +6,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -120,6 +122,118 @@ func DeleteDocumentData(ctx context.Context, db *sql.DB, id string) error {
 	}
 
 	return tx.Commit()
+}
+
+// DeleteDocumentComplete remove completamente o documento, seus chunks (FTS5, vec0, turboquant)
+// e arestas associadas (origem e destino) do banco SQLite
+func DeleteDocumentComplete(ctx context.Context, db *sql.DB, id string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Chunks FTS5, vec0 e turboquant via subquery dos chunks do documento
+	_, _ = tx.ExecContext(ctx, `
+		DELETE FROM chunks_fts WHERE chunk_id IN (SELECT id FROM chunks WHERE document_id = ?)
+	`, id)
+
+	_, _ = tx.ExecContext(ctx, `
+		DELETE FROM chunks_vec WHERE chunk_id IN (SELECT id FROM chunks WHERE document_id = ?)
+	`, id)
+
+	_, _ = tx.ExecContext(ctx, `
+		DELETE FROM chunks_turboquant WHERE chunk_id IN (SELECT id FROM chunks WHERE document_id = ?)
+	`, id)
+
+	// 2. Chunks relacionais
+	_, err = tx.ExecContext(ctx, `DELETE FROM chunks WHERE document_id = ?`, id)
+	if err != nil {
+		return err
+	}
+
+	// 3. Arestas do grafo onde este documento é origem ou destino
+	_, err = tx.ExecContext(ctx, `DELETE FROM graph_edges WHERE source_id = ? OR target_id = ?`, id, id)
+	if err != nil {
+		return err
+	}
+
+	// 4. Remove o registro do documento
+	_, err = tx.ExecContext(ctx, `DELETE FROM documents WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+
+	// 5. Remove nó do grafo se existir
+	_, _ = tx.ExecContext(ctx, `DELETE FROM graph_nodes WHERE id = ?`, id)
+
+	return tx.Commit()
+}
+
+// PruneDeletedDocuments identifica e remove documentos sob rootDir que não constam em activeDocIDs
+func PruneDeletedDocuments(ctx context.Context, db *sql.DB, rootDir string, activeDocIDs []string) ([]string, error) {
+	activeMap := make(map[string]bool, len(activeDocIDs))
+	for _, id := range activeDocIDs {
+		activeMap[id] = true
+		activeMap[filepath.Clean(id)] = true
+		if abs, err := filepath.Abs(id); err == nil {
+			activeMap[abs] = true
+			activeMap[filepath.Clean(abs)] = true
+		}
+	}
+
+	rows, err := db.QueryContext(ctx, `SELECT id, path FROM documents`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var toPrune []string
+	cleanRoot := ""
+	if rootDir != "" {
+		if abs, err := filepath.Abs(rootDir); err == nil {
+			cleanRoot = strings.ToLower(filepath.Clean(abs))
+		} else {
+			cleanRoot = strings.ToLower(filepath.Clean(rootDir))
+		}
+	}
+
+	for rows.Next() {
+		var id, path string
+		if err := rows.Scan(&id, &path); err != nil {
+			continue
+		}
+
+		cleanPath := path
+		if abs, err := filepath.Abs(path); err == nil {
+			cleanPath = abs
+		}
+		cleanPathLower := strings.ToLower(filepath.Clean(cleanPath))
+
+		if cleanRoot != "" {
+			if !strings.HasPrefix(cleanPathLower, cleanRoot) {
+				continue
+			}
+		}
+
+		cleanID := id
+		if abs, err := filepath.Abs(id); err == nil {
+			cleanID = abs
+		}
+
+		if !activeMap[id] && !activeMap[path] && !activeMap[cleanPath] && !activeMap[cleanID] {
+			toPrune = append(toPrune, id)
+		}
+	}
+
+	var pruned []string
+	for _, id := range toPrune {
+		if err := DeleteDocumentComplete(ctx, db, id); err == nil {
+			pruned = append(pruned, id)
+		}
+	}
+
+	return pruned, nil
 }
 
 // InsertChunk insere um pedaço de texto no relacional, FTS5 e no sqlite-vec

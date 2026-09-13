@@ -38,6 +38,45 @@ type SurprisingConnection struct {
 	Reason     string  `json:"reason"`
 }
 
+// DeadLink representa um link no grafo para uma nota ou alvo inexistente
+type DeadLink struct {
+	SourceID string `json:"source_id"`
+	TargetID string `json:"target_id"`
+	Relation string `json:"relation"`
+}
+
+// OrphanNote representa uma nota isolada com zero conexões de entrada e saída
+type OrphanNote struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// SelfLoop representa uma aresta circular onde a nota aponta para si mesma
+type SelfLoop struct {
+	NodeID   string `json:"node_id"`
+	Relation string `json:"relation"`
+}
+
+// DesyncedChunk representa um chunk que existe no banco relacional mas carece de vetor ou TurboQuant
+type DesyncedChunk struct {
+	ChunkID    string `json:"chunk_id"`
+	DocumentID string `json:"document_id"`
+	Issue      string `json:"issue"`
+}
+
+// DoctorReport agrega as métricas estruturais e anomalias de saúde do grafo
+type DoctorReport struct {
+	TotalDocuments int             `json:"total_documents"`
+	TotalChunks    int             `json:"total_chunks"`
+	TotalEdges     int             `json:"total_edges"`
+	TotalNodes     int             `json:"total_nodes"`
+	HealthScore    int             `json:"health_score"` // 0 a 100
+	DeadLinks      []DeadLink      `json:"dead_links"`
+	OrphanNotes    []OrphanNote    `json:"orphan_notes"`
+	SelfLoops      []SelfLoop      `json:"self_loops"`
+	DesyncedChunks []DesyncedChunk `json:"desynced_chunks"`
+}
+
 // Store define o contrato agnóstico de armazenamento para SQLite e PostgreSQL
 type Store interface {
 	// InsertDocument insere ou atualiza um documento atrelado ao repositório
