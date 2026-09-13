@@ -1,0 +1,101 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Code Formatting & Vet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      - name: Check Formatting (gofmt)
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Arquivos não formatados encontrados:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+  unit-tests:
+    name: Unit Tests (${{ matrix.os }})
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+        go-version: [ "1.22", "1.23" ]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Download Go Dependencies
+        run: go mod download
+
+      - name: Run Parser Tests
+        run: go test -v -cover ./internal/parser/...
+
+      - name: Run TurboQuant Tests
+        run: go test -v -cover ./internal/turboquant/...
+
+      - name: Run All Tests with Coverage Report (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/...
+
+      - name: Upload Coverage Artifact (Ubuntu)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.go-version }}
+          path: coverage.txt
+          retention-days: 7
+
+  build-verification:
+    name: Build Verification
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+
+      - name: Install CGO dependencies (SQLite & GCC)
+        run: sudo apt-get update && sudo apt-get install -y gcc libsqlite3-dev
+
+      - name: Verify CLI Compilation
+        run: |
+          mkdir -p bin
+          CGO_ENABLED=1 go build -v -o bin/mem ./cmd/mem
+          ls -lh bin/mem
