@@ -15,13 +15,14 @@
 - **AD-017**: Indexação Contínua em Tempo Real com File Watcher e Git Hooks (`docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md`)
 - **AD-018**: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP e CLI (`docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md`)
 - **AD-019**: Versionamento Semântico Automatizado e Criação de Tags no CI (`docs/adr/019-versionamento-semantico-e-tagging-ci.md`)
+- **AD-020**: Visualizador Interativo de Grafo em HTML/SVG Standalone (`docs/adr/020-visualizador-interativo-de-grafo-em-html-svg.md`)
 
 ## Handoff
 
-- **Feature**: automated-semver-and-ci-tagging (.specs/features/automated-semver-and-ci-tagging)
-- **Phase / Task**: Phase 1 / T4 (Completed)
-- **Completed**: T1, T2, T3, T4 (Versionamento Go, Workflow de Tagging, Build Multiplataforma e ADR-019)
+- **Feature**: interactive-html-graph-visualizer (.specs/features/interactive-html-graph-visualizer)
+- **Phase / Task**: Phase 1 / T5 (Completed)
+- **Completed**: T1, T2, T3, T4, T5 (GraphView Core, Renderizador HTML, CLI, MCP e ADR-020)
 - **In-progress**: none
-- **Next step**: Pronto para envio para a branch main e disparo da tag v1.0.0
+- **Next step**: Pronto para commit na branch develop
 - **Blockers**: none
-- **Branch**: main
+- **Branch**: develop

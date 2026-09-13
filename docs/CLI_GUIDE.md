@@ -139,15 +139,18 @@ Inicia o servidor Model Context Protocol (MCP) via `stdio` (JSON-RPC 2.0):
 
 ---
 
-### 8. `mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>]`
-Exporta o subgrafo relacional centrado em uma nota para o formato aberto **JSON Canvas 1.0 (`.canvas`)** do Obsidian:
-* Realiza a travessia de vizinhos conectados até a profundidade indicada.
-* Calcula o posicionamento radial espacial para visualização sem nós sobrepostos.
-* Gera arquivo `.canvas` pronto para ser aberto diretamente no Obsidian.
+### 8. `mem export [--canvas <nota>] [--html <saida.html>] [--depth 1] [--out <arquivo>]`
+Exporta o grafo relacional para **JSON Canvas 1.0 (`.canvas`)** do Obsidian ou para uma página **HTML/SVG interativa standalone**:
+* Modo Canvas: Gera arquivo `.canvas` para abrir diretamente no Obsidian.
+* Modo HTML (`--html`): Gera página web standalone com simulação de física de forças, busca em tempo real e painel lateral de detalhes.
 
-**Exemplo:**
+**Exemplos:**
 ```bash
+# Exportar subgrafo para Obsidian JSON Canvas:
 ./bin/mem.exe export --canvas "Arquitetura" --depth 2 --out "mapa_arquitetura.canvas"
+
+# Exportar grafo completo para página HTML interativa:
+./bin/mem.exe export --html "grafo_completo.html"
 ```
 
 ---
@@ -230,6 +233,33 @@ Exibe a versão do executável, hash Git do commit, data de compilação, versã
 
 # Saída estruturada em JSON (ideal para agentes e scripts):
 ./bin/mem.exe version --json
+```
+
+---
+
+### 15. `mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open]`
+Gera e abre no navegador uma visualização interativa do grafo da memória do repositório, em uma página HTML/SVG 100% autocontida (Zero-CDN) com simulação de física de forças:
+* **`mem graph view`**: Compila o grafo e abre imediatamente no navegador padrão do sistema.
+* **`mem graph export`**: Compila e grava o arquivo HTML no disco sem abrir o navegador (a menos que `--open` seja passado).
+* **Filtro de Subgrafo**: Use `--root <nota>` e `--depth <N>` para isolar a vizinhança de uma nota específica.
+* **Recursos da Interface**:
+  - Zoom e pan contínuo na tela.
+  - Arraste gravitacional interativo de nós.
+  - Nós dimensionados pela autoridade estrutural calculada via **PageRank**.
+  - Paleta de cores harmoniosa por tipo de nota (`concept`, `decision`, `guide`, `reference`, `synthesis`).
+  - Busca instantânea de notas com atenuação visual de nós não correlacionados.
+  - Painel lateral retrátil com conexões de entrada/saída e botão direto para abrir no Obsidian (`obsidian://open?file=...`).
+
+**Exemplos:**
+```bash
+# Visualizar o grafo global completo no navegador padrão:
+./bin/mem.exe graph view
+
+# Visualizar subgrafo centrado em uma decisão arquitetural:
+./bin/mem.exe graph view --root "decisions/adr-009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md" --depth 2
+
+# Exportar para arquivo específico sem abrir o navegador:
+./bin/mem.exe graph export --out "docs/mapa_conhecimento.html"
 ```
 
 ---

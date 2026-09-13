@@ -169,6 +169,19 @@ Exibe versão SemVer, hash Git do commit, data de compilação e arquitetura em 
 ./bin/mem.exe version --json
 ```
 
+#### 10. Visualização Interativa de Grafo (`mem graph view` / `mem graph export`)
+Gera visualização espacial interativa do grafo da memória em HTML/SVG 100% autocontido (Zero-CDN), com simulação de física de forças, escala proporcional por PageRank, busca em tempo real e painel lateral com links Obsidian:
+```bash
+# Abrir visualização no navegador padrão:
+./bin/mem.exe graph view
+
+# Visualizar subgrafo de uma nota específica:
+./bin/mem.exe graph view --root "concepts/auth.md" --depth 2
+
+# Exportar para arquivo HTML estático:
+./bin/mem.exe graph export --out "grafo.html"
+```
+
 ---
 
 ## 🤖 Integração com Agentes de IA (MCP)
@@ -271,6 +284,7 @@ my-memory/
   - [ADR-017: Indexação Contínua em Tempo Real com File Watcher e Git Hooks](docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md)
   - [ADR-018: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP](docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md)
   - [ADR-019: Versionamento Semântico Automatizado e Criação de Tags no CI](docs/adr/019-versionamento-semantico-e-tagging-ci.md)
+  - [ADR-020: Visualizador Interativo de Grafo em HTML/SVG Standalone](docs/adr/020-visualizador-interativo-de-grafo-em-html-svg.md)
 
 ---
 

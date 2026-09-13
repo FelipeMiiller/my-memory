@@ -95,6 +95,7 @@ A IA ganha acesso automático a ferramentas com escopo de repositório:
 * `memory_append_section(path, heading, content, create_if_missing?, repository?)`: Anexa seções e blocos de conteúdo sob cabeçalhos Markdown existentes ou novos.
 * `memory_compile_note(topic, target_path, title?, search_mode?, limit?, tags?, overwrite?, repository?)`: Sintetiza conhecimento sobre um tópico a partir de buscas no repositório (padrão *Compile-not-Retrieve*), gravando nota estruturada com backlinks.
 * `memory_export_canvas(node_id, max_depth?, repository?)`: Gera JSON Canvas 1.0 espacial para visualização gráfica no Obsidian.
+* `memory_visualize_graph(root_node?, max_depth?, output_path?, repository?)`: Exporta uma visualização interativa do grafo em página HTML/SVG standalone com física de forças, busca em tempo real e PageRank.
 * `memory_doctor(repository?, fix?)`: Audita a integridade do grafo (dead links, notas órfãs, self-loops e Health Score), com suporte a reparo automático.
 
 ---
