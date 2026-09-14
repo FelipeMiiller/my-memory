@@ -647,6 +647,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "open":
+		if err := runOpenCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 
 	case "status":
 		if err := runStatusCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
@@ -701,6 +707,8 @@ func printHelp() {
 	fmt.Println("      Descoberta de rotas e menor caminho ponderado por custos epistêmicos entre dois nós do grafo")
 	fmt.Println("  mem pack <nota_ou_id> [--depth 2] [--max-tokens 4000] [--direction both] [--out <bundle.md>] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Empacota um subgrafo de contexto coerente centrado em uma nota raiz com controle rígido de tokens")
+	fmt.Println("  mem open <nota_ou_caminho> [--app obsidian|vscode|system] [--line <n>] [--dry-run] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Abre diretamente a nota ou nó no editor configurado (Obsidian, VS Code) ou exibe deep links acionáveis")
 
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
