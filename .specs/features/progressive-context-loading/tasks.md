@@ -26,9 +26,9 @@
   - [x] Escrever testes de integração em `cmd/mem/search_defaults_test.go`.
 
 
-- [ ] **T5**: MCP memory_search com detail_level, Taxonomia e ADR-025 (`internal/mcp/`)
-  - [ ] Atualizar schema de `memory_search` em `internal/mcp/tools.go` com `detail_level` e `category`.
-  - [ ] Ajustar formatação Markdown no handler MCP (`internal/mcp/handlers.go`) para renderizar tabelas sintéticas em L0.
-  - [ ] Conectar os handlers do servidor MCP com suporte aos novos parâmetros.
-  - [ ] Escrever testes de integração MCP em `internal/mcp/handlers_test.go`.
-  - [ ] Criar `docs/adr/025-progressive-context-loading-e-taxonomia-de-memoria.md` e atualizar índices de ADRs.
+- [x] **T5**: MCP memory_search com detail_level, Taxonomia e ADR-025 (`internal/mcp/`)
+  - [x] Atualizar schema de `memory_search` em `internal/mcp/tools.go` com `detail_level` e `category`.
+  - [x] Ajustar formatação Markdown no handler MCP (`internal/mcp/handlers.go`) para renderizar tabelas sintéticas em L0.
+  - [x] Conectar os handlers do servidor MCP com suporte aos novos parâmetros.
+  - [x] Escrever testes de integração MCP em `internal/mcp/handlers_test.go`.
+  - [x] Criar `docs/adr/025-progressive-context-loading-e-taxonomia-de-memoria.md` e atualizar índices de ADRs.

@@ -19,12 +19,12 @@
 
 
 ### MCP (`internal/mcp/`)
-- [ ] `TestMCP_MemorySearch_LevelL0`: Executa tool call `memory_search` com `detail_level="l0"` e valida resposta semântica concisa sem desperdício de tokens.
-- [ ] `TestMCP_MemorySearch_Category`: Executa tool call `memory_search` com `category="resource"`.
+- [x] `TestMCP_MemorySearch_LevelL0`: Executa tool call `memory_search` com `detail_level="l0"` e valida resposta semântica concisa sem desperdício de tokens.
+- [x] `TestMCP_MemorySearch_Category`: Executa tool call `memory_search` com `category="resource"`.
 
 ---
 
 ## 2. Critérios de Conclusão e Regressão
-- [ ] Todos os 14 pacotes continuam passando com 100% de sucesso (`go test -count=1 ./...`).
-- [ ] Recompilação de `bin/mem.exe` bem sucedida.
-- [ ] Reinicialização do servidor MCP em background respondendo com sucesso no `/health`.
+- [x] Todos os 14 pacotes continuam passando com 100% de sucesso (`go test -count=1 ./...`).
+- [x] Recompilação de `bin/mem.exe` bem sucedida.
+- [x] Reinicialização do servidor MCP em background respondendo com sucesso no `/health`.

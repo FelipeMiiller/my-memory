@@ -1740,18 +1740,26 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				k = 60
 			}
 
+			searchOpts := store.SearchOptions{
+				Level:    params.DetailLevel,
+				Category: params.Category,
+			}
+			if searchOpts.Level == "" {
+				searchOpts.Level = "l1"
+			}
+
 			var pgResults []store.SearchResult
 			var err error
 
 			switch params.Mode {
 			case "fts":
-				pgResults, err = pgStore.SearchFTS(ctx, repo, params.Query, limit)
+				pgResults, err = pgStore.SearchFTSWithOptions(ctx, repo, params.Query, limit, searchOpts)
 			case "vector":
 				queryVec, embErr := emb.GenerateEmbedding(params.Query)
 				if embErr != nil {
 					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
 				}
-				pgResults, err = pgStore.SearchKNN(ctx, repo, queryVec, limit)
+				pgResults, err = pgStore.SearchKNNWithOptions(ctx, repo, queryVec, limit, searchOpts)
 			default: // hybrid
 				var queryVec []float32
 				vec, embErr := emb.GenerateEmbedding(params.Query)
@@ -1768,7 +1776,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 						decayOpts.Weight = params.DecayWeight
 					}
 				}
-				pgResults, err = pgStore.SearchHybridRRFWithDecay(ctx, repo, params.Query, queryVec, limit, k, decayOpts)
+				pgResults, err = pgStore.SearchHybridWithOptions(ctx, repo, params.Query, queryVec, limit, k, decayOpts, searchOpts)
 			}
 
 			if err != nil {
@@ -1787,6 +1795,8 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					Sources:    r.Sources,
 					Neighbors:  r.Neighbors,
 					UpdatedAt:  r.UpdatedAt,
+					Abstract:   r.Abstract,
+					Category:   r.Category,
 				}
 			}
 			return mcpResults, nil
@@ -1937,23 +1947,31 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				k = 60
 			}
 
+			searchOpts := store.SearchOptions{
+				Level:    params.DetailLevel,
+				Category: params.Category,
+			}
+			if searchOpts.Level == "" {
+				searchOpts.Level = "l1"
+			}
+
 			var dbResults []db.SearchResult
 			var err error
 
 			switch params.Mode {
 			case "fts":
-				dbResults, err = db.SearchFTS(ctx, database, params.Query, limit)
+				dbResults, err = db.SearchFTSWithOptions(ctx, database, params.Query, limit, searchOpts)
 			case "vector":
 				queryVec, embErr := emb.GenerateEmbedding(params.Query)
 				if embErr != nil {
 					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
 				}
 				if !db.HasSqliteVec {
-					dbResults, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+					dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
 				} else {
-					dbResults, err = db.SearchKNN(ctx, database, queryVec, limit)
+					dbResults, err = db.SearchKNNWithOptions(ctx, database, queryVec, limit, searchOpts)
 					if err != nil {
-						dbResults, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+						dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
 					}
 				}
 			default: // hybrid
@@ -1972,7 +1990,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 						decayOpts.Weight = params.DecayWeight
 					}
 				}
-				dbResults, err = db.SearchHybridRRFWithDecay(ctx, database, tq, params.Query, queryVec, limit, k, false, decayOpts)
+				dbResults, err = db.SearchHybridRRFWithOptions(ctx, database, tq, params.Query, queryVec, limit, k, false, decayOpts, searchOpts)
 			}
 
 			if err != nil {
@@ -1990,6 +2008,8 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					Sources:    r.Sources,
 					Neighbors:  r.Neighbors,
 					UpdatedAt:  r.UpdatedAt,
+					Abstract:   r.Abstract,
+					Category:   r.Category,
 				}
 			}
 			return mcpResults, nil

@@ -51,10 +51,21 @@ var (
 					"type":        "number",
 					"description": "Peso do fator temporal entre 0.0 (sem efeito) e 1.0 (decaimento máximo) (padrão: 0.3)",
 				},
+				"detail_level": map[string]any{
+					"type":        "string",
+					"enum":        []string{"l0", "l1", "l2"},
+					"description": "Nível de densidade de contexto (Progressive Context Loading): 'l0' (micro-abstract cirúrgico, ~30-50 tokens, sem blocos de texto bruto - Zero File Reads), 'l1' (overview padrão com metadados e trecho relevante) ou 'l2' (detalhes completos)",
+				},
+				"category": map[string]any{
+					"type":        "string",
+					"enum":        []string{"resource", "memory", "skill"},
+					"description": "Filtra por taxonomia de conhecimento: 'resource' (especificações técnicas, arquitetura), 'memory' (regras de conduta, lições aprendidas, padrões) ou 'skill' (habilidades, comandos operacionais, procedimentos)",
+				},
 			},
 			"required": []string{"query"},
 		},
 	}
+
 
 	ToolMemoryGetNeighbors = Tool{
 		Name:        "memory_get_neighbors",

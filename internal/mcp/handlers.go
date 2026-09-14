@@ -52,6 +52,8 @@ type SearchResult struct {
 	Sources    []string `json:"sources,omitempty"`
 	Neighbors  []string `json:"neighbors,omitempty"`
 	UpdatedAt  int64    `json:"updated_at,omitempty"`
+	Abstract   string   `json:"abstract,omitempty"`
+	Category   string   `json:"category,omitempty"`
 }
 
 // SearchFunc assinatura da função que executa a busca vetorial legada
@@ -67,7 +69,10 @@ type SearchParams struct {
 	Decay       bool    // ativa decaimento temporal exponencial
 	HalfLife    float64 // meia-vida em dias (padrão: 30.0)
 	DecayWeight float64 // peso do decaimento temporal w in [0.0, 1.0] (padrão: 0.3)
+	DetailLevel string  // "l0", "l1", "l2" (default: "l1")
+	Category    string  // "resource", "memory", "skill" ou ""
 }
+
 
 // AdvancedSearchFunc assinatura da função que executa busca avançada suportando modo híbrido e RRF
 type AdvancedSearchFunc func(ctx context.Context, params SearchParams) ([]SearchResult, error)
@@ -158,15 +163,50 @@ type DoctorDiagnoseFunc func(ctx context.Context, repo string) (*DoctorReport, e
 // DoctorFixFunc assinatura da função que repara anomalias conhecidas
 type DoctorFixFunc func(ctx context.Context, repo string) (int, error)
 
-// FormatSearchResults formata os resultados da busca em texto legível
-func FormatSearchResults(results []SearchResult) string {
+// FormatSearchResultsWithOptions formata os resultados da busca com base no nível de densidade
+func FormatSearchResultsWithOptions(results []SearchResult, level string) string {
 	if len(results) == 0 {
 		return "Nenhum resultado encontrado."
+	}
+
+	if strings.EqualFold(level, "l0") {
+		var sb strings.Builder
+		sb.WriteString("### 🎯 Resultados da Busca (L0: Micro-Abstracts)\n\n")
+		sb.WriteString("| # | Categoria | Documento | Score | Micro-Abstract (L0) | Conexões no Grafo |\n")
+		sb.WriteString("| :- | :--- | :--- | :--- | :--- | :--- |\n")
+		for i, res := range results {
+			cat := "resource"
+			if res.Category != "" {
+				cat = strings.ToLower(res.Category)
+			}
+			scoreStr := "-"
+			if res.Score > 0 {
+				scoreStr = fmt.Sprintf("%.4f", res.Score)
+			} else if res.Distance > 0 {
+				scoreStr = fmt.Sprintf("dist: %.4f", res.Distance)
+			}
+			abstract := res.Abstract
+			if abstract == "" {
+				abstract = "-"
+			}
+			abstract = strings.ReplaceAll(abstract, "|", "/")
+			neighbors := "-"
+			if len(res.Neighbors) > 0 {
+				neighbors = fmt.Sprintf("`%s`", strings.Join(res.Neighbors, ", "))
+			}
+			fmt.Fprintf(&sb, "| %d | `%s` | `%s` | %s | %s | %s |\n", i+1, cat, res.DocumentID, scoreStr, abstract, neighbors)
+		}
+		return strings.TrimSpace(sb.String())
 	}
 
 	var sb strings.Builder
 	for i, res := range results {
 		var headerParts []string
+		if res.Category != "" {
+			headerParts = append(headerParts, fmt.Sprintf("[%s]", strings.ToUpper(res.Category)))
+		} else {
+			headerParts = append(headerParts, "[RESOURCE]")
+		}
 		if res.Score > 0 {
 			headerParts = append(headerParts, fmt.Sprintf("Score RRF: %.4f", res.Score))
 		}
@@ -182,11 +222,16 @@ func FormatSearchResults(results []SearchResult) string {
 		headerParts = append(headerParts, fmt.Sprintf("Documento: %s", res.DocumentID))
 
 		fmt.Fprintf(&sb, "--- [%d] %s ---\n", i+1, strings.Join(headerParts, " | "))
+		if res.Abstract != "" {
+			fmt.Fprintf(&sb, "💡 **Resumo (L0)**: %s\n", res.Abstract)
+		}
 		if len(res.Sources) > 0 {
 			fmt.Fprintf(&sb, "📊 Fontes RRF: [%s]\n", strings.Join(res.Sources, ", "))
 		}
-		sb.WriteString(res.Content)
-		sb.WriteString("\n")
+		if res.Content != "" {
+			sb.WriteString(res.Content)
+			sb.WriteString("\n")
+		}
 		if len(res.Neighbors) > 0 {
 			fmt.Fprintf(&sb, "🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
 		}
@@ -195,6 +240,11 @@ func FormatSearchResults(results []SearchResult) string {
 		}
 	}
 	return sb.String()
+}
+
+// FormatSearchResults formata os resultados da busca em texto legível (retrocompatibilidade)
+func FormatSearchResults(results []SearchResult) string {
+	return FormatSearchResultsWithOptions(results, "l1")
 }
 
 // FormatNeighbors formata a lista de conexões do grafo em texto
@@ -290,6 +340,25 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 			_ = json.Unmarshal(rawRepo, &repo)
 		}
 
+		detailLevel := "l1"
+		if rawLevel, hasLevel := rawMap["detail_level"]; hasLevel {
+			var dl string
+			if err := json.Unmarshal(rawLevel, &dl); err == nil && strings.TrimSpace(dl) != "" {
+				detailLevel = strings.ToLower(strings.TrimSpace(dl))
+			}
+		}
+		if detailLevel != "l0" && detailLevel != "l1" && detailLevel != "l2" {
+			detailLevel = "l1"
+		}
+
+		var category string
+		if rawCategory, hasCategory := rawMap["category"]; hasCategory {
+			var c string
+			if err := json.Unmarshal(rawCategory, &c); err == nil && strings.TrimSpace(c) != "" {
+				category = strings.ToLower(strings.TrimSpace(c))
+			}
+		}
+
 		if searchFn == nil {
 			return nil, NewError(CodeInternalError, "Backend de busca semântica não configurado", nil)
 		}
@@ -308,6 +377,8 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 				Decay:       decay,
 				HalfLife:    halfLife,
 				DecayWeight: decayWeight,
+				DetailLevel: detailLevel,
+				Category:    category,
 			})
 		case SearchFunc:
 			results, err = fn(ctx, repo, query, limit)
@@ -321,9 +392,10 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro na execução da busca: %v", err), nil)
 		}
 
-		return NewTextResult(FormatSearchResults(results)), nil
+		return NewTextResult(FormatSearchResultsWithOptions(results, detailLevel)), nil
 	}
 }
+
 
 // NewMemoryNeighborsHandler cria o handler para a ferramenta memory_get_neighbors
 func NewMemoryNeighborsHandler(neighborsFn NeighborsFunc) ToolHandlerFunc {

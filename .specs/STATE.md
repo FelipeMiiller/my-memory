@@ -20,15 +20,16 @@
 - **AD-022**: Detecção de Comunidades e Clusters no Grafo de Conhecimento (`docs/adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md`)
 - **AD-023**: Análise de Impacto e Raio de Destruição (Blast Radius Analysis) (`docs/adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md`)
 - **AD-024**: Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector) (`docs/adr/024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md`)
+- **AD-025**: Carregamento Progressivo de Contexto e Taxonomia de Memória (`docs/adr/025-progressive-context-loading-e-taxonomia-de-memoria.md`)
 
 ## Handoff
 
 - **Feature**: progressive-context-loading (.specs/features/progressive-context-loading)
-- **Phase / Task**: Phase 5 / T5 (Ready for Implementation)
-- **Planned**: T1 (Extensão de Schema e Migrações - CONCLUÍDO), T2 (Extração Heurística de L0 e Taxonomia - CONCLUÍDO), T3 (Motores de Busca com L0/L1/L2 e Filtro de Categoria - CONCLUÍDO), T4 (CLI mem search com --level e --category - CONCLUÍDO), T5 (MCP memory_search com detail_level e ADR-025)
-- **Completed Features**: triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: T5 (MCP memory_search com detail_level, Taxonomia e ADR-025)
-- **Next step**: Atualizar schema de memory_search em internal/mcp/tools.go e handlers em internal/mcp/handlers.go e cmd/mem/main.go
+- **Phase / Task**: Feature 100% Concluída e Validada (T1, T2, T3, T4, T5)
+- **Planned**: Todas as tarefas (T1 a T5) executadas e validadas.
+- **Completed Features**: progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: Nenhuma
+- **Next step**: Atualizar walkthrough.md, compilar bin/mem.exe e efetuar o commit da T5
 - **Blockers**: none
 - **Branch**: develop
 
