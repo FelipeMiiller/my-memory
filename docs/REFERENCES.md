@@ -56,6 +56,23 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
 
 ---
 
+### 1.4. [CodeGraph](https://github.com/colbymchenry/codegraph) (`colbymchenry/codegraph`)
+* **Autor:** Colby McHenry (@colbymchenry)
+* **O que é:** Grafo de conhecimento pré-indexado local-first com kernel em Rust e armazenamento SQLite, projetado especificamente para agentes de IA (Claude Code, Cursor, Antigravity, Codex, Gemini) com sincronização em tempo real via watcher e eliminação completa de explorações cegas (*zero file reads* em benchmarks).
+* **Pontos de inspiração para o My-Memory:**
+  1. **Contexto Cirúrgico (*Surgical Context*):**
+     - Entrega caminhos de dependência e trechos exatos de notas e código em uma única chamada MCP, impedindo que o agente desperdice tokens e turnos re-derivando estrutura por varredura manual.
+  2. **Sincronização Reativa com Staleness Banners:**
+     - File watcher com debouncing inteligente para agrupar rajadas de salvamento contínuo, e injeção de avisos explícitos (`⚠️ Staleness Banner`) nas ferramentas MCP para alertar agentes caso um arquivo ainda esteja em processamento na fila.
+  3. **Análise de Impacto e Raio de Destruição (*Blast Radius / Impact Analysis*):**
+     - Rastreamento em cascata de callers, dependentes e conceitos correlatos antes de aplicar alterações ou revogar decisões de arquitetura.
+  4. **Visualização Espacial de 3 Colunas (`In-links | Nota | Out-links`):**
+     - Layout ergonômico em três colunas espelhadas, alinhando chamadores à esquerda, corpo da nota no centro e referências de saída à direita.
+  5. **Auto-Wiring de Ferramentas de IA (`codegraph install`):**
+     - Descoberta automática de configurações de IDEs locais (Cursor, Claude Code, Antigravity) para registrar servidores MCP sem atrito manual.
+
+---
+
 ## 🚀 2. Matriz de Refinamento Arquitetural para o My-Memory
 
 | Capacidade | Estado Inicial do My-Memory | Refinamento Inspirado | Projeto Referência |
@@ -63,8 +80,11 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
 | **Recuperação** | k-NN vetorial puro + CTE de vizinhos | **Busca Híbrida RRF** (FTS5 + k-NN + Grafo) | `akitaonrails/ai-memory` |
 | **Integridade de Dados** | SQLite com tabelas relacionais | **Markdown como Fonte de Verdade** (Banco como projeção reconstruível) | `akitaonrails/ai-memory` |
 | **Topologia de Grafo** | Apenas arestas `links_to` | **Arestas Tipadas** (`implements`, `depends_on`) + **Status Epistêmico** (`EXTRACTED` vs `INFERRED`) | `ai-memory` & `graphify` |
-| **Identificação de Hubs** | Busca local direta | **God Nodes / Centralidade** (identificar conceitos mais densos) | `graphify` |
+| **Identificação de Hubs** | Busca local direta | **God Nodes / PageRank** (autoridade estrutural e hubs densos) | `graphify` & ADR-014 |
+| **Detecção Modular** | Sem agrupamento macroestrutural | **LPA Ponderado e Modularidade \(Q\)** (identificação de clusters conceituais) | ADR-022 & literatura de redes |
 | **Cache de Indexação** | Reindexa todos os arquivos | **Incremental Hash (SHA-256)** (processa apenas o que mudou) | `graphify` |
-| **Visualização do Grafo** | Apenas texto via terminal / MCP | **Exportação para JSON Canvas (`.canvas`)** e visualizador interativo | `kepano/obsidian-skills` & `graphify` |
+| **Sincronização Viva** | Indexação manual sob demanda | **File Watcher com Debounce e Staleness Banners** | `colbymchenry/codegraph` & ADR-017 |
+| **Visualização do Grafo** | Apenas texto via terminal / MCP | **Exportação JSON Canvas e HTML/SVG Interativo** com modo de clusters | `kepano/obsidian-skills`, `graphify` & `codegraph` |
 | **Parsing de Notas** | Regex simples para `[[wikilinks]]` | **Obsidian Flavored Markdown** (YAML frontmatter, âncoras, aliases) | `kepano/obsidian-skills` |
-| **Multi-Repositório** | Detecção de Git Origin | **Auto-scoping com Marker File** (`.mem.toml` / Git slug) | `ai-memory` |
+| **Multi-Repositório** | Detecção de Git Origin | **Auto-scoping com Marker File** (`.memory/config.yaml` / Git slug) | `ai-memory` |
+| **Transporte MCP** | Apenas stdio local | **Multi-transporte (stdio + HTTP/SSE)** para agentes remotos e locais | ADR-021 |

@@ -170,7 +170,7 @@ Exibe versão SemVer, hash Git do commit, data de compilação e arquitetura em 
 ```
 
 #### 10. Visualização Interativa de Grafo (`mem graph view` / `mem graph export`)
-Gera visualização espacial interativa do grafo da memória em HTML/SVG 100% autocontido (Zero-CDN), com simulação de física de forças, escala proporcional por PageRank, busca em tempo real e painel lateral com links Obsidian:
+Gera visualização espacial interativa do grafo da memória em HTML/SVG 100% autocontido (Zero-CDN), com simulação de física de forças, escala proporcional por PageRank, busca em tempo real, alternância de cores por cluster e painel lateral com links Obsidian:
 ```bash
 # Abrir visualização no navegador padrão:
 ./bin/mem.exe graph view
@@ -180,6 +180,32 @@ Gera visualização espacial interativa do grafo da memória em HTML/SVG 100% au
 
 # Exportar para arquivo HTML estático:
 ./bin/mem.exe graph export --out "grafo.html"
+```
+
+#### 11. Detecção de Comunidades e Clusters (`mem clusters`)
+Detecta agrupamentos temáticos e partições conceituais densas no grafo de conhecimento usando o *Weighted Label Propagation Algorithm* (LPA) ponderado e calcula a Modularidade Newman-Girvan \(Q\):
+```bash
+# Exibir clusters com tamanho >= 2 em tabela alinhada:
+./bin/mem.exe clusters
+
+# Incluir nós isolados (tamanho >= 1):
+./bin/mem.exe clusters --min-size 1
+
+# Exportar dados de clusters e modularidade em JSON:
+./bin/mem.exe clusters --json
+```
+
+#### 12. Servidor MCP Multi-Modo (Stdio ou HTTP/SSE de Rede)
+Inicia o servidor Model Context Protocol via `stdio` (padrão local para Cursor e Claude Desktop) ou como servidor de rede HTTP/SSE com suporte a múltiplos clientes concorrentes, CORS e endpoints de diagnóstico:
+```bash
+# Modo stdio clássico (processo filho):
+./bin/mem.exe mcp
+
+# Modo servidor de rede HTTP/SSE na porta 8080:
+./bin/mem.exe mcp --port 8080
+
+# Exposto na rede local para múltiplos agentes:
+./bin/mem.exe mcp --host 0.0.0.0 --port 8080
 ```
 
 ---
@@ -214,12 +240,26 @@ O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)*
 }
 ```
 
+### Configuração Remota via HTTP/SSE (Qualquer Agente / Nuvem):
+
+```json
+{
+  "mcpServers": {
+    "my-memory": {
+      "url": "http://127.0.0.1:8080/sse"
+    }
+  }
+}
+```
+
 ### Ferramentas Expostas para a IA:
 
 | Ferramenta | Descrição |
 | :--- | :--- |
 | `memory_search` | Busca híbrida (RRF) unificando FTS, vetores e grafo, com decaimento temporal exponencial opcional (`decay`, `half_life`, `decay_weight`). |
 | `memory_get_neighbors` | Expande nós e documentos conectados no grafo através de travessia recursiva SQL. |
+| `memory_get_clusters` | Detecta partições temáticas e comunidades no grafo via LPA ponderado, calculando modularidade Newman-Girvan \(Q\), nós líderes e tipos dominantes. |
+| `memory_visualize_graph` | Exporta uma visualização interativa do grafo da memória para uma página HTML/SVG standalone com física de forças, busca e filtros. |
 | `memory_write_note` | Grava ou atualiza notas atômicas no vault com frontmatter e conexões tipadas, disparando sincronização imediata no grafo. |
 | `memory_append_section` | Anexa cirurgicamente blocos de texto sob seções existentes ou novas sem quebrar a estrutura do documento. |
 | `memory_compile_note` | Compila e sintetiza conhecimento sobre um tópico a partir de buscas híbridas (padrão *Compile-not-Retrieve*), gerando nota com backlinks. |
@@ -235,13 +275,14 @@ O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)*
 ```text
 my-memory/
 ├── cmd/
-│   └── mem/                # Ponto de entrada da CLI (init, index, search, mcp, doctor, hubs, insights, export)
+│   └── mem/                # Ponto de entrada da CLI (init, index, search, clusters, mcp, doctor, hubs, insights, export)
 ├── internal/
 │   ├── config/             # Configuração declarativa, descoberta ascendente e filtragem glob
 │   ├── db/                 # Schemas SQLite, FTS5, sqlite-vec e queries CTE
 │   ├── embedder/           # Integração com Ollama (nomic-embed-text)
-│   ├── graph/              # Algoritmos de grafo (PageRank ponderado, God Nodes)
-│   ├── mcp/                # Servidor MCP (JSON-RPC 2.0, framing, tools)
+│   ├── graph/              # Algoritmos de grafo (LPA, modularidade Q, PageRank ponderado, God Nodes)
+│   ├── graphview/          # Construtor de grafo interativo, clusters e templates HTML/SVG
+│   ├── mcp/                # Servidor MCP (stdio + HTTP/SSE, framing JSON-RPC 2.0, tools)
 │   ├── parser/             # Extração de [[wikilinks]], tags e chunking
 │   ├── repo/               # Detecção e normalização de slug de repositório Git
 │   ├── store/              # Interfaces unificadas de armazenamento e PostgreSQL com pgvector
@@ -285,6 +326,8 @@ my-memory/
   - [ADR-018: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP](docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md)
   - [ADR-019: Versionamento Semântico Automatizado e Criação de Tags no CI](docs/adr/019-versionamento-semantico-e-tagging-ci.md)
   - [ADR-020: Visualizador Interativo de Grafo em HTML/SVG Standalone](docs/adr/020-visualizador-interativo-de-grafo-em-html-svg.md)
+  - [ADR-021: Servidor MCP com Transporte HTTP e Server-Sent Events (SSE)](docs/adr/021-servidor-mcp-com-transporte-http-sse.md)
+  - [ADR-022: Detecção de Comunidades e Clusters no Grafo de Conhecimento](docs/adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md)
 
 ---
 
