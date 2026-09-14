@@ -49,6 +49,8 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-024`](adr/024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md)** — Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector)
 * **[`ADR-025`](adr/025-progressive-context-loading-e-taxonomia-de-memoria.md)** — Carregamento Progressivo de Contexto e Taxonomia de Memória
 * **[`ADR-026`](adr/026-auto-wiring-e-instalacao-zero-touch-de-ferramentas-de-ia.md)** — Auto-Wiring e Instalação Zero-Touch de Ferramentas de IA (`mem install` / `mem setup`)
+* **[`ADR-027`](adr/027-descoberta-de-rotas-e-caminho-minimo-no-grafo.md)** — Descoberta de Rotas e Caminho Mínimo no Grafo de Conhecimento (`mem path` / `memory_find_path`)
+* **[`ADR-028`](adr/028-staleness-banners-e-deteccao-de-desatualizacao.md)** — Staleness Banners e Detecção de Desatualização de Conhecimento (`mem status`)
 
 
 ---
