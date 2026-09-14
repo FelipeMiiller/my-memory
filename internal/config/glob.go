@@ -92,12 +92,12 @@ func GlobToRegex(pattern string) (*regexp.Regexp, error) {
 
 // MatchGlob testa se um caminho relativo atende a um determinado padrão glob
 func MatchGlob(pattern, relPath string) bool {
-	normPath := filepath.ToSlash(relPath)
+	normPath := strings.ReplaceAll(relPath, "\\", "/")
 	normPath = strings.TrimPrefix(normPath, "./")
 	normPath = strings.Trim(normPath, "/")
 
 	// Tratamento especial para patterns terminando em /** (ex: .git/**, node_modules/**)
-	cleanPattern := filepath.ToSlash(pattern)
+	cleanPattern := strings.ReplaceAll(pattern, "\\", "/")
 	cleanPattern = strings.TrimPrefix(cleanPattern, "./")
 	if strings.HasSuffix(cleanPattern, "/**") {
 		baseDir := strings.TrimSuffix(cleanPattern, "/**")
@@ -127,7 +127,7 @@ func (c *Config) ShouldIndex(relPath string) bool {
 		c = &def
 	}
 
-	normPath := filepath.ToSlash(relPath)
+	normPath := strings.ReplaceAll(relPath, "\\", "/")
 	normPath = strings.TrimPrefix(normPath, "./")
 	normPath = strings.Trim(normPath, "/")
 

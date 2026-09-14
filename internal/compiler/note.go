@@ -46,7 +46,9 @@ func SafeResolvePath(vaultRoot, requestedPath string) (string, string, error) {
 	if filepath.IsAbs(trimmedReq) {
 		targetAbs = filepath.Clean(trimmedReq)
 	} else {
-		targetAbs = filepath.Clean(filepath.Join(cleanVault, trimmedReq))
+		// Converte barras invertidas para compatibilidade cross-platform (ex: Windows separators no Linux)
+		normalizedReq := filepath.FromSlash(strings.ReplaceAll(trimmedReq, "\\", "/"))
+		targetAbs = filepath.Clean(filepath.Join(cleanVault, normalizedReq))
 	}
 
 	// Garante extensão .md
@@ -63,7 +65,7 @@ func SafeResolvePath(vaultRoot, requestedPath string) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("erro ao calcular caminho relativo: %w", err)
 	}
-	relPath = filepath.ToSlash(relPath)
+	relPath = filepath.ToSlash(strings.ReplaceAll(relPath, "\\", "/"))
 
 	return targetAbs, relPath, nil
 }

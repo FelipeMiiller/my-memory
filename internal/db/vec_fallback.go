@@ -1,4 +1,4 @@
-//go:build !((darwin || linux) && cgo)
+//go:build !((darwin || linux) && cgo && sqlite_fts5)
 
 package db
 
