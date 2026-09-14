@@ -125,6 +125,19 @@ func runInspectCommand(ctx context.Context, defaultRepo string, args []string, o
 		fmt.Fprintf(out, "  -----------------------------------------\n")
 	}
 
+	if view.Target.Links != nil {
+		fmt.Fprintf(out, "\n  --- 🔗 Links Rápidos / Deep Links ---\n")
+		if view.Target.Links.Obsidian != "" {
+			fmt.Fprintf(out, "  Obsidian: %s\n", view.Target.Links.Obsidian)
+		}
+		if view.Target.Links.VSCode != "" {
+			fmt.Fprintf(out, "  VS Code:  %s\n", view.Target.Links.VSCode)
+		}
+		if view.Target.Links.File != "" {
+			fmt.Fprintf(out, "  Arquivo:  %s\n", view.Target.Links.File)
+		}
+	}
+
 	// 2. Coluna da Esquerda: Inbound Links / Chamadores
 	fmt.Fprintf(out, "\n[ ⬅️ INBOUND / CHAMADORES & DEPENDENTES (%d) ]\n", view.TotalInbound)
 	if view.CriticalDependents > 0 {

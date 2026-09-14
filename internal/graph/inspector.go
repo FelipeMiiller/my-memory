@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/FelipeMiiller/my-memory/internal/deeplink"
 )
 
 // InboundLink representa uma aresta de entrada (quem aponta para o nó inspecionado)
@@ -35,19 +37,20 @@ type OutboundLink struct {
 
 // NodeSummary sintetiza os atributos canônicos e métricas centrais do nó alvo
 type NodeSummary struct {
-	ID             string    `json:"id"`
-	Title          string    `json:"title"`
-	Path           string    `json:"path,omitempty"`
-	Type           string    `json:"type"` // "decision", "concept", "guide", etc.
-	Tags           []string  `json:"tags,omitempty"`
-	PageRank       float64   `json:"pagerank"`
-	CommunityID    int       `json:"community_id,omitempty"`
-	CommunityLabel string    `json:"community_label,omitempty"`
-	RiskScore      float64   `json:"risk_score"`
-	RiskLevel      string    `json:"risk_level"`
-	ContentPreview string    `json:"content_preview,omitempty"`
-	ContentLength  int       `json:"content_length"`
-	UpdatedAt      time.Time `json:"updated_at,omitempty"`
+	ID             string              `json:"id"`
+	Title          string              `json:"title"`
+	Path           string              `json:"path,omitempty"`
+	Type           string              `json:"type"` // "decision", "concept", "guide", etc.
+	Tags           []string            `json:"tags,omitempty"`
+	PageRank       float64             `json:"pagerank"`
+	CommunityID    int                 `json:"community_id,omitempty"`
+	CommunityLabel string              `json:"community_label,omitempty"`
+	RiskScore      float64             `json:"risk_score"`
+	RiskLevel      string              `json:"risk_level"`
+	ContentPreview string              `json:"content_preview,omitempty"`
+	ContentLength  int                 `json:"content_length"`
+	UpdatedAt      time.Time           `json:"updated_at,omitempty"`
+	Links          *deeplink.DeepLinks `json:"links,omitempty"`
 }
 
 // TriptychView organiza a visualização cirúrgica em 3 colunas espaciais
@@ -71,6 +74,8 @@ type InspectorOptions struct {
 	Titles           map[string]string  `json:"titles,omitempty"`
 	ExistingNodes    map[string]bool    `json:"existing_nodes,omitempty"`
 	RiskResult       *ImpactResult      `json:"risk_result,omitempty"`
+	RepoRoot         string             `json:"repo_root,omitempty"`
+	VaultName        string             `json:"vault_name,omitempty"`
 }
 
 // DefaultInspectorOptions retorna configurações padrões de inspeção
@@ -139,6 +144,17 @@ func BuildTriptychView(target NodeSummary, edges []WeightedEdge, opts InspectorO
 
 	if opts.MaxContentLength > 0 && target.ContentPreview != "" {
 		target.ContentPreview = TruncateContent(target.ContentPreview, opts.MaxContentLength)
+	}
+
+	if target.Links == nil {
+		pathForLinks := target.Path
+		if pathForLinks == "" {
+			pathForLinks = target.ID
+		}
+		if pathForLinks != "" {
+			l := deeplink.GenerateLinks(opts.RepoRoot, opts.VaultName, pathForLinks, 0)
+			target.Links = &l
+		}
 	}
 
 	var inbound []InboundLink

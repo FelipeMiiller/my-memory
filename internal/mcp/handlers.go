@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/canvas"
+	"github.com/FelipeMiiller/my-memory/internal/deeplink"
 	"github.com/FelipeMiiller/my-memory/internal/staleness"
 )
 
@@ -44,17 +45,18 @@ func NewTextResult(text string) CallToolResult {
 
 // SearchResult representa um trecho relevante recuperado na busca semântica
 type SearchResult struct {
-	ChunkID    string   `json:"chunk_id"`
-	DocumentID string   `json:"document_id"`
-	Repository string   `json:"repository,omitempty"`
-	Content    string   `json:"content"`
-	Distance   float64  `json:"distance,omitempty"`
-	Score      float64  `json:"score,omitempty"`
-	Sources    []string `json:"sources,omitempty"`
-	Neighbors  []string `json:"neighbors,omitempty"`
-	UpdatedAt  int64    `json:"updated_at,omitempty"`
-	Abstract   string   `json:"abstract,omitempty"`
-	Category   string   `json:"category,omitempty"`
+	ChunkID    string              `json:"chunk_id"`
+	DocumentID string              `json:"document_id"`
+	Repository string              `json:"repository,omitempty"`
+	Content    string              `json:"content"`
+	Distance   float64             `json:"distance,omitempty"`
+	Score      float64             `json:"score,omitempty"`
+	Sources    []string            `json:"sources,omitempty"`
+	Neighbors  []string            `json:"neighbors,omitempty"`
+	UpdatedAt  int64               `json:"updated_at,omitempty"`
+	Abstract   string              `json:"abstract,omitempty"`
+	Category   string              `json:"category,omitempty"`
+	Links      *deeplink.DeepLinks `json:"links,omitempty"`
 }
 
 // SearchFunc assinatura da função que executa a busca vetorial legada
@@ -913,7 +915,8 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (a
 			ToolMemoryGetImpact.Name,
 			ToolMemoryInspectNode.Name,
 			ToolMemoryFindPath.Name,
-			ToolMemoryPackContext.Name:
+			ToolMemoryPackContext.Name,
+			ToolMemoryOpenNode.Name:
 			return true
 
 		default:

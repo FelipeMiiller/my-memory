@@ -483,6 +483,39 @@ var (
 			"required": []string{"root_node"},
 		},
 	}
+
+	ToolMemoryOpenNode = Tool{
+		Name:        "memory_open_node",
+		Description: "Gera deep links canônicos (Obsidian, VS Code, File) e opcionalmente abre o documento no editor indicado",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"node_id": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho do arquivo da nota a ser aberta ou linkada",
+				},
+				"app": map[string]any{
+					"type":        "string",
+					"enum":        []string{"obsidian", "vscode", "system"},
+					"description": "Aplicativo alvo para navegação: 'obsidian' (padrão), 'vscode' ou 'system'",
+				},
+				"line": map[string]any{
+					"type":        "integer",
+					"description": "Número de linha para focar no editor (opcional)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+				"action": map[string]any{
+					"type":        "string",
+					"enum":        []string{"links_only", "open"},
+					"description": "Modo de execução: 'links_only' (retorna apenas as URIs acionáveis, padrão seguro) ou 'open' (dispara a abertura do processo no SO)",
+				},
+			},
+			"required": []string{"node_id"},
+		},
+	}
 )
 
 

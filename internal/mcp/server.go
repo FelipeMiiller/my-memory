@@ -109,6 +109,7 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryInspectNode, NewMemoryInspectNodeHandler(nil))
 	s.RegisterTool(ToolMemoryFindPath, NewMemoryFindPathHandler(nil))
 	s.RegisterTool(ToolMemoryPackContext, NewMemoryPackContextHandler(nil))
+	s.RegisterTool(ToolMemoryOpenNode, NewMemoryOpenNodeHandler(nil, "", "", nil))
 
 	return s
 }

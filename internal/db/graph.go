@@ -8,22 +8,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/FelipeMiiller/my-memory/internal/deeplink"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 )
 
 type SearchResult struct {
-	ChunkID    string   `json:"chunk_id"`
-	DocumentID string   `json:"document_id"`
-	Content    string   `json:"content"`
-	Distance   float64  `json:"distance,omitempty"`
-	Score      float64  `json:"score,omitempty"`
-	Sources    []string `json:"sources,omitempty"`
-	Neighbors  []string `json:"neighbors,omitempty"` // Conexões descobertas no grafo
-	UpdatedAt  int64    `json:"updated_at,omitempty"`
-	Abstract   string   `json:"abstract,omitempty"`
-	Category   string   `json:"category,omitempty"`
+	ChunkID    string              `json:"chunk_id"`
+	DocumentID string              `json:"document_id"`
+	Content    string              `json:"content"`
+	Distance   float64             `json:"distance,omitempty"`
+	Score      float64             `json:"score,omitempty"`
+	Sources    []string            `json:"sources,omitempty"`
+	Neighbors  []string            `json:"neighbors,omitempty"` // Conexões descobertas no grafo
+	UpdatedAt  int64               `json:"updated_at,omitempty"`
+	Abstract   string              `json:"abstract,omitempty"`
+	Category   string              `json:"category,omitempty"`
+	Links      *deeplink.DeepLinks `json:"links,omitempty"`
 }
 
 // SearchKNN busca os pedaços mais próximos usando sqlite-vec nativo

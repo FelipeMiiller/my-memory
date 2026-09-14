@@ -21,6 +21,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/compiler"
 	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
+	"github.com/FelipeMiiller/my-memory/internal/deeplink"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/graphview"
@@ -261,11 +262,12 @@ func main() {
 		dbPath := searchCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := searchCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := searchCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
+		showLinks := searchCmd.Bool("links", false, "Exibe deep links (Obsidian e VS Code) abaixo de cada resultado")
 		searchCmd.Parse(rearrangeSearchArgs(os.Args[2:]))
 
 		query := strings.Join(searchCmd.Args(), " ")
 		if query == "" {
-			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
+			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--links] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
 			return
 		}
 
@@ -307,8 +309,9 @@ func main() {
 		resolvedCategory = strings.ToLower(strings.TrimSpace(resolvedCategory))
 
 		searchOpts := store.SearchOptions{
-			Level:    resolvedLevel,
-			Category: resolvedCategory,
+			Level:     resolvedLevel,
+			Category:  resolvedCategory,
+			ShowLinks: *showLinks,
 		}
 
 		resolvedLimit := *limit
@@ -1574,6 +1577,11 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 			if len(res.Neighbors) > 0 {
 				fmt.Printf("    🕸  Vizinhos: [%s]\n", strings.Join(res.Neighbors, ", "))
 			}
+			if searchOpts.ShowLinks {
+				links := deeplink.GenerateLinks("", "", res.DocumentID, 0)
+				fmt.Printf("    🔗 Obsidian: %s\n", links.Obsidian)
+				fmt.Printf("    🔗 VS Code:  %s\n", links.VSCode)
+			}
 			fmt.Println()
 		}
 		return
@@ -1612,6 +1620,11 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		}
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
+		}
+		if searchOpts.ShowLinks {
+			links := deeplink.GenerateLinks("", "", res.DocumentID, 0)
+			fmt.Printf("🔗 Obsidian: %s\n", links.Obsidian)
+			fmt.Printf("🔗 VS Code:  %s\n", links.VSCode)
 		}
 		fmt.Println()
 	}
@@ -1701,6 +1714,11 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 			if len(res.Neighbors) > 0 {
 				fmt.Printf("    🕸  Vizinhos: [%s]\n", strings.Join(res.Neighbors, ", "))
 			}
+			if searchOpts.ShowLinks {
+				links := deeplink.GenerateLinks("", "", res.DocumentID, 0)
+				fmt.Printf("    🔗 Obsidian: %s\n", links.Obsidian)
+				fmt.Printf("    🔗 VS Code:  %s\n", links.VSCode)
+			}
 			fmt.Println()
 		}
 		return
@@ -1736,6 +1754,11 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		}
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
+		}
+		if searchOpts.ShowLinks {
+			links := deeplink.GenerateLinks("", "", res.DocumentID, 0)
+			fmt.Printf("🔗 Obsidian: %s\n", links.Obsidian)
+			fmt.Printf("🔗 VS Code:  %s\n", links.VSCode)
 		}
 		fmt.Println()
 	}
@@ -2016,6 +2039,14 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return pgStore.PackContext(ctx, repo, rootQuery, opts)
 		})
+
+		cwd, _ := os.Getwd()
+		srv.SetOpenHandler(func(ctx context.Context, repo, nodeID string) (string, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.ResolveNodeCanonicalID(ctx, repo, nodeID)
+		}, cwd, mcpCfg.ResolveObsidianVault(cwd), deeplink.DefaultLauncher)
 	} else if database != nil {
 
 		if tq == nil {
@@ -2214,6 +2245,11 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 		srv.SetPackHandler(func(ctx context.Context, repo, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
 			return db.PackContext(ctx, database, rootQuery, opts)
 		})
+
+		cwd, _ := os.Getwd()
+		srv.SetOpenHandler(func(ctx context.Context, repo, nodeID string) (string, error) {
+			return db.ResolveNodeCanonicalID(ctx, database, nodeID)
+		}, cwd, mcpCfg.ResolveObsidianVault(cwd), deeplink.DefaultLauncher)
 	}
 
 	if httpAddr != "" {
