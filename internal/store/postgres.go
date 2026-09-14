@@ -1276,5 +1276,130 @@ func (s *PostgresStore) GetDocumentsMetadata(ctx context.Context, repo string) (
 	return metaMap, nil
 }
 
+// PackContext resolve o nó raiz e constrói o pacote consolidado de subgrafo no PostgreSQL
+func (s *PostgresStore) PackContext(ctx context.Context, repo string, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
+	canonicalRoot, err := s.ResolveNodeCanonicalID(ctx, repo, rootQuery)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao resolver nó raiz no postgres: %w", err)
+	}
+
+	// 1. Carregar arestas
+	edgeQuery := `SELECT source_id, target_id, COALESCE(relation, 'links_to'), COALESCE(weight, 1.0), COALESCE(epistemic_status, 'EXTRACTED') 
+                  FROM graph_edges 
+                  WHERE ($1 = '' OR repository = $1)`
+	edgeRows, err := s.db.QueryContext(ctx, edgeQuery, repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para empacotamento no postgres: %w", err)
+	}
+	defer edgeRows.Close()
+
+	nodesSet := make(map[string]bool)
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, rel, epStatus string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &rel, &weight, &epStatus); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		edges = append(edges, graph.WeightedEdge{
+			Source:          src,
+			Target:          tgt,
+			Type:            rel,
+			Weight:          weight,
+			EpistemicStatus: epStatus,
+		})
+	}
+
+	// 2. Carregar metadados dos documentos
+	docMap := make(map[string]graph.PackGraphNode)
+	docQuery := `SELECT id, path, COALESCE(title, id), updated_at, COALESCE(abstract, ''), COALESCE(category, 'resource')
+                 FROM documents 
+                 WHERE ($1 = '' OR repository = $1)`
+	docRows, err := s.db.QueryContext(ctx, docQuery, repo)
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id, path, title, abstract, category string
+			var updatedAt int64
+			if err := docRows.Scan(&id, &path, &title, &updatedAt, &abstract, &category); err == nil {
+				nodesSet[id] = true
+				docMap[id] = graph.PackGraphNode{
+					ID:        id,
+					Title:     title,
+					Path:      path,
+					Abstract:  abstract,
+					Category:  category,
+					UpdatedAt: updatedAt,
+				}
+			}
+		}
+	}
+
+	// 3. Nós em graph_nodes
+	gnQuery := `SELECT id, COALESCE(name, id) FROM graph_nodes WHERE ($1 = '' OR repository = $1)`
+	gnRows, err := s.db.QueryContext(ctx, gnQuery, repo)
+	if err == nil {
+		defer gnRows.Close()
+		for gnRows.Next() {
+			var id, name string
+			if err := gnRows.Scan(&id, &name); err == nil {
+				nodesSet[id] = true
+				if _, exists := docMap[id]; !exists {
+					docMap[id] = graph.PackGraphNode{
+						ID:    id,
+						Title: name,
+					}
+				}
+			}
+		}
+	}
+
+	// 4. Carregar chunks e agregar conteúdo por documento
+	chunkQuery := `SELECT document_id, content FROM chunks WHERE ($1 = '' OR repository = $1) ORDER BY document_id, chunk_index ASC`
+	chunkRows, err := s.db.QueryContext(ctx, chunkQuery, repo)
+	if err == nil {
+		defer chunkRows.Close()
+		contentBuilders := make(map[string]*strings.Builder)
+		for chunkRows.Next() {
+			var docID, chunkContent string
+			if err := chunkRows.Scan(&docID, &chunkContent); err == nil {
+				b, ok := contentBuilders[docID]
+				if !ok {
+					b = &strings.Builder{}
+					contentBuilders[docID] = b
+				} else {
+					b.WriteString("\n\n")
+				}
+				b.WriteString(chunkContent)
+			}
+		}
+		for docID, b := range contentBuilders {
+			if node, ok := docMap[docID]; ok {
+				node.Content = b.String()
+				docMap[docID] = node
+			}
+		}
+	}
+
+	// 5. Calcular PageRank para priorização
+	allNodes := make([]string, 0, len(nodesSet))
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+	prScores := graph.ComputePageRank(allNodes, edges, graph.DefaultPageRankOptions())
+	opts.PageRanks = prScores
+
+	// 6. Preparar lista de PackGraphNodes
+	packNodes := make([]graph.PackGraphNode, 0, len(docMap))
+	for _, node := range docMap {
+		packNodes = append(packNodes, node)
+	}
+
+	return graph.PackContext(packNodes, edges, canonicalRoot, opts)
+}
+
+
 
 

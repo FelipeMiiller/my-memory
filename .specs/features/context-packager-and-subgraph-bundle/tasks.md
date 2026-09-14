@@ -10,12 +10,13 @@
   - [x] Implementar gerador de Mermaid topológico e renderizador do Markdown consolidado.
   - [x] Escrever testes unitários exaustivos em `internal/graph/pack_test.go`.
 
-- [ ] **T2**: Integração de Persistência SQLite e PostgreSQL (`internal/db/` & `internal/store/`)
-  - [ ] Implementar `PackContext` em `internal/db/graph.go` usando `ResolveNodeCanonicalID`.
-  - [ ] Adicionar testes de integração em `internal/db/graph_test.go`.
-  - [ ] Adicionar método `PackContext` à interface `Store` em `internal/store/store.go`.
-  - [ ] Implementar `PackContext` em `internal/store/postgres.go`.
-  - [ ] Adicionar testes em `internal/store/postgres_test.go`.
+- [x] **T2**: Integração de Persistência SQLite e PostgreSQL (`internal/db/` & `internal/store/`)
+  - [x] Implementar `PackContext` em `internal/db/graph.go` usando `ResolveNodeCanonicalID`.
+  - [x] Adicionar testes de integração em `internal/db/graph_test.go`.
+  - [x] Adicionar método `PackContext` à interface `Store` em `internal/store/store.go`.
+  - [x] Implementar `PackContext` em `internal/store/postgres.go`.
+  - [x] Adicionar testes em `internal/store/postgres_test.go`.
+
 
 - [ ] **T3**: Subcomando CLI `mem pack` (`cmd/mem/`)
   - [ ] Criar `cmd/mem/pack.go` com flags `--depth`, `--max-tokens`, `--direction`, `--out` e `--json`.

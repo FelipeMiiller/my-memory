@@ -302,5 +302,54 @@ func TestFindPath(t *testing.T) {
 	}
 }
 
+func TestPackContext(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_pack_context.db")
+	database, err := InitDB(dbPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("Pulando teste: ambiente sem FTS5")
+		}
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	_ = InsertDocumentWithMeta(ctx, database, "doc-auth", "docs/auth.md", "Autenticação", now, "h1", "Resumo do auth", "resource")
+	_ = InsertDocumentWithMeta(ctx, database, "doc-jwt", "docs/jwt.md", "Tokens JWT", now, "h2", "Resumo do JWT", "resource")
+	_ = InsertDocumentWithMeta(ctx, database, "doc-db", "docs/db.md", "Banco de Dados", now, "h3", "Resumo do DB", "resource")
+
+	// Chunks para auth e jwt
+	_ = InsertChunk(ctx, database, "c1", "doc-auth", "Documentação do serviço de autenticação com detalhes.", 0, nil)
+	_ = InsertChunk(ctx, database, "c2", "doc-jwt", "Especificação de segurança e geração de tokens JWT.", 0, nil)
+
+	_ = InsertEdgeWithProps(ctx, database, "doc-auth", "doc-jwt", "implements", "EXTRACTED", 1.0)
+	_ = InsertEdgeWithProps(ctx, database, "doc-jwt", "doc-db", "depends_on", "EXTRACTED", 0.9)
+
+	opts := graph.PackOptions{
+		MaxDepth:               2,
+		MaxTokens:              1500,
+		Direction:              "both",
+		IncludeFringeAbstracts: true,
+	}
+
+	res, err := PackContext(ctx, database, "docs/auth.md", opts)
+	if err != nil {
+		t.Fatalf("PackContext falhou: %v", err)
+	}
+
+	if res.RootID != "doc-auth" {
+		t.Errorf("RootID esperado 'doc-auth', obteve '%s'", res.RootID)
+	}
+	if res.CoreCount < 2 {
+		t.Errorf("CoreCount esperado >= 2, obteve %d", res.CoreCount)
+	}
+	if !strings.Contains(res.Markdown, "Pacote de Contexto: Autenticação") {
+		t.Errorf("Markdown não contém título da nota raiz")
+	}
+}
+
+
 
 

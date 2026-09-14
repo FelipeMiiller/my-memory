@@ -190,11 +190,15 @@ type Store interface {
 	// FindPath encontra a menor rota ponderada entre dois nós arbitrários no grafo
 	FindPath(ctx context.Context, repo string, sourceQuery string, targetQuery string, opts graph.PathOptions) (*graph.PathResult, error)
 
+	// PackContext extrai e consolida um subgrafo conexo com controle de orçamento de tokens
+	PackContext(ctx context.Context, repo string, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error)
+
 	// GetDocumentsMetadata recupera o mapa de caminhos para metadados de documentos para detecção de staleness
 	GetDocumentsMetadata(ctx context.Context, repo string) (map[string]DocumentMeta, error)
 
 	// FixHealthIssues repara problemas comuns como self-loops e links mortos
 	FixHealthIssues(ctx context.Context, repo string) (int, error)
+
 
 	// Close encerra a conexão com o banco de dados
 	Close() error

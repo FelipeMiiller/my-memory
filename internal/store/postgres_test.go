@@ -275,6 +275,16 @@ func TestPostgresStore_Integration(t *testing.T) {
 		t.Errorf("GetDocumentsMetadata doc-1 inválido: %+v", meta)
 	}
 
+	// 4.3. PackContext no PostgreSQL
+	packRes, err := s.PackContext(ctx, repo, docID, graph.DefaultPackOptions())
+	if err != nil {
+		t.Fatalf("PackContext falhou no PostgreSQL: %v", err)
+	}
+	if packRes.RootID != docID {
+		t.Errorf("PackContext retornou root incorreto: %s", packRes.RootID)
+	}
+
+
 	// 5. DeleteDocumentData
 	err = s.DeleteDocumentData(ctx, repo, docID)
 	if err != nil {
