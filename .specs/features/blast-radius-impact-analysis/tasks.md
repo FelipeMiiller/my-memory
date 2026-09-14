@@ -54,10 +54,10 @@ T1 -> T2 -> T3 -> T4
 **Tests**: internal/db/graph_test.go
 **Gate**: go test -v ./internal/db/...
 **Done when**:
-- [ ] Implementar GetInboundNeighbors e ResolveNodeCanonicalID em internal/db/graph.go
-- [ ] Implementar GetInboundNeighbors equivalente em internal/store/postgres.go
-- [ ] Integrar metadados de nó e documento na montagem do grafo para análise de impacto
-- [ ] Adicionar testes unitários em internal/db/graph_test.go
+- [x] Implementar GetInboundNeighbors e ResolveNodeCanonicalID em internal/db/graph.go
+- [x] Implementar GetInboundNeighbors equivalente em internal/store/postgres.go
+- [x] Integrar metadados de nó e documento na montagem do grafo para análise de impacto
+- [x] Adicionar testes unitários em internal/db/graph_test.go
 
 ### T3: Subcomando CLI mem impact
 **What**: Implementar subcomando mem impact com suporte a --depth, --json e visualização hierárquica

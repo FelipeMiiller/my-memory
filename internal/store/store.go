@@ -5,6 +5,8 @@ import (
 	"math"
 	"strings"
 	"unicode"
+
+	"github.com/FelipeMiiller/my-memory/internal/graph"
 )
 
 // SearchResult representa um trecho relevante retornado na busca
@@ -137,6 +139,9 @@ type Store interface {
 
 	// DiagnoseHealth audita a integridade do grafo gerando um relatório de saúde
 	DiagnoseHealth(ctx context.Context, repo string) (*DoctorReport, error)
+
+	// CalculateImpact calcula o fechamento de dependências reversas e score de risco (blast radius)
+	CalculateImpact(ctx context.Context, repo string, targetQuery string, maxDepth int) (*graph.ImpactResult, error)
 
 	// FixHealthIssues repara problemas comuns como self-loops e links mortos
 	FixHealthIssues(ctx context.Context, repo string) (int, error)

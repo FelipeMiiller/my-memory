@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 )
@@ -338,4 +340,161 @@ func FixHealthIssues(ctx context.Context, db *sql.DB) (int, error) {
 	}
 
 	return int(loopsFixed + deadFixed), nil
+}
+
+// ResolveNodeCanonicalID resolve um identificador informal, slug, título ou caminho relativo para o ID canônico no grafo
+func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (string, error) {
+	clean := strings.TrimSpace(query)
+	clean = strings.TrimPrefix(clean, "[[")
+	clean = strings.TrimSuffix(clean, "]]")
+	clean = strings.TrimSpace(clean)
+	if clean == "" {
+		return "", fmt.Errorf("identificador de busca não pode ser vazio")
+	}
+
+	// 1. Checagem exata em documents por id ou path
+	var canonicalID string
+	err := db.QueryRowContext(ctx, `
+		SELECT id FROM documents 
+		WHERE id = ? OR path = ? OR path = ?
+		LIMIT 1
+	`, clean, clean, clean+".md").Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	// 2. Checagem em graph_nodes por id ou name
+	err = db.QueryRowContext(ctx, `
+		SELECT id FROM graph_nodes 
+		WHERE id = ? OR name = ?
+		LIMIT 1
+	`, clean, clean).Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	// 3. Checagem exata por título
+	err = db.QueryRowContext(ctx, `
+		SELECT id FROM documents 
+		WHERE LOWER(title) = LOWER(?)
+		LIMIT 1
+	`, clean).Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	// 4. Checagem difusa (LIKE) em id, path ou title
+	likeQuery := "%" + clean + "%"
+	err = db.QueryRowContext(ctx, `
+		SELECT id FROM documents 
+		WHERE id LIKE ? OR path LIKE ? OR title LIKE ?
+		ORDER BY 
+			CASE 
+				WHEN id LIKE ? THEN 1
+				WHEN path LIKE ? THEN 2
+				ELSE 3
+			END
+		LIMIT 1
+	`, likeQuery, likeQuery, likeQuery, clean+"%", "%"+clean).Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	// 5. Se existe nas arestas do grafo como source ou target direto
+	err = db.QueryRowContext(ctx, `
+		SELECT target_id FROM graph_edges WHERE target_id = ?
+		UNION
+		SELECT source_id FROM graph_edges WHERE source_id = ?
+		LIMIT 1
+	`, clean, clean).Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+}
+
+// CalculateImpactForTarget resolve o nó alvo e calcula a análise de impacto (blast radius) completa no SQLite
+func CalculateImpactForTarget(ctx context.Context, db *sql.DB, targetQuery string, maxDepth int) (*graph.ImpactResult, error) {
+	canonicalID, err := ResolveNodeCanonicalID(ctx, db, targetQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. Carregar todos os nós e seus tipos
+	nodeTypes := make(map[string]string)
+	nodesSet := make(map[string]bool)
+
+	docRows, err := db.QueryContext(ctx, "SELECT id FROM documents")
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id string
+			if err := docRows.Scan(&id); err == nil {
+				nodesSet[id] = true
+				nodeTypes[id] = "note"
+			}
+		}
+	}
+
+	nodeRows, err := db.QueryContext(ctx, "SELECT id, type FROM graph_nodes")
+	if err == nil {
+		defer nodeRows.Close()
+		for nodeRows.Next() {
+			var id, nType string
+			if err := nodeRows.Scan(&id, &nType); err == nil {
+				nodesSet[id] = true
+				nodeTypes[id] = nType
+			}
+		}
+	}
+
+	// 2. Carregar arestas
+	edgeRows, err := db.QueryContext(ctx, "SELECT source_id, target_id, COALESCE(relation, 'links_to'), COALESCE(weight, 1.0) FROM graph_edges")
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para análise de impacto: %w", err)
+	}
+	defer edgeRows.Close()
+
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, rel string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &rel, &weight); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		edges = append(edges, graph.WeightedEdge{
+			Source: src,
+			Target: tgt,
+			Type:   rel,
+			Weight: weight,
+		})
+	}
+
+	allNodes := make([]string, 0, len(nodesSet))
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+
+	// 3. Calcular PageRanks e Comunidades para enriquecer a análise
+	prScores := graph.ComputePageRank(allNodes, edges, graph.DefaultPageRankOptions())
+
+	commRes := graph.DetectCommunities(allNodes, edges, graph.DefaultCommunityOptions())
+	commMap := make(map[string]int)
+	for _, c := range commRes.Communities {
+		for _, m := range c.Members {
+			commMap[m] = c.ID
+		}
+	}
+
+	opts := graph.ImpactOptions{
+		MaxDepth:    maxDepth,
+		NodeTypes:   nodeTypes,
+		Communities: commMap,
+		PageRanks:   prScores,
+	}
+
+	return graph.CalculateImpact(allNodes, edges, canonicalID, opts)
 }
