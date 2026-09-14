@@ -67,10 +67,10 @@ T1 -> T2 -> T3 -> T4
 **Tests**: cmd/mem/impact_test.go
 **Gate**: go test -v -run TestImpactCLI ./cmd/mem/...
 **Done when**:
-- [ ] Implementar runImpactCLI em cmd/mem/impact.go com suporte a flags --depth, --json, --db, --postgres, --repo
-- [ ] Implementar formatação tabular e em árvore com badges de severidade e resumo de risco
-- [ ] Conectar subcomando mem impact no switch de cmd/mem/main.go e documentar em printHelp()
-- [ ] Adicionar testes unitários em cmd/mem/impact_test.go
+- [x] Implementar runImpactCLI em cmd/mem/impact.go com suporte a flags --depth, --json, --db, --postgres, --repo
+- [x] Implementar formatação tabular e em árvore com badges de severidade e resumo de risco
+- [x] Conectar subcomando mem impact no switch de cmd/mem/main.go e documentar em printHelp()
+- [x] Adicionar testes unitários em cmd/mem/impact_test.go
 
 ### T4: Ferramenta MCP memory_get_impact e ADR-023
 **What**: Registrar ferramenta MCP memory_get_impact, criar ADR-023 e atualizar documentação do projeto
