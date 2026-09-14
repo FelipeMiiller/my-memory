@@ -1108,8 +1108,16 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 	if db == "" {
 		if cfg.Storage.SQLitePath != "" {
 			db = cfg.Storage.SQLitePath
+		} else if stat, err := os.Stat(".memory/memory.db"); err == nil && !stat.IsDir() {
+			db = ".memory/memory.db"
 		} else {
 			db = "memory.db"
+		}
+	} else if db == "memory.db" {
+		if _, err := os.Stat("memory.db"); os.IsNotExist(err) {
+			if stat, err := os.Stat(".memory/memory.db"); err == nil && !stat.IsDir() {
+				db = ".memory/memory.db"
+			}
 		}
 	}
 

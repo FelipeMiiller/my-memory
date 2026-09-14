@@ -107,3 +107,81 @@ func TestImpactCLI_TextOutputAndJSON(t *testing.T) {
 		t.Errorf("esperava nó dependente 'adr-002', obteve '%s'", res.Nodes[0].ID)
 	}
 }
+
+func TestRearrangeImpactArgs(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected []string
+	}{
+		{
+			name:     "flags after target node",
+			input:    []string{"my-target-node", "--depth", "3", "--db", "test.db", "--json"},
+			expected: []string{"--depth", "3", "--db", "test.db", "--json", "my-target-node"},
+		},
+		{
+			name:     "flags before target node",
+			input:    []string{"--db", "test.db", "--depth", "1", "my-target-node"},
+			expected: []string{"--db", "test.db", "--depth", "1", "my-target-node"},
+		},
+		{
+			name:     "flags with equals",
+			input:    []string{"my-target-node", "--db=test.db", "--depth=2"},
+			expected: []string{"--db=test.db", "--depth=2", "my-target-node"},
+		},
+		{
+			name:     "mixed order with single dash",
+			input:    []string{"my-target-node", "-json", "-depth", "4"},
+			expected: []string{"-json", "-depth", "4", "my-target-node"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := rearrangeImpactArgs(tt.input)
+			if len(got) != len(tt.expected) {
+				t.Fatalf("tamanho diferente: obteve %d, esperava %d\nGot: %v\nExpected: %v", len(got), len(tt.expected), got, tt.expected)
+			}
+			for i := range got {
+				if got[i] != tt.expected[i] {
+					t.Errorf("índice %d: obteve '%s', esperava '%s'", i, got[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestImpactCLI_FlagAfterTargetNode(t *testing.T) {
+	ctx := context.Background()
+	dbFile := filepath.Join(t.TempDir(), "impact_flags.db")
+
+	database, err := db.InitDB(dbFile)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("ambiente sem FTS5")
+		}
+		t.Fatalf("falha ao inicializar SQLite: %v", err)
+	}
+
+	now := time.Now().Unix()
+	_ = db.InsertDocument(ctx, database, "core-node", "docs/core.md", "Core Note", now, "h1")
+	_ = db.InsertDocument(ctx, database, "dep-node", "docs/dep.md", "Dependent Note", now, "h2")
+	_ = db.InsertEdgeWithProps(ctx, database, "dep-node", "core-node", "depends_on", "EXTRACTED", 1.0)
+	database.Close()
+
+	// Testar chamada onde a flag vem DEPOIS do identificador do nó alvo
+	var textBuf bytes.Buffer
+	err = runImpactCommand(ctx, "test-repo", []string{"core-node", "--db", dbFile, "--depth", "2"}, &textBuf)
+	if err != nil {
+		t.Fatalf("falha ao executar mem impact com flags após o nó: %v", err)
+	}
+
+	out := textBuf.String()
+	if !strings.Contains(out, "Análise de Impacto (Blast Radius)") {
+		t.Errorf("título não encontrado na saída:\n%s", out)
+	}
+	if !strings.Contains(out, "dep-node") {
+		t.Errorf("nó dependente 'dep-node' não encontrado na saída:\n%s", out)
+	}
+}
+
