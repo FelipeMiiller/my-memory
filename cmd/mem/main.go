@@ -752,11 +752,10 @@ watcher:
 		gitIgnorePath := filepath.Join(memDir, ".gitignore")
 		if _, err := os.Stat(gitIgnorePath); os.IsNotExist(err) || force {
 			gitIgnoreContent := `# Variáveis de ambiente locais com credenciais reais (não commitar no Git)
+.env
+*.env
 *.local
 *.env.local
-
-# Permite o .env padrão do repositório (comentado para SQLite)
-!.env
 
 # Bancos de dados SQLite locais
 *.db
