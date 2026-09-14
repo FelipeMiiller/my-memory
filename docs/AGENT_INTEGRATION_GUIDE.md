@@ -181,8 +181,10 @@ embedding:
 | :--- | :--- | :--- |
 | `mem init` | Inicializa a pasta `.memory/` com arquivos padrão protegidos. | `mem init` |
 | `mem index` | Varre as notas, calcula hash SHA-256 e gera embeddings com cache incremental. | `mem index` *(ou `mem index --force`)* |
+| `mem status` | Audita instantaneamente a sincronização entre arquivos em disco e a base indexada. | `mem status` *(ou `mem status --json`)* |
 | `mem search` | Busca híbrida (BM25 + vetores + grafo) com Reciprocal Rank Fusion (RRF). | `mem search "como funciona o cache SHA-256?"` |
 | `mem inspect` | Inspetor cirúrgico em 3 colunas: in-links (dependências), nó central e out-links. | `mem inspect "docs/ARCHITECTURE.md"` |
+| `mem path` | Descoberta de rotas e menor caminho ponderado por custos epistêmicos entre dois nós. | `mem path "auth" "redis"` |
 | `mem impact` | Analisa o raio de destruição (*Blast Radius*) e dependentes reversos de um nó. | `mem impact "internal/db/graph.go" --depth 2` |
 | `mem doctor` | Audita o grafo em busca de dead links, notas órfãs e self-loops. | `mem doctor` *(ou `mem doctor --fix`)* |
 | `mem hubs` | Lista nós centrais por grau estrutural ou PageRank ponderado. | `mem hubs --algorithm pagerank --top 10` |
@@ -215,6 +217,27 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | `memory_append_section`| Para adicionar exemplos, testes ou logs a uma nota existente. | `path`, `header`, `content` |
 | `memory_compile_note` | Para consolidar tópicos dispersos em uma síntese única com fontes. | `topic`, `out_path`, `limit` |
 | `memory_visualize_graph`| Para renderizar o grafo de conhecimento em HTML standalone interativo. | `root_node`, `depth` |
+| `memory_inspect_node` | Para inspeção cirúrgica em 3 colunas (in-links, nó e out-links) com zero file reads. | `node_id` (string), `max_content_length` (int) |
+| `memory_find_path` | Para rastrear a cadeia de dependências ou menor caminho epistêmico entre dois nós. | `source` (string), `target` (string), `max_depth` (int), `directed` (bool), `mode` ("epistemic" \| "hops") |
+
+---
+
+## 8. Detecção de Desatualização & Staleness Banners
+
+Para evitar alucinações decorrentes de notas editadas no disco sem reindexação (`Context Drift`), o My-Memory inclui um detector ativo com cache em memória (TTL 3s).
+
+### Comportamento do Banner MCP
+Quando o agente invoca ferramentas de consulta (`memory_search`, `memory_find_path`, `memory_inspect_node`, `memory_get_impact`, etc.) e o índice está desatualizado em relação aos arquivos em disco, a resposta inclui automaticamente um aviso não-bloqueante no topo:
+
+```markdown
+> ⚠️ **AVISO: Memória Desatualizada (Stale Data)**
+> O índice local está defasado em relação aos arquivos no disco (3 modificado(s)/novo(s), 0 removido(s)).
+> Execute `mem index` no terminal para sincronizar o grafo e embeddings.
+```
+
+### O que o Agente de IA deve fazer ao ver este aviso?
+1. Se a tarefa envolver tomada de decisão de alta precisão (ex: refatoração crítica, checagem de regras de negócio), execute `mem index` ou recomende ao usuário executá-lo.
+2. Não descarte a resposta: o conteúdo retornado reflete a versão anteriormente indexada e continua sendo útil como contexto histórico ou estrutural preliminar.
 
 ---
 

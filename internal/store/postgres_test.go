@@ -3,9 +3,12 @@ package store
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/FelipeMiiller/my-memory/internal/graph"
 )
 
 func TestFormatVector(t *testing.T) {
@@ -250,6 +253,26 @@ func TestPostgresStore_Integration(t *testing.T) {
 	}
 	if view.Target.ID != docID {
 		t.Errorf("InspectNode retornou target incorreto: %s", view.Target.ID)
+	}
+
+	pathRes, err := s.FindPath(ctx, repo, docID, docID, graph.DefaultPathOptions())
+	if err != nil {
+		t.Fatalf("FindPath falhou no PostgreSQL: %v", err)
+	}
+	if !pathRes.Found || pathRes.Hops != 0 {
+		t.Errorf("FindPath retornou resultado inesperado: %+v", pathRes)
+	}
+
+	// 4.2. GetDocumentsMetadata no PostgreSQL
+	docMetaMap, err := s.GetDocumentsMetadata(ctx, repo)
+	if err != nil {
+		t.Fatalf("GetDocumentsMetadata falhou no PostgreSQL: %v", err)
+	}
+	if len(docMetaMap) < 2 {
+		t.Errorf("GetDocumentsMetadata esperava pelo menos 2 documentos, obteve %d", len(docMetaMap))
+	}
+	if meta, ok := docMetaMap[filepath.Clean("notes/doc.md")]; !ok || meta.ID != docID {
+		t.Errorf("GetDocumentsMetadata doc-1 inválido: %+v", meta)
 	}
 
 	// 5. DeleteDocumentData

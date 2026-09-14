@@ -21,6 +21,14 @@ type Document struct {
 	Category    string `json:"category,omitempty"`
 }
 
+// DocumentMeta contém os metadados de identificação, temporalidade e hash para detecção de desatualização
+type DocumentMeta struct {
+	ID          string `json:"id"`
+	Path        string `json:"path"`
+	UpdatedAt   int64  `json:"updated_at"`
+	ContentHash string `json:"content_hash,omitempty"`
+}
+
 // SearchResult representa um trecho relevante retornado na busca
 type SearchResult struct {
 	ChunkID    string   `json:"chunk_id"`
@@ -178,6 +186,12 @@ type Store interface {
 
 	// InspectNode constrói a visualização cirúrgica em 3 colunas (Triptych) de um nó
 	InspectNode(ctx context.Context, repo string, targetQuery string, maxContentLen int) (*graph.TriptychView, error)
+
+	// FindPath encontra a menor rota ponderada entre dois nós arbitrários no grafo
+	FindPath(ctx context.Context, repo string, sourceQuery string, targetQuery string, opts graph.PathOptions) (*graph.PathResult, error)
+
+	// GetDocumentsMetadata recupera o mapa de caminhos para metadados de documentos para detecção de staleness
+	GetDocumentsMetadata(ctx context.Context, repo string) (map[string]DocumentMeta, error)
 
 	// FixHealthIssues repara problemas comuns como self-loops e links mortos
 	FixHealthIssues(ctx context.Context, repo string) (int, error)

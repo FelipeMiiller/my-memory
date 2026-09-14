@@ -416,6 +416,65 @@ Configuração e **Auto-Wiring Zero-Touch** das ferramentas de IA e clientes MCP
 
 ---
 
+### 20. `mem path <origem> <destino> [--undirected] [--max-depth 6] [--mode epistemic|hops] [--json] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Encontra a menor rota e calcula a cadeia de conexões entre dois nós arbitrários no grafo de conhecimento:
+* **Ponderação Epistêmica (`--mode epistemic`, padrão):** Pondera arestas inversamente à certeza semântica: conexões explícitas intencionais (`EXTRACTED`, custo $1.0$) têm menor custo do que suposições semânticas (`INFERRED`, custo $1.67$) ou tags (`TAG`, custo $3.33$).
+* **Menor Contagem de Saltos (`--mode hops`):** Aplica custo unitário ($1.0$) por aresta, encontrando a rota com o menor número absoluto de nós intermediários.
+* **Direcionamento Flexível:** Opera por padrão de forma estritamente causal/direcionada ($A \to B$). A flag `--undirected` ativa a exploração bidirecional ($A \leftrightarrow B$) para descobrir conexões conceituais amplas.
+* **Limite de Profundidade:** Restringe a exploração até a profundidade máxima desejada (`--max-depth`, padrão: 6 saltos).
+* **Diagrama de Rota ASCII:** Exibe no terminal a sequência de nós, tipos de relação, status e sentido de travessia (`──>` forward ou `<──` reverse).
+* **Exportação JSON:** Com a flag `--json`, emite o payload estruturado contendo nós, arestas, saltos e custo acumulado.
+
+**Exemplos:**
+```bash
+# Descobrir rota epistêmica entre o módulo de autenticação e o redis:
+./bin/mem.exe path "concepts/auth.md" "infra/redis.md"
+
+# Encontrar menor caminho bidirecional entre duas notas:
+./bin/mem.exe path "ARCHITECTURE" "COMO_FUNCIONA" --undirected --mode hops
+
+# Consultar rota profunda com saída em JSON:
+./bin/mem.exe path "decisions/adr-001.md" "decisions/adr-027.md" --max-depth 8 --json
+```
+
+---
+
+## 🔍 Status e Detecção de Desatualização (`mem status`)
+
+O comando `mem status` realiza uma auditoria instantânea entre os arquivos físicos no disco e os documentos indexados no banco (SQLite ou PostgreSQL), identificando discrepâncias temporais e drift de contexto:
+
+```bash
+# Verificar status de sincronização do vault atual:
+./bin/mem.exe status
+
+# Exportar status estruturado em JSON para automações ou scripts:
+./bin/mem.exe status --json
+
+# Verificar um vault específico ou banco customizado:
+./bin/mem.exe status --dir ./notas --db .memory/memory.db
+```
+
+### Exemplo de Saída:
+```text
+=== Status de Integridade e Sincronização do Vault ===
+Diretório do Vault: C:\repository\my-memory
+Repositório:        FelipeMiiller/my-memory
+Arquivos no Disco:  41
+Arquivos Indexados: 38
+Status:             ⚠️  Desatualizado (Stale Data)
+Diferenças:         8 modificado(s)/novo(s), 0 removido(s)
+
+Arquivos Modificados ou Não-Indexados (8):
+  • README.md
+  • docs/AGENT_INTEGRATION_GUIDE.md
+  • docs/CLI_GUIDE.md
+  • docs/adr/028-staleness-banners-e-deteccao-de-desatualizacao.md
+
+💡 Recomendação: Execute 'mem index' para sincronizar o grafo e embeddings.
+```
+
+---
+
 ## ⚙️ Configuração Declarativa do Vault (`.memory/config.yaml`)
 
 O My-Memory suporta configuração declarativa por projeto ou vault de notas. Ao executar qualquer comando, o binário procura recursivamente de baixo para cima por `.memory/config.yaml`, `.mem.yaml` ou `.mem.json`.

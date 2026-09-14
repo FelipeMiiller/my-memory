@@ -27,6 +27,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/mcp"
 	"github.com/FelipeMiiller/my-memory/internal/parser"
 	"github.com/FelipeMiiller/my-memory/internal/repo"
+	"github.com/FelipeMiiller/my-memory/internal/staleness"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 	"github.com/FelipeMiiller/my-memory/internal/watcher"
@@ -427,7 +428,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao SQLite: %s\n", resolvedDB)
 		}
 
-		runMCPServer(ctx, pgStore, database, emb, tq, resolvedRepo, targetHTTP, *cors)
+		runMCPServer(ctx, pgStore, database, emb, tq, resolvedRepo, targetHTTP, *cors, cfg)
 
 	case "export":
 		exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
@@ -634,6 +635,18 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "path":
+		if err := runPathCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "status":
+		if err := runStatusCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "install", "setup":
 		if err := runInstallCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -658,6 +671,8 @@ func printHelp() {
 	fmt.Println("      Inicializa novo vault (.memory/config.yaml) e opcionalmente gera integrações para VS Code Copilot e Cursor")
 	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
+	fmt.Println("  mem status [--json] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
+	fmt.Println("      Exibe o status de sincronização e detecção de desatualização do vault em tempo real")
 	fmt.Println("  mem watch [--debounce <ms>] [--interval <ms>] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Monitora continuamente o vault em segundo plano e reindexa notas em tempo real")
 	fmt.Println("  mem hook <install|uninstall> [--force] [<pasta>]")
@@ -675,6 +690,8 @@ func printHelp() {
 	fmt.Println("      Analisa o raio de destruição (Blast Radius) e dependentes reversos com score de risco")
 	fmt.Println("  mem inspect <nota_ou_id> [--json] [--full] [--max-len 500] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Visualização cirúrgica em 3 colunas (in-links, nó central e out-links) com risco e preview")
+	fmt.Println("  mem path <origem> <destino> [--undirected] [--max-depth 6] [--mode epistemic|hops] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Descoberta de rotas e menor caminho ponderado por custos epistêmicos entre dois nós do grafo")
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
 	fmt.Println("  mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open] [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -1738,8 +1755,26 @@ func rearrangeSearchArgs(args []string) []string {
 
 
 
-func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool) {
+func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool, cfg ...*config.Config) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
+
+	var mcpCfg *config.Config
+	if len(cfg) > 0 && cfg[0] != nil {
+		mcpCfg = cfg[0]
+	} else {
+		mcpCfg = resolveConfig()
+	}
+	vaultRoot := "."
+	if cfgPath, err := config.FindConfigFile("."); err == nil {
+		dirOfCfg := filepath.Dir(cfgPath)
+		if filepath.Base(dirOfCfg) == ".memory" {
+			vaultRoot = filepath.Dir(dirOfCfg)
+		} else {
+			vaultRoot = dirOfCfg
+		}
+	}
+	stalenessDetector := staleness.NewDetector(vaultRoot, mcpCfg, database, pgStore, defaultRepo)
+	srv.SetStalenessDetector(stalenessDetector)
 
 	if pgStore != nil {
 		pgSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -1949,6 +1984,13 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return pgStore.InspectNode(ctx, repo, nodeID, maxContentLen)
 		})
+
+		srv.SetPathHandler(func(ctx context.Context, repo, source, target string, opts graph.PathOptions) (*graph.PathResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.FindPath(ctx, repo, source, target, opts)
+		})
 	} else if database != nil {
 		if tq == nil {
 			tq = turboquant.NewQuantizer(EmbeddingDim)
@@ -2137,6 +2179,10 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 
 		srv.SetInspectHandler(func(ctx context.Context, repo, nodeID string, maxContentLen int) (*graph.TriptychView, error) {
 			return db.InspectNode(ctx, database, nodeID, maxContentLen)
+		})
+
+		srv.SetPathHandler(func(ctx context.Context, repo, source, target string, opts graph.PathOptions) (*graph.PathResult, error) {
+			return db.FindPath(ctx, database, source, target, opts)
 		})
 	}
 

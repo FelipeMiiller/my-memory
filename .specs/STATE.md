@@ -22,17 +22,20 @@
 - **AD-024**: Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector) (`docs/adr/024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md`)
 - **AD-025**: Carregamento Progressivo de Contexto e Taxonomia de Memória (`docs/adr/025-progressive-context-loading-e-taxonomia-de-memoria.md`)
 - **AD-026**: Auto-Wiring e Instalação Zero-Touch de Ferramentas de IA (`docs/adr/026-auto-wiring-e-instalacao-zero-touch-de-ferramentas-de-ia.md`)
+- **AD-027**: Descoberta de Rotas e Caminho Mínimo no Grafo de Conhecimento (`docs/adr/027-descoberta-de-rotas-e-caminho-minimo-no-grafo.md`)
+- **AD-028**: Staleness Banners e Detecção de Desatualização de Conhecimento (`docs/adr/028-staleness-banners-e-deteccao-de-desatualizacao.md`)
 
 ## Handoff
 
-- **Feature**: ai-tool-auto-wiring (.specs/features/ai-tool-auto-wiring)
-- **Phase / Task**: Concluído (T1 a T4 finalizadas)
-- **Planned**: Todas as tarefas (T1, T2, T3, T4) concluídas e validadas com 100% de cobertura nos 15 pacotes Go
-- **Completed Features**: ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: nenhuma
-- **Next step**: Consultar próxima tarefa do backlog ou abrir PR para integração
+- **Feature**: staleness-detection-and-banners (.specs/features/staleness-detection-and-banners)
+- **Phase / Task**: 100% Concluída, Testada e Integrada (T1 a T5 finalizadas)
+- **Completed**: Implementação do motor de detecção com TTL de 3s (`internal/staleness/`), persistência em SQLite e PostgreSQL (`GetDocumentsMetadata`), subcomando CLI `mem status [--json]`, injeção não-bloqueante de banners no MCP (`handleToolsCall`), documentação (`CLI_GUIDE.md`, `AGENT_INTEGRATION_GUIDE.md`) e ADR-028 Aceito.
+- **Completed Features**: staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: nenhuma (pronto para escolha da próxima feature do backlog)
+- **Next step**: Selecionar e iniciar especificação da próxima feature
 - **Blockers**: none
 - **Branch**: develop
+
 
 
 

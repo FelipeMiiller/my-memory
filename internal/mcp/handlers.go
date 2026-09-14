@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/canvas"
+	"github.com/FelipeMiiller/my-memory/internal/staleness"
 )
 
 // CallToolParams define os parâmetros recebidos em uma requisição tools/call
@@ -888,10 +889,60 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (a
 		return nil, err
 	}
 
+	// Invalidação reativa do detector quando novas notas ou seções forem escritas
+	if callParams.Name == ToolMemoryWriteNote.Name || callParams.Name == ToolMemoryAppendSection.Name {
+		s.mu.RLock()
+		det := s.stalenessDetector
+		s.mu.RUnlock()
+		if det != nil {
+			det.ResetCache()
+		}
+	}
+
+	// Injeção não-bloqueante de Staleness Banner em ferramentas de leitura/consulta
+	isQueryTool := func(name string) bool {
+		switch name {
+		case ToolMemorySearch.Name,
+			ToolMemoryGetNeighbors.Name,
+			ToolMemoryExportCanvas.Name,
+			ToolMemoryGetHubs.Name,
+			ToolMemoryGetInsights.Name,
+			ToolMemoryDoctor.Name,
+			ToolMemoryVisualizeGraph.Name,
+			ToolMemoryGetClusters.Name,
+			ToolMemoryGetImpact.Name,
+			ToolMemoryInspectNode.Name,
+			ToolMemoryFindPath.Name:
+			return true
+		default:
+			return false
+		}
+	}
+
+	var banner string
+	s.mu.RLock()
+	det := s.stalenessDetector
+	s.mu.RUnlock()
+	if det != nil && isQueryTool(callParams.Name) {
+		if rep, checkErr := det.CheckStaleness(ctx); checkErr == nil && rep != nil && rep.IsStale {
+			banner = staleness.FormatMarkdownBanner(rep)
+		}
+	}
+
 	switch v := res.(type) {
 	case CallToolResult:
+		if banner != "" {
+			if len(v.Content) > 0 && v.Content[0].Type == "text" {
+				v.Content[0].Text = banner + v.Content[0].Text
+			} else {
+				v.Content = append([]ToolContent{{Type: "text", Text: banner}}, v.Content...)
+			}
+		}
 		return v, nil
 	case string:
+		if banner != "" {
+			return NewTextResult(banner + v), nil
+		}
 		return NewTextResult(v), nil
 	default:
 		return res, nil

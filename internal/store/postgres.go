@@ -1184,3 +1184,97 @@ func (s *PostgresStore) InspectNode(ctx context.Context, repo string, targetQuer
 	return graph.BuildTriptychView(targetSummary, edges, opts)
 }
 
+// FindPath resolve os nós de origem e destino e calcula o menor caminho no PostgreSQL
+func (s *PostgresStore) FindPath(ctx context.Context, repo string, sourceQuery string, targetQuery string, opts graph.PathOptions) (*graph.PathResult, error) {
+	canonicalSource, err := s.ResolveNodeCanonicalID(ctx, repo, sourceQuery)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao resolver nó de origem: %w", err)
+	}
+
+	canonicalTarget, err := s.ResolveNodeCanonicalID(ctx, repo, targetQuery)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao resolver nó de destino: %w", err)
+	}
+
+	nodesSet := make(map[string]bool)
+
+	docRows, err := s.db.QueryContext(ctx, "SELECT id FROM documents WHERE ($1 = '' OR repository = $1)", repo)
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id string
+			if err := docRows.Scan(&id); err == nil {
+				nodesSet[id] = true
+			}
+		}
+	}
+
+	nodeRows, err := s.db.QueryContext(ctx, "SELECT id FROM graph_nodes WHERE ($1 = '' OR repository = $1)", repo)
+	if err == nil {
+		defer nodeRows.Close()
+		for nodeRows.Next() {
+			var id string
+			if err := nodeRows.Scan(&id); err == nil {
+				nodesSet[id] = true
+			}
+		}
+	}
+
+	edgeQuery := `SELECT source_id, target_id, COALESCE(relation, 'links_to'), COALESCE(weight, 1.0), COALESCE(epistemic_status, 'EXTRACTED') 
+                  FROM graph_edges 
+                  WHERE ($1 = '' OR repository = $1)`
+	edgeRows, err := s.db.QueryContext(ctx, edgeQuery, repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para busca de caminho: %w", err)
+	}
+	defer edgeRows.Close()
+
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, rel, epStatus string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &rel, &weight, &epStatus); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		edges = append(edges, graph.WeightedEdge{
+			Source:          src,
+			Target:          tgt,
+			Type:            rel,
+			Weight:          weight,
+			EpistemicStatus: epStatus,
+		})
+	}
+
+	allNodes := make([]string, 0, len(nodesSet))
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+
+	return graph.FindPath(allNodes, edges, canonicalSource, canonicalTarget, opts)
+}
+
+// GetDocumentsMetadata recupera o mapa de caminhos para metadados de documentos para detecção de staleness
+func (s *PostgresStore) GetDocumentsMetadata(ctx context.Context, repo string) (map[string]DocumentMeta, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, path, updated_at, COALESCE(content_hash, '') FROM documents WHERE ($1 = '' OR repository = $1)", repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao consultar metadados de documentos no postgres: %w", err)
+	}
+	defer rows.Close()
+
+	metaMap := make(map[string]DocumentMeta)
+	for rows.Next() {
+		var meta DocumentMeta
+		if err := rows.Scan(&meta.ID, &meta.Path, &meta.UpdatedAt, &meta.ContentHash); err != nil {
+			return nil, fmt.Errorf("erro ao ler metadados do documento: %w", err)
+		}
+		cleanPath := filepath.Clean(meta.Path)
+		metaMap[cleanPath] = meta
+	}
+
+	return metaMap, nil
+}
+
+
+

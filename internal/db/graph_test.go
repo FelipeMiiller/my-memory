@@ -247,4 +247,60 @@ func TestInspectNode_DeadLinks(t *testing.T) {
 	}
 }
 
+func TestFindPath(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_find_path.db")
+	database, err := InitDB(dbPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("Pulando teste: ambiente sem FTS5")
+		}
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	// Topologia:
+	// A -> B (implements, EXTRACTED, 1.0)
+	// B -> C (depends_on, EXTRACTED, 1.0)
+	// A -> C (tag, TAG, 0.3)
+	_ = InsertDocument(ctx, database, "node-a", "docs/a.md", "Node A", now, "h1")
+	_ = InsertDocument(ctx, database, "node-b", "docs/b.md", "Node B", now, "h2")
+	_ = InsertDocument(ctx, database, "node-c", "docs/c.md", "Node C", now, "h3")
+
+	_ = InsertEdgeWithProps(ctx, database, "node-a", "node-b", "implements", "EXTRACTED", 1.0)
+	_ = InsertEdgeWithProps(ctx, database, "node-b", "node-c", "depends_on", "EXTRACTED", 1.0)
+	_ = InsertEdgeWithProps(ctx, database, "node-a", "node-c", "tag", "TAG", 0.3)
+
+	// 1. Busca no modo epistêmico (deve preferir A -> B -> C por ser EXTRACTED)
+	res, err := FindPath(ctx, database, "a.md", "c.md", graph.DefaultPathOptions())
+	if err != nil {
+		t.Fatalf("FindPath falhou: %v", err)
+	}
+	if !res.Found {
+		t.Fatalf("caminho deveria ter sido encontrado")
+	}
+	if res.Hops != 2 {
+		t.Errorf("esperado 2 saltos no modo epistêmico, obteve %d", res.Hops)
+	}
+	if len(res.Nodes) != 3 || res.Nodes[1] != "node-b" {
+		t.Errorf("caminho esperado [node-a, node-b, node-c], obteve %v", res.Nodes)
+	}
+
+	// 2. Busca no modo hops (deve preferir salto direto A -> C)
+	optsHops := graph.PathOptions{MaxDepth: 6, Directed: true, CostMode: graph.CostModeHops}
+	resHops, err := FindPath(ctx, database, "node-a", "node-c", optsHops)
+	if err != nil {
+		t.Fatalf("FindPath hops falhou: %v", err)
+	}
+	if !resHops.Found {
+		t.Fatalf("caminho hops deveria ter sido encontrado")
+	}
+	if resHops.Hops != 1 {
+		t.Errorf("esperado 1 salto no modo hops, obteve %d", resHops.Hops)
+	}
+}
+
+
 

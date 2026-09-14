@@ -414,6 +414,42 @@ var (
 			"required": []string{"node_id"},
 		},
 	}
+
+	ToolMemoryFindPath = Tool{
+		Name:        "memory_find_path",
+		Description: "Encontra o menor caminho e traça a rota ponderada entre dois nós no grafo de conhecimento, considerando certeza epistêmica (EXTRACTED vs INFERRED vs TAG) ou número de saltos",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"source": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho de arquivo do nó de origem",
+				},
+				"target": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho de arquivo do nó de destino",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Profundidade máxima de saltos a explorar (padrão: 6)",
+				},
+				"directed": map[string]any{
+					"type":        "boolean",
+					"description": "Se verdadeiro, navega apenas no sentido direcionado das arestas (A -> B). Se falso, navega bidirecionalmente (padrão: true)",
+				},
+				"mode": map[string]any{
+					"type":        "string",
+					"enum":        []string{"epistemic", "hops"},
+					"description": "Modo de custo: 'epistemic' (padrão, prioriza arestas com maior certeza documental) ou 'hops' (menor quantidade de arestas)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"source", "target"},
+		},
+	}
 )
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor
