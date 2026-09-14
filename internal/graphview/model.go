@@ -8,14 +8,14 @@ import (
 
 // GraphView contém os dados estruturados do grafo prontos para renderização visual
 type GraphView struct {
-	Title       string     `json:"title"`
-	Repository  string     `json:"repository,omitempty"`
-	RootNode    string     `json:"root_node,omitempty"`
-	MaxDepth    int        `json:"max_depth,omitempty"`
-	GeneratedAt time.Time  `json:"generated_at"`
-	Stats       GraphStats `json:"stats"`
-	Nodes       []Node     `json:"nodes"`
-	Edges       []Edge     `json:"edges"`
+	Title       string            `json:"title"`
+	Repository  string            `json:"repository,omitempty"`
+	RootNode    string            `json:"root_node,omitempty"`
+	MaxDepth    int               `json:"max_depth,omitempty"`
+	GeneratedAt time.Time         `json:"generated_at"`
+	Stats       GraphStats        `json:"stats"`
+	Nodes       []Node            `json:"nodes"`
+	Edges       []Edge            `json:"edges"`
 	Communities []graph.Community `json:"communities,omitempty"`
 }
 
