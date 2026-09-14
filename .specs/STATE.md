@@ -25,15 +25,16 @@
 - **AD-027**: Descoberta de Rotas e Caminho Mínimo no Grafo de Conhecimento (`docs/adr/027-descoberta-de-rotas-e-caminho-minimo-no-grafo.md`)
 - **AD-028**: Staleness Banners e Detecção de Desatualização de Conhecimento (`docs/adr/028-staleness-banners-e-deteccao-de-desatualizacao.md`)
 - **AD-029**: Context Packager e Subgraph Bundle com Orçamento de Tokens (`docs/adr/029-context-packager-e-subgraph-bundle.md`)
+- **AD-030**: Deep Linking e Integração de Navegação com Editores (`docs/adr/030-deep-linking-e-navegacao-de-editores.md`)
 
 ## Handoff
 
-- **Feature**: context-packager-and-subgraph-bundle (.specs/features/context-packager-and-subgraph-bundle)
+- **Feature**: deep-linking-and-editor-navigation (.specs/features/deep-linking-and-editor-navigation)
 - **Phase / Task**: 100% Concluída, Testada e Integrada (T1 a T5 finalizadas)
-- **Completed**: Motor de empacotamento com controle de orçamento em 3 tiers (`internal/graph/pack.go`), métodos `PackContext` em SQLite e PostgreSQL, comando CLI `mem pack`, ferramenta MCP `memory_pack_context`, documentação e ADR-029 Aceito.
-- **Completed Features**: context-packager-and-subgraph-bundle (ADR-029), staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: nenhuma (pronto para escolha da próxima feature do backlog)
-- **Next step**: Selecionar e iniciar especificação da próxima feature
+- **Completed**: Motor de geração de deep links RFC 3986 e launcher desacoplado (`internal/deeplink`), configuração declarativa de editor e vault (`internal/config`), comando CLI `mem open`, flag `--links` no `mem search`, Links Rápidos no `mem inspect`, ferramenta MCP `memory_open_node`, documentação e ADR-030 Aceito.
+- **Completed Features**: deep-linking-and-editor-navigation (ADR-030), context-packager-and-subgraph-bundle (ADR-029), staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: nenhuma (ADR-030 finalizado com sucesso)
+- **Next step**: Validação com usuário e seleção do próximo item de backlog
 - **Blockers**: none
 - **Branch**: develop
 

@@ -64,8 +64,8 @@ Open questions: none (todas as premissas e opções de protocolo foram alinhadas
 
 | Requirement ID | Description | Status |
 | :--- | :--- | :--- |
-| DL-01 | Geração de Deep Links Canônicos (Obsidian, VS Code, File) | in tasks |
-| DL-02 | Resolução Automática de Vault e Configuração do Editor | in tasks |
-| DL-03 | Comando CLI `mem open` com `--dry-run`, `--json`, `--app` e `--line` | in tasks |
-| DL-04 | Enriquecimento de `mem inspect` e `mem search` com Links Rápidos | in tasks |
-| DL-05 | Ferramenta MCP `memory_open_node` e metadados de links em respostas | in tasks |
+| DL-01 | Geração de Deep Links Canônicos (Obsidian, VS Code, File) | verified |
+| DL-02 | Resolução Automática de Vault e Configuração do Editor | verified |
+| DL-03 | Comando CLI `mem open` com `--dry-run`, `--json`, `--app` e `--line` | verified |
+| DL-04 | Enriquecimento de `mem inspect` e `mem search` com Links Rápidos | verified |
+| DL-05 | Ferramenta MCP `memory_open_node` e metadados de links em respostas | verified |

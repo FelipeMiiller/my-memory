@@ -464,6 +464,34 @@ Empacota um subgrafo de contexto completo e auto-contido centrado em uma nota ra
 
 ---
 
+### 22. `mem open <nota_ou_caminho> [--app obsidian|vscode|system] [--line <n>] [--dry-run] [--json]`
+Abre diretamente qualquer nota, ADR ou arquivo no editor configurado ou exibe deep links acionáveis:
+* **Resolução Flexível de Nó:** Aceita caminho direto no disco, título da nota, identificador canônico no grafo ou wikilink (`[[Nota]]`).
+* **Seleção de Aplicativo (`--app`, padrão: definido em `.memory/config.yaml` ou `obsidian`):**
+  - `obsidian`: Dispara a URI `obsidian://open?vault=<vault>&file=<rel_path>`.
+  - `vscode`: Dispara a URI `vscode://file/<abs_path>[:line]`.
+  - `system`: Abre no visualizador padrão do sistema operacional.
+* **Foco em Linha (`--line <n>`):** Posiciona o cursor do editor na linha exata indicada.
+* **Modo Simulação (`--dry-run`):** Exibe a URI calculada e comando nativo sem disparar processos.
+* **Saída Estruturada (`--json`):** Retorna payload com URIs canônicas prontas para scripts.
+
+**Exemplos:**
+```bash
+# Abrir nota no Obsidian (padrão):
+./bin/mem.exe open docs/adr/001-uso-de-sqlite-como-camada-unificada-de-dados.md
+
+# Abrir no VS Code com cursor posicionado na linha 42:
+./bin/mem.exe open "Arquitetura Limpa" --app vscode --line 42
+
+# Simulação dry-run para validar o comando a ser executado:
+./bin/mem.exe open 001-login --dry-run
+
+# Obter deep links estruturados em JSON:
+./bin/mem.exe open 001-login --json
+```
+
+---
+
 
 ## 🔍 Status e Detecção de Desatualização (`mem status`)
 

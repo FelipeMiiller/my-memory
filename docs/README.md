@@ -52,6 +52,7 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-027`](adr/027-descoberta-de-rotas-e-caminho-minimo-no-grafo.md)** — Descoberta de Rotas e Caminho Mínimo no Grafo de Conhecimento (`mem path` / `memory_find_path`)
 * **[`ADR-028`](adr/028-staleness-banners-e-deteccao-de-desatualizacao.md)** — Staleness Banners e Detecção de Desatualização de Conhecimento (`mem status`)
 * **[`ADR-029`](adr/029-context-packager-e-subgraph-bundle.md)** — Context Packager e Subgraph Bundle com Orçamento de Tokens (`mem pack` / `memory_pack_context`)
+* **[`ADR-030`](adr/030-deep-linking-e-navegacao-de-editores.md)** — Deep Linking e Integração de Navegação com Editores (`mem open` e URIs `obsidian://` / `vscode://`)
 
 
 
