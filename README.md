@@ -101,6 +101,38 @@ go build -o bin/mem.exe ./cmd/mem
 
 ---
 
+## 🌐 Visualizador Interativo de Grafo (`graph.html`)
+
+O My-Memory gera um **visualizador interativo de grafo em HTML/SVG standalone** (Zero-CDN, sem internet ou dependências de bibliotecas externas). Ele transforma todas as conexões de notas Markdown, `[[wikilinks]]`, tags `#` e decisões arquiteturais em uma teia visual navegável em tempo real no seu navegador:
+
+<p align="center">
+  <img src="docs/assets/graphview.png" alt="Visualizador Interativo de Grafo do My-Memory (graph.html)" width="850">
+</p>
+
+### 🔍 O que a visualização revela:
+- **Autoridade e Centralidade Estrutural (PageRank & God Nodes)**: O tamanho dos círculos é proporcional à autoridade estrutural calculada via **PageRank Ponderado** (ADR-014). Hubs centrais como `Wikilinks`, `ARCHITECTURE`, `AGENTS`, `COMO_USAR` e `CLI_GUIDE` emergem naturalmente como referências estruturais do repositório.
+- **Clusters e Comunidades Semânticas (LPA)**: As cores dos nós refletem agrupamentos conceituais gerados pelo **Label Propagation Algorithm (LPA)** ponderado com cálculo de **Modularidade Newman-Girvan** (ADR-022), revelando subsistemas e domínios de conhecimento interligados.
+- **Arestas Semânticas & Relações**: Linhas direcionadas demonstram fluxos de dependência e referências cruzadas (`links_to`, `tagged_as`, dependências técnicas).
+- **Detecção Visual de Órfãos & Dead Links**: Nós periféricos (em tons avermelhados/magenta desconectados) representam notas isoladas ou referências quebradas, funcionando como uma auditoria visual complementar ao `mem doctor` (ADR-013).
+- **Inspeção Cirúrgica em 3 Colunas (Triptych Node Inspector - ADR-024)**: Ao clicar em qualquer nó no gráfico interativo, abre-se um modal retrátil com visão cirúrgica completa:
+  1. *Coluna 1 (Inbound)*: Notas e dependentes chamadores classificados por risco e PageRank.
+  2. *Coluna 2 (Centro)*: Metadados canônicos, score de *Blast Radius* e preview de conteúdo seguro.
+  3. *Coluna 3 (Outbound)*: Referências de saída com verificação ativa de integridade e atalho para abrir diretamente no Obsidian (`obsidian://open?file=...`).
+
+### 🕹️ Como Gerar e Abrir:
+```bash
+# 1. Gerar e abrir automaticamente no navegador padrão
+./bin/mem.exe graph view --open
+
+# 2. Exportar para um arquivo HTML específico
+./bin/mem.exe export --html graph.html
+
+# 3. Via ferramenta MCP para Agentes de IA
+# A tool memory_visualize_graph compila e salva o grafo instantaneamente.
+```
+
+---
+
 ## 📚 Navegação da Documentação
 
 Para mergulhar nos detalhes operacionais, matemáticos e de integração, consulte os guias dedicados:
@@ -110,7 +142,7 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 | 📖 [**`COMO_USAR.md`**](COMO_USAR.md) | **Desenvolvedores** | Manual prático de comandos CLI, exemplos de busca, configuração de PostgreSQL/SQLite e monitoramento em tempo real. |
 | 🔍 [**`COMO_FUNCIONA.md`**](COMO_FUNCIONA.md) | **Engenheiros & Arquitetos** | Explicação profunda da arquitetura, matemática do TurboQuant, algoritmo RRF, CTEs recursivas e ciclo de vida do cache. |
 | 🤖 [**`AGENT_INTEGRATION_GUIDE.md`**](docs/AGENT_INTEGRATION_GUIDE.md) | **Agentes de IA & Integrações** | Como integrar o My-Memory com Cursor, Claude Code, Copilot e Antigravity via MCP e regras `AGENTS.md`. |
-| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 24 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
+| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 25 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
 
 ---
 
@@ -146,7 +178,7 @@ my-memory/
 │   ├── store/          # Camada de armazenamento unificada e suporte a PostgreSQL com pgvector
 │   ├── turboquant/     # Rotações ortogonais de Householder e quantização de 4-bit
 │   └── watcher/        # File watcher em segundo plano com debouncing inteligente
-├── docs/               # Documentação técnica detalhada e 24 ADRs
+├── docs/               # Documentação técnica detalhada e 25 ADRs
 ├── COMO_USAR.md        # Manual prático passo a passo para o usuário
 ├── COMO_FUNCIONA.md    # Explicação detalhada da arquitetura e funcionamento interno
 ├── AGENTS.md           # Regras operacionais para Agentes de IA
