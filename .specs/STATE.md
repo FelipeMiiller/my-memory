@@ -24,17 +24,18 @@
 - **AD-026**: Auto-Wiring e Instalação Zero-Touch de Ferramentas de IA (`docs/adr/026-auto-wiring-e-instalacao-zero-touch-de-ferramentas-de-ia.md`)
 - **AD-027**: Descoberta de Rotas e Caminho Mínimo no Grafo de Conhecimento (`docs/adr/027-descoberta-de-rotas-e-caminho-minimo-no-grafo.md`)
 - **AD-028**: Staleness Banners e Detecção de Desatualização de Conhecimento (`docs/adr/028-staleness-banners-e-deteccao-de-desatualizacao.md`)
+- **AD-029**: Context Packager e Subgraph Bundle com Orçamento de Tokens (`docs/adr/029-context-packager-e-subgraph-bundle.md`)
 
 ## Handoff
 
-- **Feature**: staleness-detection-and-banners (.specs/features/staleness-detection-and-banners)
-- **Phase / Task**: 100% Concluída, Testada e Integrada (T1 a T5 finalizadas)
-- **Completed**: Implementação do motor de detecção com TTL de 3s (`internal/staleness/`), persistência em SQLite e PostgreSQL (`GetDocumentsMetadata`), subcomando CLI `mem status [--json]`, injeção não-bloqueante de banners no MCP (`handleToolsCall`), documentação (`CLI_GUIDE.md`, `AGENT_INTEGRATION_GUIDE.md`) e ADR-028 Aceito.
-- **Completed Features**: staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: nenhuma (pronto para escolha da próxima feature do backlog)
-- **Next step**: Selecionar e iniciar especificação da próxima feature
+- **Feature**: context-packager-and-subgraph-bundle (.specs/features/context-packager-and-subgraph-bundle)
+- **Phase / Task**: Início da execução (T1 - Motor de Empacotamento)
+- **Completed**: Especificação (`spec.md`) e plano de tarefas (`tasks.md`) definidos.
+- **In-progress**: T1 (Motor de Empacotamento de Subgrafo e Orçamento de Tokens em `internal/graph/`)
+- **Next step**: Implementar `internal/graph/pack.go` e seus testes unitários em `internal/graph/pack_test.go`
 - **Blockers**: none
 - **Branch**: develop
+
 
 
 
