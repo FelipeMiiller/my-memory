@@ -306,3 +306,54 @@ func TestSchemaMigration_AbstractAndCategory(t *testing.T) {
 	}
 }
 
+func TestSQLite_InsertDocumentWithMeta(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "meta_test.db")
+	database, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+	docID := "doc-meta"
+
+	// 1. Insert com metadados
+	err = InsertDocumentWithMeta(ctx, database, docID, "skills/deploy.md", "Deploy Skill", time.Now().Unix(), "hash1", "Micro-abstract de deploy", "skill")
+	if err != nil {
+		t.Fatalf("InsertDocumentWithMeta falhou: %v", err)
+	}
+
+	var doc Document
+	err = database.QueryRow(`
+		SELECT id, path, title, abstract, category FROM documents WHERE id = ?
+	`, docID).Scan(&doc.ID, &doc.Path, &doc.Title, &doc.Abstract, &doc.Category)
+	if err != nil {
+		t.Fatalf("QueryRow falhou: %v", err)
+	}
+
+	if doc.Category != "skill" {
+		t.Errorf("Category esperada 'skill', obteve %q", doc.Category)
+	}
+	if doc.Abstract != "Micro-abstract de deploy" {
+		t.Errorf("Abstract esperado 'Micro-abstract de deploy', obteve %q", doc.Abstract)
+	}
+
+	// 2. Atualização via conflito (upsert)
+	err = InsertDocumentWithMeta(ctx, database, docID, "skills/deploy.md", "Deploy Skill v2", time.Now().Unix(), "hash2", "Micro-abstract atualizado", "memory")
+	if err != nil {
+		t.Fatalf("Upsert falhou: %v", err)
+	}
+
+	err = database.QueryRow(`
+		SELECT title, abstract, category FROM documents WHERE id = ?
+	`, docID).Scan(&doc.Title, &doc.Abstract, &doc.Category)
+	if err != nil {
+		t.Fatalf("QueryRow pós upsert falhou: %v", err)
+	}
+
+	if doc.Title != "Deploy Skill v2" || doc.Abstract != "Micro-abstract atualizado" || doc.Category != "memory" {
+		t.Errorf("Upsert não atualizou campos corretamente: %+v", doc)
+	}
+}
+
+

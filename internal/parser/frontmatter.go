@@ -11,6 +11,9 @@ type Frontmatter struct {
 	Title      string         `json:"title,omitempty"`
 	Tags       []string       `json:"tags,omitempty"`
 	Aliases    []string       `json:"aliases,omitempty"`
+	Category   string         `json:"category,omitempty"`
+	Summary    string         `json:"summary,omitempty"`
+	Abstract   string         `json:"abstract,omitempty"`
 	Properties map[string]any `json:"properties,omitempty"`
 }
 
@@ -64,6 +67,18 @@ func ExtractFrontmatter(content string) (*Frontmatter, string) {
 			fm.Tags = append(fm.Tags, normalizeStringOrSlice(v)...)
 		case "aliases", "alias":
 			fm.Aliases = append(fm.Aliases, normalizeStringOrSlice(v)...)
+		case "category":
+			if s, ok := v.(string); ok {
+				fm.Category = strings.ToLower(strings.TrimSpace(s))
+			}
+		case "summary":
+			if s, ok := v.(string); ok {
+				fm.Summary = strings.TrimSpace(s)
+			}
+		case "abstract":
+			if s, ok := v.(string); ok {
+				fm.Abstract = strings.TrimSpace(s)
+			}
 		default:
 			fm.Properties[k] = v
 		}

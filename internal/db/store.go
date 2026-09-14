@@ -75,16 +75,21 @@ type Document struct {
 	Category    string `json:"category,omitempty"`
 }
 
-// InsertDocument salva documento com content_hash e seus nós no grafo
-func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash string) error {
+// InsertDocumentWithMeta salva documento com content_hash, abstract (L0), category e seus nós no grafo
+func InsertDocumentWithMeta(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash, abstract, category string) error {
+	if category == "" {
+		category = "resource"
+	}
 	_, err := db.ExecContext(ctx, `
-		INSERT INTO documents (id, path, title, updated_at, content_hash)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO documents (id, path, title, updated_at, content_hash, abstract, category)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			title = excluded.title,
 			updated_at = excluded.updated_at,
-			content_hash = excluded.content_hash
-	`, id, path, title, updatedAt, contentHash)
+			content_hash = excluded.content_hash,
+			abstract = excluded.abstract,
+			category = excluded.category
+	`, id, path, title, updatedAt, contentHash, abstract, category)
 	if err != nil {
 		return err
 	}
@@ -94,6 +99,11 @@ func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, upd
 		VALUES (?, 'note', ?)
 	`, id, title)
 	return err
+}
+
+// InsertDocument salva documento com content_hash e seus nós no grafo (compatibilidade com chamadores legados)
+func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash string) error {
+	return InsertDocumentWithMeta(ctx, db, id, path, title, updatedAt, contentHash, "", "resource")
 }
 
 // GetDocumentHash retorna o hash SHA-256 de conteúdo armazenado de um documento (ou "" se não existir)

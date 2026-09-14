@@ -24,11 +24,11 @@
 ## Handoff
 
 - **Feature**: progressive-context-loading (.specs/features/progressive-context-loading)
-- **Phase / Task**: Phase 2 / T2 (Ready for Implementation)
-- **Planned**: T1 (Extensão de Schema e Migrações - CONCLUÍDO), T2 (Extração Heurística de L0 e Taxonomia), T3 (Motores de Busca com L0/L1/L2 e Filtro de Categoria), T4 (CLI mem search com --level e --category), T5 (MCP memory_search com detail_level e ADR-025)
+- **Phase / Task**: Phase 3 / T3 (Ready for Implementation)
+- **Planned**: T1 (Extensão de Schema e Migrações - CONCLUÍDO), T2 (Extração Heurística de L0 e Taxonomia - CONCLUÍDO), T3 (Motores de Busca com L0/L1/L2 e Filtro de Categoria), T4 (CLI mem search com --level e --category), T5 (MCP memory_search com detail_level e ADR-025)
 - **Completed Features**: triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: T2 (Extração Heurística de L0 e Taxonomia no Parser)
-- **Next step**: Implementar extração de micro-abstract L0 e category no parser Markdown e persistência no indexador
+- **In-progress**: T3 (Motores de Busca com Níveis L0/L1/L2 e Filtro por Categoria)
+- **Next step**: Atualizar SearchFTS, SearchVector e SearchHybrid para aceitar filtro category e projeção L0/L1/L2
 - **Blockers**: none
 - **Branch**: develop
 

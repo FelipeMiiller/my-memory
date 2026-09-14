@@ -1,3 +1,10 @@
+---
+title: "Arquitetura do My-Memory"
+category: resource
+summary: "Visão técnica e estrutural da arquitetura do My-Memory, incluindo persistência SQLite/Postgres, TurboQuant, RRF, Grafo e Carregamento Progressivo (L0/L1/L2)."
+tags: [architecture, design, sqlite, postgres, turboquant, progressive-loading, resource]
+---
+
 # Arquitetura do My-Memory
 
 O **My-Memory** é uma engine de memória semântica e relacional local desenvolvida em Go, combinando o melhor de múltiplos ecossistemas e inovações:
@@ -6,6 +13,7 @@ O **My-Memory** é uma engine de memória semântica e relacional local desenvol
 3. **Graphify**: Modelagem de nós e arestas com expansão relacional, status epistêmico e centralidade de nós.
 4. **CodeGraph**: Monitoramento contínuo em tempo real com file watcher reativo, contexto cirúrgico para agentes e análise de impacto.
 5. **TurboQuant (Google DeepMind, ICLR 2026)**: Compressão vetorial extrema em 4-bits com estimador de produto escalar não-viesado.
+6. **OpenViking (ByteDance/Volcengine)**: Carregamento progressivo em 3 camadas (L0 Micro-Abstract, L1 Overview estrutural, L2 Detalhes) e Taxonomia Tripartida (`resource`, `memory`, `skill`).
 
 ---
 

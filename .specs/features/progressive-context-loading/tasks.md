@@ -6,11 +6,11 @@
   - [x] Atualizar struct `Document` e `SearchResult` em `internal/db/store.go` e `internal/store/store.go`.
   - [x] Escrever testes unitários validando migrações em bancos existentes sem perda de dados.
 
-- [ ] **T2**: Extração Heurística de L0 (Micro-Abstract) e Taxonomia no Parser (`internal/parser/`)
-  - [ ] Adicionar campos `Category`, `Summary` e `Abstract` no modelo `Frontmatter` (`internal/parser/frontmatter.go`).
-  - [ ] Implementar `ExtractMicroAbstract(body string, maxLen int) string` para extrair o primeiro parágrafo descritivo sem marcações markdown.
-  - [ ] Atualizar pipeline de indexação em `internal/db/store.go` e `internal/store/postgres.go` para persistir `abstract` e `category`.
-  - [ ] Escrever testes cobrindo extração via frontmatter explícito e via heurística de primeiro parágrafo.
+- [x] **T2**: Extração Heurística de L0 (Micro-Abstract) e Taxonomia no Parser (`internal/parser/`)
+  - [x] Adicionar campos `Category`, `Summary` e `Abstract` no modelo `Frontmatter` (`internal/parser/frontmatter.go`).
+  - [x] Implementar `ExtractMicroAbstract(body string, maxLen int) string` para extrair o primeiro parágrafo descritivo sem marcações markdown.
+  - [x] Atualizar pipeline de indexação em `internal/db/store.go` e `internal/store/postgres.go` para persistir `abstract` e `category`.
+  - [x] Escrever testes cobrindo extração via frontmatter explícito e via heurística de primeiro parágrafo.
 
 - [ ] **T3**: Motores de Busca com Níveis L0/L1/L2 e Filtro por Categoria (`internal/db/` e `internal/store/`)
   - [ ] Atualizar queries de `SearchFTS`, `SearchVector` e `SearchHybrid` para aceitar filtro opcional `category`.

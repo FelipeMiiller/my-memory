@@ -367,6 +367,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       <span>Arestas: <strong>{{ .Stats.TotalEdges }}</strong></span>
       <span>Hubs: <strong>{{ .Stats.HubCount }}</strong></span>
       <span>Densidade: <strong>{{ .Stats.Density }}</strong></span>
+      {{ if .FormattedUpdatedAt }}<span>Atualizado em: <strong>{{ .FormattedUpdatedAt }}</strong></span>{{ end }}
     </div>
     <div class="search-row">
       <input type="text" id="search-input" class="search-input" placeholder="Filtrar notas...">
@@ -427,6 +428,10 @@ const htmlPageTemplate = `<!DOCTYPE html>
       <div class="meta-item">
         <span class="meta-label">Saída (Out-links):</span>
         <span class="meta-value" id="sb-out">0</span>
+      </div>
+      <div class="meta-item" id="sb-updated-row">
+        <span class="meta-label">Última atualização:</span>
+        <span class="meta-value" id="sb-updated">-</span>
       </div>
     </div>
     <div class="links-section">
@@ -778,6 +783,17 @@ const htmlPageTemplate = `<!DOCTYPE html>
       document.getElementById('sb-in').textContent = n.in_degree;
       document.getElementById('sb-out').textContent = n.out_degree;
 
+      const updRow = document.getElementById('sb-updated-row');
+      const updVal = document.getElementById('sb-updated');
+      if (n.updated_at && n.updated_at > 0) {
+        const d = new Date(n.updated_at * 1000);
+        updVal.textContent = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+        if (updRow) updRow.style.display = 'flex';
+      } else {
+        updVal.textContent = '-';
+        if (updRow) updRow.style.display = 'none';
+      }
+
       // Deep link para Obsidian
       const obsLink = 'obsidian://open?file=' + encodeURIComponent(n.id);
       document.getElementById('sb-obsidian-link').setAttribute('href', obsLink);
@@ -1009,10 +1025,11 @@ const htmlPageTemplate = `<!DOCTYPE html>
 
 // TemplateData empacota os dados para injeção no template HTML
 type TemplateData struct {
-	Title      string
-	Repository string
-	Stats      GraphStats
-	DataJSON   template.JS
+	Title              string
+	Repository         string
+	Stats              GraphStats
+	FormattedUpdatedAt string
+	DataJSON           template.JS
 }
 
 // RenderHTML renderiza a página HTML standalone em memória com todos os dados do grafo embutidos
@@ -1027,11 +1044,17 @@ func RenderHTML(gv *GraphView) ([]byte, error) {
 		return nil, fmt.Errorf("falha ao compilar template html do grafo: %w", err)
 	}
 
+	formattedUpdated := ""
+	if gv != nil {
+		formattedUpdated = gv.FormattedUpdatedAt()
+	}
+
 	td := TemplateData{
-		Title:      gv.Title,
-		Repository: gv.Repository,
-		Stats:      gv.Stats,
-		DataJSON:   template.JS(dataBytes),
+		Title:              gv.Title,
+		Repository:         gv.Repository,
+		Stats:              gv.Stats,
+		FormattedUpdatedAt: formattedUpdated,
+		DataJSON:           template.JS(dataBytes),
 	}
 
 	var buf bytes.Buffer

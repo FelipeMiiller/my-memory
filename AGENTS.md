@@ -1,3 +1,10 @@
+---
+title: "Guia Operacional para Agentes de IA"
+category: memory
+summary: "Instruções e mapa de navegação operacional para Agentes de IA (Antigravity, Claude Code, Cursor, Windsurf, Copilot) no repositório my-memory."
+tags: [agents, ai, operational-guide, memory]
+---
+
 # AGENTS.md
 
 Instruções e mapa de navegação operacional para **Agentes de IA** (Antigravity, Claude Code, Cursor, Windsurf, Copilot) atuando no repositório **`my-memory`**.
@@ -115,3 +122,4 @@ go build -v -o bin/mem.exe ./cmd/mem
 3. **Não altere convenções sem ADR:** Qualquer mudança de banco de dados, biblioteca de vetores ou arquitetura exige a criação de um novo ADR na pasta `docs/adr/`.
 4. **Execução Obrigatória de Testes após Cada Tarefa:** SEMPRE que finalizar uma tarefa, alteração de código ou refatoração, o agente DEVE OBRIGATORIAMENTE executar os testes (`go test -v ./...` ou os pacotes impactados). Nenhuma tarefa é considerada pronta nem pode ser commitada sem que os testes passem com 100% de aprovação.
 5. **Verificação de Inicialização da Memória:** Ao iniciar qualquer trabalho neste repositório, o agente DEVE checar se `.memory/config.yaml` existe. Caso não exista, deve executar `mem init` antes de qualquer outra tarefa.
+6. **Taxonomia e Carregamento Progressivo (L0/L1/L2):** Ao criar ou documentar notas, inclua preferencialmente no frontmatter a taxonomia `category: resource | memory | skill` e `summary: <resumo>` para viabilizar indexação em camadas e recuperação econômica L0.

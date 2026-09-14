@@ -1,3 +1,10 @@
+---
+title: "Como Funciona o My-Memory: Arquitetura e Engenharia Interna"
+category: resource
+summary: "Detalhamento técnico aprofundado sobre o funcionamento interno, algoritmos matemáticos (TurboQuant, RRF, PageRank) e camada de persistência."
+tags: [architecture, internal, algorithms, resource]
+---
+
 # 🔍 Como Funciona o My-Memory: Arquitetura e Engenharia Interna
 
 Este documento detalha o funcionamento interno, os algoritmos matemáticos e a engenharia de software que tornam o **My-Memory** uma infraestrutura de memória autoconsciente (*Repository Brain*) para desenvolvedores e Agentes de IA.

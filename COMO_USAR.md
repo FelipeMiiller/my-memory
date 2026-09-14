@@ -1,3 +1,10 @@
+---
+title: "Guia Prático de Uso: My-Memory"
+category: skill
+summary: "Guia prático passo a passo de comandos CLI, inicialização de vault, busca híbrida, inspeção de grafo e integração MCP."
+tags: [guide, howto, cli, skill]
+---
+
 # 📖 Guia Prático de Uso: My-Memory
 
 > **Transforme seu repositório de notas e documentações em uma memória autoconsciente (*Repository Brain*) com busca híbrida, quantização vetorial de 4-bit (TurboQuant) e grafo de conhecimento.**

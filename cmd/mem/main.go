@@ -1202,8 +1202,26 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 		// Limpa chunks e arestas antigas antes da reindexação limpa
 		_ = s.DeleteDocumentData(ctx, targetRepo, docID)
 
-		// 1. Salva documento com content_hash
-		if err := s.InsertDocument(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash); err != nil {
+		// Extrai frontmatter, categoria e micro-abstract (L0)
+		fm, body := parser.ExtractFrontmatter(content)
+		category := "resource"
+		if fm != nil && fm.Category != "" {
+			category = fm.Category
+		}
+		if category != "resource" && category != "memory" && category != "skill" {
+			category = "resource"
+		}
+		var abstract string
+		if fm != nil && fm.Summary != "" {
+			abstract = fm.Summary
+		} else if fm != nil && fm.Abstract != "" {
+			abstract = fm.Abstract
+		} else {
+			abstract = parser.ExtractMicroAbstract(body, 160)
+		}
+
+		// 1. Salva documento com content_hash, abstract e category
+		if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
 			return err
 		}
 
@@ -1324,8 +1342,26 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 		// Limpa chunks e arestas antigas antes da reindexação limpa
 		_ = db.DeleteDocumentData(ctx, database, docID)
 
-		// 1. Salva documento com content_hash
-		if err := db.InsertDocument(ctx, database, docID, path, title, time.Now().Unix(), currentHash); err != nil {
+		// Extrai frontmatter, categoria e micro-abstract (L0)
+		fm, body := parser.ExtractFrontmatter(content)
+		category := "resource"
+		if fm != nil && fm.Category != "" {
+			category = fm.Category
+		}
+		if category != "resource" && category != "memory" && category != "skill" {
+			category = "resource"
+		}
+		var abstract string
+		if fm != nil && fm.Summary != "" {
+			abstract = fm.Summary
+		} else if fm != nil && fm.Abstract != "" {
+			abstract = fm.Abstract
+		} else {
+			abstract = parser.ExtractMicroAbstract(body, 160)
+		}
+
+		// 1. Salva documento com content_hash, abstract e category
+		if err := db.InsertDocumentWithMeta(ctx, database, docID, path, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
 			return err
 		}
 

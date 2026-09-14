@@ -108,19 +108,25 @@ func FormatVector(vec []float32) string {
 	return sb.String()
 }
 
-func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error {
+func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, abstract, category string) error {
 	if repo == "" {
 		repo = "default"
 	}
+	if category == "" {
+		category = "resource"
+	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO documents (id, repository, path, title, updated_at, content_hash)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO documents (id, repository, path, title, updated_at, content_hash, abstract, category)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (repository, id) DO UPDATE SET
 			title = EXCLUDED.title,
+			path = EXCLUDED.path,
 			updated_at = EXCLUDED.updated_at,
-			content_hash = EXCLUDED.content_hash
-	`, id, repo, path, title, updatedAt, contentHash)
+			content_hash = EXCLUDED.content_hash,
+			abstract = EXCLUDED.abstract,
+			category = EXCLUDED.category
+	`, id, repo, path, title, updatedAt, contentHash, abstract, category)
 	if err != nil {
 		return err
 	}
@@ -132,6 +138,10 @@ func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, titl
 			name = EXCLUDED.name
 	`, id, repo, title)
 	return err
+}
+
+func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error {
+	return s.InsertDocumentWithMeta(ctx, repo, id, path, title, updatedAt, contentHash, "", "resource")
 }
 
 func (s *PostgresStore) GetDocumentHash(ctx context.Context, repo, id string) (string, error) {

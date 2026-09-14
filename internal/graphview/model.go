@@ -8,15 +8,27 @@ import (
 
 // GraphView contém os dados estruturados do grafo prontos para renderização visual
 type GraphView struct {
-	Title       string            `json:"title"`
-	Repository  string            `json:"repository,omitempty"`
-	RootNode    string            `json:"root_node,omitempty"`
-	MaxDepth    int               `json:"max_depth,omitempty"`
-	GeneratedAt time.Time         `json:"generated_at"`
-	Stats       GraphStats        `json:"stats"`
-	Nodes       []Node            `json:"nodes"`
-	Edges       []Edge            `json:"edges"`
-	Communities []graph.Community `json:"communities,omitempty"`
+	Title         string            `json:"title"`
+	Repository    string            `json:"repository,omitempty"`
+	RootNode      string            `json:"root_node,omitempty"`
+	MaxDepth      int               `json:"max_depth,omitempty"`
+	GeneratedAt   time.Time         `json:"generated_at"`
+	LastUpdatedAt *time.Time        `json:"last_updated_at,omitempty"`
+	Stats         GraphStats        `json:"stats"`
+	Nodes         []Node            `json:"nodes"`
+	Edges         []Edge            `json:"edges"`
+	Communities   []graph.Community `json:"communities,omitempty"`
+}
+
+// FormattedUpdatedAt retorna a data da última atualização formatada legível
+func (gv *GraphView) FormattedUpdatedAt() string {
+	if gv.LastUpdatedAt != nil && !gv.LastUpdatedAt.IsZero() {
+		return gv.LastUpdatedAt.Format("02/01/2006 15:04:05")
+	}
+	if !gv.GeneratedAt.IsZero() {
+		return gv.GeneratedAt.Format("02/01/2006 15:04:05")
+	}
+	return ""
 }
 
 // GraphStats sumariza as métricas topológicas do grafo
@@ -47,6 +59,7 @@ type Node struct {
 	CommunityID    int      `json:"community_id,omitempty"`
 	CommunityLabel string   `json:"community_label,omitempty"`
 	CommunityColor string   `json:"community_color,omitempty"`
+	UpdatedAt      int64    `json:"updated_at,omitempty"`
 }
 
 // Edge representa uma aresta direcionada entre dois nós

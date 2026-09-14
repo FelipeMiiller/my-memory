@@ -55,6 +55,14 @@ func TestRenderHTML(t *testing.T) {
 	if strings.Contains(html, "unpkg.com") || strings.Contains(html, "cdnjs.cloudflare.com") || strings.Contains(html, "cdn.jsdelivr.net") {
 		t.Errorf("Violação do requisito Zero-CDN: encontrado link externo para CDN")
 	}
+
+	// Validação de exibição da data de atualização
+	if !strings.Contains(html, "Atualizado em:") {
+		t.Errorf("HTML deve conter 'Atualizado em:' no cabeçalho de estatísticas")
+	}
+	if !strings.Contains(html, "sb-updated-row") {
+		t.Errorf("HTML deve conter 'sb-updated-row' no painel lateral")
+	}
 }
 
 func TestExportHTML(t *testing.T) {

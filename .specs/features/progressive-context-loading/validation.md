@@ -3,12 +3,12 @@
 ## 1. Testes Automatizados Unitários e de Integração
 
 ### Parser e Extração L0 (`internal/parser/`)
-- [ ] `TestFrontmatter_CategoryAndAbstract`: Valida extração de `category: memory` e `summary: ...`.
-- [ ] `TestExtractMicroAbstract`: Valida limpeza de títulos `#`, links `[[...]]`, negrito `**...**` e extração concisa de até 160 caracteres.
-- [ ] `TestExtractMicroAbstract_Fallback`: Valida documentos vazios ou sem texto.
+- [x] `TestFrontmatter_CategoryAndAbstract`: Valida extração de `category: memory` e `summary: ...`.
+- [x] `TestExtractMicroAbstract`: Valida limpeza de títulos `#`, links `[[...]]`, negrito `**...**` e extração concisa de até 160 caracteres.
+- [x] `TestExtractMicroAbstract_Fallback`: Valida documentos vazios ou sem texto.
 
 ### Banco de Dados e Migração (`internal/db/` e `internal/store/`)
-- [ ] `TestSchemaMigration_AbstractAndCategory`: Testa abertura de banco SQLite antigo sem as colunas e valida migração sem perda de dados.
+- [x] `TestSchemaMigration_AbstractAndCategory`: Testa abertura de banco SQLite antigo sem as colunas e valida migração sem perda de dados.
 - [ ] `TestSearch_CategoryFilter`: Testa busca filtrando por `category="memory"` garantindo exclusão de notas de outros tipos.
 - [ ] `TestSearch_LevelL0Projection`: Valida que o resultado de busca em nível L0 retorna `Abstract` preenchido e corpo de conteúdo enxuto.
 

@@ -59,15 +59,31 @@ func IndexSingleFileSQLite(
 		}
 	}
 
+	content := string(contentBytes)
+	fm, body := parser.ExtractFrontmatter(content)
+	category := "resource"
+	if fm != nil && fm.Category != "" {
+		category = fm.Category
+	}
+	if category != "resource" && category != "memory" && category != "skill" {
+		category = "resource"
+	}
+	var abstract string
+	if fm != nil && fm.Summary != "" {
+		abstract = fm.Summary
+	} else if fm != nil && fm.Abstract != "" {
+		abstract = fm.Abstract
+	} else {
+		abstract = parser.ExtractMicroAbstract(body, 160)
+	}
+
 	// 1. Limpa dados anteriores do documento para reindexação limpa
 	_ = db.DeleteDocumentData(ctx, database, docID)
 
-	// 2. Salva documento com content_hash
-	if err := db.InsertDocument(ctx, database, docID, filePath, title, time.Now().Unix(), currentHash); err != nil {
+	// 2. Salva documento com content_hash, abstract e category
+	if err := db.InsertDocumentWithMeta(ctx, database, docID, filePath, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
 		return nil, fmt.Errorf("erro ao inserir documento SQLite: %w", err)
 	}
-
-	content := string(contentBytes)
 
 	// 3. Extrai e salva conexões do grafo
 	connections := parser.ExtractConnections(content)
@@ -160,13 +176,29 @@ func IndexSingleFilePostgres(
 		}
 	}
 
-	_ = s.DeleteDocumentData(ctx, targetRepo, docID)
-
-	if err := s.InsertDocument(ctx, targetRepo, docID, filePath, title, time.Now().Unix(), currentHash); err != nil {
-		return nil, fmt.Errorf("erro ao inserir documento Postgres: %w", err)
+	content := string(contentBytes)
+	fm, body := parser.ExtractFrontmatter(content)
+	category := "resource"
+	if fm != nil && fm.Category != "" {
+		category = fm.Category
+	}
+	if category != "resource" && category != "memory" && category != "skill" {
+		category = "resource"
+	}
+	var abstract string
+	if fm != nil && fm.Summary != "" {
+		abstract = fm.Summary
+	} else if fm != nil && fm.Abstract != "" {
+		abstract = fm.Abstract
+	} else {
+		abstract = parser.ExtractMicroAbstract(body, 160)
 	}
 
-	content := string(contentBytes)
+	_ = s.DeleteDocumentData(ctx, targetRepo, docID)
+
+	if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, filePath, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
+		return nil, fmt.Errorf("erro ao inserir documento Postgres: %w", err)
+	}
 	connections := parser.ExtractConnections(content)
 	for _, edge := range connections.Edges {
 		_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)

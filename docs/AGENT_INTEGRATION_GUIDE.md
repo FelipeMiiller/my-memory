@@ -1,3 +1,10 @@
+---
+title: "Guia de Integração e Uso do My-Memory para Agentes de IA"
+category: memory
+summary: "Guia definitivo para desenvolvedores e Agentes de IA sobre integração, configuração de ambiente e consumo das ferramentas MCP."
+tags: [agents, ai, mcp, integration, memory]
+---
+
 # Guia de Integração e Uso do My-Memory para Agentes de IA
 
 Este documento é o guia definitivo para desenvolvedores e **Agentes de IA** (Antigravity, Cursor, Claude Code, GitHub Copilot, Windsurf, Roo Code, etc.) sobre como instalar, inicializar, configurar e utilizar o **My-Memory** como motor de memória semântica e relacional de contexto em qualquer repositório.

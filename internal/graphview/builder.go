@@ -197,7 +197,20 @@ func BuildGraphView(docs []RawDoc, edges []RawEdge, rootNode string, maxDepth in
 			CommunityID:    commID,
 			CommunityLabel: commLabel,
 			CommunityColor: commColor,
+			UpdatedAt:      d.UpdatedAt,
 		})
+	}
+
+	var maxUpdated int64
+	for _, d := range docs {
+		if d.UpdatedAt > maxUpdated {
+			maxUpdated = d.UpdatedAt
+		}
+	}
+	var lastUpdatedAt *time.Time
+	if maxUpdated > 0 {
+		t := time.Unix(maxUpdated, 0).Local()
+		lastUpdatedAt = &t
 	}
 
 	// Montar arestas finais
@@ -236,11 +249,12 @@ func BuildGraphView(docs []RawDoc, edges []RawEdge, rootNode string, maxDepth in
 	}
 
 	return &GraphView{
-		Title:       title,
-		Repository:  repo,
-		RootNode:    rootNode,
-		MaxDepth:    maxDepth,
-		GeneratedAt: time.Now().UTC(),
+		Title:         title,
+		Repository:    repo,
+		RootNode:      rootNode,
+		MaxDepth:      maxDepth,
+		GeneratedAt:   time.Now().Local(),
+		LastUpdatedAt: lastUpdatedAt,
 		Stats: GraphStats{
 			TotalNodes:     len(nodes),
 			TotalEdges:     len(edgesFinal),
