@@ -2001,7 +2001,15 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return pgStore.FindPath(ctx, repo, source, target, opts)
 		})
+
+		srv.SetPackHandler(func(ctx context.Context, repo, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.PackContext(ctx, repo, rootQuery, opts)
+		})
 	} else if database != nil {
+
 		if tq == nil {
 			tq = turboquant.NewQuantizer(EmbeddingDim)
 		}
@@ -2194,9 +2202,14 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 		srv.SetPathHandler(func(ctx context.Context, repo, source, target string, opts graph.PathOptions) (*graph.PathResult, error) {
 			return db.FindPath(ctx, database, source, target, opts)
 		})
+
+		srv.SetPackHandler(func(ctx context.Context, repo, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
+			return db.PackContext(ctx, database, rootQuery, opts)
+		})
 	}
 
 	if httpAddr != "" {
+
 		httpSrv := mcp.NewHTTPServer(srv, mcp.HTTPServerOptions{
 			Addr:        httpAddr,
 			CORSEnabled: corsEnabled,

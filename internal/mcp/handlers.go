@@ -912,8 +912,10 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (a
 			ToolMemoryGetClusters.Name,
 			ToolMemoryGetImpact.Name,
 			ToolMemoryInspectNode.Name,
-			ToolMemoryFindPath.Name:
+			ToolMemoryFindPath.Name,
+			ToolMemoryPackContext.Name:
 			return true
+
 		default:
 			return false
 		}

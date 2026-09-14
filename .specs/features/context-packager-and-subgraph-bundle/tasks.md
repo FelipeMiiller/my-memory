@@ -25,11 +25,12 @@
   - [x] Escrever testes de CLI em `cmd/mem/pack_test.go`.
 
 
-- [ ] **T4**: Ferramenta MCP `memory_pack_context` (`internal/mcp/`)
-  - [ ] Declarar `ToolMemoryPackContext` em `internal/mcp/tools.go` e adicionar a `AllTools`.
-  - [ ] Criar `internal/mcp/pack_handlers.go` com `NewMemoryPackContextHandler` e `SetPackHandler`.
-  - [ ] Conectar handler nos servidores stdio e HTTP/SSE em `cmd/mem/main.go`.
-  - [ ] Escrever testes unitários em `internal/mcp/pack_handlers_test.go`.
+- [x] **T4**: Ferramenta MCP `memory_pack_context` (`internal/mcp/`)
+  - [x] Declarar `ToolMemoryPackContext` em `internal/mcp/tools.go` e adicionar a `AllTools`.
+  - [x] Criar `internal/mcp/pack_handlers.go` com `NewMemoryPackContextHandler` e `SetPackHandler`.
+  - [x] Conectar handler nos servidores stdio e HTTP/SSE em `cmd/mem/main.go`.
+  - [x] Escrever testes unitários em `internal/mcp/pack_handlers_test.go`.
+
 
 - [ ] **T5**: Arquitetura (ADR-029) e Documentação Operacional
   - [ ] Criar `docs/adr/029-context-packager-e-subgraph-bundle.md` no padrão MADR.

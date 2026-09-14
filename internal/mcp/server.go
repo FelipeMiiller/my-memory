@@ -108,9 +108,11 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryGetImpact, NewMemoryGetImpactHandler(nil))
 	s.RegisterTool(ToolMemoryInspectNode, NewMemoryInspectNodeHandler(nil))
 	s.RegisterTool(ToolMemoryFindPath, NewMemoryFindPathHandler(nil))
+	s.RegisterTool(ToolMemoryPackContext, NewMemoryPackContextHandler(nil))
 
 	return s
 }
+
 
 // SetStalenessDetector configura o detector de integridade e staleness do vault
 func (s *Server) SetStalenessDetector(d *staleness.Detector) {

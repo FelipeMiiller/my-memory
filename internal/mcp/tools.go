@@ -450,7 +450,41 @@ var (
 			"required": []string{"source", "target"},
 		},
 	}
+
+
+	ToolMemoryPackContext = Tool{
+		Name:        "memory_pack_context",
+		Description: "Extrai e consolida um subgrafo conexo centrado em uma nota raiz, empacotando documentos centrais (L2), resumos periféricos (L0/L1) e diagrama Mermaid em um bundle coerente com limite de tokens",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"root_node": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho da nota raiz a partir da qual o subgrafo será explorado",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Profundidade máxima de saltos de exploração no grafo (padrão: 2)",
+				},
+				"max_tokens": map[string]any{
+					"type":        "integer",
+					"description": "Orçamento máximo de tokens para o pacote gerado (padrão: 4000)",
+				},
+				"direction": map[string]any{
+					"type":        "string",
+					"enum":        []string{"both", "outbound", "inbound"},
+					"description": "Direção da navegação pelas arestas ('both', 'outbound', 'inbound', padrão: 'both')",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"root_node"},
+		},
+	}
 )
+
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor
 func (s *Server) RegisterTool(tool Tool, handler ToolHandlerFunc) {
