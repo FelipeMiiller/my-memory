@@ -68,8 +68,23 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
      - Rastreamento em cascata de callers, dependentes e conceitos correlatos antes de aplicar alterações ou revogar decisões de arquitetura.
   4. **Visualização Espacial de 3 Colunas (`In-links | Nota | Out-links`):**
      - Layout ergonômico em três colunas espelhadas, alinhando chamadores à esquerda, corpo da nota no centro e referências de saída à direita.
-  5. **Auto-Wiring de Ferramentas de IA (`codegraph install`):**
-     - Descoberta automática de configurações de IDEs locais (Cursor, Claude Code, Antigravity) para registrar servidores MCP sem atrito manual.
+   5. **Auto-Wiring de Ferramentas de IA (`codegraph install`):**
+      - Descoberta automática de configurações de IDEs locais (Cursor, Claude Code, Antigravity) para registrar servidores MCP sem atrito manual.
+
+---
+
+### 1.5. [OpenViking](https://github.com/volcengine/OpenViking) (`volcengine/OpenViking`)
+* **Autor / Organização:** Volcengine / ByteDance
+* **O que é:** Context Database de código aberto para agentes de IA que unifica memória de longo prazo, RAG de conhecimento e skills operacionais sob uma hierarquia virtual de arquivos com carregamento progressivo de contexto.
+* **Pontos de inspiração para o My-Memory:**
+  1. **Carregamento Progressivo em Camadas (Context Tiers L0 / L1 / L2):**
+     - **L0 (Micro-Abstract):** Resumo sintético de 1 frase para triagem de relevância instantânea com consumo mínimo de tokens.
+     - **L1 (Overview):** Visão geral estrutural, decisões arquiteturais e sumário do nó para planejamento.
+     - **L2 (Full Details):** O conteúdo integral do documento, lido cirurgicamente apenas sob demanda estrita.
+  2. **Tripartição de Contexto do Agente (`Resources` vs `Memories` vs `Skills`):**
+     - Diferenciação clara entre documentação técnica/código (`resources`), hábitos e preferências de arquitetura (`memories`) e rotinas operacionais executáveis (`skills`).
+  3. **Busca Guiada por Comunidades e Domínios (Hierarchical Retrieval):**
+     - Triagem preliminar de domínio/cluster de conhecimento antes da recuperação granular de trechos.
 
 ---
 
@@ -89,3 +104,6 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
 | **Multi-Repositório** | Detecção de Git Origin | **Auto-scoping com Marker File** (`.memory/config.yaml` / Git slug) | `ai-memory` |
 | **Transporte MCP** | Apenas stdio local | **Multi-transporte (stdio + HTTP/SSE)** para agentes remotos e locais | ADR-021 |
 | **Raio de Destruição** | Sem análise de dependências reversas | **Análise de Impacto Reversa e Risk Scoring** (BFS reversa, severidade, PageRank, clusters) | `colbymchenry/codegraph` & ADR-023 |
+| **Carregamento em Camadas** | Recuperação de texto plano integral | **Progressive Context Loading (L0/L1/L2)** com Micro-Abstracts e Triptych | `volcengine/OpenViking` & `codegraph` |
+| **Taxonomia de Conhecimento** | Notas tratadas de forma homogênea | **Tripartição `Resource` vs `Memory` vs `Skill`** no frontmatter | `volcengine/OpenViking` |
+
