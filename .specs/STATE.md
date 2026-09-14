@@ -29,12 +29,14 @@
 ## Handoff
 
 - **Feature**: context-packager-and-subgraph-bundle (.specs/features/context-packager-and-subgraph-bundle)
-- **Phase / Task**: Início da execução (T1 - Motor de Empacotamento)
-- **Completed**: Especificação (`spec.md`) e plano de tarefas (`tasks.md`) definidos.
-- **In-progress**: T1 (Motor de Empacotamento de Subgrafo e Orçamento de Tokens em `internal/graph/`)
-- **Next step**: Implementar `internal/graph/pack.go` e seus testes unitários em `internal/graph/pack_test.go`
+- **Phase / Task**: 100% Concluída, Testada e Integrada (T1 a T5 finalizadas)
+- **Completed**: Motor de empacotamento com controle de orçamento em 3 tiers (`internal/graph/pack.go`), métodos `PackContext` em SQLite e PostgreSQL, comando CLI `mem pack`, ferramenta MCP `memory_pack_context`, documentação e ADR-029 Aceito.
+- **Completed Features**: context-packager-and-subgraph-bundle (ADR-029), staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: nenhuma (pronto para escolha da próxima feature do backlog)
+- **Next step**: Selecionar e iniciar especificação da próxima feature
 - **Blockers**: none
 - **Branch**: develop
+
 
 
 

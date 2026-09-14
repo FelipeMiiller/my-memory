@@ -439,6 +439,32 @@ Encontra a menor rota e calcula a cadeia de conexões entre dois nós arbitrári
 
 ---
 
+### 21. `mem pack <nota_raiz> [--depth 2] [--max-tokens 4000] [--direction both] [--out <arquivo>] [--json]`
+Empacota um subgrafo de contexto completo e auto-contido centrado em uma nota raiz, consolidando o conteúdo com controle rígido de orçamento de tokens:
+* **Orçamento de Tokens (`--max-tokens`, padrão: 4000):** Limita o tamanho total do bundle Markdown gerado, prevenindo estouro de janela de contexto em prompts de IA.
+* **Degradação Graciosa em 3 Tiers:**
+  - **TierCore (L2):** Nós centrais próximos recebem texto integral.
+  - **TierFringe (L0/L1):** Nós periféricos que estourariam o orçamento são resumidos automaticamente através de seus micro-abstracts L0/L1.
+  - **TierOmitted:** Nós secundários que não couberem são listados como omitidos, mantendo a rastreabilidade estrutural.
+* **Topologia Mermaid:** Incorpora um diagrama visual Mermaid (`graph TD`) representando as relações entre todos os nós incluídos.
+* **Gravação em Arquivo (`--out`):** Salva o bundle diretamente no disco, ideal para injeção em prompts ou sub-agentes.
+* **Saída JSON (`--json`):** Emite a estrutura de nós, métricas e texto serializados em JSON.
+
+**Exemplos:**
+```bash
+# Empacotar subgrafo de autenticação com limite de 3000 tokens:
+./bin/mem.exe pack "concepts/auth.md" --depth 2 --max-tokens 3000
+
+# Salvar bundle diretamente em arquivo para alimentar um agente:
+./bin/mem.exe pack "ARCHITECTURE" --out context_bundle.md
+
+# Obter o subgrafo em formato JSON estruturado:
+./bin/mem.exe pack "ARCHITECTURE" --json
+```
+
+---
+
+
 ## 🔍 Status e Detecção de Desatualização (`mem status`)
 
 O comando `mem status` realiza uma auditoria instantânea entre os arquivos físicos no disco e os documentos indexados no banco (SQLite ou PostgreSQL), identificando discrepâncias temporais e drift de contexto:

@@ -32,8 +32,9 @@
   - [x] Escrever testes unitários em `internal/mcp/pack_handlers_test.go`.
 
 
-- [ ] **T5**: Arquitetura (ADR-029) e Documentação Operacional
-  - [ ] Criar `docs/adr/029-context-packager-e-subgraph-bundle.md` no padrão MADR.
-  - [ ] Atualizar catálogo em `docs/adr/README.md` e `docs/README.md`.
-  - [ ] Atualizar documentação em `docs/CLI_GUIDE.md` e `docs/AGENT_INTEGRATION_GUIDE.md`.
-  - [ ] Atualizar estado do projeto em `.specs/STATE.md`.
+- [x] **T5**: Arquitetura (ADR-029) e Documentação Operacional
+  - [x] Criar `docs/adr/029-context-packager-e-subgraph-bundle.md` no padrão MADR.
+  - [x] Atualizar catálogo em `docs/adr/README.md` e `docs/README.md`.
+  - [x] Atualizar documentação em `docs/CLI_GUIDE.md` e `docs/AGENT_INTEGRATION_GUIDE.md`.
+  - [x] Atualizar estado do projeto em `.specs/STATE.md`.
+

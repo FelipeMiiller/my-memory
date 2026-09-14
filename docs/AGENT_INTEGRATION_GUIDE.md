@@ -219,6 +219,7 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | `memory_visualize_graph`| Para renderizar o grafo de conhecimento em HTML standalone interativo. | `root_node`, `depth` |
 | `memory_inspect_node` | Para inspeção cirúrgica em 3 colunas (in-links, nó e out-links) com zero file reads. | `node_id` (string), `max_content_length` (int) |
 | `memory_find_path` | Para rastrear a cadeia de dependências ou menor caminho epistêmico entre dois nós. | `source` (string), `target` (string), `max_depth` (int), `directed` (bool), `mode` ("epistemic" \| "hops") |
+| `memory_pack_context` | Para extrair e empacotar um subgrafo conexo com limite rígido de tokens em prompt único. | `root_node` (string), `max_depth` (int), `max_tokens` (int), `direction` ("both" \| "outbound" \| "inbound") |
 
 ---
 
@@ -227,7 +228,8 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 Para evitar alucinações decorrentes de notas editadas no disco sem reindexação (`Context Drift`), o My-Memory inclui um detector ativo com cache em memória (TTL 3s).
 
 ### Comportamento do Banner MCP
-Quando o agente invoca ferramentas de consulta (`memory_search`, `memory_find_path`, `memory_inspect_node`, `memory_get_impact`, etc.) e o índice está desatualizado em relação aos arquivos em disco, a resposta inclui automaticamente um aviso não-bloqueante no topo:
+Quando o agente invoca ferramentas de consulta (`memory_search`, `memory_pack_context`, `memory_find_path`, `memory_inspect_node`, `memory_get_impact`, etc.) e o índice está desatualizado em relação aos arquivos em disco, a resposta inclui automaticamente um aviso não-bloqueante no topo:
+
 
 ```markdown
 > ⚠️ **AVISO: Memória Desatualizada (Stale Data)**
