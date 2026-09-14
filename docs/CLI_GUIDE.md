@@ -1,3 +1,10 @@
+---
+title: "Guia da Linha de Comando (CLI)"
+category: skill
+summary: "Referência completa de comandos, sintaxe, flags e exemplos práticos para o executável mem (CLI do My-Memory)."
+tags: [cli, commands, flags, skill]
+---
+
 # Guia da Linha de Comando (CLI)
 
 O executável `mem` fornece uma interface direta para indexação e consulta semântica da base de conhecimento.
@@ -103,22 +110,40 @@ Gerencia a instalação do Git Pre-Commit Hook para garantir integridade do índ
 
 ---
 
-### 5. `mem search "<pergunta>" [--mode hybrid|vector|fts] [--decay] [--half-life 30] [--decay-weight 0.3]`
-Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato FTS5/tsvector, vetores semânticos k-NN e expansão de grafo:
+### 5. `mem search "<pergunta>" [--level l0|l1|l2] [--category resource|memory|skill] [--mode hybrid|vector|fts] [--decay] [--half-life 30] [--decay-weight 0.3]`
+Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato FTS5/tsvector, vetores semânticos k-NN, Progressive Context Loading e expansão de grafo:
+* `--level <l0|l1|l2>`: Define a densidade de contexto do resultado:
+  * `l0`: Micro-abstract cirúrgico (1 a 2 frases, ~30-50 tokens) com deduplicação por documento e sem despejo de texto bruto (*Zero File Reads*).
+  * `l1`: Overview estrutural padrão com metadados, resumo L0, trecho relevante e conexões do grafo.
+  * `l2`: Detalhes completos e conteúdo integral.
+* `--category <resource|memory|skill>`: Filtra por taxonomia de conhecimento (recursos técnicos, memórias de regras/hábitos ou habilidades operacionais).
 * `--mode`: Escolhe entre `hybrid` (padrão, fusão RRF), `vector` (apenas semântico k-NN) ou `fts` (apenas texto exato).
 * `--decay`: Ativa o decaimento temporal exponencial ponderado (ADR-015) para priorizar notas mais recentes no ranking final.
 * `--half-life <dias>`: Tempo de meia-vida da curva em dias (padrão: 30.0 dias).
 * `--decay-weight <w>`: Peso do decaimento entre 0.0 (sem efeito) e 1.0 (decaimento máximo) com piso assintótico $(1 - w)$ (padrão: 0.3).
 * Realiza a **expansão de grafo** via SQL recursivo para trazer notas estruturalmente conectadas.
 
-**Exemplo:**
+**Exemplos:**
 ```bash
+# 1. Busca padrão L1:
 ./bin/mem.exe search "como funciona o fluxo de autenticacao?"
-# Busca com decaimento temporal agressivo (meia-vida de 15 dias, peso 0.5):
+
+# 2. Busca cirúrgica L0 (ultracompacta para Agentes e triagem rápida):
+./bin/mem.exe search "protocolos" --level l0
+
+# 3. Busca filtrada por categoria (apenas regras e condutas do agente):
+./bin/mem.exe search "agentes" --level l0 --category memory
+
+# 4. Busca por habilidades operacionais (deploy, comandos e procedimentos):
+./bin/mem.exe search "deploy" --level l0 --category skill
+
+# 5. Busca com decaimento temporal agressivo (meia-vida de 15 dias, peso 0.5):
 ./bin/mem.exe search --decay --half-life 15 --decay-weight 0.5 "decisoes de arquitetura"
-# Filtrando por repositório ou conectando ao PostgreSQL:
+
+# 6. Filtrando por repositório ou conectando ao PostgreSQL:
 ./bin/mem.exe search --postgres "postgres://user:pass@localhost:5432/memory?sslmode=disable" --repo "meu-org/meu-projeto" "fluxo de autenticacao"
 ```
+
 
 ---
 
@@ -311,6 +336,29 @@ Gera e abre no navegador uma visualização interativa do grafo da memória do r
 
 # Exportar para arquivo específico sem abrir o navegador:
 ./bin/mem.exe graph export --out "docs/mapa_conhecimento.html"
+```
+
+---
+
+### 17. `mem impact <node_id> [--depth 2] [--json] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Analisa preventivamente o **raio de destruição (*blast radius*)** e o fechamento de dependências reversas antes de alterar arquivos de código ou notas arquiteturais:
+* **Travessia Reversa em Camadas:** Identifica todos os documentos e serviços que dependem direta ou indiretamente do nó alvo até a profundidade especificada (`--depth`, padrão: 2).
+* **Score de Risco Normalizado (0 a 100):** Pondera a quantidade de nós afetados, a severidade semântica das arestas, o decaimento hiperbólico por profundidade ($1/\text{depth}$) e a autoridade estrutural calculada via **PageRank**.
+* **Badges de Severidade Semântica:** Diferencia impactos `[CRITICAL]` (contratos de dependência e implementação direta), `[HIGH]`, `[MEDIUM]` (links conceituais) e `[LOW]`.
+* **Detecção de Domínios Cruzados:** Relaciona os clusters temáticos de conhecimento (ADR-022) atingidos pelo raio de destruição.
+* **Resolução Canônica Tolerante:** O identificador `<node_id>` aceita caminhos relativos de arquivos (`internal/graph/impact.go`), títulos de notas ou slugs parciais.
+* **Formato JSON Estruturado:** Com `--json`, exporta métricas e árvore de dependentes pronta para automações e pipelines CI/CD.
+
+**Exemplos:**
+```bash
+# Analisar impacto de uma nota central de autenticação (profundidade padrão: 2):
+./bin/mem.exe impact "concepts/auth.md"
+
+# Avaliar impacto profundo (até 3 níveis de dependências):
+./bin/mem.exe impact "internal/db/database.go" --depth 3
+
+# Exportar relatório de blast radius em JSON:
+./bin/mem.exe impact "decisions/adr-001.md" --json
 ```
 
 ---

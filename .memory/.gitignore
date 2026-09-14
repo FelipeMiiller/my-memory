@@ -1,0 +1,11 @@
+# Variáveis de ambiente locais com credenciais reais (não commitar no Git)
+.env
+*.env
+*.local
+*.env.local
+
+# Bancos de dados SQLite locais
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

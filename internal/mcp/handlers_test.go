@@ -837,3 +837,129 @@ func TestServer_ToolsCall_MemorySearch_WithDecay(t *testing.T) {
 		t.Errorf("esperava 'notes/ai.md' no texto, obteve: %s", text)
 	}
 }
+
+func TestServer_ToolsCall_MemorySearch_DetailLevelL0(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 50, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"query": "arquitetura", "detail_level": "l0"}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	called := false
+	srv.SetAdvancedSearchHandler(func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		called = true
+		if params.DetailLevel != "l0" {
+			t.Errorf("esperava DetailLevel 'l0', obteve '%s'", params.DetailLevel)
+		}
+		return []SearchResult{
+			{
+				ChunkID:    "c_l0",
+				DocumentID: "docs/spec.md",
+				Abstract:   "Especificação de arquitetura de contexto progressivo.",
+				Category:   "resource",
+				Score:      0.042,
+				Neighbors:  []string{"docs/intro.md"},
+			},
+		}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	if !called {
+		t.Fatalf("SetAdvancedSearchHandler deveria ter sido invocado")
+	}
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta JSON-RPC: %v", err)
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	if err := json.Unmarshal(resBytes, &callResult); err != nil {
+		t.Fatalf("erro ao decodificar CallToolResult: %v", err)
+	}
+
+	if len(callResult.Content) == 0 {
+		t.Fatalf("resultado vazio de tools/call")
+	}
+	text := callResult.Content[0].Text
+	if !strings.Contains(text, "Resultados da Busca (L0: Micro-Abstracts)") {
+		t.Errorf("esperava cabeçalho L0, obteve: %s", text)
+	}
+	if !strings.Contains(text, "docs/spec.md") {
+		t.Errorf("esperava 'docs/spec.md' na tabela, obteve: %s", text)
+	}
+	if !strings.Contains(text, "Especificação de arquitetura de contexto progressivo.") {
+		t.Errorf("esperava abstract na tabela, obteve: %s", text)
+	}
+	if !strings.Contains(text, "resource") {
+		t.Errorf("esperava categoria 'resource' na tabela, obteve: %s", text)
+	}
+}
+
+func TestServer_ToolsCall_MemorySearch_CategoryFilter(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 51, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"query": "protocolo", "category": "skill"}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	called := false
+	srv.SetAdvancedSearchHandler(func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		called = true
+		if params.Category != "skill" {
+			t.Errorf("esperava Category 'skill', obteve '%s'", params.Category)
+		}
+		if params.DetailLevel != "l1" {
+			t.Errorf("esperava default DetailLevel 'l1', obteve '%s'", params.DetailLevel)
+		}
+		return []SearchResult{
+			{
+				ChunkID:    "c_skill",
+				DocumentID: "skills/debug.md",
+				Content:    "Guia de depuração de rede",
+				Category:   "skill",
+				Score:      0.05,
+			},
+		}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	if !called {
+		t.Fatalf("SetAdvancedSearchHandler deveria ter sido invocado")
+	}
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta JSON-RPC: %v", err)
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	if err := json.Unmarshal(resBytes, &callResult); err != nil {
+		t.Fatalf("erro ao decodificar CallToolResult: %v", err)
+	}
+
+	text := callResult.Content[0].Text
+	if !strings.Contains(text, "skills/debug.md") {
+		t.Errorf("esperava 'skills/debug.md' no resultado, obteve: %s", text)
+	}
+	if !strings.Contains(text, "[SKILL]") {
+		t.Errorf("esperava '[SKILL]' no resultado L1, obteve: %s", text)
+	}
+}
+

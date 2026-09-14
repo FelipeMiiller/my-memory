@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 )
+
 
 // DefaultRRFK define a constante padrão de suavização para RRF (k = 60).
 const DefaultRRFK = 60
@@ -133,11 +135,14 @@ func CalculateTimeDecay(updatedAt, refTime int64, halfLifeDays, weight float64) 
 	return multiplier
 }
 
-// FuseSearchResultsWithDecay funde múltiplos slices de SearchResult aplicando RRF ponderado por decaimento temporal.
-func FuseSearchResultsWithDecay(sources []RankedResultSource, k int, limit int, opts DecayOptions) []SearchResult {
+// FuseSearchResultsWithOptions funde múltiplos slices de SearchResult aplicando RRF ponderado por decaimento temporal,
+// filtragem por taxonomia de categoria e projeção de densidade de contexto (l0, l1, l2).
+func FuseSearchResultsWithOptions(sources []RankedResultSource, k int, limit int, opts DecayOptions, searchOpts SearchOptions) []SearchResult {
 	if k <= 0 {
 		k = DefaultRRFK
 	}
+
+	catFilter := strings.ToLower(strings.TrimSpace(searchOpts.Category))
 
 	type chunkMeta struct {
 		result   SearchResult
@@ -158,11 +163,25 @@ func FuseSearchResultsWithDecay(sources []RankedResultSource, k int, limit int, 
 				continue
 			}
 
+			// Filtragem por taxonomia de categoria
+			if catFilter != "" {
+				itemCat := strings.ToLower(strings.TrimSpace(res.Category))
+				if itemCat == "" {
+					itemCat = "resource"
+				}
+				if itemCat != catFilter {
+					continue
+				}
+			}
+
 			rank := rankIdx + 1
 			reciprocal := 1.0 / float64(k+rank)
 
 			meta, exists := metaMap[key]
 			if !exists {
+				if res.Category == "" {
+					res.Category = "resource"
+				}
 				meta = &chunkMeta{
 					result:   res,
 					seenSrcs: make(map[string]bool),
@@ -181,6 +200,14 @@ func FuseSearchResultsWithDecay(sources []RankedResultSource, k int, limit int, 
 				}
 				if res.UpdatedAt > meta.result.UpdatedAt {
 					meta.result.UpdatedAt = res.UpdatedAt
+				}
+				if meta.result.Abstract == "" && res.Abstract != "" {
+					meta.result.Abstract = res.Abstract
+				}
+				if meta.result.Category == "" || meta.result.Category == "resource" {
+					if res.Category != "" {
+						meta.result.Category = res.Category
+					}
 				}
 			}
 
@@ -204,6 +231,32 @@ func FuseSearchResultsWithDecay(sources []RankedResultSource, k int, limit int, 
 		fused = append(fused, res)
 	}
 
+	// Se nível for L0, deduplica por documento (mantendo o chunk de maior score) e remove Content bruto
+	if strings.EqualFold(searchOpts.Level, "l0") {
+		docMap := make(map[string]SearchResult)
+		for _, res := range fused {
+			docKey := res.DocumentID
+			if docKey == "" {
+				docKey = res.ChunkID
+			}
+
+			if res.Abstract == "" && res.Content != "" {
+				res.Abstract = fallbackAbstract(res.Content, 160)
+			}
+			res.Content = "" // omite corpo bruto em L0
+
+			existing, ok := docMap[docKey]
+			if !ok || res.Score > existing.Score {
+				docMap[docKey] = res
+			}
+		}
+
+		fused = make([]SearchResult, 0, len(docMap))
+		for _, res := range docMap {
+			fused = append(fused, res)
+		}
+	}
+
 	sort.Slice(fused, func(i, j int) bool {
 		if fused[i].Score != fused[j].Score {
 			return fused[i].Score > fused[j].Score
@@ -211,7 +264,10 @@ func FuseSearchResultsWithDecay(sources []RankedResultSource, k int, limit int, 
 		if len(fused[i].Sources) != len(fused[j].Sources) {
 			return len(fused[i].Sources) > len(fused[j].Sources)
 		}
-		return fused[i].ChunkID < fused[j].ChunkID
+		if fused[i].ChunkID != fused[j].ChunkID {
+			return fused[i].ChunkID < fused[j].ChunkID
+		}
+		return fused[i].DocumentID < fused[j].DocumentID
 	})
 
 	if limit > 0 && len(fused) > limit {
@@ -219,6 +275,35 @@ func FuseSearchResultsWithDecay(sources []RankedResultSource, k int, limit int, 
 	}
 
 	return fused
+}
+
+// fallbackAbstract extrai uma linha descritiva simplificada para documentos sem abstract explícito
+func fallbackAbstract(content string, maxLen int) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ""
+	}
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			runes := []rune(line)
+			if len(runes) > maxLen {
+				return string(runes[:maxLen-3]) + "..."
+			}
+			return line
+		}
+	}
+	runes := []rune(content)
+	if len(runes) > maxLen {
+		return string(runes[:maxLen-3]) + "..."
+	}
+	return content
+}
+
+// FuseSearchResultsWithDecay funde múltiplos slices de SearchResult aplicando RRF ponderado por decaimento temporal.
+func FuseSearchResultsWithDecay(sources []RankedResultSource, k int, limit int, opts DecayOptions) []SearchResult {
+	return FuseSearchResultsWithOptions(sources, k, limit, opts, SearchOptions{Level: "l1"})
 }
 
 // FuseSearchResults funde múltiplos slices de SearchResult aplicando RRF baseado no ChunkID ou DocumentID.

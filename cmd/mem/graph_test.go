@@ -105,7 +105,7 @@ func TestRunGraphCLI_ViewSubcommand(t *testing.T) {
 func TestRunGraphCLI_ExportError(t *testing.T) {
 	ctx := context.Background()
 	invalidOut := filepath.Join(os.TempDir(), "non_existent_folder_abc123", "sub", "graph.html")
-	args := []string{"export", "--out", invalidOut, "--open=false", "--db", "dummy.db"}
+	args := []string{"export", "--out", invalidOut, "--open=false", "--db", filepath.Join(t.TempDir(), "dummy.db")}
 	err := runGraphCLI(ctx, "test-repo", args)
 	if err == nil {
 		t.Fatal("esperava erro ao exportar para diretório inexistente")

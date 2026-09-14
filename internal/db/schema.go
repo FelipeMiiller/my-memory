@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS documents (
     path TEXT NOT NULL UNIQUE,
     title TEXT,
     updated_at INTEGER NOT NULL,
-    content_hash TEXT
+    content_hash TEXT,
+    abstract TEXT,
+    category TEXT DEFAULT 'resource'
 );
 
 -- Chunks textuais para busca fina
@@ -63,7 +65,9 @@ CREATE TABLE IF NOT EXISTS documents (
     path TEXT NOT NULL UNIQUE,
     title TEXT,
     updated_at INTEGER NOT NULL,
-    content_hash TEXT
+    content_hash TEXT,
+    abstract TEXT,
+    category TEXT DEFAULT 'resource'
 );
 
 -- Chunks textuais para busca fina

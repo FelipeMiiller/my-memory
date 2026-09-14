@@ -31,7 +31,7 @@ func TestMCPServer_CLI_Network(t *testing.T) {
 	serverDone := make(chan struct{})
 	go func() {
 		defer close(serverDone)
-		runMCPServer(ctx, nil, nil, nil, "test-repo", addr, true)
+		runMCPServer(ctx, nil, nil, nil, nil, "test-repo", addr, true)
 	}()
 
 	client := &http.Client{

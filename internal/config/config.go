@@ -35,7 +35,10 @@ type SearchConfig struct {
 	HalfLife    float64 `yaml:"half_life,omitempty" json:"half_life,omitempty"`       // Meia-vida em dias (default: 30.0)
 	DecayWeight float64 `yaml:"decay_weight,omitempty" json:"decay_weight,omitempty"` // Peso do decaimento w (default: 0.3)
 	UseTurbo    bool    `yaml:"use_turbo,omitempty" json:"use_turbo,omitempty"`       // Usar quantização 4-bit TurboQuant no SQLite
+	Level       string  `yaml:"level,omitempty" json:"level,omitempty"`               // "l0", "l1", "l2" (default: "l1")
+	Category    string  `yaml:"category,omitempty" json:"category,omitempty"`         // "resource", "memory", "skill" ou ""
 }
+
 
 // WatcherConfig define os parâmetros para monitoramento contínuo de arquivos em tempo real
 type WatcherConfig struct {
@@ -89,7 +92,10 @@ func DefaultConfig() Config {
 			HalfLife:    30.0,
 			DecayWeight: 0.3,
 			UseTurbo:    false,
+			Level:       "l1",
+			Category:    "",
 		},
+
 		Watcher: WatcherConfig{
 			DebounceMs: 500,
 			IntervalMs: 1000,
@@ -198,6 +204,12 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.Search.DecayWeight < 0.0 || cfg.Search.DecayWeight > 1.0 {
 		cfg.Search.DecayWeight = 0.3
 	}
+
+	// Expande variáveis de ambiente (${VAR}) em caminhos e URLs
+	cfg.Storage.SQLitePath = os.ExpandEnv(cfg.Storage.SQLitePath)
+	cfg.Storage.PostgresURL = os.ExpandEnv(cfg.Storage.PostgresURL)
+	cfg.Embedding.URL = os.ExpandEnv(cfg.Embedding.URL)
+	cfg.Repository = os.ExpandEnv(cfg.Repository)
 
 	return &cfg, nil
 }

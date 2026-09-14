@@ -5,7 +5,21 @@ import (
 	"math"
 	"strings"
 	"unicode"
+
+	"github.com/FelipeMiiller/my-memory/internal/graph"
 )
+
+// Document representa a entidade de um documento armazenado
+type Document struct {
+	ID          string `json:"id"`
+	Repository  string `json:"repository,omitempty"`
+	Path        string `json:"path"`
+	Title       string `json:"title"`
+	UpdatedAt   int64  `json:"updated_at"`
+	ContentHash string `json:"content_hash,omitempty"`
+	Abstract    string `json:"abstract,omitempty"`
+	Category    string `json:"category,omitempty"`
+}
 
 // SearchResult representa um trecho relevante retornado na busca
 type SearchResult struct {
@@ -18,7 +32,16 @@ type SearchResult struct {
 	Sources    []string `json:"sources,omitempty"` // Origens e posições (ex: ["fts:1", "vector:3"])
 	Neighbors  []string `json:"neighbors,omitempty"`
 	UpdatedAt  int64    `json:"updated_at,omitempty"`
+	Abstract   string   `json:"abstract,omitempty"`
+	Category   string   `json:"category,omitempty"`
 }
+
+// SearchOptions define critérios de filtragem por taxonomia e nível de densidade de contexto
+type SearchOptions struct {
+	Category string `json:"category,omitempty"` // "resource", "memory", "skill" ou "" (todas)
+	Level    string `json:"level,omitempty"`    // "l0", "l1", "l2" (default: "l1")
+}
+
 
 // GodNode representa um nó com alta centralidade estrutural (in-degree + out-degree) no grafo
 type GodNode struct {
@@ -93,6 +116,9 @@ type Store interface {
 	// InsertDocument insere ou atualiza um documento atrelado ao repositório
 	InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error
 
+	// InsertDocumentWithMeta insere ou atualiza um documento com metadados de abstract (L0) e categoria
+	InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, abstract, category string) error
+
 	// GetDocumentHash retorna o hash SHA-256 armazenado de um documento (ou "" se não existir)
 	GetDocumentHash(ctx context.Context, repo, id string) (string, error)
 
@@ -123,8 +149,14 @@ type Store interface {
 	// SearchKNN busca os K pedaços mais próximos vetorialmente (se repo != "", filtra por repositório)
 	SearchKNN(ctx context.Context, repo string, queryVec []float32, limit int) ([]SearchResult, error)
 
+	// SearchKNNWithOptions busca os K pedaços mais próximos vetorialmente com opções de categoria e nível
+	SearchKNNWithOptions(ctx context.Context, repo string, queryVec []float32, limit int, searchOpts SearchOptions) ([]SearchResult, error)
+
 	// SearchFTS busca trechos via texto completo (FTS5 no SQLite / tsvector no Postgres)
 	SearchFTS(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error)
+
+	// SearchFTSWithOptions busca trechos via texto completo com opções de categoria e nível
+	SearchFTSWithOptions(ctx context.Context, repo string, query string, limit int, searchOpts SearchOptions) ([]SearchResult, error)
 
 	// SearchHybridRRF executa busca híbrida fundindo FTS, vetores e grafo via RRF
 	SearchHybridRRF(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int) ([]SearchResult, error)
@@ -132,11 +164,20 @@ type Store interface {
 	// SearchHybridRRFWithDecay executa busca híbrida com RRF ponderado por decaimento temporal
 	SearchHybridRRFWithDecay(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, opts DecayOptions) ([]SearchResult, error)
 
+	// SearchHybridWithOptions executa busca híbrida fundindo FTS, vetores e grafo com decaimento temporal, categoria e nível
+	SearchHybridWithOptions(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, decayOpts DecayOptions, searchOpts SearchOptions) ([]SearchResult, error)
+
 	// GetNodeNeighbors executa busca recursiva de nós vizinhos conectados via CTE
 	GetNodeNeighbors(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error)
 
 	// DiagnoseHealth audita a integridade do grafo gerando um relatório de saúde
 	DiagnoseHealth(ctx context.Context, repo string) (*DoctorReport, error)
+
+	// CalculateImpact calcula o fechamento de dependências reversas e score de risco (blast radius)
+	CalculateImpact(ctx context.Context, repo string, targetQuery string, maxDepth int) (*graph.ImpactResult, error)
+
+	// InspectNode constrói a visualização cirúrgica em 3 colunas (Triptych) de um nó
+	InspectNode(ctx context.Context, repo string, targetQuery string, maxContentLen int) (*graph.TriptychView, error)
 
 	// FixHealthIssues repara problemas comuns como self-loops e links mortos
 	FixHealthIssues(ctx context.Context, repo string) (int, error)

@@ -13,6 +13,7 @@ Este documento é o **mapa central de conhecimento** do projeto **My-Memory**. E
 | **[`docs/BENCHMARKS.md`](BENCHMARKS.md)** | Performance & Métricas | Relatório empírico de micro-benchmarks (TurboQuant 4-bit, RRF, hashing SHA-256 e parsing). |
 | **[`docs/CLI_GUIDE.md`](CLI_GUIDE.md)** | Operação | Manual prático de comandos da CLI (`mem index`, `mem search`, `mem bench`, `mem insights`). |
 | **[`docs/REPOSITORY_BRAIN.md`](REPOSITORY_BRAIN.md)** | Integração com IA | Como utilizar o `my-memory` como memória de contexto dentro de projetos via **Model Context Protocol (MCP)**. |
+| **[`docs/AGENT_INTEGRATION_GUIDE.md`](AGENT_INTEGRATION_GUIDE.md)** | Guia para Agentes | Manual completo de integração, comandos CLI, servidor MCP e instruções para `AGENTS.md`. |
 | **[`docs/REFERENCES.md`](REFERENCES.md)** | Arte Prévia & Referências | Referências técnicas e ecossistemas que inspiram e refinam o projeto (`graphify`, `ai-memory`, `obsidian-skills`, `codegraph`). |
 
 ---
@@ -44,6 +45,10 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-020`](adr/020-visualizador-interativo-de-grafo-em-html-svg.md)** — Visualizador Interativo de Grafo em HTML/SVG Standalone
 * **[`ADR-021`](adr/021-servidor-mcp-com-transporte-http-sse.md)** — Servidor MCP com Transporte HTTP e Server-Sent Events (SSE)
 * **[`ADR-022`](adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md)** — Detecção de Comunidades e Clusters no Grafo de Conhecimento
+* **[`ADR-023`](adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md)** — Análise de Impacto e Raio de Destruição (Blast Radius Analysis)
+* **[`ADR-024`](adr/024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md)** — Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector)
+* **[`ADR-025`](adr/025-progressive-context-loading-e-taxonomia-de-memoria.md)** — Carregamento Progressivo de Contexto e Taxonomia de Memória
+
 
 ---
 

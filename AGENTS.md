@@ -1,3 +1,10 @@
+---
+title: "Guia Operacional para Agentes de IA"
+category: memory
+summary: "Instruções e mapa de navegação operacional para Agentes de IA (Antigravity, Claude Code, Cursor, Windsurf, Copilot) no repositório my-memory."
+tags: [agents, ai, operational-guide, memory]
+---
+
 # AGENTS.md
 
 Instruções e mapa de navegação operacional para **Agentes de IA** (Antigravity, Claude Code, Cursor, Windsurf, Copilot) atuando no repositório **`my-memory`**.
@@ -11,6 +18,37 @@ O **My-Memory** é uma ferramenta local em Go que transforma qualquer repositór
 2. **TurboQuant (Google DeepMind, ICLR 2026)**: Compressão vetorial para 4-bits com 32 reflexões de Householder e estimador não-viesado (384 bytes por chunk).
 3. **Obsidian Graph**: Parsing de `[[wikilinks]]` e `#tags` gerando conexões reais sem alucinações.
 4. **SQL Recursivo (`WITH RECURSIVE`)**: Expansão de vizinhos em grafo direto pelo SQLite.
+5. **PostgreSQL + pgvector**: Persistência híbrida opcional de alta escala para repositórios distribuídos e ambientes multi-tenant.
+
+---
+
+## 🧠 Inicialização do Vault de Conhecimento (`.memory/`)
+
+No início de qualquer sessão ou tarefa no repositório, o Agente de IA **DEVE** verificar se o vault local está inicializado:
+
+1. **Detecção e Criação Automática**:
+   - Verifique se a pasta `.memory/` ou o arquivo `.memory/config.yaml` existe no repositório.
+   - Se **NÃO existir**:
+     - Execute imediatamente:
+       ```bash
+       mem init
+       ```
+       *(ou execute `go run ./cmd/mem init` caso o binário compilado não esteja no PATH)*.
+     - O comando criará a estrutura padrão com proteção de segurança:
+       - `.memory/config.yaml`: Escopo declarativo pré-configurado para pastas `docs/`, `specs/`, `.specs/` e `README.md`, com isolamento do SQLite em `.memory/memory.db`.
+       - `.memory/.gitignore`: Garante que `.env` e arquivos `.db` nunca sejam commitados.
+       - `.memory/.env.example`: Modelo de configuração com variáveis para PostgreSQL.
+2. **Conexão com PostgreSQL (pgvector)**:
+   - Se o ambiente local possuir PostgreSQL ativo e o repositório necessitar de persistência em pgvector, o agente pode copiar `.memory/.env.example` para `.memory/.env`:
+     ```env
+     MY_MEMORY_PG_URL=postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable
+     ```
+   - O `my-memory` detectará automaticamente o `.memory/.env` e direcionará todas as operações (índice, busca, MCP) para o PostgreSQL sem necessidade de parâmetros manuais.
+3. **Indexação Inicial**:
+   - Caso o vault tenha acabado de ser inicializado, execute a indexação:
+     ```bash
+     mem index
+     ```
 
 ---
 
@@ -42,6 +80,7 @@ Consulte estes registros antes de sugerir mudanças estruturais:
 * **ADR-004**: Modelagem e Travessia de Grafo com SQL Recursivo (CTEs).
 * **ADR-005**: Markdown com [[Wikilinks]] como Entrada e Grafo Humano.
 * **ADR-006**: Integração com Agentes de IA via Model Context Protocol (MCP).
+* **ADR-016**: Configuração Declarativa e Auto-Scoping de Vault (`.memory/config.yaml`).
 
 ---
 
@@ -54,6 +93,9 @@ go test -v ./internal/...
 
 # Executar com relatório de cobertura
 go test -v -cover ./internal/parser/... ./internal/turboquant/...
+
+# Executar suíte completa
+go test -count=1 ./...
 ```
 
 ### Formatação e Estilo
@@ -79,3 +121,5 @@ go build -v -o bin/mem.exe ./cmd/mem
 2. **Commits Atômicos:** Utilize a convenção *Conventional Commits* (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`).
 3. **Não altere convenções sem ADR:** Qualquer mudança de banco de dados, biblioteca de vetores ou arquitetura exige a criação de um novo ADR na pasta `docs/adr/`.
 4. **Execução Obrigatória de Testes após Cada Tarefa:** SEMPRE que finalizar uma tarefa, alteração de código ou refatoração, o agente DEVE OBRIGATORIAMENTE executar os testes (`go test -v ./...` ou os pacotes impactados). Nenhuma tarefa é considerada pronta nem pode ser commitada sem que os testes passem com 100% de aprovação.
+5. **Verificação de Inicialização da Memória:** Ao iniciar qualquer trabalho neste repositório, o agente DEVE checar se `.memory/config.yaml` existe. Caso não exista, deve executar `mem init` antes de qualquer outra tarefa.
+6. **Taxonomia e Carregamento Progressivo (L0/L1/L2):** Ao criar ou documentar notas, inclua preferencialmente no frontmatter a taxonomia `category: resource | memory | skill` e `summary: <resumo>` para viabilizar indexação em camadas e recuperação econômica L0.

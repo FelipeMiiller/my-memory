@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grafo de Memória [FelipeMiiller/my-memory]</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --bg-surface: #0f172a;
+      --border: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      user-select: none;
+    }
+    header {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 440px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: #1e293b;
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .stats-row span strong { color: var(--text); }
+    .search-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .search-input {
+      flex: 1;
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus { border-color: var(--accent); }
+    .filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 2px;
+    }
+    .chip {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: #1e293b;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+    .chip.active {
+      color: var(--text);
+      font-weight: 600;
+      border-color: currentColor;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      cursor: grab;
+    }
+    #canvas-container.panning { cursor: grabbing; }
+    svg { width: 100%; height: 100%; }
+    .edge {
+      stroke-opacity: 0.5;
+      stroke-width: 1.5;
+      transition: stroke-opacity 0.2s, stroke-width 0.2s;
+    }
+    .edge.inferred { stroke-dasharray: 4, 4; }
+    .edge.highlighted { stroke-opacity: 1 !important; stroke-width: 3 !important; }
+    .node-group { cursor: pointer; transition: opacity 0.2s; }
+    .node-circle {
+      stroke: #090d16;
+      stroke-width: 2px;
+      transition: r 0.2s, stroke-width 0.2s, filter 0.2s;
+    }
+    .node-group:hover .node-circle {
+      stroke-width: 3.5px;
+      stroke: #fff;
+      filter: drop-shadow(0 0 8px var(--accent));
+    }
+    .node-group.hub .node-circle {
+      stroke: #eab308;
+      stroke-width: 2.5px;
+    }
+    .node-label {
+      font-size: 11px;
+      font-weight: 500;
+      fill: #cbd5e1;
+      text-anchor: middle;
+      pointer-events: none;
+      paint-order: stroke;
+      stroke: #090d16;
+      stroke-width: 3px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0;
+      transition: opacity 0.2s ease, fill 0.2s ease;
+    }
+    .node-group.hub .node-label,
+    .node-group[data-important="true"] .node-label,
+    .node-group:hover .node-label,
+    .node-group.highlighted .node-label,
+    body.show-all-labels .node-label {
+      opacity: 1;
+    }
+    .node-group:hover .node-label {
+      font-weight: 600;
+      fill: #38bdf8;
+    }
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 10;
+    }
+    .ctrl-btn {
+      width: 36px;
+      height: 36px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .ctrl-btn:hover { background: #1e293b; border-color: var(--accent); }
+    #sidebar {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      bottom: 16px;
+      width: 380px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      z-index: 20;
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      box-shadow: -10px 0 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    #sidebar.open { display: flex; }
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .sidebar-title { font-size: 17px; font-weight: 700; color: var(--text); word-break: break-word; }
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+    .close-btn:hover { color: var(--text); }
+    .meta-card {
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .meta-item { display: flex; justify-content: space-between; }
+    .meta-label { color: var(--text-muted); }
+    .meta-value { font-weight: 600; }
+    .links-section { display: flex; flex-direction: column; gap: 8px; }
+    .links-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .links-list { display: flex; flex-direction: column; gap: 4px; }
+    .link-item {
+      padding: 6px 10px;
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--accent);
+      transition: all 0.2s;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .link-item:hover { background: #1e293b; border-color: var(--accent); }
+    .obsidian-btn {
+      padding: 10px;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .obsidian-btn:hover { background: #4338ca; }
+    .triptych-btn {
+      padding: 10px;
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.2s;
+    }
+    .triptych-btn:hover { background: #0369a1; }
+    .triptych-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 7, 18, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+    .triptych-modal.open { display: flex; }
+    .triptych-container {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      width: 95%;
+      max-width: 1200px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+    .triptych-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f172a;
+    }
+    .triptych-title { font-size: 16px; font-weight: 700; color: #f8fafc; }
+    .triptych-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 16px;
+      padding: 20px;
+      overflow-y: auto;
+      background: #090d16;
+    }
+    @media (max-width: 900px) {
+      .triptych-grid { grid-template-columns: 1fr; }
+    }
+    .triptych-col {
+      background: #0d131f;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .col-header {
+      font-size: 14px;
+      font-weight: 700;
+      color: #94a3b8;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tp-list { display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow-y: auto; }
+    .tp-card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 6px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tp-card:hover { border-color: #38bdf8; background: #1e293b; }
+    .tp-card-title { font-size: 13px; font-weight: 600; color: #38bdf8; }
+    .tp-card-meta { font-size: 11px; color: #94a3b8; margin-top: 4px; display: flex; justify-content: space-between; }
+    .tp-badge-crit { background: rgba(239, 68, 68, 0.2); color: #f87171; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .tp-badge-high { background: rgba(249, 115, 22, 0.2); color: #fb923c; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .tp-badge-med { background: rgba(234, 179, 8, 0.2); color: #facc15; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .tp-badge-low { background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title-row">
+      <div class="title">Grafo de Memória [FelipeMiiller/my-memory]</div>
+      <span class="badge">FelipeMiiller/my-memory</span>
+    </div>
+    <div class="stats-row">
+      <span>Nós: <strong>62</strong></span>
+      <span>Arestas: <strong>34</strong></span>
+      <span>Hubs: <strong>7</strong></span>
+      <span>Densidade: <strong>0.009</strong></span>
+      <span>Atualizado em: <strong>14/09/2026 14:01:59</strong></span>
+    </div>
+    <div class="search-row">
+      <input type="text" id="search-input" class="search-input" placeholder="Filtrar notas...">
+    </div>
+    <div class="filter-chips" id="filter-chips">
+      <span class="chip active" data-type="all">Todos</span>
+      <span class="chip" data-type="concept" style="color: #3b82f6;">Conceitos</span>
+      <span class="chip" data-type="decision" style="color: #f43f5e;">Decisões</span>
+      <span class="chip" data-type="guide" style="color: #10b981;">Guias</span>
+      <span class="chip" data-type="synthesis" style="color: #ec4899;">Sínteses</span>
+      <span class="chip" data-type="reference" style="color: #a855f7;">Referências</span>
+      <span class="chip" data-type="other" style="color: #64748b;">Outros</span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btn-toggle-labels" title="Alternar Rótulos (Ocultar / Mostrar Todos)">🏷️</button>
+    <button class="ctrl-btn" id="btn-zoom-in" title="Aumentar Zoom">+</button>
+    <button class="ctrl-btn" id="btn-zoom-out" title="Diminuir Zoom">−</button>
+    <button class="ctrl-btn" id="btn-reset" title="Centralizar Grafo">⟲</button>
+  </div>
+
+  <div id="canvas-container">
+    <svg id="graph-svg">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+        </marker>
+        <marker id="arrow-highlight" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+        </marker>
+      </defs>
+      <g id="viewport">
+        <g id="edges-layer"></g>
+        <g id="nodes-layer"></g>
+      </g>
+    </svg>
+  </div>
+
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title" id="sb-title">Nota Selecionada</div>
+      <button class="close-btn" id="sb-close">&times;</button>
+    </div>
+    <div class="meta-card">
+      <div class="meta-item">
+        <span class="meta-label">Tipo:</span>
+        <span class="meta-value" id="sb-type">concept</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">PageRank:</span>
+        <span class="meta-value" id="sb-pagerank">0.00</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Entrada (In-links):</span>
+        <span class="meta-value" id="sb-in">0</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Saída (Out-links):</span>
+        <span class="meta-value" id="sb-out">0</span>
+      </div>
+      <div class="meta-item" id="sb-updated-row">
+        <span class="meta-label">Última atualização:</span>
+        <span class="meta-value" id="sb-updated">-</span>
+      </div>
+    </div>
+    <div class="links-section">
+      <div class="links-title">Conexões de Entrada</div>
+      <div class="links-list" id="sb-in-links"></div>
+    </div>
+    <div class="links-section">
+      <div class="links-title">Conexões de Saída</div>
+      <div class="links-list" id="sb-out-links"></div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+      <button id="sb-inspect-btn" class="triptych-btn" onclick="openTriptychModal()">🔬 Inspecionar Tríptico</button>
+      <a href="#" id="sb-obsidian-link" class="obsidian-btn" target="_blank">Abrir no Obsidian</a>
+    </div>
+  </div>
+
+  
+  <div id="triptych-modal" class="triptych-modal">
+    <div class="triptych-container">
+      <div class="triptych-header">
+        <div class="triptych-title">🔬 Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector)</div>
+        <button class="close-btn" onclick="closeTriptychModal()">✕</button>
+      </div>
+      <div class="triptych-grid">
+        <div class="triptych-col">
+          <div class="col-header">
+            <span>⬅️ Chamadores (In-links)</span>
+            <span id="tp-in-count" class="badge">0</span>
+          </div>
+          <div id="tp-in-list" class="tp-list"></div>
+        </div>
+        <div class="triptych-col">
+          <div class="col-header">🎯 Nó Central & Métricas</div>
+          <div id="tp-center-card" style="display:flex; flex-direction:column; gap:10px; font-size:13px;">
+            <div style="font-size:16px; font-weight:700; color:#38bdf8;" id="tp-title">Título</div>
+            <div class="meta-item"><span class="meta-label">ID Canônico:</span><span id="tp-id" class="meta-value"></span></div>
+            <div class="meta-item"><span class="meta-label">Tipo:</span><span id="tp-type" class="meta-value"></span></div>
+            <div class="meta-item"><span class="meta-label">PageRank:</span><span id="tp-pagerank" class="meta-value"></span></div>
+            <div class="meta-item"><span class="meta-label">Comunidade:</span><span id="tp-community" class="meta-value"></span></div>
+            <div class="meta-item"><span class="meta-label">Total Conexões:</span><span id="tp-degree" class="meta-value"></span></div>
+            <a href="#" id="tp-obsidian-btn" class="obsidian-btn" target="_blank" style="margin-top:12px;">Abrir no Obsidian</a>
+          </div>
+        </div>
+        <div class="triptych-col">
+          <div class="col-header">
+            <span>➡️ Referências (Out-links)</span>
+            <span id="tp-out-count" class="badge">0</span>
+          </div>
+          <div id="tp-out-list" class="tp-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DATA = {"title":"Grafo de Memória [FelipeMiiller/my-memory]","repository":"FelipeMiiller/my-memory","max_depth":1,"generated_at":"2026-09-14T14:13:57.8893664-03:00","last_updated_at":"2026-09-14T14:01:59-03:00","stats":{"total_nodes":62,"total_edges":34,"max_degree":7,"avg_degree":1.1,"density":0.009,"hub_count":7,"community_count":34,"modularity":0.666},"nodes":[{"id":"C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md","title":"017-indexacao-continua-com-file-watcher-e-git-hooks","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":26,"community_label":"C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md","community_color":"#ec4899","updated_at":1789396430},{"id":"commands","title":"commands","type":"other","pagerank":0.01719858142680291,"in_degree":1,"out_degree":0,"radius":15.4,"color":"#64748b","community_id":2,"community_label":"cli","community_color":"#ec4899"},{"id":"C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md","title":"008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":18,"community_label":"C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md","community_color":"#06b6d4","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md","title":"006-integracao-com-agentes-de-ia-via-mcp","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":16,"community_label":"C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md","community_color":"#f59e0b","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\COMO_FUNCIONA.md","title":"COMO_FUNCIONA","type":"other","pagerank":0.014184397405812864,"in_degree":0,"out_degree":4,"radius":14.1,"color":"#64748b","is_hub":true,"community_id":4,"community_label":"architecture","community_color":"#f59e0b","updated_at":1789396429},{"id":"C:\\repository\\my-memory\\docs\\adr\\005-markdown-com-wikilinks-como-fonte-de-verdade.md","title":"005-markdown-com-wikilinks-como-fonte-de-verdade","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":2,"radius":14.1,"color":"#f43f5e","community_id":5,"community_label":"Tags","community_color":"#8b5cf6","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md","title":"016-configuracao-declarativa-e-auto-scoping-de-vault","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":25,"community_label":"C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md","community_color":"#6366f1","updated_at":1789396430},{"id":"progressive-loading","title":"progressive-loading","type":"other","pagerank":0.015906788274950033,"in_degree":1,"out_degree":0,"radius":14.8,"color":"#64748b","community_id":3,"community_label":"design","community_color":"#14b8a6"},{"id":"agents","title":"agents","type":"other","pagerank":0.019007091839396938,"in_degree":2,"out_degree":0,"radius":16.1,"color":"#64748b","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"turboquant","title":"turboquant","type":"other","pagerank":0.015906788274950033,"in_degree":1,"out_degree":0,"radius":14.8,"color":"#64748b","community_id":3,"community_label":"design","community_color":"#14b8a6"},{"id":"C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md","title":"REPOSITORY_BRAIN","type":"reference","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#a855f7","community_id":10,"community_label":"C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md","community_color":"#84cc16","updated_at":1789396430},{"id":"skill","title":"skill","type":"other","pagerank":0.020212765447792953,"in_degree":2,"out_degree":0,"radius":16.6,"color":"#64748b","community_id":2,"community_label":"cli","community_color":"#ec4899"},{"id":"design","title":"design","type":"other","pagerank":0.015906788274950033,"in_degree":1,"out_degree":0,"radius":14.8,"color":"#64748b","community_id":3,"community_label":"design","community_color":"#14b8a6"},{"id":"mcp","title":"mcp","type":"other","pagerank":0.0165957446226049,"in_degree":1,"out_degree":0,"radius":15.1,"color":"#64748b","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md","title":"018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":27,"community_label":"C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md","community_color":"#14b8a6","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md","title":"001-uso-de-sqlite-como-camada-unificada-de-dados","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":12,"community_label":"C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md","community_color":"#eab308","updated_at":1789396430},{"id":"postgres","title":"postgres","type":"other","pagerank":0.015906788274950033,"in_degree":1,"out_degree":0,"radius":14.8,"color":"#64748b","community_id":3,"community_label":"design","community_color":"#14b8a6"},{"id":"algorithms","title":"algorithms","type":"other","pagerank":0.01719858142680291,"in_degree":1,"out_degree":0,"radius":15.4,"color":"#64748b","community_id":4,"community_label":"architecture","community_color":"#f59e0b"},{"id":"C:\\repository\\my-memory\\docs\\adr\\README.md","title":"README","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":1,"radius":14.1,"color":"#f43f5e","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1","updated_at":1789405319},{"id":"C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md","title":"013-higiene-de-grafo-pruning-e-doctor","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":22,"community_label":"C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md","community_color":"#84cc16","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md","title":"019-versionamento-semantico-e-tagging-ci","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":28,"community_label":"C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md","community_color":"#f59e0b","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md","title":"020-visualizador-interativo-de-grafo-em-html-svg","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":29,"community_label":"C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md","community_color":"#8b5cf6","updated_at":1789396430},{"id":"operational-guide","title":"operational-guide","type":"guide","pagerank":0.0165957446226049,"in_degree":1,"out_degree":0,"radius":15.1,"color":"#10b981","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","title":"ARCHITECTURE","type":"reference","pagerank":0.014184397405812864,"in_degree":0,"out_degree":7,"radius":14.1,"color":"#a855f7","is_hub":true,"community_id":3,"community_label":"design","community_color":"#14b8a6","updated_at":1789396429},{"id":"C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","title":"CLI_GUIDE","type":"guide","pagerank":0.014184397405812864,"in_degree":0,"out_degree":4,"radius":14.1,"color":"#10b981","is_hub":true,"community_id":2,"community_label":"cli","community_color":"#ec4899","updated_at":1789405319},{"id":"Tags","title":"Tags","type":"other","pagerank":0.020212765447792953,"in_degree":1,"out_degree":0,"radius":16.6,"color":"#64748b","community_id":5,"community_label":"Tags","community_color":"#8b5cf6"},{"id":"C:\\repository\\my-memory\\README.md","title":"README","type":"other","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#64748b","community_id":7,"community_label":"C:\\repository\\my-memory\\README.md","community_color":"#10b981","updated_at":1789396429},{"id":"C:\\repository\\my-memory\\COMO_USAR.md","title":"COMO_USAR","type":"other","pagerank":0.014184397405812864,"in_degree":0,"out_degree":4,"radius":14.1,"color":"#64748b","is_hub":true,"community_id":2,"community_label":"cli","community_color":"#ec4899","updated_at":1789396429},{"id":"C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md","title":"004-modelagem-de-grafo-com-recursive-ctes","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":15,"community_label":"C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md","community_color":"#14b8a6","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md","title":"003-compressao-vetorial-de-4-bit-via-turboquant","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":14,"community_label":"C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md","community_color":"#ec4899","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md","title":"021-servidor-mcp-com-transporte-http-sse","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":30,"community_label":"C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md","community_color":"#06b6d4","updated_at":1789396430},{"id":"architecture","title":"architecture","type":"other","pagerank":0.01892097229594008,"in_degree":2,"out_degree":0,"radius":16.1,"color":"#64748b","community_id":4,"community_label":"architecture","community_color":"#f59e0b"},{"id":"C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md","title":"014-centralidade-de-grafo-com-pagerank-ponderado","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":23,"community_label":"C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md","community_color":"#d946ef","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\025-progressive-context-loading-e-taxonomia-de-memoria.md","title":"025-progressive-context-loading-e-taxonomia-de-memoria","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":34,"community_label":"C:\\repository\\my-memory\\docs\\adr\\025-progressive-context-loading-e-taxonomia-de-memoria.md","community_color":"#84cc16","updated_at":1789405319},{"id":"C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md","title":"024-visualizacao-cirurgica-em-3-colunas-triptych-inspector","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":33,"community_label":"C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md","community_color":"#3b82f6","updated_at":1789396431},{"id":"C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md","title":"002-adocao-de-go-como-linguagem-principal","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":13,"community_label":"C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md","community_color":"#6366f1","updated_at":1789396430},{"id":"internal","title":"internal","type":"other","pagerank":0.01719858142680291,"in_degree":1,"out_degree":0,"radius":15.4,"color":"#64748b","community_id":4,"community_label":"architecture","community_color":"#f59e0b"},{"id":"C:\\repository\\my-memory\\docs\\TURBOQUANT.md","title":"TURBOQUANT","type":"reference","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#a855f7","community_id":11,"community_label":"C:\\repository\\my-memory\\docs\\TURBOQUANT.md","community_color":"#d946ef","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\REFERENCES.md","title":"REFERENCES","type":"reference","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#a855f7","community_id":9,"community_label":"C:\\repository\\my-memory\\docs\\REFERENCES.md","community_color":"#3b82f6","updated_at":1789396430},{"id":"ai","title":"ai","type":"other","pagerank":0.019007091839396938,"in_degree":2,"out_degree":0,"radius":16.1,"color":"#64748b","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"C:\\repository\\my-memory\\docs\\BENCHMARKS.md","title":"BENCHMARKS","type":"reference","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#a855f7","community_id":8,"community_label":"C:\\repository\\my-memory\\docs\\BENCHMARKS.md","community_color":"#f43f5e","updated_at":1789396430},{"id":"guide","title":"guide","type":"guide","pagerank":0.01719858142680291,"in_degree":1,"out_degree":0,"radius":15.4,"color":"#10b981","community_id":2,"community_label":"cli","community_color":"#ec4899"},{"id":"C:\\repository\\my-memory\\docs\\README.md","title":"README","type":"reference","pagerank":0.014184397405812864,"in_degree":0,"out_degree":1,"radius":14.1,"color":"#a855f7","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1","updated_at":1789405319},{"id":"howto","title":"howto","type":"guide","pagerank":0.01719858142680291,"in_degree":1,"out_degree":0,"radius":15.4,"color":"#10b981","community_id":2,"community_label":"cli","community_color":"#ec4899"},{"id":"C:\\repository\\my-memory\\docs\\adr\\010-cache-incremental-de-indexacao-com-sha256.md","title":"010-cache-incremental-de-indexacao-com-sha256","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":1,"radius":14.1,"color":"#f43f5e","community_id":6,"community_label":"wikilinks","community_color":"#06b6d4","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md","title":"011-arestas-epistemicas-e-god-nodes","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":20,"community_label":"C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md","community_color":"#f43f5e","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md","title":"015-decaimento-temporal-exponencial-na-busca-hibrida","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":24,"community_label":"C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md","community_color":"#eab308","updated_at":1789396430},{"id":"memory","title":"memory","type":"other","pagerank":0.019007091839396938,"in_degree":2,"out_degree":0,"radius":16.1,"color":"#64748b","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md","title":"022-deteccao-de-comunidades-e-clusters-no-grafo","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":31,"community_label":"C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md","community_color":"#10b981","updated_at":1789396430},{"id":"integration","title":"integration","type":"other","pagerank":0.0165957446226049,"in_degree":1,"out_degree":0,"radius":15.1,"color":"#64748b","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"Wikilinks","title":"Wikilinks","type":"other","pagerank":0.04673758483250534,"in_degree":4,"out_degree":0,"radius":28,"color":"#64748b","is_hub":true,"community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"resource","title":"resource","type":"other","pagerank":0.01892097229594008,"in_degree":2,"out_degree":0,"radius":16.1,"color":"#64748b","community_id":4,"community_label":"architecture","community_color":"#f59e0b"},{"id":"flags","title":"flags","type":"other","pagerank":0.01719858142680291,"in_degree":1,"out_degree":0,"radius":15.4,"color":"#64748b","community_id":2,"community_label":"cli","community_color":"#ec4899"},{"id":"sqlite","title":"sqlite","type":"other","pagerank":0.015906788274950033,"in_degree":1,"out_degree":0,"radius":14.8,"color":"#64748b","community_id":3,"community_label":"design","community_color":"#14b8a6"},{"id":"C:\\repository\\my-memory\\AGENTS.md","title":"AGENTS","type":"other","pagerank":0.014184397405812864,"in_degree":0,"out_degree":5,"radius":14.1,"color":"#64748b","is_hub":true,"community_id":1,"community_label":"Wikilinks","community_color":"#6366f1","updated_at":1789396429},{"id":"C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md","title":"007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":17,"community_label":"C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md","community_color":"#8b5cf6","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","title":"AGENT_INTEGRATION_GUIDE","type":"guide","pagerank":0.014184397405812864,"in_degree":0,"out_degree":5,"radius":14.1,"color":"#10b981","is_hub":true,"community_id":1,"community_label":"Wikilinks","community_color":"#6366f1","updated_at":1789396429},{"id":"C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md","title":"023-analise-de-impacto-e-raio-de-destruicao-blast-radius","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":32,"community_label":"C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md","community_color":"#f43f5e","updated_at":1789396431},{"id":"wikilinks","title":"wikilinks","type":"other","pagerank":0.026241133489773045,"in_degree":1,"out_degree":0,"radius":19.2,"color":"#64748b","community_id":6,"community_label":"wikilinks","community_color":"#06b6d4"},{"id":"cli","title":"cli","type":"other","pagerank":0.020212765447792953,"in_degree":2,"out_degree":0,"radius":16.6,"color":"#64748b","community_id":2,"community_label":"cli","community_color":"#ec4899"},{"id":"C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md","title":"012-benchmarks-e-conexoes-inesperadas","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":21,"community_label":"C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md","community_color":"#3b82f6","updated_at":1789396430},{"id":"C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md","title":"009-busca-hibrida-com-reciprocal-rank-fusion-rrf","type":"decision","pagerank":0.014184397405812864,"in_degree":0,"out_degree":0,"radius":14.1,"color":"#f43f5e","community_id":19,"community_label":"C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md","community_color":"#10b981","updated_at":1789396430}],"edges":[{"source":"C:\\repository\\my-memory\\AGENTS.md","target":"Wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\AGENTS.md","target":"agents","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\AGENTS.md","target":"ai","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\AGENTS.md","target":"operational-guide","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\AGENTS.md","target":"memory","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\COMO_FUNCIONA.md","target":"architecture","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\COMO_FUNCIONA.md","target":"internal","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\COMO_FUNCIONA.md","target":"algorithms","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\COMO_FUNCIONA.md","target":"resource","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\COMO_USAR.md","target":"guide","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\COMO_USAR.md","target":"howto","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\COMO_USAR.md","target":"cli","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\COMO_USAR.md","target":"skill","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","target":"agents","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","target":"ai","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","target":"mcp","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","target":"integration","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","target":"memory","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","target":"architecture","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","target":"design","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","target":"sqlite","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","target":"postgres","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","target":"turboquant","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","target":"progressive-loading","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","target":"resource","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\adr\\005-markdown-com-wikilinks-como-fonte-de-verdade.md","target":"Wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\adr\\005-markdown-com-wikilinks-como-fonte-de-verdade.md","target":"Tags","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\adr\\010-cache-incremental-de-indexacao-com-sha256.md","target":"wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","target":"cli","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","target":"commands","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","target":"flags","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","target":"skill","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\README.md","target":"Wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\adr\\README.md","target":"Wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"}],"communities":[{"id":1,"label":"Wikilinks","lead_node":"Wikilinks","members":["C:\\repository\\my-memory\\AGENTS.md","C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","C:\\repository\\my-memory\\docs\\README.md","C:\\repository\\my-memory\\docs\\adr\\README.md","Wikilinks","agents","ai","integration","mcp","memory","operational-guide"],"size":11,"dominant_type":"other"},{"id":2,"label":"cli","lead_node":"cli","members":["C:\\repository\\my-memory\\COMO_USAR.md","C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","cli","commands","flags","guide","howto","skill"],"size":8,"dominant_type":"other"},{"id":3,"label":"design","lead_node":"design","members":["C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","design","postgres","progressive-loading","sqlite","turboquant"],"size":6,"dominant_type":"other"},{"id":4,"label":"architecture","lead_node":"architecture","members":["C:\\repository\\my-memory\\COMO_FUNCIONA.md","algorithms","architecture","internal","resource"],"size":5,"dominant_type":"other"},{"id":5,"label":"Tags","lead_node":"Tags","members":["C:\\repository\\my-memory\\docs\\adr\\005-markdown-com-wikilinks-como-fonte-de-verdade.md","Tags"],"size":2,"dominant_type":"decision"},{"id":6,"label":"wikilinks","lead_node":"wikilinks","members":["C:\\repository\\my-memory\\docs\\adr\\010-cache-incremental-de-indexacao-com-sha256.md","wikilinks"],"size":2,"dominant_type":"decision"},{"id":7,"label":"C:\\repository\\my-memory\\README.md","lead_node":"C:\\repository\\my-memory\\README.md","members":["C:\\repository\\my-memory\\README.md"],"size":1,"dominant_type":"other"},{"id":8,"label":"C:\\repository\\my-memory\\docs\\BENCHMARKS.md","lead_node":"C:\\repository\\my-memory\\docs\\BENCHMARKS.md","members":["C:\\repository\\my-memory\\docs\\BENCHMARKS.md"],"size":1,"dominant_type":"reference"},{"id":9,"label":"C:\\repository\\my-memory\\docs\\REFERENCES.md","lead_node":"C:\\repository\\my-memory\\docs\\REFERENCES.md","members":["C:\\repository\\my-memory\\docs\\REFERENCES.md"],"size":1,"dominant_type":"reference"},{"id":10,"label":"C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md","lead_node":"C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md","members":["C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md"],"size":1,"dominant_type":"reference"},{"id":11,"label":"C:\\repository\\my-memory\\docs\\TURBOQUANT.md","lead_node":"C:\\repository\\my-memory\\docs\\TURBOQUANT.md","members":["C:\\repository\\my-memory\\docs\\TURBOQUANT.md"],"size":1,"dominant_type":"reference"},{"id":12,"label":"C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md","members":["C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md"],"size":1,"dominant_type":"decision"},{"id":13,"label":"C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md","members":["C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md"],"size":1,"dominant_type":"decision"},{"id":14,"label":"C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md","members":["C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md"],"size":1,"dominant_type":"decision"},{"id":15,"label":"C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md","members":["C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md"],"size":1,"dominant_type":"decision"},{"id":16,"label":"C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md","members":["C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md"],"size":1,"dominant_type":"decision"},{"id":17,"label":"C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md","members":["C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md"],"size":1,"dominant_type":"decision"},{"id":18,"label":"C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md","members":["C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md"],"size":1,"dominant_type":"decision"},{"id":19,"label":"C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md","members":["C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md"],"size":1,"dominant_type":"decision"},{"id":20,"label":"C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md","members":["C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md"],"size":1,"dominant_type":"decision"},{"id":21,"label":"C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md","members":["C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md"],"size":1,"dominant_type":"decision"},{"id":22,"label":"C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md","members":["C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md"],"size":1,"dominant_type":"decision"},{"id":23,"label":"C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md","members":["C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md"],"size":1,"dominant_type":"decision"},{"id":24,"label":"C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md","members":["C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md"],"size":1,"dominant_type":"decision"},{"id":25,"label":"C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md","members":["C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md"],"size":1,"dominant_type":"decision"},{"id":26,"label":"C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md","members":["C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md"],"size":1,"dominant_type":"decision"},{"id":27,"label":"C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md","members":["C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md"],"size":1,"dominant_type":"decision"},{"id":28,"label":"C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md","members":["C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md"],"size":1,"dominant_type":"decision"},{"id":29,"label":"C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md","members":["C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md"],"size":1,"dominant_type":"decision"},{"id":30,"label":"C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md","members":["C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md"],"size":1,"dominant_type":"decision"},{"id":31,"label":"C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md","members":["C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md"],"size":1,"dominant_type":"decision"},{"id":32,"label":"C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md","members":["C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md"],"size":1,"dominant_type":"decision"},{"id":33,"label":"C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md","members":["C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md"],"size":1,"dominant_type":"decision"},{"id":34,"label":"C:\\repository\\my-memory\\docs\\adr\\025-progressive-context-loading-e-taxonomia-de-memoria.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\025-progressive-context-loading-e-taxonomia-de-memoria.md","members":["C:\\repository\\my-memory\\docs\\adr\\025-progressive-context-loading-e-taxonomia-de-memoria.md"],"size":1,"dominant_type":"decision"}]};
+    const nodes = DATA.nodes;
+    const edges = DATA.edges;
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    
+    const nodeMap = new Map();
+    const rx = Math.min(width, height) * 0.35;
+    nodes.forEach((n, i) => {
+      const angle = (2 * Math.PI * i) / (nodes.length || 1);
+      const spread = rx * (0.6 + 0.4 * Math.random());
+      n.x = (width / 2) + spread * Math.cos(angle);
+      n.y = (height / 2) + spread * Math.sin(angle);
+      n.vx = (Math.random() - 0.5) * 2;
+      n.vy = (Math.random() - 0.5) * 2;
+      nodeMap.set(n.id, n);
+    });
+
+    
+    const links = [];
+    edges.forEach(e => {
+      const source = nodeMap.get(e.source);
+      const target = nodeMap.get(e.target);
+      if (source && target) {
+        links.push({ ...e, source, target });
+      }
+    });
+
+    const svg = document.getElementById('graph-svg');
+    const viewport = document.getElementById('viewport');
+    const edgesLayer = document.getElementById('edges-layer');
+    const nodesLayer = document.getElementById('nodes-layer');
+
+    
+    links.forEach(l => {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('class', 'edge' + (l.epistemic_status === 'INFERRED' ? ' inferred' : ''));
+      line.setAttribute('stroke', l.color || '#475569');
+      line.setAttribute('marker-end', 'url(#arrow)');
+      l.element = line;
+      edgesLayer.appendChild(line);
+    });
+
+    
+    nodes.forEach(n => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'node-group' + (n.is_hub ? ' hub' : ''));
+      g.setAttribute('data-id', n.id);
+      g.setAttribute('data-type', n.type);
+
+      
+      const degree = (n.in_degree || 0) + (n.out_degree || 0);
+      if (n.is_hub || degree >= 3 || (n.pagerank && n.pagerank > 0.015)) {
+        g.setAttribute('data-important', 'true');
+      }
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('class', 'node-circle');
+      circle.setAttribute('r', n.radius || 10);
+      circle.setAttribute('fill', n.color);
+
+      
+      const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      svgTitle.textContent = (n.title || n.id) + ' (Grau: ' + degree + ', PR: ' + (n.pagerank ? n.pagerank.toFixed(4) : '0') + ')';
+      g.appendChild(svgTitle);
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('class', 'node-label');
+      text.setAttribute('dy', (n.radius || 10) + 14);
+
+      
+      let displayTitle = n.title || n.id;
+      const lastSlash = Math.max(displayTitle.lastIndexOf('/'), displayTitle.lastIndexOf('\\'));
+      if (lastSlash !== -1) {
+        displayTitle = displayTitle.slice(lastSlash + 1);
+      }
+      if (displayTitle.length > 22) {
+        displayTitle = displayTitle.slice(0, 20) + '…';
+      }
+      text.textContent = displayTitle;
+
+      g.appendChild(circle);
+      g.appendChild(text);
+      n.element = g;
+
+      
+      g.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        selectNode(n);
+      });
+
+      g.addEventListener('mousedown', (ev) => {
+        ev.stopPropagation();
+        startDrag(n, ev);
+      });
+
+      nodesLayer.appendChild(g);
+    });
+
+    
+    let alpha = 1.0;
+    const alphaDecay = 0.008;
+    const alphaMin = 0.001;
+
+    function tickSimulation() {
+      if (alpha < alphaMin) return;
+
+      const k = 150; 
+      const repStrength = 4200; 
+
+      
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j];
+          let dx = b.x - a.x;
+          let dy = b.y - a.y;
+          let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          if (dist > 550) continue;
+
+          let f = (repStrength / (dist * dist)) * alpha;
+          let fx = (dx / dist) * f;
+          let fy = (dy / dist) * f;
+
+          
+          const minDist = (a.radius || 10) + (b.radius || 10) + 26;
+          if (dist < minDist) {
+            const overlap = (minDist - dist) / minDist;
+            const push = overlap * 3.5 * alpha;
+            fx += (dx / dist) * push;
+            fy += (dy / dist) * push;
+          }
+
+          if (!a.pinned) { a.vx -= fx; a.vy -= fy; }
+          if (!b.pinned) { b.vx += fx; b.vy += fy; }
+        }
+      }
+
+      
+      for (let i = 0; i < links.length; i++) {
+        const l = links[i];
+        let dx = l.target.x - l.source.x;
+        let dy = l.target.y - l.source.y;
+        let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+        let force = (dist - k) * 0.04 * alpha;
+        let fx = (dx / dist) * force;
+        let fy = (dy / dist) * force;
+
+        if (!l.source.pinned) { l.source.vx += fx; l.source.vy += fy; }
+        if (!l.target.pinned) { l.target.vx -= fx; l.target.vy -= fy; }
+      }
+
+      
+      const centerX = width / 2;
+      const centerY = height / 2;
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        if (n.pinned) continue;
+
+        n.vx += (centerX - n.x) * 0.0012 * alpha;
+        n.vy += (centerY - n.y) * 0.0012 * alpha;
+
+        n.vx *= 0.82;
+        n.vy *= 0.82;
+
+        n.x += n.vx;
+        n.y += n.vy;
+      }
+
+      alpha *= (1 - alphaDecay);
+
+      
+      links.forEach(l => {
+        l.element.setAttribute('x1', l.source.x);
+        l.element.setAttribute('y1', l.source.y);
+        l.element.setAttribute('x2', l.target.x);
+        l.element.setAttribute('y2', l.target.y);
+      });
+
+      nodes.forEach(n => {
+        n.element.setAttribute('transform', 'translate(' + n.x + ',' + n.y + ')');
+      });
+
+      requestAnimationFrame(tickSimulation);
+    }
+
+    requestAnimationFrame(tickSimulation);
+
+    function restartSimulation() {
+      alpha = 0.5;
+      requestAnimationFrame(tickSimulation);
+    }
+
+    
+    let zoom = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let isPanning = false;
+    let startPanX = 0;
+    let startPanY = 0;
+
+    function updateTransform() {
+      viewport.setAttribute('transform', 'translate(' + panX + ',' + panY + ') scale(' + zoom + ')');
+    }
+
+    const container = document.getElementById('canvas-container');
+    container.addEventListener('wheel', (ev) => {
+      ev.preventDefault();
+      const zoomFactor = ev.deltaY < 0 ? 1.1 : 0.9;
+      zoom = Math.max(0.2, Math.min(4.0, zoom * zoomFactor));
+      updateTransform();
+    }, { passive: false });
+
+    container.addEventListener('mousedown', (ev) => {
+      if (ev.target === svg || ev.target === container) {
+        isPanning = true;
+        startPanX = ev.clientX - panX;
+        startPanY = ev.clientY - panY;
+        container.classList.add('panning');
+      }
+    });
+
+    window.addEventListener('mousemove', (ev) => {
+      if (isPanning) {
+        panX = ev.clientX - startPanX;
+        panY = ev.clientY - startPanY;
+        updateTransform();
+      }
+      if (draggedNode) {
+        draggedNode.x = (ev.clientX - panX) / zoom;
+        draggedNode.y = (ev.clientY - panY) / zoom;
+        draggedNode.pinned = true;
+        restartSimulation();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isPanning) {
+        isPanning = false;
+        container.classList.remove('panning');
+      }
+      if (draggedNode) {
+        draggedNode.pinned = false;
+        draggedNode = null;
+      }
+    });
+
+    
+    let draggedNode = null;
+    function startDrag(n, ev) {
+      draggedNode = n;
+      restartSimulation();
+    }
+
+    
+    const btnToggleLabels = document.getElementById('btn-toggle-labels');
+    if (btnToggleLabels) {
+      btnToggleLabels.addEventListener('click', () => {
+        document.body.classList.toggle('show-all-labels');
+        const active = document.body.classList.contains('show-all-labels');
+        btnToggleLabels.style.borderColor = active ? 'var(--accent)' : 'var(--border)';
+        btnToggleLabels.style.background = active ? 'rgba(56, 189, 248, 0.2)' : 'rgba(15, 23, 42, 0.9)';
+      });
+    }
+
+    document.getElementById('btn-zoom-in').addEventListener('click', () => {
+      zoom = Math.min(4.0, zoom * 1.2);
+      updateTransform();
+    });
+    document.getElementById('btn-zoom-out').addEventListener('click', () => {
+      zoom = Math.max(0.2, zoom / 1.2);
+      updateTransform();
+    });
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      zoom = 1.0;
+      panX = 0;
+      panY = 0;
+      updateTransform();
+      restartSimulation();
+    });
+
+    
+    const sidebar = document.getElementById('sidebar');
+    let selectedNode = null;
+
+    function selectNode(n) {
+      selectedNode = n;
+      document.getElementById('sb-title').textContent = n.title;
+      document.getElementById('sb-type').textContent = n.type;
+      document.getElementById('sb-pagerank').textContent = n.pagerank.toFixed(4);
+      document.getElementById('sb-in').textContent = n.in_degree;
+      document.getElementById('sb-out').textContent = n.out_degree;
+
+      const updRow = document.getElementById('sb-updated-row');
+      const updVal = document.getElementById('sb-updated');
+      if (n.updated_at && n.updated_at > 0) {
+        const d = new Date(n.updated_at * 1000);
+        updVal.textContent = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+        if (updRow) updRow.style.display = 'flex';
+      } else {
+        updVal.textContent = '-';
+        if (updRow) updRow.style.display = 'none';
+      }
+
+      
+      const obsLink = 'obsidian://open?file=' + encodeURIComponent(n.id);
+      document.getElementById('sb-obsidian-link').setAttribute('href', obsLink);
+
+      
+      const inList = document.getElementById('sb-in-links');
+      inList.innerHTML = '';
+      const inEdges = links.filter(l => l.target.id === n.id);
+      if (inEdges.length === 0) {
+        inList.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Nenhum link de entrada</span>';
+      } else {
+        inEdges.forEach(l => {
+          const item = document.createElement('div');
+          item.className = 'link-item';
+          item.textContent = l.source.title + ' (' + l.relation + ')';
+          item.onclick = () => selectNode(l.source);
+          inList.appendChild(item);
+        });
+      }
+
+      
+      const outList = document.getElementById('sb-out-links');
+      outList.innerHTML = '';
+      const outEdges = links.filter(l => l.source.id === n.id);
+      if (outEdges.length === 0) {
+        outList.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Nenhum link de saída</span>';
+      } else {
+        outEdges.forEach(l => {
+          const item = document.createElement('div');
+          item.className = 'link-item';
+          item.textContent = l.target.title + ' (' + l.relation + ')';
+          item.onclick = () => selectNode(l.target);
+          outList.appendChild(item);
+        });
+      }
+
+      
+      highlightConnections(n);
+      sidebar.classList.add('open');
+    }
+
+    function highlightConnections(centerNode) {
+      const connected = new Set();
+      connected.add(centerNode.id);
+
+      links.forEach(l => {
+        if (l.source.id === centerNode.id || l.target.id === centerNode.id) {
+          connected.add(l.source.id);
+          connected.add(l.target.id);
+          l.element.classList.add('highlighted');
+          l.element.setAttribute('stroke', '#38bdf8');
+          l.element.setAttribute('marker-end', 'url(#arrow-highlight)');
+        } else {
+          l.element.classList.remove('highlighted');
+          l.element.setAttribute('stroke', l.color || '#475569');
+          l.element.setAttribute('marker-end', 'url(#arrow)');
+        }
+      });
+
+      nodes.forEach(n => {
+        if (connected.has(n.id)) {
+          n.element.style.opacity = '1';
+          n.element.classList.add('highlighted');
+        } else {
+          n.element.style.opacity = '0.2';
+          n.element.classList.remove('highlighted');
+        }
+      });
+    }
+
+    function clearHighlight() {
+      links.forEach(l => {
+        l.element.classList.remove('highlighted');
+        l.element.setAttribute('stroke', l.color || '#475569');
+        l.element.setAttribute('marker-end', 'url(#arrow)');
+      });
+      nodes.forEach(n => {
+        n.element.style.opacity = '1';
+        n.element.classList.remove('highlighted');
+      });
+    }
+
+    document.getElementById('sb-close').addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      clearHighlight();
+    });
+
+    container.addEventListener('click', (ev) => {
+      if (ev.target === svg || ev.target === container) {
+        sidebar.classList.remove('open');
+        clearHighlight();
+      }
+    });
+
+    
+    const searchInput = document.getElementById('search-input');
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.trim().toLowerCase();
+      if (!query) {
+        clearHighlight();
+        return;
+      }
+      nodes.forEach(n => {
+        const match = n.title.toLowerCase().includes(query) || n.id.toLowerCase().includes(query);
+        n.element.style.opacity = match ? '1' : '0.15';
+      });
+    });
+
+    
+    const chips = document.querySelectorAll('.filter-chips .chip');
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        chips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const filterType = chip.getAttribute('data-type');
+        nodes.forEach(n => {
+          if (filterType === 'all' || n.type === filterType) {
+            n.element.style.display = 'block';
+          } else {
+            n.element.style.display = 'none';
+          }
+        });
+        links.forEach(l => {
+          const srcVisible = filterType === 'all' || l.source.type === filterType;
+          const tgtVisible = filterType === 'all' || l.target.type === filterType;
+          l.element.style.display = (srcVisible && tgtVisible) ? 'block' : 'none';
+        });
+      });
+    });
+
+    
+    function openTriptychModal() {
+      if (!selectedNode) return;
+      renderTriptych(selectedNode);
+      document.getElementById('triptych-modal').classList.add('open');
+    }
+
+    function closeTriptychModal() {
+      document.getElementById('triptych-modal').classList.remove('open');
+    }
+
+    function renderTriptych(n) {
+      document.getElementById('tp-title').textContent = n.title;
+      document.getElementById('tp-id').textContent = n.id;
+      document.getElementById('tp-type').textContent = n.type;
+      document.getElementById('tp-pagerank').textContent = n.pagerank.toFixed(4);
+      document.getElementById('tp-community').textContent = n.community_id > 0 ? ('Cluster #' + n.community_id + ' (' + (n.community_label || 'Geral') + ')') : 'Não agrupado';
+      document.getElementById('tp-degree').textContent = (n.in_degree + n.out_degree) + ' (In: ' + n.in_degree + ' | Out: ' + n.out_degree + ')';
+
+      const obsLink = 'obsidian://open?file=' + encodeURIComponent(n.id);
+      document.getElementById('tp-obsidian-btn').setAttribute('href', obsLink);
+
+      
+      const inList = document.getElementById('tp-in-list');
+      inList.innerHTML = '';
+      const inEdges = links.filter(l => l.target.id === n.id);
+      document.getElementById('tp-in-count').textContent = inEdges.length;
+
+      if (inEdges.length === 0) {
+        inList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px;">Nenhum nó apontando para este documento</div>';
+      } else {
+        inEdges.forEach(l => {
+          const card = document.createElement('div');
+          card.className = 'tp-card';
+          
+          let rel = l.relation || 'links_to';
+          let badgeClass = 'tp-badge-low';
+          let badgeText = 'BAIXO';
+          let relLower = rel.toLowerCase();
+          if (relLower.includes('implement') || relLower.includes('depend') || relLower.includes('contradict') || relLower.includes('block')) {
+            badgeClass = 'tp-badge-crit';
+            badgeText = 'CRÍTICO';
+          } else if (relLower.includes('link') || relLower.includes('refer')) {
+            badgeClass = 'tp-badge-med';
+            badgeText = 'MÉDIO';
+          }
+
+          card.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+            '<span class="tp-card-title">' + l.source.title + '</span>' +
+            '<span class="' + badgeClass + '">' + badgeText + '</span>' +
+            '</div>' +
+            '<div class="tp-card-meta">' +
+            '<span>Relação: <code>' + rel + '</code></span>' +
+            '<span>PR: ' + (l.source.pagerank || 0).toFixed(4) + '</span>' +
+            '</div>';
+          card.onclick = () => {
+            selectNode(l.source);
+            renderTriptych(l.source);
+          };
+          inList.appendChild(card);
+        });
+      }
+
+      
+      const outList = document.getElementById('tp-out-list');
+      outList.innerHTML = '';
+      const outEdges = links.filter(l => l.source.id === n.id);
+      document.getElementById('tp-out-count').textContent = outEdges.length;
+
+      if (outEdges.length === 0) {
+        outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px;">Este documento não referencia outras notas</div>';
+      } else {
+        outEdges.forEach(l => {
+          const card = document.createElement('div');
+          card.className = 'tp-card';
+          card.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+            '<span class="tp-card-title">' + l.target.title + '</span>' +
+            '<span style="font-size:11px; color:#38bdf8;">✓ Válido</span>' +
+            '</div>' +
+            '<div class="tp-card-meta">' +
+            '<span>Relação: <code>' + (l.relation || 'links_to') + '</code></span>' +
+            '<span>PR: ' + (l.target.pagerank || 0).toFixed(4) + '</span>' +
+            '</div>';
+          card.onclick = () => {
+            selectNode(l.target);
+            renderTriptych(l.target);
+          };
+          outList.appendChild(card);
+        });
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeTriptychModal();
+    });
+  </script>
+</body>
+</html>

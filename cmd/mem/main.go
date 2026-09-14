@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -40,8 +41,11 @@ func main() {
 	}
 
 	ctx := context.Background()
-	emb := embedder.NewOllamaClient("", "nomic-embed-text")
-	tq := turboquant.NewQuantizer(EmbeddingDim)
+
+	// Carrega automaticamente variáveis de ambiente de .memory/.env ou .env se presente
+	_, _ = config.FindAndLoadDotEnv(".")
+
+	emb, tq, _ := resolveEmbedder(nil)
 	defaultRepo := repo.DetectRepository(".")
 
 	switch os.Args[1] {
@@ -93,6 +97,7 @@ func main() {
 		var cfg *config.Config
 		cfgPath, err := config.FindConfigFile(searchDir)
 		if err == nil {
+			_, _ = config.FindAndLoadDotEnv(searchDir)
 			if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
 				cfg = loaded
 				if target == "" {
@@ -117,34 +122,8 @@ func main() {
 			return
 		}
 
-		resolvedRepo := *targetRepo
-		if resolvedRepo == "" {
-			if cfg.Repository != "" {
-				resolvedRepo = cfg.Repository
-			} else if envRepo := os.Getenv("MY_MEMORY_REPO"); envRepo != "" {
-				resolvedRepo = envRepo
-			} else {
-				resolvedRepo = defaultRepo
-			}
-		}
-
-		resolvedDB := *dbPath
-		if resolvedDB == "" {
-			if cfg.Storage.SQLitePath != "" {
-				resolvedDB = cfg.Storage.SQLitePath
-			} else {
-				resolvedDB = "memory.db"
-			}
-		}
-
-		resolvedPG := *pgURL
-		if resolvedPG == "" {
-			if envPG := os.Getenv("MY_MEMORY_PG_URL"); envPG != "" {
-				resolvedPG = envPG
-			} else if cfg.Storage.Engine == "postgres" && cfg.Storage.PostgresURL != "" {
-				resolvedPG = cfg.Storage.PostgresURL
-			}
-		}
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ = resolveEmbedder(cfg)
 
 		if resolvedPG != "" {
 			pgStore, err := store.NewPostgresStore(resolvedPG)
@@ -210,6 +189,7 @@ func main() {
 		}
 
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ = resolveEmbedder(cfg)
 
 		setFlags := make(map[string]bool)
 		watchCmd.Visit(func(f *flag.Flag) {
@@ -270,6 +250,8 @@ func main() {
 		searchCmd := flag.NewFlagSet("search", flag.ExitOnError)
 		useTurbo := searchCmd.Bool("tq", false, "Usar busca via TurboQuant (4-bits, SQLite)")
 		mode := searchCmd.String("mode", "", "Modo de busca: 'hybrid' (FTS+vetor+grafo via RRF), 'vector' (apenas k-NN), 'fts' (apenas léxico)")
+		level := searchCmd.String("level", "", "Nível de densidade de contexto: 'l0' (micro-abstract cirúrgico), 'l1' (overview/tríptico padrão), 'l2' (detalhes completos)")
+		category := searchCmd.String("category", "", "Filtra por taxonomia de memória: 'resource', 'memory', 'skill' (padrão: todas)")
 		k := searchCmd.Int("k", 0, "Constante de suavização do algoritmo RRF (padrão: 60)")
 		limit := searchCmd.Int("limit", 0, "Número máximo de resultados (padrão: 5)")
 		decay := searchCmd.Bool("decay", false, "Ativa decaimento temporal exponencial para priorizar notas mais recentes")
@@ -278,16 +260,17 @@ func main() {
 		dbPath := searchCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := searchCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := searchCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
-		searchCmd.Parse(os.Args[2:])
+		searchCmd.Parse(rearrangeSearchArgs(os.Args[2:]))
 
 		query := strings.Join(searchCmd.Args(), " ")
 		if query == "" {
-			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
+			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
 			return
 		}
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ = resolveEmbedder(cfg)
 
 		setFlags := make(map[string]bool)
 		searchCmd.Visit(func(f *flag.Flag) {
@@ -301,6 +284,30 @@ func main() {
 			} else {
 				resolvedMode = "hybrid"
 			}
+		}
+
+		resolvedLevel := *level
+		if !setFlags["level"] {
+			if cfg.Search.Level != "" {
+				resolvedLevel = cfg.Search.Level
+			} else {
+				resolvedLevel = "l1"
+			}
+		}
+		resolvedLevel = strings.ToLower(strings.TrimSpace(resolvedLevel))
+		if resolvedLevel != "l0" && resolvedLevel != "l1" && resolvedLevel != "l2" {
+			resolvedLevel = "l1"
+		}
+
+		resolvedCategory := *category
+		if !setFlags["category"] {
+			resolvedCategory = cfg.Search.Category
+		}
+		resolvedCategory = strings.ToLower(strings.TrimSpace(resolvedCategory))
+
+		searchOpts := store.SearchOptions{
+			Level:    resolvedLevel,
+			Category: resolvedCategory,
 		}
 
 		resolvedLimit := *limit
@@ -363,7 +370,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runSearchPostgres(ctx, pgStore, emb, query, resolvedRepo, resolvedMode, resolvedLimit, resolvedK, decayOpts)
+			runSearchPostgres(ctx, pgStore, emb, query, resolvedRepo, resolvedMode, resolvedLimit, resolvedK, decayOpts, searchOpts)
 		} else {
 			database, err := db.InitDB(resolvedDB)
 			if err != nil {
@@ -371,8 +378,9 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runSearchSQLite(ctx, database, emb, tq, query, resolvedMode, resolvedUseTurbo, resolvedLimit, resolvedK, decayOpts)
+			runSearchSQLite(ctx, database, emb, tq, query, resolvedMode, resolvedUseTurbo, resolvedLimit, resolvedK, decayOpts, searchOpts)
 		}
+
 
 	case "mcp":
 		mcpCmd := flag.NewFlagSet("mcp", flag.ExitOnError)
@@ -387,6 +395,7 @@ func main() {
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ := resolveEmbedder(cfg)
 
 		targetHTTP := *httpAddr
 		if targetHTTP == "" && *port > 0 {
@@ -418,7 +427,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao SQLite: %s\n", resolvedDB)
 		}
 
-		runMCPServer(ctx, pgStore, database, emb, resolvedRepo, targetHTTP, *cors)
+		runMCPServer(ctx, pgStore, database, emb, tq, resolvedRepo, targetHTTP, *cors)
 
 	case "export":
 		exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
@@ -541,6 +550,7 @@ func main() {
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ = resolveEmbedder(cfg)
 
 		if resolvedPG != "" {
 			pgStore, err := store.NewPostgresStore(resolvedPG)
@@ -612,6 +622,18 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "impact":
+		if err := runImpactCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "inspect":
+		if err := runInspectCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		if err := runVersionCLI(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -636,12 +658,17 @@ func printHelp() {
 	fmt.Println("      Instala ou remove o Git pre-commit hook para indexação automática pré-commit")
 	fmt.Println("  mem doctor [--fix] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score)")
-	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
-	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), decaimento temporal, FTS5/tsvector, vetores e grafo")
+	fmt.Println("  mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
+	fmt.Println("      Busca com Progressive Context Loading (L0/L1/L2), filtro de categoria, RRF, decaimento temporal e grafo")
+
 	fmt.Println("  mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exibe os nós centrais por grau (God Nodes) ou por autoridade estrutural (PageRank ponderado)")
 	fmt.Println("  mem clusters [--min-size 2] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Detecta clusters e módulos conceituais no grafo via LPA ponderado e Modularidade Newman-Girvan Q")
+	fmt.Println("  mem impact <nota_ou_id> [--depth 2] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Analisa o raio de destruição (Blast Radius) e dependentes reversos com score de risco")
+	fmt.Println("  mem inspect <nota_ou_id> [--json] [--full] [--max-len 500] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Visualização cirúrgica em 3 colunas (in-links, nó central e out-links) com risco e preview")
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
 	fmt.Println("  mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open] [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -700,8 +727,12 @@ repository: %q
 vault_name: "Knowledge Vault"
 
 # Padrões glob de arquivos a serem indexados
+# Exemplos: pastas específicas (docs, specs), extensões ou arquivos únicos
 include:
-  - "**/*.md"
+  - "docs/**/*.md"      # Exemplo: Documentações em docs/
+  - "specs/**/*.md"     # Exemplo: Especificações em specs/
+  - ".specs/**/*.md"    # Exemplo: Especificações técnicas em .specs/
+  - "**/*.md"           # Padrão: Todos os arquivos Markdown
 
 # Padrões glob e diretórios ignorados durante a varredura
 exclude:
@@ -714,9 +745,9 @@ exclude:
 
 # Configurações do motor de persistência
 storage:
-  engine: "sqlite"          # "sqlite" ou "postgres"
+  engine: "sqlite"          # "sqlite" ou "postgres" (se houver .memory/.env com MY_MEMORY_PG_URL, conecta no PostgreSQL automaticamente)
   sqlite_path: %q     # Caminho do banco SQLite local
-  # postgres_url: "postgres://user:pass@localhost:5432/memory?sslmode=disable"
+  postgres_url: "postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable" # Conexão PostgreSQL (pgvector)
 
 # Configurações do modelo de embeddings
 embedding:
@@ -745,6 +776,114 @@ watcher:
 			return fmt.Errorf("erro ao salvar arquivo de configuração: %w", err)
 		}
 
+		// Criação padrão de .memory/.gitignore para proteger segredos e bancos locais
+		gitIgnorePath := filepath.Join(memDir, ".gitignore")
+		if _, err := os.Stat(gitIgnorePath); os.IsNotExist(err) || force {
+			gitIgnoreContent := `# Variáveis de ambiente locais com credenciais reais (não commitar no Git)
+.env
+*.env
+*.local
+*.env.local
+
+# Bancos de dados SQLite locais
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+`
+			_ = os.WriteFile(gitIgnorePath, []byte(gitIgnoreContent), 0644)
+		}
+
+		// Criação padrão de .memory/.env.example para template de PostgreSQL e IA de indexação
+		envExamplePath := filepath.Join(memDir, ".env.example")
+		if _, err := os.Stat(envExamplePath); os.IsNotExist(err) || force {
+			envExampleContent := `# ==============================================================================
+# My-Memory - Variáveis de Ambiente (.memory/.env)
+# ==============================================================================
+
+# --- Banco de Dados PostgreSQL (pgvector) ---
+# Ao definir MY_MEMORY_PG_URL aqui, o My-Memory conecta automaticamente no PostgreSQL:
+MY_MEMORY_PG_URL=postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable
+# MY_MEMORY_REPO=FelipeMiiller/my-memory
+
+# --- Modelo de IA de Indexação / Embeddings (Opcional) ---
+# Por padrão, o My-Memory já utiliza o modelo embutido (nomic-embed-text na porta 11434, dim 768).
+# Para substituir por outro modelo (ex: bge-m3, mxbai-embed-large, all-minilm), descomente abaixo:
+# MY_MEMORY_EMBED_PROVIDER=ollama
+# MY_MEMORY_EMBED_URL=http://localhost:11434
+# MY_MEMORY_EMBED_MODEL=nomic-embed-text
+# MY_MEMORY_EMBED_DIM=768
+`
+			_ = os.WriteFile(envExamplePath, []byte(envExampleContent), 0644)
+		}
+
+		// Criação padrão de .memory/AGENTS.md como modelo para o usuário colocar na raiz do repo
+		agentsTemplatePath := filepath.Join(memDir, "AGENTS.md")
+		if _, err := os.Stat(agentsTemplatePath); os.IsNotExist(err) || force {
+			agentsContent := `# AGENTS.md
+
+Instruções operacionais e diretrizes para **Agentes de IA** (Antigravity, Claude Code, Cursor, Windsurf, Copilot) neste repositório.
+
+> [!TIP]
+> **Dica de Instalação:** Mova ou copie este arquivo para a raiz do seu repositório:
+> ` + "`" + `cp .memory/AGENTS.md ./AGENTS.md` + "`" + `
+
+---
+
+## 🧠 Memória do Repositório (My-Memory)
+
+Este repositório utiliza o **My-Memory** como motor de contexto semântico, relacional e busca híbrida.
+
+### 1. Verificação de Inicialização Obrigatória
+Ao iniciar qualquer tarefa neste repositório:
+1. Verifique se o diretório ` + "`.memory/`" + ` ou o arquivo ` + "`.memory/config.yaml`" + ` existe.
+2. Se **NÃO existir**:
+   - Execute no terminal: ` + "`mem init`" + ` (ou ` + "`go run ./cmd/mem init`" + `).
+   - O comando gerará de forma segura:
+     - ` + "`.memory/config.yaml`" + `: Escopo de pastas e banco de dados.
+     - ` + "`.memory/.gitignore`" + `: Protege credenciais e bancos locais.
+     - ` + "`.memory/.env.example`" + `: Modelo de variáveis de ambiente.
+     - ` + "`.memory/AGENTS.md`" + `: Este modelo de instruções.
+   - Em seguida, execute ` + "`mem index`" + ` para alimentar a base.
+
+### 2. Diretrizes de Uso da Memória pelo Agente
+1. **Consulte antes de modificar**: Antes de refatorar código ou criar novas funcionalidades, execute ` + "`memory_search`" + ` (ou ` + "`mem search \"<tema>\"`" + `) para verificar decisões de arquitetura e notas existentes.
+2. **Avalie o Raio de Impacto (Blast Radius)**: Ao modificar ou renomear arquivos e conceitos críticos, use ` + "`memory_get_impact`" + ` (ou ` + "`mem impact <id>`" + `) para analisar dependentes diretos e reversos.
+3. **Persista Conhecimento Atômico**: Após tomar decisões ou implementar novas features, utilize ` + "`memory_write_note`" + ` para salvar a síntese no vault com ` + "`[[wikilinks]]`" + `.
+4. **Higiene e Integridade**: Use ` + "`memory_doctor`" + ` para auditar a saúde do grafo e detectar links quebrados.
+
+---
+
+## 🛠 Comandos Operacionais para o Agente
+
+` + "```bash" + `
+# Indexar alterações no vault de notas
+mem index
+
+# Busca híbrida no contexto
+mem search "<pergunta ou conceito>"
+
+# Inspecionar nó cirúrgico em 3 colunas (in-links, nó central, out-links)
+mem inspect "<caminho ou id>"
+
+# Avaliar raio de impacto de alterações
+mem impact "<caminho ou id>" --depth 2
+
+# Iniciar servidor Model Context Protocol (MCP)
+mem mcp
+` + "```" + `
+
+---
+
+## 📌 Regras de Conduta para Agentes de IA
+1. **Codificação:** Arquivos em **UTF-8 sem BOM**.
+2. **Commits:** Padrão *Conventional Commits* (` + "`feat:`" + `, ` + "`fix:`" + `, ` + "`docs:`" + `, ` + "`chore:`" + `, ` + "`refactor:`" + `).
+3. **Testes:** Sempre execute a suíte de testes antes de concluir tarefas.
+4. **Memória Atualizada:** Mantenha notas de documentação sincronizadas ao alterar componentes críticos.
+`
+			_ = os.WriteFile(agentsTemplatePath, []byte(agentsContent), 0644)
+		}
+
 		if _, err := config.LoadConfig(cfgPath); err != nil {
 			return fmt.Errorf("erro de validação do arquivo de configuração gerado: %w", err)
 		}
@@ -752,6 +891,7 @@ watcher:
 		fmt.Printf("✅ Configuração inicializada com sucesso em %s\n", cfgPath)
 		fmt.Printf("   Repositório: %s\n", repoSlug)
 		fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
+		fmt.Printf("   Modelos: %s, %s e %s gerados por padrão\n", gitIgnorePath, envExamplePath, agentsTemplatePath)
 	}
 
 	if vscode {
@@ -933,6 +1073,7 @@ func runWatch(
 }
 
 func resolveConfig() *config.Config {
+	_, _ = config.FindAndLoadDotEnv(".")
 	cfgPath, err := config.FindConfigFile(".")
 	if err == nil {
 		if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
@@ -940,6 +1081,9 @@ func resolveConfig() *config.Config {
 		}
 	}
 	def := config.DefaultConfig()
+	if stat, err := os.Stat(".memory"); err == nil && stat.IsDir() {
+		def.Storage.SQLitePath = filepath.Join(".memory", "memory.db")
+	}
 	return &def
 }
 
@@ -973,12 +1117,50 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 	if pg == "" {
 		if envPG := os.Getenv("MY_MEMORY_PG_URL"); envPG != "" {
 			pg = envPG
+		} else if envPG := os.Getenv("POSTGRES_URL"); envPG != "" {
+			pg = envPG
+		} else if envPG := os.Getenv("DATABASE_URL"); envPG != "" {
+			pg = envPG
 		} else if cfg.Storage.Engine == "postgres" && cfg.Storage.PostgresURL != "" {
 			pg = cfg.Storage.PostgresURL
 		}
 	}
 
 	return repo, db, pg
+}
+
+func resolveEmbedder(cfg *config.Config) (*embedder.OllamaClient, *turboquant.Quantizer, int) {
+	embedURL := ""
+	embedModel := "nomic-embed-text"
+	dim := EmbeddingDim
+
+	if cfg != nil {
+		if cfg.Embedding.URL != "" {
+			embedURL = cfg.Embedding.URL
+		}
+		if cfg.Embedding.Model != "" {
+			embedModel = cfg.Embedding.Model
+		}
+		if cfg.Embedding.Dimension > 0 {
+			dim = cfg.Embedding.Dimension
+		}
+	}
+
+	if envURL := os.Getenv("MY_MEMORY_EMBED_URL"); envURL != "" {
+		embedURL = envURL
+	}
+	if envModel := os.Getenv("MY_MEMORY_EMBED_MODEL"); envModel != "" {
+		embedModel = envModel
+	}
+	if envDim := os.Getenv("MY_MEMORY_EMBED_DIM"); envDim != "" {
+		if d, err := strconv.Atoi(envDim); err == nil && d > 0 {
+			dim = d
+		}
+	}
+
+	emb := embedder.NewOllamaClient(embedURL, embedModel)
+	tq := turboquant.NewQuantizer(dim)
+	return emb, tq, dim
 }
 
 func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
@@ -1048,8 +1230,26 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 		// Limpa chunks e arestas antigas antes da reindexação limpa
 		_ = s.DeleteDocumentData(ctx, targetRepo, docID)
 
-		// 1. Salva documento com content_hash
-		if err := s.InsertDocument(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash); err != nil {
+		// Extrai frontmatter, categoria e micro-abstract (L0)
+		fm, body := parser.ExtractFrontmatter(content)
+		category := "resource"
+		if fm != nil && fm.Category != "" {
+			category = fm.Category
+		}
+		if category != "resource" && category != "memory" && category != "skill" {
+			category = "resource"
+		}
+		var abstract string
+		if fm != nil && fm.Summary != "" {
+			abstract = fm.Summary
+		} else if fm != nil && fm.Abstract != "" {
+			abstract = fm.Abstract
+		} else {
+			abstract = parser.ExtractMicroAbstract(body, 160)
+		}
+
+		// 1. Salva documento com content_hash, abstract e category
+		if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
 			return err
 		}
 
@@ -1059,14 +1259,21 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 			_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 		}
 
-		// 3. Divide em chunks e gera embeddings
+		// 3. Divide em chunks e gera embeddings (com fallback FTS se offline)
 		chunks := parser.ChunkText(content, 200, 30)
 		for i, c := range chunks {
 			chunkID := fmt.Sprintf("%s#%d", docID, i)
-			vec, err := emb.GenerateEmbedding(c)
-			if err != nil {
-				fmt.Printf("Aviso: falha ao gerar embedding para %s (Ollama está rodando?)\n", chunkID)
-				continue
+			var vec []float32
+			if emb != nil {
+				v, err := emb.GenerateEmbedding(c)
+				if err == nil {
+					vec = v
+				} else if i == 0 {
+					fmt.Printf("Aviso: Ollama indisponível (%s); indexando em modo léxico FTS\n", chunkID)
+				}
+			}
+			if vec == nil {
+				vec = make([]float32, 768)
 			}
 
 			_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)
@@ -1163,8 +1370,26 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 		// Limpa chunks e arestas antigas antes da reindexação limpa
 		_ = db.DeleteDocumentData(ctx, database, docID)
 
-		// 1. Salva documento com content_hash
-		if err := db.InsertDocument(ctx, database, docID, path, title, time.Now().Unix(), currentHash); err != nil {
+		// Extrai frontmatter, categoria e micro-abstract (L0)
+		fm, body := parser.ExtractFrontmatter(content)
+		category := "resource"
+		if fm != nil && fm.Category != "" {
+			category = fm.Category
+		}
+		if category != "resource" && category != "memory" && category != "skill" {
+			category = "resource"
+		}
+		var abstract string
+		if fm != nil && fm.Summary != "" {
+			abstract = fm.Summary
+		} else if fm != nil && fm.Abstract != "" {
+			abstract = fm.Abstract
+		} else {
+			abstract = parser.ExtractMicroAbstract(body, 160)
+		}
+
+		// 1. Salva documento com content_hash, abstract e category
+		if err := db.InsertDocumentWithMeta(ctx, database, docID, path, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
 			return err
 		}
 
@@ -1174,14 +1399,21 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 			_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 		}
 
-		// 3. Divide em chunks e gera embeddings
+		// 3. Divide em chunks e gera embeddings (com fallback FTS se offline)
 		chunks := parser.ChunkText(content, 200, 30)
 		for i, c := range chunks {
 			chunkID := fmt.Sprintf("%s#%d", docID, i)
-			vec, err := emb.GenerateEmbedding(c)
-			if err != nil {
-				fmt.Printf("Aviso: falha ao gerar embedding para %s (Ollama está rodando?)\n", chunkID)
-				continue
+			var vec []float32
+			if emb != nil {
+				v, err := emb.GenerateEmbedding(c)
+				if err == nil {
+					vec = v
+				} else if i == 0 {
+					fmt.Printf("Aviso: Ollama indisponível (%s); indexando em modo léxico FTS\n", chunkID)
+				}
+			}
+			if vec == nil {
+				vec = make([]float32, 768)
 			}
 
 			// Inserção padrão (sqlite-vec + FTS5)
@@ -1218,26 +1450,32 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
 }
 
-func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions) {
+func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
 	decayInfo := ""
 	if decayOpts.Enabled {
 		decayInfo = fmt.Sprintf(" [Decay: ativo (meia-vida: %.1fd, peso: %.2f)]", decayOpts.HalfLife, decayOpts.Weight)
 	}
-	fmt.Printf("🔎 Buscando no PostgreSQL (pgvector) [Repo: %s, Modo: %s%s] por: \"%s\"\n\n", targetRepo, mode, decayInfo, query)
+	catInfo := ""
+	if searchOpts.Category != "" {
+		catInfo = fmt.Sprintf(" [Categoria: %s]", strings.ToUpper(searchOpts.Category))
+	}
+	levelInfo := fmt.Sprintf(" [Nível: %s]", strings.ToUpper(searchOpts.Level))
+
+	fmt.Printf("🔎 Buscando no PostgreSQL (pgvector) [Repo: %s, Modo: %s%s%s%s] por: \"%s\"\n\n", targetRepo, mode, levelInfo, catInfo, decayInfo, query)
 
 	var results []store.SearchResult
 	var err error
 
 	switch strings.ToLower(mode) {
 	case "fts":
-		results, err = s.SearchFTS(ctx, targetRepo, query, limit)
+		results, err = s.SearchFTSWithOptions(ctx, targetRepo, query, limit, searchOpts)
 	case "vector":
 		queryVec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
 			fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", embErr)
 			return
 		}
-		results, err = s.SearchKNN(ctx, targetRepo, queryVec, limit)
+		results, err = s.SearchKNNWithOptions(ctx, targetRepo, queryVec, limit, searchOpts)
 	default: // hybrid
 		var queryVec []float32
 		vec, embErr := emb.GenerateEmbedding(query)
@@ -1246,7 +1484,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		} else {
 			queryVec = vec
 		}
-		results, err = s.SearchHybridRRFWithDecay(ctx, targetRepo, query, queryVec, limit, k, decayOpts)
+		results, err = s.SearchHybridWithOptions(ctx, targetRepo, query, queryVec, limit, k, decayOpts, searchOpts)
 	}
 
 	if err != nil {
@@ -1259,8 +1497,44 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		return
 	}
 
+	if strings.EqualFold(searchOpts.Level, "l0") {
+		for i, res := range results {
+			catBadge := "RESOURCE"
+			if res.Category != "" {
+				catBadge = strings.ToUpper(res.Category)
+			}
+			dateStr := ""
+			if res.UpdatedAt > 0 {
+				dateStr = fmt.Sprintf(" | %s", time.Unix(res.UpdatedAt, 0).UTC().Format("2006-01-02"))
+			}
+			scoreStr := ""
+			if res.Score > 0 {
+				scoreStr = fmt.Sprintf(" (Score: %.4f%s)", res.Score, dateStr)
+			} else if res.Distance > 0 {
+				scoreStr = fmt.Sprintf(" (Dist: %.4f%s)", res.Distance, dateStr)
+			}
+
+			fmt.Printf("[%d] \033[1;34m[%s]\033[0m \033[1m%s\033[0m%s\n", i+1, catBadge, res.DocumentID, scoreStr)
+			abstract := res.Abstract
+			if abstract == "" {
+				abstract = "(sem abstract disponível)"
+			}
+			fmt.Printf("    💡 %s\n", abstract)
+			if len(res.Neighbors) > 0 {
+				fmt.Printf("    🕸  Vizinhos: [%s]\n", strings.Join(res.Neighbors, ", "))
+			}
+			fmt.Println()
+		}
+		return
+	}
+
 	for i, res := range results {
 		var headers []string
+		if res.Category != "" {
+			headers = append(headers, fmt.Sprintf("[%s]", strings.ToUpper(res.Category)))
+		} else {
+			headers = append(headers, "[RESOURCE]")
+		}
 		if res.Score > 0 {
 			headers = append(headers, fmt.Sprintf("Score RRF: %.4f", res.Score))
 		}
@@ -1276,10 +1550,15 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		headers = append(headers, fmt.Sprintf("Documento: %s", res.DocumentID))
 
 		fmt.Printf("--- [%d] %s ---\n", i+1, strings.Join(headers, " | "))
+		if res.Abstract != "" {
+			fmt.Printf("💡 Resumo (L0): %s\n", res.Abstract)
+		}
 		if len(res.Sources) > 0 {
 			fmt.Printf("📊 Fontes RRF: [%s]\n", strings.Join(res.Sources, ", "))
 		}
-		fmt.Println(res.Content)
+		if res.Content != "" {
+			fmt.Println(res.Content)
+		}
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
 		}
@@ -1287,7 +1566,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 	}
 }
 
-func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions) {
+func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
 	vecSubmode := "sqlite-vec"
 	if useTurbo || !db.HasSqliteVec {
 		vecSubmode = "TurboQuant"
@@ -1296,14 +1575,20 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 	if decayOpts.Enabled {
 		decayInfo = fmt.Sprintf(" [Decay: ativo (meia-vida: %.1fd, peso: %.2f)]", decayOpts.HalfLife, decayOpts.Weight)
 	}
-	fmt.Printf("🔎 Buscando no SQLite por: \"%s\" [Modo: %s (%s)%s]\n\n", query, mode, vecSubmode, decayInfo)
+	catInfo := ""
+	if searchOpts.Category != "" {
+		catInfo = fmt.Sprintf(" [Categoria: %s]", strings.ToUpper(searchOpts.Category))
+	}
+	levelInfo := fmt.Sprintf(" [Nível: %s]", strings.ToUpper(searchOpts.Level))
+
+	fmt.Printf("🔎 Buscando no SQLite por: \"%s\" [Modo: %s (%s)%s%s%s]\n\n", query, mode, vecSubmode, levelInfo, catInfo, decayInfo)
 
 	var results []db.SearchResult
 	var err error
 
 	switch strings.ToLower(mode) {
 	case "fts":
-		results, err = db.SearchFTS(ctx, database, query, limit)
+		results, err = db.SearchFTSWithOptions(ctx, database, query, limit, searchOpts)
 	case "vector":
 		queryVec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
@@ -1311,11 +1596,11 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 			return
 		}
 		if useTurbo || !db.HasSqliteVec {
-			results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+			results, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
 		} else {
-			results, err = db.SearchKNN(ctx, database, queryVec, limit)
+			results, err = db.SearchKNNWithOptions(ctx, database, queryVec, limit, searchOpts)
 			if err != nil {
-				results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+				results, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
 			}
 		}
 	default: // hybrid
@@ -1326,7 +1611,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		} else {
 			queryVec = vec
 		}
-		results, err = db.SearchHybridRRFWithDecay(ctx, database, tq, query, queryVec, limit, k, useTurbo, decayOpts)
+		results, err = db.SearchHybridRRFWithOptions(ctx, database, tq, query, queryVec, limit, k, useTurbo, decayOpts, searchOpts)
 	}
 
 	if err != nil {
@@ -1339,8 +1624,44 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		return
 	}
 
+	if strings.EqualFold(searchOpts.Level, "l0") {
+		for i, res := range results {
+			catBadge := "RESOURCE"
+			if res.Category != "" {
+				catBadge = strings.ToUpper(res.Category)
+			}
+			dateStr := ""
+			if res.UpdatedAt > 0 {
+				dateStr = fmt.Sprintf(" | %s", time.Unix(res.UpdatedAt, 0).UTC().Format("2006-01-02"))
+			}
+			scoreStr := ""
+			if res.Score > 0 {
+				scoreStr = fmt.Sprintf(" (Score: %.4f%s)", res.Score, dateStr)
+			} else if res.Distance > 0 {
+				scoreStr = fmt.Sprintf(" (Dist: %.4f%s)", res.Distance, dateStr)
+			}
+
+			fmt.Printf("[%d] \033[1;34m[%s]\033[0m \033[1m%s\033[0m%s\n", i+1, catBadge, res.DocumentID, scoreStr)
+			abstract := res.Abstract
+			if abstract == "" {
+				abstract = "(sem abstract disponível)"
+			}
+			fmt.Printf("    💡 %s\n", abstract)
+			if len(res.Neighbors) > 0 {
+				fmt.Printf("    🕸  Vizinhos: [%s]\n", strings.Join(res.Neighbors, ", "))
+			}
+			fmt.Println()
+		}
+		return
+	}
+
 	for i, res := range results {
 		var headers []string
+		if res.Category != "" {
+			headers = append(headers, fmt.Sprintf("[%s]", strings.ToUpper(res.Category)))
+		} else {
+			headers = append(headers, "[RESOURCE]")
+		}
 		if res.Score > 0 {
 			headers = append(headers, fmt.Sprintf("Score RRF: %.4f", res.Score))
 		}
@@ -1353,10 +1674,15 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		headers = append(headers, fmt.Sprintf("Documento: %s", res.DocumentID))
 
 		fmt.Printf("--- [%d] %s ---\n", i+1, strings.Join(headers, " | "))
+		if res.Abstract != "" {
+			fmt.Printf("💡 Resumo (L0): %s\n", res.Abstract)
+		}
 		if len(res.Sources) > 0 {
 			fmt.Printf("📊 Fontes RRF: [%s]\n", strings.Join(res.Sources, ", "))
 		}
-		fmt.Println(res.Content)
+		if res.Content != "" {
+			fmt.Println(res.Content)
+		}
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
 		}
@@ -1364,7 +1690,39 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 	}
 }
 
-func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, defaultRepo string, httpAddr string, corsEnabled bool) {
+func rearrangeSearchArgs(args []string) []string {
+	var flags []string
+	var nonFlags []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "-") {
+			flags = append(flags, arg)
+			// Se a flag espera um argumento posicional separado por espaço
+			if !strings.Contains(arg, "=") && (arg == "--mode" || arg == "-mode" ||
+				arg == "--level" || arg == "-level" ||
+				arg == "--category" || arg == "-category" ||
+				arg == "--k" || arg == "-k" ||
+				arg == "--limit" || arg == "-limit" ||
+				arg == "--half-life" || arg == "-half-life" ||
+				arg == "--decay-weight" || arg == "-decay-weight" ||
+				arg == "--db" || arg == "-db" ||
+				arg == "--postgres" || arg == "-postgres" ||
+				arg == "--repo" || arg == "-repo") {
+				if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+					flags = append(flags, args[i+1])
+					i++
+				}
+			}
+		} else {
+			nonFlags = append(nonFlags, arg)
+		}
+	}
+	return append(flags, nonFlags...)
+}
+
+
+
+func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
 
 	if pgStore != nil {
@@ -1382,18 +1740,26 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				k = 60
 			}
 
+			searchOpts := store.SearchOptions{
+				Level:    params.DetailLevel,
+				Category: params.Category,
+			}
+			if searchOpts.Level == "" {
+				searchOpts.Level = "l1"
+			}
+
 			var pgResults []store.SearchResult
 			var err error
 
 			switch params.Mode {
 			case "fts":
-				pgResults, err = pgStore.SearchFTS(ctx, repo, params.Query, limit)
+				pgResults, err = pgStore.SearchFTSWithOptions(ctx, repo, params.Query, limit, searchOpts)
 			case "vector":
 				queryVec, embErr := emb.GenerateEmbedding(params.Query)
 				if embErr != nil {
 					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
 				}
-				pgResults, err = pgStore.SearchKNN(ctx, repo, queryVec, limit)
+				pgResults, err = pgStore.SearchKNNWithOptions(ctx, repo, queryVec, limit, searchOpts)
 			default: // hybrid
 				var queryVec []float32
 				vec, embErr := emb.GenerateEmbedding(params.Query)
@@ -1410,7 +1776,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 						decayOpts.Weight = params.DecayWeight
 					}
 				}
-				pgResults, err = pgStore.SearchHybridRRFWithDecay(ctx, repo, params.Query, queryVec, limit, k, decayOpts)
+				pgResults, err = pgStore.SearchHybridWithOptions(ctx, repo, params.Query, queryVec, limit, k, decayOpts, searchOpts)
 			}
 
 			if err != nil {
@@ -1429,6 +1795,8 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					Sources:    r.Sources,
 					Neighbors:  r.Neighbors,
 					UpdatedAt:  r.UpdatedAt,
+					Abstract:   r.Abstract,
+					Category:   r.Category,
 				}
 			}
 			return mcpResults, nil
@@ -1551,8 +1919,24 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				TotalEdges:  gv.Stats.TotalEdges,
 			}, nil
 		})
+
+		srv.SetImpactHandler(func(ctx context.Context, repo, nodeID string, maxDepth int) (*graph.ImpactResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.CalculateImpact(ctx, repo, nodeID, maxDepth)
+		})
+
+		srv.SetInspectHandler(func(ctx context.Context, repo, nodeID string, maxContentLen int) (*graph.TriptychView, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.InspectNode(ctx, repo, nodeID, maxContentLen)
+		})
 	} else if database != nil {
-		tq := turboquant.NewQuantizer(EmbeddingDim)
+		if tq == nil {
+			tq = turboquant.NewQuantizer(EmbeddingDim)
+		}
 		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
 			limit := params.Limit
 			if limit <= 0 {
@@ -1563,23 +1947,31 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				k = 60
 			}
 
+			searchOpts := store.SearchOptions{
+				Level:    params.DetailLevel,
+				Category: params.Category,
+			}
+			if searchOpts.Level == "" {
+				searchOpts.Level = "l1"
+			}
+
 			var dbResults []db.SearchResult
 			var err error
 
 			switch params.Mode {
 			case "fts":
-				dbResults, err = db.SearchFTS(ctx, database, params.Query, limit)
+				dbResults, err = db.SearchFTSWithOptions(ctx, database, params.Query, limit, searchOpts)
 			case "vector":
 				queryVec, embErr := emb.GenerateEmbedding(params.Query)
 				if embErr != nil {
 					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
 				}
 				if !db.HasSqliteVec {
-					dbResults, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+					dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
 				} else {
-					dbResults, err = db.SearchKNN(ctx, database, queryVec, limit)
+					dbResults, err = db.SearchKNNWithOptions(ctx, database, queryVec, limit, searchOpts)
 					if err != nil {
-						dbResults, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+						dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
 					}
 				}
 			default: // hybrid
@@ -1598,7 +1990,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 						decayOpts.Weight = params.DecayWeight
 					}
 				}
-				dbResults, err = db.SearchHybridRRFWithDecay(ctx, database, tq, params.Query, queryVec, limit, k, false, decayOpts)
+				dbResults, err = db.SearchHybridRRFWithOptions(ctx, database, tq, params.Query, queryVec, limit, k, false, decayOpts, searchOpts)
 			}
 
 			if err != nil {
@@ -1616,6 +2008,8 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					Sources:    r.Sources,
 					Neighbors:  r.Neighbors,
 					UpdatedAt:  r.UpdatedAt,
+					Abstract:   r.Abstract,
+					Category:   r.Category,
 				}
 			}
 			return mcpResults, nil
@@ -1719,6 +2113,14 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				TotalNodes:  gv.Stats.TotalNodes,
 				TotalEdges:  gv.Stats.TotalEdges,
 			}, nil
+		})
+
+		srv.SetImpactHandler(func(ctx context.Context, repo, nodeID string, maxDepth int) (*graph.ImpactResult, error) {
+			return db.CalculateImpactForTarget(ctx, database, nodeID, maxDepth)
+		})
+
+		srv.SetInspectHandler(func(ctx context.Context, repo, nodeID string, maxContentLen int) (*graph.TriptychView, error) {
+			return db.InspectNode(ctx, database, nodeID, maxContentLen)
 		})
 	}
 

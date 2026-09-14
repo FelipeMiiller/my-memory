@@ -145,6 +145,19 @@ const htmlPageTemplate = `<!DOCTYPE html>
       stroke-width: 3px;
       stroke-linecap: round;
       stroke-linejoin: round;
+      opacity: 0;
+      transition: opacity 0.2s ease, fill 0.2s ease;
+    }
+    .node-group.hub .node-label,
+    .node-group[data-important="true"] .node-label,
+    .node-group:hover .node-label,
+    .node-group.highlighted .node-label,
+    body.show-all-labels .node-label {
+      opacity: 1;
+    }
+    .node-group:hover .node-label {
+      font-weight: 600;
+      fill: #38bdf8;
     }
     .controls {
       position: absolute;
@@ -236,7 +249,6 @@ const htmlPageTemplate = `<!DOCTYPE html>
     }
     .link-item:hover { background: #1e293b; border-color: var(--accent); }
     .obsidian-btn {
-      margin-top: auto;
       padding: 10px;
       background: #4f46e5;
       color: #fff;
@@ -250,6 +262,98 @@ const htmlPageTemplate = `<!DOCTYPE html>
       transition: background 0.2s;
     }
     .obsidian-btn:hover { background: #4338ca; }
+    .triptych-btn {
+      padding: 10px;
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.2s;
+    }
+    .triptych-btn:hover { background: #0369a1; }
+    .triptych-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 7, 18, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+    .triptych-modal.open { display: flex; }
+    .triptych-container {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      width: 95%;
+      max-width: 1200px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+    .triptych-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f172a;
+    }
+    .triptych-title { font-size: 16px; font-weight: 700; color: #f8fafc; }
+    .triptych-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 16px;
+      padding: 20px;
+      overflow-y: auto;
+      background: #090d16;
+    }
+    @media (max-width: 900px) {
+      .triptych-grid { grid-template-columns: 1fr; }
+    }
+    .triptych-col {
+      background: #0d131f;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .col-header {
+      font-size: 14px;
+      font-weight: 700;
+      color: #94a3b8;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tp-list { display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow-y: auto; }
+    .tp-card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 6px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tp-card:hover { border-color: #38bdf8; background: #1e293b; }
+    .tp-card-title { font-size: 13px; font-weight: 600; color: #38bdf8; }
+    .tp-card-meta { font-size: 11px; color: #94a3b8; margin-top: 4px; display: flex; justify-content: space-between; }
+    .tp-badge-crit { background: rgba(239, 68, 68, 0.2); color: #f87171; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .tp-badge-high { background: rgba(249, 115, 22, 0.2); color: #fb923c; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .tp-badge-med { background: rgba(234, 179, 8, 0.2); color: #facc15; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .tp-badge-low { background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -263,6 +367,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       <span>Arestas: <strong>{{ .Stats.TotalEdges }}</strong></span>
       <span>Hubs: <strong>{{ .Stats.HubCount }}</strong></span>
       <span>Densidade: <strong>{{ .Stats.Density }}</strong></span>
+      {{ if .FormattedUpdatedAt }}<span>Atualizado em: <strong>{{ .FormattedUpdatedAt }}</strong></span>{{ end }}
     </div>
     <div class="search-row">
       <input type="text" id="search-input" class="search-input" placeholder="Filtrar notas...">
@@ -279,6 +384,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
   </header>
 
   <div class="controls">
+    <button class="ctrl-btn" id="btn-toggle-labels" title="Alternar Rótulos (Ocultar / Mostrar Todos)">🏷️</button>
     <button class="ctrl-btn" id="btn-zoom-in" title="Aumentar Zoom">+</button>
     <button class="ctrl-btn" id="btn-zoom-out" title="Diminuir Zoom">−</button>
     <button class="ctrl-btn" id="btn-reset" title="Centralizar Grafo">⟲</button>
@@ -323,6 +429,10 @@ const htmlPageTemplate = `<!DOCTYPE html>
         <span class="meta-label">Saída (Out-links):</span>
         <span class="meta-value" id="sb-out">0</span>
       </div>
+      <div class="meta-item" id="sb-updated-row">
+        <span class="meta-label">Última atualização:</span>
+        <span class="meta-value" id="sb-updated">-</span>
+      </div>
     </div>
     <div class="links-section">
       <div class="links-title">Conexões de Entrada</div>
@@ -332,7 +442,48 @@ const htmlPageTemplate = `<!DOCTYPE html>
       <div class="links-title">Conexões de Saída</div>
       <div class="links-list" id="sb-out-links"></div>
     </div>
-    <a href="#" id="sb-obsidian-link" class="obsidian-btn" target="_blank">Abrir no Obsidian</a>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+      <button id="sb-inspect-btn" class="triptych-btn" onclick="openTriptychModal()">🔬 Inspecionar Tríptico</button>
+      <a href="#" id="sb-obsidian-link" class="obsidian-btn" target="_blank">Abrir no Obsidian</a>
+    </div>
+  </div>
+
+  <!-- Modal do Tríptico (3 Colunas) -->
+  <div id="triptych-modal" class="triptych-modal">
+    <div class="triptych-container">
+      <div class="triptych-header">
+        <div class="triptych-title">🔬 Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector)</div>
+        <button class="close-btn" onclick="closeTriptychModal()">✕</button>
+      </div>
+      <div class="triptych-grid">
+        <div class="triptych-col">
+          <div class="col-header">
+            <span>⬅️ Chamadores (In-links)</span>
+            <span id="tp-in-count" class="badge">0</span>
+          </div>
+          <div id="tp-in-list" class="tp-list"></div>
+        </div>
+        <div class="triptych-col">
+          <div class="col-header">🎯 Nó Central & Métricas</div>
+          <div id="tp-center-card" style="display:flex; flex-direction:column; gap:10px; font-size:13px;">
+            <div style="font-size:16px; font-weight:700; color:#38bdf8;" id="tp-title">Título</div>
+            <div class="meta-item"><span class="meta-label">ID Canônico:</span><span id="tp-id" class="meta-value"></span></div>
+            <div class="meta-item"><span class="meta-label">Tipo:</span><span id="tp-type" class="meta-value"></span></div>
+            <div class="meta-item"><span class="meta-label">PageRank:</span><span id="tp-pagerank" class="meta-value"></span></div>
+            <div class="meta-item"><span class="meta-label">Comunidade:</span><span id="tp-community" class="meta-value"></span></div>
+            <div class="meta-item"><span class="meta-label">Total Conexões:</span><span id="tp-degree" class="meta-value"></span></div>
+            <a href="#" id="tp-obsidian-btn" class="obsidian-btn" target="_blank" style="margin-top:12px;">Abrir no Obsidian</a>
+          </div>
+        </div>
+        <div class="triptych-col">
+          <div class="col-header">
+            <span>➡️ Referências (Out-links)</span>
+            <span id="tp-out-count" class="badge">0</span>
+          </div>
+          <div id="tp-out-list" class="tp-list"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -343,15 +494,16 @@ const htmlPageTemplate = `<!DOCTYPE html>
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    // Inicialização aleatória com dispersão inicial
+    // Inicialização espalhada em anel elíptico proporcional à tela
     const nodeMap = new Map();
+    const rx = Math.min(width, height) * 0.35;
     nodes.forEach((n, i) => {
-      const angle = (2 * Math.PI * i) / nodes.length;
-      const radius = 180 + Math.random() * 200;
-      n.x = (width / 2) + radius * Math.cos(angle);
-      n.y = (height / 2) + radius * Math.sin(angle);
-      n.vx = 0;
-      n.vy = 0;
+      const angle = (2 * Math.PI * i) / (nodes.length || 1);
+      const spread = rx * (0.6 + 0.4 * Math.random());
+      n.x = (width / 2) + spread * Math.cos(angle);
+      n.y = (height / 2) + spread * Math.sin(angle);
+      n.vx = (Math.random() - 0.5) * 2;
+      n.vy = (Math.random() - 0.5) * 2;
       nodeMap.set(n.id, n);
     });
 
@@ -387,15 +539,36 @@ const htmlPageTemplate = `<!DOCTYPE html>
       g.setAttribute('data-id', n.id);
       g.setAttribute('data-type', n.type);
 
+      // Identifica nós com maior relevância para exibir rótulo por padrão
+      const degree = (n.in_degree || 0) + (n.out_degree || 0);
+      if (n.is_hub || degree >= 3 || (n.pagerank && n.pagerank > 0.015)) {
+        g.setAttribute('data-important', 'true');
+      }
+
       const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       circle.setAttribute('class', 'node-circle');
       circle.setAttribute('r', n.radius || 10);
       circle.setAttribute('fill', n.color);
 
+      // Tooltip nativo
+      const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      svgTitle.textContent = (n.title || n.id) + ' (Grau: ' + degree + ', PR: ' + (n.pagerank ? n.pagerank.toFixed(4) : '0') + ')';
+      g.appendChild(svgTitle);
+
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('class', 'node-label');
       text.setAttribute('dy', (n.radius || 10) + 14);
-      text.textContent = n.title;
+
+      // Limpeza e encurtamento do título para o nó no canvas
+      let displayTitle = n.title || n.id;
+      const lastSlash = Math.max(displayTitle.lastIndexOf('/'), displayTitle.lastIndexOf('\\'));
+      if (lastSlash !== -1) {
+        displayTitle = displayTitle.slice(lastSlash + 1);
+      }
+      if (displayTitle.length > 22) {
+        displayTitle = displayTitle.slice(0, 20) + '…';
+      }
+      text.textContent = displayTitle;
 
       g.appendChild(circle);
       g.appendChild(text);
@@ -415,7 +588,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       nodesLayer.appendChild(g);
     });
 
-    // Simulação Force-Directed Graph em JS puro
+    // Simulação Force-Directed Graph com anti-colisão física
     let alpha = 1.0;
     const alphaDecay = 0.008;
     const alphaMin = 0.001;
@@ -423,22 +596,31 @@ const htmlPageTemplate = `<!DOCTYPE html>
     function tickSimulation() {
       if (alpha < alphaMin) return;
 
-      const k = 140; // distância ideal de mola
-      const repStrength = 1800; // força de repulsão
+      const k = 150; // distância ideal de mola
+      const repStrength = 4200; // força de repulsão
 
-      // 1. Repulsão Many-Body (Coulomb)
+      // 1. Repulsão Many-Body (Coulomb) + Anti-colisão física
       for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
         for (let j = i + 1; j < nodes.length; j++) {
-          const a = nodes[i];
           const b = nodes[j];
           let dx = b.x - a.x;
           let dy = b.y - a.y;
           let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          if (dist > 450) continue;
+          if (dist > 550) continue;
 
           let f = (repStrength / (dist * dist)) * alpha;
           let fx = (dx / dist) * f;
           let fy = (dy / dist) * f;
+
+          // Anti-colisão: mantém espaçamento físico entre círculos
+          const minDist = (a.radius || 10) + (b.radius || 10) + 26;
+          if (dist < minDist) {
+            const overlap = (minDist - dist) / minDist;
+            const push = overlap * 3.5 * alpha;
+            fx += (dx / dist) * push;
+            fy += (dy / dist) * push;
+          }
 
           if (!a.pinned) { a.vx -= fx; a.vy -= fy; }
           if (!b.pinned) { b.vx += fx; b.vy += fy; }
@@ -452,7 +634,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
         let dy = l.target.y - l.source.y;
         let dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-        let force = (dist - k) * 0.05 * alpha;
+        let force = (dist - k) * 0.04 * alpha;
         let fx = (dx / dist) * force;
         let fy = (dy / dist) * force;
 
@@ -460,18 +642,18 @@ const htmlPageTemplate = `<!DOCTYPE html>
         if (!l.target.pinned) { l.target.vx -= fx; l.target.vy -= fy; }
       }
 
-      // 3. Centralização e Amortecimento
+      // 3. Centralização Suave e Amortecimento
       const centerX = width / 2;
       const centerY = height / 2;
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
         if (n.pinned) continue;
 
-        n.vx += (centerX - n.x) * 0.008 * alpha;
-        n.vy += (centerY - n.y) * 0.008 * alpha;
+        n.vx += (centerX - n.x) * 0.0012 * alpha;
+        n.vy += (centerY - n.y) * 0.0012 * alpha;
 
-        n.vx *= 0.85;
-        n.vy *= 0.85;
+        n.vx *= 0.82;
+        n.vy *= 0.82;
 
         n.x += n.vx;
         n.y += n.vy;
@@ -563,6 +745,16 @@ const htmlPageTemplate = `<!DOCTYPE html>
     }
 
     // Controles
+    const btnToggleLabels = document.getElementById('btn-toggle-labels');
+    if (btnToggleLabels) {
+      btnToggleLabels.addEventListener('click', () => {
+        document.body.classList.toggle('show-all-labels');
+        const active = document.body.classList.contains('show-all-labels');
+        btnToggleLabels.style.borderColor = active ? 'var(--accent)' : 'var(--border)';
+        btnToggleLabels.style.background = active ? 'rgba(56, 189, 248, 0.2)' : 'rgba(15, 23, 42, 0.9)';
+      });
+    }
+
     document.getElementById('btn-zoom-in').addEventListener('click', () => {
       zoom = Math.min(4.0, zoom * 1.2);
       updateTransform();
@@ -590,6 +782,17 @@ const htmlPageTemplate = `<!DOCTYPE html>
       document.getElementById('sb-pagerank').textContent = n.pagerank.toFixed(4);
       document.getElementById('sb-in').textContent = n.in_degree;
       document.getElementById('sb-out').textContent = n.out_degree;
+
+      const updRow = document.getElementById('sb-updated-row');
+      const updVal = document.getElementById('sb-updated');
+      if (n.updated_at && n.updated_at > 0) {
+        const d = new Date(n.updated_at * 1000);
+        updVal.textContent = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+        if (updRow) updRow.style.display = 'flex';
+      } else {
+        updVal.textContent = '-';
+        if (updRow) updRow.style.display = 'none';
+      }
 
       // Deep link para Obsidian
       const obsLink = 'obsidian://open?file=' + encodeURIComponent(n.id);
@@ -653,8 +856,10 @@ const htmlPageTemplate = `<!DOCTYPE html>
       nodes.forEach(n => {
         if (connected.has(n.id)) {
           n.element.style.opacity = '1';
+          n.element.classList.add('highlighted');
         } else {
           n.element.style.opacity = '0.2';
+          n.element.classList.remove('highlighted');
         }
       });
     }
@@ -667,6 +872,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       });
       nodes.forEach(n => {
         n.element.style.opacity = '1';
+        n.element.classList.remove('highlighted');
       });
     }
 
@@ -717,16 +923,113 @@ const htmlPageTemplate = `<!DOCTYPE html>
         });
       });
     });
+
+    // Funções do Visualizador Cirúrgico (Triptych Modal)
+    function openTriptychModal() {
+      if (!selectedNode) return;
+      renderTriptych(selectedNode);
+      document.getElementById('triptych-modal').classList.add('open');
+    }
+
+    function closeTriptychModal() {
+      document.getElementById('triptych-modal').classList.remove('open');
+    }
+
+    function renderTriptych(n) {
+      document.getElementById('tp-title').textContent = n.title;
+      document.getElementById('tp-id').textContent = n.id;
+      document.getElementById('tp-type').textContent = n.type;
+      document.getElementById('tp-pagerank').textContent = n.pagerank.toFixed(4);
+      document.getElementById('tp-community').textContent = n.community_id > 0 ? ('Cluster #' + n.community_id + ' (' + (n.community_label || 'Geral') + ')') : 'Não agrupado';
+      document.getElementById('tp-degree').textContent = (n.in_degree + n.out_degree) + ' (In: ' + n.in_degree + ' | Out: ' + n.out_degree + ')';
+
+      const obsLink = 'obsidian://open?file=' + encodeURIComponent(n.id);
+      document.getElementById('tp-obsidian-btn').setAttribute('href', obsLink);
+
+      // Inbound
+      const inList = document.getElementById('tp-in-list');
+      inList.innerHTML = '';
+      const inEdges = links.filter(l => l.target.id === n.id);
+      document.getElementById('tp-in-count').textContent = inEdges.length;
+
+      if (inEdges.length === 0) {
+        inList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px;">Nenhum nó apontando para este documento</div>';
+      } else {
+        inEdges.forEach(l => {
+          const card = document.createElement('div');
+          card.className = 'tp-card';
+          
+          let rel = l.relation || 'links_to';
+          let badgeClass = 'tp-badge-low';
+          let badgeText = 'BAIXO';
+          let relLower = rel.toLowerCase();
+          if (relLower.includes('implement') || relLower.includes('depend') || relLower.includes('contradict') || relLower.includes('block')) {
+            badgeClass = 'tp-badge-crit';
+            badgeText = 'CRÍTICO';
+          } else if (relLower.includes('link') || relLower.includes('refer')) {
+            badgeClass = 'tp-badge-med';
+            badgeText = 'MÉDIO';
+          }
+
+          card.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+            '<span class="tp-card-title">' + l.source.title + '</span>' +
+            '<span class="' + badgeClass + '">' + badgeText + '</span>' +
+            '</div>' +
+            '<div class="tp-card-meta">' +
+            '<span>Relação: <code>' + rel + '</code></span>' +
+            '<span>PR: ' + (l.source.pagerank || 0).toFixed(4) + '</span>' +
+            '</div>';
+          card.onclick = () => {
+            selectNode(l.source);
+            renderTriptych(l.source);
+          };
+          inList.appendChild(card);
+        });
+      }
+
+      // Outbound
+      const outList = document.getElementById('tp-out-list');
+      outList.innerHTML = '';
+      const outEdges = links.filter(l => l.source.id === n.id);
+      document.getElementById('tp-out-count').textContent = outEdges.length;
+
+      if (outEdges.length === 0) {
+        outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px;">Este documento não referencia outras notas</div>';
+      } else {
+        outEdges.forEach(l => {
+          const card = document.createElement('div');
+          card.className = 'tp-card';
+          card.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+            '<span class="tp-card-title">' + l.target.title + '</span>' +
+            '<span style="font-size:11px; color:#38bdf8;">✓ Válido</span>' +
+            '</div>' +
+            '<div class="tp-card-meta">' +
+            '<span>Relação: <code>' + (l.relation || 'links_to') + '</code></span>' +
+            '<span>PR: ' + (l.target.pagerank || 0).toFixed(4) + '</span>' +
+            '</div>';
+          card.onclick = () => {
+            selectNode(l.target);
+            renderTriptych(l.target);
+          };
+          outList.appendChild(card);
+        });
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeTriptychModal();
+    });
   </script>
 </body>
 </html>`
 
 // TemplateData empacota os dados para injeção no template HTML
 type TemplateData struct {
-	Title      string
-	Repository string
-	Stats      GraphStats
-	DataJSON   template.JS
+	Title              string
+	Repository         string
+	Stats              GraphStats
+	FormattedUpdatedAt string
+	DataJSON           template.JS
 }
 
 // RenderHTML renderiza a página HTML standalone em memória com todos os dados do grafo embutidos
@@ -741,11 +1044,17 @@ func RenderHTML(gv *GraphView) ([]byte, error) {
 		return nil, fmt.Errorf("falha ao compilar template html do grafo: %w", err)
 	}
 
+	formattedUpdated := ""
+	if gv != nil {
+		formattedUpdated = gv.FormattedUpdatedAt()
+	}
+
 	td := TemplateData{
-		Title:      gv.Title,
-		Repository: gv.Repository,
-		Stats:      gv.Stats,
-		DataJSON:   template.JS(dataBytes),
+		Title:              gv.Title,
+		Repository:         gv.Repository,
+		Stats:              gv.Stats,
+		FormattedUpdatedAt: formattedUpdated,
+		DataJSON:           template.JS(dataBytes),
 	}
 
 	var buf bytes.Buffer

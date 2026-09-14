@@ -18,14 +18,21 @@
 - **AD-020**: Visualizador Interativo de Grafo em HTML/SVG Standalone (`docs/adr/020-visualizador-interativo-de-grafo-em-html-svg.md`)
 - **AD-021**: Servidor MCP com Transporte HTTP e Server-Sent Events (SSE) (`docs/adr/021-servidor-mcp-com-transporte-http-sse.md`)
 - **AD-022**: Detecção de Comunidades e Clusters no Grafo de Conhecimento (`docs/adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md`)
+- **AD-023**: Análise de Impacto e Raio de Destruição (Blast Radius Analysis) (`docs/adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md`)
+- **AD-024**: Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector) (`docs/adr/024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md`)
+- **AD-025**: Carregamento Progressivo de Contexto e Taxonomia de Memória (`docs/adr/025-progressive-context-loading-e-taxonomia-de-memoria.md`)
 
 ## Handoff
 
-- **Feature**: graph-community-detection (.specs/features/graph-community-detection)
-- **Phase / Task**: Phase 1 / T4 (Completed)
-- **Completed**: T1 (LPA e Modularidade Q), T2 (Enriquecimento GraphView), T3 (Subcomando mem clusters), T4 (Ferramenta MCP memory_get_clusters e ADR-022)
-- **In-progress**: none
-- **Next step**: Executar Verifier TLC (validation.md) e validação final
+- **Feature**: progressive-context-loading (.specs/features/progressive-context-loading)
+- **Phase / Task**: Feature 100% Concluída e Validada (T1, T2, T3, T4, T5)
+- **Planned**: Todas as tarefas (T1 a T5) executadas e validadas.
+- **Completed Features**: progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: Nenhuma
+- **Next step**: Atualizar walkthrough.md, compilar bin/mem.exe e efetuar o commit da T5
 - **Blockers**: none
 - **Branch**: develop
+
+
+
 

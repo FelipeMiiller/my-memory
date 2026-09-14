@@ -40,6 +40,19 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN content_hash TEXT")
 	}
 
+	// Migração retrocompatível: adiciona colunas abstract e category em documents se não existirem
+	var absColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'abstract'").Scan(&absColCount)
+	if absColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN abstract TEXT")
+	}
+
+	var catColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'category'").Scan(&catColCount)
+	if catColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN category TEXT DEFAULT 'resource'")
+	}
+
 	// Migração retrocompatível: adiciona colunas epistemic_status e weight em graph_edges se não existirem
 	var edgeColCount int
 	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('graph_edges') WHERE name = 'epistemic_status'").Scan(&edgeColCount)
@@ -51,16 +64,32 @@ func InitDB(dbPath string) (*sql.DB, error) {
 	return db, nil
 }
 
-// InsertDocument salva documento com content_hash e seus nós no grafo
-func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash string) error {
+// Document representa a entidade canônica de um documento na tabela documents
+type Document struct {
+	ID          string `json:"id"`
+	Path        string `json:"path"`
+	Title       string `json:"title"`
+	UpdatedAt   int64  `json:"updated_at"`
+	ContentHash string `json:"content_hash,omitempty"`
+	Abstract    string `json:"abstract,omitempty"`
+	Category    string `json:"category,omitempty"`
+}
+
+// InsertDocumentWithMeta salva documento com content_hash, abstract (L0), category e seus nós no grafo
+func InsertDocumentWithMeta(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash, abstract, category string) error {
+	if category == "" {
+		category = "resource"
+	}
 	_, err := db.ExecContext(ctx, `
-		INSERT INTO documents (id, path, title, updated_at, content_hash)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO documents (id, path, title, updated_at, content_hash, abstract, category)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			title = excluded.title,
 			updated_at = excluded.updated_at,
-			content_hash = excluded.content_hash
-	`, id, path, title, updatedAt, contentHash)
+			content_hash = excluded.content_hash,
+			abstract = excluded.abstract,
+			category = excluded.category
+	`, id, path, title, updatedAt, contentHash, abstract, category)
 	if err != nil {
 		return err
 	}
@@ -70,6 +99,11 @@ func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, upd
 		VALUES (?, 'note', ?)
 	`, id, title)
 	return err
+}
+
+// InsertDocument salva documento com content_hash e seus nós no grafo (compatibilidade com chamadores legados)
+func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash string) error {
+	return InsertDocumentWithMeta(ctx, db, id, path, title, updatedAt, contentHash, "", "resource")
 }
 
 // GetDocumentHash retorna o hash SHA-256 de conteúdo armazenado de um documento (ou "" se não existir)

@@ -152,3 +152,168 @@ func TestSearchHybridRRFWithDecay_SQLite(t *testing.T) {
 		t.Errorf("esperava UpdatedAt preservado %d, obteve %d", newTime, resultsWithDecay[0].UpdatedAt)
 	}
 }
+
+func TestSearch_CategoryFilter(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "test_cat.db")
+
+	database, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("falha ao inicializar SQLite: %v", err)
+	}
+	defer database.Close()
+
+	now := time.Now().Unix()
+
+	// Inserir documentos em categorias distintas usando InsertDocumentWithMeta
+	if err := InsertDocumentWithMeta(ctx, database, "doc_mem", "notes/mem.md", "Regras do Agente", now, "h1", "Regras e comportamentos do agente", "memory"); err != nil {
+		t.Fatalf("falha ao inserir doc_mem: %v", err)
+	}
+	if err := InsertDocumentWithMeta(ctx, database, "doc_skill", "skills/run.md", "Comandos de Deploy", now, "h2", "Instruções de deploy em produção", "skill"); err != nil {
+		t.Fatalf("falha ao inserir doc_skill: %v", err)
+	}
+	if err := InsertDocumentWithMeta(ctx, database, "doc_res", "docs/arch.md", "Arquitetura do Sistema", now, "h3", "Especificação técnica da arquitetura", "resource"); err != nil {
+		t.Fatalf("falha ao inserir doc_res: %v", err)
+	}
+
+	// Inserir chunks
+	_, err = database.ExecContext(ctx, `
+		INSERT INTO chunks (id, document_id, chunk_index, content)
+		VALUES 
+			('c_mem', 'doc_mem', 0, 'arquitetura de agentes e regras comportamentais'),
+			('c_skill', 'doc_skill', 0, 'arquitetura de deploy automatizado e scripts'),
+			('c_res', 'doc_res', 0, 'arquitetura de banco de dados relacional')
+	`)
+	if err != nil {
+		t.Fatalf("falha ao inserir chunks: %v", err)
+	}
+
+	// Inserir na tabela chunks_fts
+	_, err = database.ExecContext(ctx, `
+		INSERT INTO chunks_fts (chunk_id, content)
+		VALUES 
+			('c_mem', 'arquitetura de agentes e regras comportamentais'),
+			('c_skill', 'arquitetura de deploy automatizado e scripts'),
+			('c_res', 'arquitetura de banco de dados relacional')
+	`)
+	if err != nil {
+		t.Fatalf("falha ao indexar chunks no FTS: %v", err)
+	}
+
+	// 1. Busca FTS com filtro por categoria "memory"
+	memRes, err := SearchFTSWithOptions(ctx, database, "arquitetura", 10, store.SearchOptions{Category: "memory"})
+	if err != nil {
+		t.Fatalf("SearchFTSWithOptions(memory) falhou: %v", err)
+	}
+	if len(memRes) != 1 {
+		t.Fatalf("esperava 1 resultado para categoria 'memory', obteve %d", len(memRes))
+	}
+	if memRes[0].DocumentID != "doc_mem" || memRes[0].Category != "memory" {
+		t.Errorf("resultado incorreto para categoria 'memory': %+v", memRes[0])
+	}
+	if memRes[0].Abstract != "Regras e comportamentos do agente" {
+		t.Errorf("Abstract não preservado em FTS: '%s'", memRes[0].Abstract)
+	}
+
+	// 2. Busca FTS com filtro por categoria "skill"
+	skillRes, err := SearchFTSWithOptions(ctx, database, "arquitetura", 10, store.SearchOptions{Category: "skill"})
+	if err != nil {
+		t.Fatalf("SearchFTSWithOptions(skill) falhou: %v", err)
+	}
+	if len(skillRes) != 1 || skillRes[0].DocumentID != "doc_skill" {
+		t.Errorf("resultado incorreto para categoria 'skill': %+v", skillRes)
+	}
+
+	// 3. Busca Híbrida RRF com filtro por categoria "resource"
+	resRes, err := SearchHybridRRFWithOptions(ctx, database, nil, "arquitetura", nil, 10, 60, false, store.DefaultDecayOptions(), store.SearchOptions{Category: "resource"})
+	if err != nil {
+		t.Fatalf("SearchHybridRRFWithOptions(resource) falhou: %v", err)
+	}
+	if len(resRes) != 1 || resRes[0].DocumentID != "doc_res" {
+		t.Errorf("resultado incorreto na busca híbrida para categoria 'resource': %+v", resRes)
+	}
+	if resRes[0].Category != "resource" || resRes[0].Abstract != "Especificação técnica da arquitetura" {
+		t.Errorf("Metadados de categoria/abstract divergentes: %+v", resRes[0])
+	}
+}
+
+func TestSearch_LevelL0Projection(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "test_l0.db")
+
+	database, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("falha ao inicializar SQLite: %v", err)
+	}
+	defer database.Close()
+
+	now := time.Now().Unix()
+
+	// Inserir documento com múltiplos chunks
+	if err := InsertDocumentWithMeta(ctx, database, "doc_multi", "notes/multi.md", "Multi Chunks Note", now, "h_multi", "Micro-abstract cirúrgico L0 para economia de tokens", "resource"); err != nil {
+		t.Fatalf("falha ao inserir doc_multi: %v", err)
+	}
+	if err := InsertDocumentWithMeta(ctx, database, "doc_single", "notes/single.md", "Single Note", now, "h_single", "Outro micro-abstract L0", "resource"); err != nil {
+		t.Fatalf("falha ao inserir doc_single: %v", err)
+	}
+
+	// Inserir 3 chunks para doc_multi e 1 para doc_single
+	_, err = database.ExecContext(ctx, `
+		INSERT INTO chunks (id, document_id, chunk_index, content)
+		VALUES 
+			('c_m1', 'doc_multi', 0, 'conteudo extenso do chunk 1 sobre protocolos de comunicacao e sockets'),
+			('c_m2', 'doc_multi', 1, 'conteudo extenso do chunk 2 sobre protocolos de rede e roteamento'),
+			('c_m3', 'doc_multi', 2, 'conteudo extenso do chunk 3 sobre protocolos criptograficos e tls'),
+			('c_s1', 'doc_single', 0, 'conteudo do chunk unico sobre protocolos de comunicacao')
+	`)
+	if err != nil {
+		t.Fatalf("falha ao inserir chunks: %v", err)
+	}
+
+	// Indexar no FTS
+	_, err = database.ExecContext(ctx, `
+		INSERT INTO chunks_fts (chunk_id, content)
+		VALUES 
+			('c_m1', 'conteudo extenso do chunk 1 sobre protocolos de comunicacao e sockets'),
+			('c_m2', 'conteudo extenso do chunk 2 sobre protocolos de rede e roteamento'),
+			('c_m3', 'conteudo extenso do chunk 3 sobre protocolos criptograficos e tls'),
+			('c_s1', 'conteudo do chunk unico sobre protocolos de comunicacao')
+	`)
+	if err != nil {
+		t.Fatalf("falha ao indexar chunks no FTS: %v", err)
+	}
+
+	// Busca no nível padrão L1: deve retornar múltiplos chunks de doc_multi
+	l1Res, err := SearchHybridRRFWithOptions(ctx, database, nil, "protocolos", nil, 10, 60, false, store.DefaultDecayOptions(), store.SearchOptions{Level: "l1"})
+	if err != nil {
+		t.Fatalf("SearchHybridRRFWithOptions(l1) falhou: %v", err)
+	}
+	if len(l1Res) <= 2 {
+		t.Errorf("no nível L1 esperava múltiplos chunks, obteve %d", len(l1Res))
+	}
+	for _, r := range l1Res {
+		if r.Content == "" {
+			t.Errorf("no nível L1, Content não deve ser vazio")
+		}
+	}
+
+	// Busca no nível L0: deve DEDUPLICAR por DocumentID e limpar Content (Zero File Reads)
+	l0Res, err := SearchHybridRRFWithOptions(ctx, database, nil, "protocolos", nil, 10, 60, false, store.DefaultDecayOptions(), store.SearchOptions{Level: "l0"})
+	if err != nil {
+		t.Fatalf("SearchHybridRRFWithOptions(l0) falhou: %v", err)
+	}
+
+	if len(l0Res) != 2 {
+		t.Fatalf("no nível L0 esperava exatamente 2 documentos deduplicados (doc_multi e doc_single), obteve %d", len(l0Res))
+	}
+
+	for _, r := range l0Res {
+		if r.Content != "" {
+			t.Errorf("no nível L0, Content DEVE ser vazio para economizar janela de contexto, obteve: '%s'", r.Content)
+		}
+		if r.Abstract == "" {
+			t.Errorf("no nível L0, Abstract deve estar preenchido para orientar o agente")
+		}
+	}
+}
+

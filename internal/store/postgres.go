@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "github.com/lib/pq"
 
@@ -29,9 +30,13 @@ CREATE TABLE IF NOT EXISTS documents (
     title TEXT,
     updated_at BIGINT NOT NULL,
     content_hash TEXT,
+    abstract TEXT,
+    category TEXT DEFAULT 'resource',
     PRIMARY KEY (repository, id)
 );
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS abstract TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'resource';
 
 CREATE TABLE IF NOT EXISTS chunks (
     id TEXT NOT NULL,
@@ -103,19 +108,25 @@ func FormatVector(vec []float32) string {
 	return sb.String()
 }
 
-func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error {
+func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, abstract, category string) error {
 	if repo == "" {
 		repo = "default"
 	}
+	if category == "" {
+		category = "resource"
+	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO documents (id, repository, path, title, updated_at, content_hash)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO documents (id, repository, path, title, updated_at, content_hash, abstract, category)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (repository, id) DO UPDATE SET
 			title = EXCLUDED.title,
+			path = EXCLUDED.path,
 			updated_at = EXCLUDED.updated_at,
-			content_hash = EXCLUDED.content_hash
-	`, id, repo, path, title, updatedAt, contentHash)
+			content_hash = EXCLUDED.content_hash,
+			abstract = EXCLUDED.abstract,
+			category = EXCLUDED.category
+	`, id, repo, path, title, updatedAt, contentHash, abstract, category)
 	if err != nil {
 		return err
 	}
@@ -127,6 +138,10 @@ func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, titl
 			name = EXCLUDED.name
 	`, id, repo, title)
 	return err
+}
+
+func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error {
+	return s.InsertDocumentWithMeta(ctx, repo, id, path, title, updatedAt, contentHash, "", "resource")
 }
 
 func (s *PostgresStore) GetDocumentHash(ctx context.Context, repo, id string) (string, error) {
@@ -458,19 +473,25 @@ func (s *PostgresStore) ComputePageRank(ctx context.Context, repo string, dampin
 }
 
 func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []float32, limit int) ([]SearchResult, error) {
+	return s.SearchKNNWithOptions(ctx, repo, queryVec, limit, SearchOptions{Level: "l1"})
+}
+
+func (s *PostgresStore) SearchKNNWithOptions(ctx context.Context, repo string, queryVec []float32, limit int, searchOpts SearchOptions) ([]SearchResult, error) {
 	vecStr := FormatVector(queryVec)
+	cat := strings.TrimSpace(searchOpts.Category)
 
 	query := `
 		SELECT c.id, c.document_id, c.repository, c.content, (c.embedding <=> $1::vector) AS distance,
-		       COALESCE(d.updated_at, 0)
+		       COALESCE(d.updated_at, 0), COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 		FROM chunks c
 		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
+		  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
 		ORDER BY c.embedding <=> $1::vector
-		LIMIT $3
+		LIMIT $4
 	`
 
-	rows, err := s.db.QueryContext(ctx, query, vecStr, repo, limit)
+	rows, err := s.db.QueryContext(ctx, query, vecStr, repo, cat, limit)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca vetorial postgres: %w", err)
 	}
@@ -479,7 +500,7 @@ func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []f
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &r.Distance, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &r.Distance, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 
@@ -528,23 +549,29 @@ func (s *PostgresStore) GetNodeNeighbors(ctx context.Context, repo string, nodeI
 }
 
 func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error) {
+	return s.SearchFTSWithOptions(ctx, repo, query, limit, SearchOptions{Level: "l1"})
+}
+
+func (s *PostgresStore) SearchFTSWithOptions(ctx context.Context, repo string, query string, limit int, searchOpts SearchOptions) ([]SearchResult, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
 
+	cat := strings.TrimSpace(searchOpts.Category)
 	q := `
 		SELECT c.id, c.document_id, c.repository, c.content,
 		       ts_rank(to_tsvector('simple', c.content), plainto_tsquery('simple', $1)) AS rank,
-		       COALESCE(d.updated_at, 0)
+		       COALESCE(d.updated_at, 0), COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 		FROM chunks c
 		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
+		  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
 		  AND to_tsvector('simple', c.content) @@ plainto_tsquery('simple', $1)
 		ORDER BY rank DESC
-		LIMIT $3
+		LIMIT $4
 	`
 
-	rows, err := s.db.QueryContext(ctx, q, query, repo, limit)
+	rows, err := s.db.QueryContext(ctx, q, query, repo, cat, limit)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca textual postgres: %w", err)
 	}
@@ -554,7 +581,7 @@ func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string
 	for rows.Next() {
 		var r SearchResult
 		var rank float64
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &rank, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &rank, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 		r.Distance = rank
@@ -571,10 +598,14 @@ func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string
 }
 
 func (s *PostgresStore) SearchHybridRRF(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int) ([]SearchResult, error) {
-	return s.SearchHybridRRFWithDecay(ctx, repo, query, queryVec, limit, k, DefaultDecayOptions())
+	return s.SearchHybridWithOptions(ctx, repo, query, queryVec, limit, k, DefaultDecayOptions(), SearchOptions{Level: "l1"})
 }
 
 func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, opts DecayOptions) ([]SearchResult, error) {
+	return s.SearchHybridWithOptions(ctx, repo, query, queryVec, limit, k, opts, SearchOptions{Level: "l1"})
+}
+
+func (s *PostgresStore) SearchHybridWithOptions(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, opts DecayOptions, searchOpts SearchOptions) ([]SearchResult, error) {
 	candidateLimit := limit * 2
 	if candidateLimit < 10 {
 		candidateLimit = 10
@@ -583,13 +614,13 @@ func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo strin
 	// 1. Busca textual via FTS
 	var ftsResults []SearchResult
 	if strings.TrimSpace(query) != "" {
-		ftsResults, _ = s.SearchFTS(ctx, repo, query, candidateLimit)
+		ftsResults, _ = s.SearchFTSWithOptions(ctx, repo, query, candidateLimit, searchOpts)
 	}
 
 	// 2. Busca vetorial via pgvector
 	var vecResults []SearchResult
 	if len(queryVec) > 0 {
-		vecResults, _ = s.SearchKNN(ctx, repo, queryVec, candidateLimit)
+		vecResults, _ = s.SearchKNNWithOptions(ctx, repo, queryVec, candidateLimit, searchOpts)
 	}
 
 	// 3. Expansão de vizinhos estruturais no grafo a partir das sementes mais relevantes
@@ -609,6 +640,7 @@ func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo strin
 
 	var graphResults []SearchResult
 	seenChunks := make(map[string]bool)
+	cat := strings.TrimSpace(searchOpts.Category)
 	for seed := range seedDocs {
 		neighbors, err := s.GetNodeNeighbors(ctx, repo, seed, 1)
 		if err != nil {
@@ -617,20 +649,22 @@ func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo strin
 
 		for _, n := range neighbors {
 			rows, err := s.db.QueryContext(ctx, `
-				SELECT c.id, c.document_id, c.repository, c.content, COALESCE(d.updated_at, 0)
+				SELECT c.id, c.document_id, c.repository, c.content, COALESCE(d.updated_at, 0),
+				       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 				FROM chunks c
 				LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
-				WHERE c.document_id = $1 AND ($2 = '' OR repository = $2)
+				WHERE c.document_id = $1 AND ($2 = '' OR c.repository = $2)
+				  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
 				ORDER BY chunk_index
 				LIMIT 2
-			`, n, repo)
+			`, n, repo, cat)
 			if err != nil {
 				continue
 			}
 
 			for rows.Next() {
 				var gr SearchResult
-				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Repository, &gr.Content, &gr.UpdatedAt); err == nil {
+				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Repository, &gr.Content, &gr.UpdatedAt, &gr.Abstract, &gr.Category); err == nil {
 					if !seenChunks[gr.ChunkID] {
 						seenChunks[gr.ChunkID] = true
 						graphResults = append(graphResults, gr)
@@ -641,15 +675,16 @@ func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo strin
 		}
 	}
 
-	// 4. Fusão RRF através de FuseSearchResultsWithDecay
+	// 4. Fusão RRF através de FuseSearchResultsWithOptions
 	sources := []RankedResultSource{
 		{Name: "fts", Results: ftsResults},
 		{Name: "vector", Results: vecResults},
 		{Name: "graph", Results: graphResults},
 	}
 
-	return FuseSearchResultsWithDecay(sources, k, limit, opts), nil
+	return FuseSearchResultsWithOptions(sources, k, limit, opts, searchOpts), nil
 }
+
 
 // FindSurprisingConnections descobre conexões latentes entre documentos conceitualmente similares sem arestas no grafo
 func (s *PostgresStore) FindSurprisingConnections(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error) {
@@ -811,3 +846,341 @@ func (s *PostgresStore) DB() *sql.DB {
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
+
+// ResolveNodeCanonicalID resolve um identificador informal para o ID canônico correspondente no PostgreSQL
+func (s *PostgresStore) ResolveNodeCanonicalID(ctx context.Context, repo string, query string) (string, error) {
+	clean := strings.TrimSpace(query)
+	clean = strings.TrimPrefix(clean, "[[")
+	clean = strings.TrimSuffix(clean, "]]")
+	clean = strings.TrimSpace(clean)
+	if clean == "" {
+		return "", fmt.Errorf("identificador de busca não pode ser vazio")
+	}
+
+	// 1. Checagem exata em documents
+	var canonicalID string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id FROM documents 
+		WHERE ($1 = '' OR repository = $1) AND (id = $2 OR path = $2 OR path = $3)
+		LIMIT 1
+	`, repo, clean, clean+".md").Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	// 2. Checagem em graph_nodes
+	err = s.db.QueryRowContext(ctx, `
+		SELECT id FROM graph_nodes 
+		WHERE ($1 = '' OR repository = $1) AND (id = $2 OR name = $2)
+		LIMIT 1
+	`, repo, clean).Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	// 3. Checagem por título
+	err = s.db.QueryRowContext(ctx, `
+		SELECT id FROM documents 
+		WHERE ($1 = '' OR repository = $1) AND LOWER(title) = LOWER($2)
+		LIMIT 1
+	`, repo, clean).Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	// 4. Checagem difusa LIKE
+	likeQuery := "%" + clean + "%"
+	err = s.db.QueryRowContext(ctx, `
+		SELECT id FROM documents 
+		WHERE ($1 = '' OR repository = $1) AND (id LIKE $2 OR path LIKE $2 OR title LIKE $2)
+		ORDER BY 
+			CASE 
+				WHEN id LIKE $3 THEN 1
+				WHEN path LIKE $3 THEN 2
+				ELSE 3
+			END
+		LIMIT 1
+	`, repo, likeQuery, clean+"%").Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	// 5. Checagem nas arestas
+	err = s.db.QueryRowContext(ctx, `
+		SELECT target_id FROM graph_edges WHERE ($1 = '' OR repository = $1) AND target_id = $2
+		UNION
+		SELECT source_id FROM graph_edges WHERE ($1 = '' OR repository = $1) AND source_id = $2
+		LIMIT 1
+	`, repo, clean).Scan(&canonicalID)
+	if err == nil && canonicalID != "" {
+		return canonicalID, nil
+	}
+
+	return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+}
+
+// CalculateImpact calcula a análise de impacto (blast radius) de um nó alvo no PostgreSQL
+func (s *PostgresStore) CalculateImpact(ctx context.Context, repo string, targetQuery string, maxDepth int) (*graph.ImpactResult, error) {
+	canonicalID, err := s.ResolveNodeCanonicalID(ctx, repo, targetQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeTypes := make(map[string]string)
+	nodesSet := make(map[string]bool)
+
+	docRows, err := s.db.QueryContext(ctx, "SELECT id FROM documents WHERE ($1 = '' OR repository = $1)", repo)
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id string
+			if err := docRows.Scan(&id); err == nil {
+				nodesSet[id] = true
+				nodeTypes[id] = "note"
+			}
+		}
+	}
+
+	nodeRows, err := s.db.QueryContext(ctx, "SELECT id, type FROM graph_nodes WHERE ($1 = '' OR repository = $1)", repo)
+	if err == nil {
+		defer nodeRows.Close()
+		for nodeRows.Next() {
+			var id, nType string
+			if err := nodeRows.Scan(&id, &nType); err == nil {
+				nodesSet[id] = true
+				nodeTypes[id] = nType
+			}
+		}
+	}
+
+	edgeQuery := `SELECT source_id, target_id, COALESCE(relation, 'links_to'), COALESCE(weight, 1.0) 
+                  FROM graph_edges 
+                  WHERE ($1 = '' OR repository = $1)`
+	edgeRows, err := s.db.QueryContext(ctx, edgeQuery, repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para análise de impacto: %w", err)
+	}
+	defer edgeRows.Close()
+
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, rel string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &rel, &weight); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		edges = append(edges, graph.WeightedEdge{
+			Source: src,
+			Target: tgt,
+			Type:   rel,
+			Weight: weight,
+		})
+	}
+
+	allNodes := make([]string, 0, len(nodesSet))
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+
+	prScores := graph.ComputePageRank(allNodes, edges, graph.DefaultPageRankOptions())
+
+	commRes := graph.DetectCommunities(allNodes, edges, graph.DefaultCommunityOptions())
+	commMap := make(map[string]int)
+	for _, c := range commRes.Communities {
+		for _, m := range c.Members {
+			commMap[m] = c.ID
+		}
+	}
+
+	opts := graph.ImpactOptions{
+		MaxDepth:    maxDepth,
+		NodeTypes:   nodeTypes,
+		Communities: commMap,
+		PageRanks:   prScores,
+	}
+
+	return graph.CalculateImpact(allNodes, edges, canonicalID, opts)
+}
+
+// InspectNode constrói a visualização cirúrgica em 3 colunas (Triptych) de um nó no PostgreSQL
+func (s *PostgresStore) InspectNode(ctx context.Context, repo string, targetQuery string, maxContentLen int) (*graph.TriptychView, error) {
+	canonicalID, err := s.ResolveNodeCanonicalID(ctx, repo, targetQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. Metadados do documento alvo
+	var targetTitle, targetPath string
+	var targetUpdatedAt int64
+	_ = s.db.QueryRowContext(ctx, "SELECT COALESCE(title, ''), COALESCE(path, ''), COALESCE(updated_at, 0) FROM documents WHERE id = $1 AND ($2 = '' OR repository = $2)", canonicalID, repo).Scan(&targetTitle, &targetPath, &targetUpdatedAt)
+
+	var targetType string
+	_ = s.db.QueryRowContext(ctx, "SELECT COALESCE(type, 'note') FROM graph_nodes WHERE id = $1 AND ($2 = '' OR repository = $2)", canonicalID, repo).Scan(&targetType)
+	if targetType == "" {
+		targetType = "note"
+	}
+	if targetTitle == "" {
+		targetTitle = canonicalID
+	}
+
+	// 2. Chunks de conteúdo
+	var contentBuilder strings.Builder
+	chunkRows, err := s.db.QueryContext(ctx, "SELECT content FROM chunks WHERE document_id = $1 ORDER BY chunk_index ASC", canonicalID)
+	if err == nil {
+		defer chunkRows.Close()
+		for chunkRows.Next() {
+			var chunkContent string
+			if err := chunkRows.Scan(&chunkContent); err == nil {
+				if contentBuilder.Len() > 0 {
+					contentBuilder.WriteString("\n\n")
+				}
+				contentBuilder.WriteString(chunkContent)
+				if maxContentLen > 0 && contentBuilder.Len() > maxContentLen*3 {
+					break
+				}
+			}
+		}
+	}
+
+	// 3. Tags associadas ao nó
+	var tags []string
+	tagRows, err := s.db.QueryContext(ctx, "SELECT target_id FROM graph_edges WHERE source_id = $1 AND (relation = 'tagged_as' OR target_id LIKE '#%') AND ($2 = '' OR repository = $2)", canonicalID, repo)
+	if err == nil {
+		defer tagRows.Close()
+		for tagRows.Next() {
+			var t string
+			if err := tagRows.Scan(&t); err == nil {
+				tags = append(tags, t)
+			}
+		}
+	}
+
+	// 4. Carregar nós, tipos, títulos e status de existência
+	nodeTypes := make(map[string]string)
+	titles := make(map[string]string)
+	existingNodes := make(map[string]bool)
+	nodesSet := make(map[string]bool)
+
+	docRows, err := s.db.QueryContext(ctx, "SELECT id, COALESCE(title, id) FROM documents WHERE ($1 = '' OR repository = $1)", repo)
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id, t string
+			if err := docRows.Scan(&id, &t); err == nil {
+				nodesSet[id] = true
+				existingNodes[id] = true
+				if t != "" {
+					existingNodes[t] = true
+				}
+				titles[id] = t
+				nodeTypes[id] = "note"
+			}
+		}
+	}
+
+	gnRows, err := s.db.QueryContext(ctx, "SELECT id, COALESCE(name, id), COALESCE(type, 'other') FROM graph_nodes WHERE ($1 = '' OR repository = $1)", repo)
+	if err == nil {
+		defer gnRows.Close()
+		for gnRows.Next() {
+			var id, n, t string
+			if err := gnRows.Scan(&id, &n, &t); err == nil {
+				nodesSet[id] = true
+				if titles[id] == "" || titles[id] == id {
+					titles[id] = n
+				}
+				if nodeTypes[id] == "" {
+					nodeTypes[id] = t
+				}
+				if strings.HasPrefix(id, "#") || (t != "note" && t != "other") {
+					existingNodes[id] = true
+				}
+			}
+		}
+	}
+
+	// 5. Arestas
+	edgeQuery := `SELECT source_id, target_id, COALESCE(relation, 'links_to'), COALESCE(weight, 1.0) 
+                  FROM graph_edges 
+                  WHERE ($1 = '' OR repository = $1)`
+	edgeRows, err := s.db.QueryContext(ctx, edgeQuery, repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para inspeção: %w", err)
+	}
+	defer edgeRows.Close()
+
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, rel string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &rel, &weight); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		edges = append(edges, graph.WeightedEdge{
+			Source: src,
+			Target: tgt,
+			Type:   rel,
+			Weight: weight,
+		})
+	}
+
+	allNodes := make([]string, 0, len(nodesSet))
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+
+	// 6. PageRank e Comunidades
+	prScores := graph.ComputePageRank(allNodes, edges, graph.DefaultPageRankOptions())
+	commRes := graph.DetectCommunities(allNodes, edges, graph.DefaultCommunityOptions())
+	commMap := make(map[string]int)
+	commLabels := make(map[int]string)
+	for _, c := range commRes.Communities {
+		commLabels[c.ID] = c.DominantType
+		for _, m := range c.Members {
+			commMap[m] = c.ID
+		}
+	}
+
+	// 7. Impacto / Risco
+	impactRes, _ := graph.CalculateImpact(allNodes, edges, canonicalID, graph.ImpactOptions{
+		MaxDepth:    2,
+		NodeTypes:   nodeTypes,
+		Communities: commMap,
+		PageRanks:   prScores,
+	})
+
+	var updatedTime time.Time
+	if targetUpdatedAt > 0 {
+		updatedTime = time.Unix(targetUpdatedAt, 0)
+	}
+
+	targetSummary := graph.NodeSummary{
+		ID:             canonicalID,
+		Title:          targetTitle,
+		Path:           targetPath,
+		Type:           targetType,
+		Tags:           tags,
+		PageRank:       prScores[canonicalID],
+		CommunityID:    commMap[canonicalID],
+		CommunityLabel: commLabels[commMap[canonicalID]],
+		ContentPreview: contentBuilder.String(),
+		UpdatedAt:      updatedTime,
+	}
+
+	opts := graph.InspectorOptions{
+		MaxContentLength: maxContentLen,
+		PageRanks:        prScores,
+		Communities:      commMap,
+		CommunityLabels:  commLabels,
+		NodeTypes:        nodeTypes,
+		Titles:           titles,
+		ExistingNodes:    existingNodes,
+		RiskResult:       impactRes,
+	}
+
+	return graph.BuildTriptychView(targetSummary, edges, opts)
+}
+

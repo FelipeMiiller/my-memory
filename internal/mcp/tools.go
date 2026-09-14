@@ -51,10 +51,21 @@ var (
 					"type":        "number",
 					"description": "Peso do fator temporal entre 0.0 (sem efeito) e 1.0 (decaimento máximo) (padrão: 0.3)",
 				},
+				"detail_level": map[string]any{
+					"type":        "string",
+					"enum":        []string{"l0", "l1", "l2"},
+					"description": "Nível de densidade de contexto (Progressive Context Loading): 'l0' (micro-abstract cirúrgico, ~30-50 tokens, sem blocos de texto bruto - Zero File Reads), 'l1' (overview padrão com metadados e trecho relevante) ou 'l2' (detalhes completos)",
+				},
+				"category": map[string]any{
+					"type":        "string",
+					"enum":        []string{"resource", "memory", "skill"},
+					"description": "Filtra por taxonomia de conhecimento: 'resource' (especificações técnicas, arquitetura), 'memory' (regras de conduta, lições aprendidas, padrões) ou 'skill' (habilidades, comandos operacionais, procedimentos)",
+				},
 			},
 			"required": []string{"query"},
 		},
 	}
+
 
 	ToolMemoryGetNeighbors = Tool{
 		Name:        "memory_get_neighbors",
@@ -355,6 +366,52 @@ var (
 					"description": "Slug ou identificador do repositório (opcional)",
 				},
 			},
+		},
+	}
+
+	ToolMemoryGetImpact = Tool{
+		Name:        "memory_get_impact",
+		Description: "Calcula a análise de impacto e raio de destruição (blast radius) de dependências reversas antes de alterações em notas ou código",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"node_id": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho de arquivo do nó alvo no grafo",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Profundidade máxima de propagação das dependências reversas (padrão: 2)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"node_id"},
+		},
+	}
+
+	ToolMemoryInspectNode = Tool{
+		Name:        "memory_inspect_node",
+		Description: "Inspeção cirúrgica em 3 colunas (Triptych) de um nó no grafo: chamadores/dependentes (inbound), núcleo do nó e risco de blast radius, e referências de saída (outbound) sem leitura manual de arquivos",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"node_id": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho de arquivo do nó alvo a inspecionar",
+				},
+				"max_content_length": map[string]any{
+					"type":        "integer",
+					"description": "Tamanho máximo do preview de conteúdo textual da nota (padrão: 500 caracteres, 0 para ilimitado)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"node_id"},
 		},
 	}
 )

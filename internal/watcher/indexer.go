@@ -59,15 +59,31 @@ func IndexSingleFileSQLite(
 		}
 	}
 
+	content := string(contentBytes)
+	fm, body := parser.ExtractFrontmatter(content)
+	category := "resource"
+	if fm != nil && fm.Category != "" {
+		category = fm.Category
+	}
+	if category != "resource" && category != "memory" && category != "skill" {
+		category = "resource"
+	}
+	var abstract string
+	if fm != nil && fm.Summary != "" {
+		abstract = fm.Summary
+	} else if fm != nil && fm.Abstract != "" {
+		abstract = fm.Abstract
+	} else {
+		abstract = parser.ExtractMicroAbstract(body, 160)
+	}
+
 	// 1. Limpa dados anteriores do documento para reindexação limpa
 	_ = db.DeleteDocumentData(ctx, database, docID)
 
-	// 2. Salva documento com content_hash
-	if err := db.InsertDocument(ctx, database, docID, filePath, title, time.Now().Unix(), currentHash); err != nil {
+	// 2. Salva documento com content_hash, abstract e category
+	if err := db.InsertDocumentWithMeta(ctx, database, docID, filePath, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
 		return nil, fmt.Errorf("erro ao inserir documento SQLite: %w", err)
 	}
-
-	content := string(contentBytes)
 
 	// 3. Extrai e salva conexões do grafo
 	connections := parser.ExtractConnections(content)
@@ -75,23 +91,27 @@ func IndexSingleFileSQLite(
 		_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 	}
 
-	// 4. Divide em chunks e gera embeddings (se emb configurado)
+	// 4. Divide em chunks e indexa no FTS e vetorial (com fallback para FTS se offline)
 	chunks := parser.ChunkText(content, 200, 30)
-	if emb != nil {
-		for i, c := range chunks {
-			chunkID := fmt.Sprintf("%s#%d", docID, i)
-			vec, err := emb.GenerateEmbedding(c)
-			if err != nil {
-				continue
+	for i, c := range chunks {
+		chunkID := fmt.Sprintf("%s#%d", docID, i)
+		var vec []float32
+		if emb != nil {
+			v, err := emb.GenerateEmbedding(c)
+			if err == nil {
+				vec = v
 			}
+		}
+		if vec == nil {
+			vec = make([]float32, 768)
+		}
 
-			_ = db.InsertChunk(ctx, database, chunkID, docID, c, i, vec)
+		_ = db.InsertChunk(ctx, database, chunkID, docID, c, i, vec)
 
-			if tq != nil {
-				cv, err := tq.Quantize(vec)
-				if err == nil {
-					_ = db.InsertTurboQuantChunk(ctx, database, chunkID, cv.Scale, cv.Data)
-				}
+		if tq != nil {
+			cv, err := tq.Quantize(vec)
+			if err == nil {
+				_ = db.InsertTurboQuantChunk(ctx, database, chunkID, cv.Scale, cv.Data)
 			}
 		}
 	}
@@ -156,29 +176,49 @@ func IndexSingleFilePostgres(
 		}
 	}
 
-	_ = s.DeleteDocumentData(ctx, targetRepo, docID)
-
-	if err := s.InsertDocument(ctx, targetRepo, docID, filePath, title, time.Now().Unix(), currentHash); err != nil {
-		return nil, fmt.Errorf("erro ao inserir documento Postgres: %w", err)
+	content := string(contentBytes)
+	fm, body := parser.ExtractFrontmatter(content)
+	category := "resource"
+	if fm != nil && fm.Category != "" {
+		category = fm.Category
+	}
+	if category != "resource" && category != "memory" && category != "skill" {
+		category = "resource"
+	}
+	var abstract string
+	if fm != nil && fm.Summary != "" {
+		abstract = fm.Summary
+	} else if fm != nil && fm.Abstract != "" {
+		abstract = fm.Abstract
+	} else {
+		abstract = parser.ExtractMicroAbstract(body, 160)
 	}
 
-	content := string(contentBytes)
+	_ = s.DeleteDocumentData(ctx, targetRepo, docID)
+
+	if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, filePath, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
+		return nil, fmt.Errorf("erro ao inserir documento Postgres: %w", err)
+	}
 	connections := parser.ExtractConnections(content)
 	for _, edge := range connections.Edges {
 		_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 	}
 
 	chunks := parser.ChunkText(content, 200, 30)
-	if emb != nil {
-		for i, c := range chunks {
-			chunkID := fmt.Sprintf("%s#%d", docID, i)
-			vec, err := emb.GenerateEmbedding(c)
-			if err != nil {
-				continue
+	for i, c := range chunks {
+		chunkID := fmt.Sprintf("%s#%d", docID, i)
+		var vec []float32
+		if emb != nil {
+			v, err := emb.GenerateEmbedding(c)
+			if err == nil {
+				vec = v
 			}
-
-			_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)
 		}
+		if vec == nil {
+			vec = make([]float32, 768)
+		}
+
+		_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)
 	}
 
 	return &IndexResult{

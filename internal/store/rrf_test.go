@@ -186,3 +186,85 @@ func TestFuseSearchResults_FallbackToDocumentID(t *testing.T) {
 		t.Errorf("DocumentID incorreto: obteve '%s'", fused[0].DocumentID)
 	}
 }
+
+func TestFuseSearchResults_CategoryFilter(t *testing.T) {
+	sources := []RankedResultSource{
+		{
+			Name: "fts",
+			Results: []SearchResult{
+				{ChunkID: "c1", DocumentID: "doc_mem", Content: "Memória de regras", Category: "memory", Abstract: "Resumo regras"},
+				{ChunkID: "c2", DocumentID: "doc_skill", Content: "Skill operacional", Category: "skill", Abstract: "Resumo skill"},
+				{ChunkID: "c3", DocumentID: "doc_res", Content: "Recurso arquitetural", Category: "resource", Abstract: "Resumo recurso"},
+				{ChunkID: "c4", DocumentID: "doc_def", Content: "Recurso padrão sem categoria", Category: "", Abstract: "Resumo padrão"},
+			},
+		},
+	}
+
+	// 1. Filtro "memory": deve retornar apenas doc_mem
+	memResults := FuseSearchResultsWithOptions(sources, 60, 10, DecayOptions{}, SearchOptions{Category: "memory"})
+	if len(memResults) != 1 {
+		t.Fatalf("Esperava 1 resultado para categoria 'memory', obteve %d", len(memResults))
+	}
+	if memResults[0].DocumentID != "doc_mem" {
+		t.Errorf("Esperava doc_mem, obteve %s", memResults[0].DocumentID)
+	}
+
+	// 2. Filtro "skill": deve retornar apenas doc_skill
+	skillResults := FuseSearchResultsWithOptions(sources, 60, 10, DecayOptions{}, SearchOptions{Category: "skill"})
+	if len(skillResults) != 1 {
+		t.Fatalf("Esperava 1 resultado para categoria 'skill', obteve %d", len(skillResults))
+	}
+	if skillResults[0].DocumentID != "doc_skill" {
+		t.Errorf("Esperava doc_skill, obteve %s", skillResults[0].DocumentID)
+	}
+
+	// 3. Filtro "resource": deve incluir doc_res e doc_def (pois "" assume padrão resource)
+	resResults := FuseSearchResultsWithOptions(sources, 60, 10, DecayOptions{}, SearchOptions{Category: "resource"})
+	if len(resResults) != 2 {
+		t.Fatalf("Esperava 2 resultados para categoria 'resource', obteve %d", len(resResults))
+	}
+
+	// 4. Sem filtro: retorna todos os 4
+	allResults := FuseSearchResultsWithOptions(sources, 60, 10, DecayOptions{}, SearchOptions{})
+	if len(allResults) != 4 {
+		t.Fatalf("Esperava 4 resultados sem filtro de categoria, obteve %d", len(allResults))
+	}
+}
+
+func TestFuseSearchResults_LevelL0(t *testing.T) {
+	sources := []RankedResultSource{
+		{
+			Name: "fts",
+			Results: []SearchResult{
+				{ChunkID: "c1", DocumentID: "docA", Content: "Texto longo do chunk 1", Abstract: "Resumo A"},
+				{ChunkID: "c2", DocumentID: "docA", Content: "Texto longo do chunk 2", Abstract: "Resumo A"},
+				{ChunkID: "c3", DocumentID: "docB", Content: "Texto do chunk 3 sem abstract"},
+			},
+		},
+		{
+			Name: "vector",
+			Results: []SearchResult{
+				{ChunkID: "c1", DocumentID: "docA", Content: "Texto longo do chunk 1", Abstract: "Resumo A"},
+			},
+		},
+	}
+
+	// Nível L0: deve deduplicar chunks do mesmo docA e limpar Content
+	l0Results := FuseSearchResultsWithOptions(sources, 60, 10, DecayOptions{}, SearchOptions{Level: "l0"})
+	if len(l0Results) != 2 {
+		t.Fatalf("Esperava 2 documentos únicos no modo L0 (docA e docB), obteve %d", len(l0Results))
+	}
+
+	for _, res := range l0Results {
+		if res.Content != "" {
+			t.Errorf("No nível L0, Content deve ser vazio para economizar contexto, obteve '%s'", res.Content)
+		}
+		if res.DocumentID == "docA" && res.Abstract != "Resumo A" {
+			t.Errorf("Esperava Abstract 'Resumo A', obteve '%s'", res.Abstract)
+		}
+		if res.DocumentID == "docB" && res.Abstract == "" {
+			t.Errorf("Esperava abstract extraído por fallback para docB, obteve vazio")
+		}
+	}
+}
+

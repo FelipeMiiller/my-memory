@@ -22,6 +22,21 @@ func TestRunInit(t *testing.T) {
 		t.Fatalf("arquivo de configuração não foi gerado em %s", cfgPath)
 	}
 
+	gitIgnorePath := filepath.Join(tmpDir, ".memory", ".gitignore")
+	if _, err := os.Stat(gitIgnorePath); os.IsNotExist(err) {
+		t.Fatalf("arquivo .gitignore não foi gerado em %s", gitIgnorePath)
+	}
+
+	envExamplePath := filepath.Join(tmpDir, ".memory", ".env.example")
+	if _, err := os.Stat(envExamplePath); os.IsNotExist(err) {
+		t.Fatalf("arquivo .env.example não foi gerado em %s", envExamplePath)
+	}
+
+	agentsTemplatePath := filepath.Join(tmpDir, ".memory", "AGENTS.md")
+	if _, err := os.Stat(agentsTemplatePath); os.IsNotExist(err) {
+		t.Fatalf("arquivo AGENTS.md não foi gerado em %s", agentsTemplatePath)
+	}
+
 	// 2. Carregar com o motor de configuração para validar integridade
 	cfg, err := config.LoadConfig(cfgPath)
 	if err != nil {
