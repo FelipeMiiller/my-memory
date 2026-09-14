@@ -27,11 +27,11 @@
 ## Detalhes da Execução dos Testes
 
 ### 1. Suíte Unitária e de Integração
-- `internal/graph`: 18 testes executados e aprovados (`TestBuildTriptychView`, `TestTruncateContent`, `TestBuildTriptychViewValidation`).
-- `internal/db`: 7 testes executados e aprovados (`TestInspectNode`, `TestResolveNodeCanonicalID`).
-- `internal/store`: 23 testes executados e aprovados (`TestPostgresStore_InterfaceCompliance`).
-- `cmd/mem`: 23 testes executados e aprovados (`TestInspectCLI_MissingTargetNode`, `TestInspectCLI_NonExistentNode`, `TestInspectCLI_TextAndJSONOutput`).
-- `internal/mcp`: 48 testes executados e aprovados (`TestMemoryInspectNodeHandler_Direct`, `TestMemoryInspectNode_ServerIntegration`).
+- `internal/graph`: 20 testes executados e aprovados (`TestBuildTriptychView`, `TestTruncateContent`, `TestBuildTriptychViewValidation`, `TestBuildTriptychView_SelfLoopsAndTieBreak`, `TestTruncateContent_UTF8Multibyte`).
+- `internal/db`: 9 testes executados e aprovados (`TestInspectNode`, `TestResolveNodeCanonicalID`, `TestResolveNodeCanonicalID_SlashNormalization`, `TestInspectNode_DeadLinks`).
+- `internal/store`: 23 testes executados e aprovados (`TestPostgresStore_InterfaceCompliance`, `TestPostgresStore_Integration` com `InspectNode` e `CalculateImpact`).
+- `cmd/mem`: 25 testes executados e aprovados (`TestInspectCLI_MissingTargetNode`, `TestInspectCLI_NonExistentNode`, `TestInspectCLI_TextAndJSONOutput`, `TestInspectCLI_FlagRearranging`, `TestInspectCLI_FullFlag`).
+- `internal/mcp`: 49 testes executados e aprovados (`TestMemoryInspectNodeHandler_Direct`, `TestMemoryInspectNode_ServerIntegration`, `TestMemoryInspectNodeHandler_NilFuncFallback`).
 - `internal/graphview`: 15 testes executados e aprovados (`TestRenderHTML`, `TestExportHTML`).
 
 ### 2. Validação Funcional Ponta a Ponta
