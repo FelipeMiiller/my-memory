@@ -26,7 +26,7 @@
 - **Phase / Task**: Phase 1 / T4 (Completed)
 - **Completed**: T1 (Cálculo de Impacto e RiskScore), T2 (Resolução Canônica e Inbound Traversal DB), T3 (Subcomando mem impact), T4 (Ferramenta MCP memory_get_impact e ADR-023)
 - **In-progress**: none
-- **Next step**: Executar Verifier TLC (validation.md) e validação final
+- **Next step**: Pronto para push/Pull Request para main ou seleção da próxima feature
 - **Blockers**: none
 - **Branch**: develop
 
