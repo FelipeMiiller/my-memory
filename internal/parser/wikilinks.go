@@ -13,7 +13,17 @@ var (
 
 	// tagRegex captura #tag e #hierarquia/subtag (iniciando com letra)
 	tagRegex = regexp.MustCompile(`(?:^|[\s\(\[\{,;:])#([a-zA-Z][a-zA-Z0-9_\-\/]*)`)
+
+	// Regexes para ignorar blocos de código (evita extrair wikilinks de exemplos)
+	fencedCodeRegex = regexp.MustCompile("(?s)```.*?```")
+	inlineCodeRegex = regexp.MustCompile("`[^`\r\n]+`")
 )
+
+// stripCodeBlocks remove blocos de código fenced e inline do texto
+func stripCodeBlocks(text string) string {
+	cleaned := fencedCodeRegex.ReplaceAllString(text, " ")
+	return inlineCodeRegex.ReplaceAllString(cleaned, " ")
+}
 
 // EdgeConnection representa uma aresta dirigida tipada com semântica epistêmica
 type EdgeConnection struct {
@@ -125,7 +135,10 @@ func ParseWikilink(raw string, isEmbed bool) LinkTarget {
 		}
 	}
 
-	lt.Target = targetNote
+	lt.Target = strings.Trim(targetNote, " \\/\r\n\t")
+	if lt.Target == "..." || lt.Target == "." {
+		lt.Target = ""
+	}
 	return lt
 }
 
@@ -141,8 +154,9 @@ func ExtractConnections(content string) ExtractedConnections {
 		conn.Tags = append(conn.Tags, fm.Tags...)
 	}
 
-	// 2. Extrai wikilinks do corpo
-	matches := wikilinkDetailedRegex.FindAllStringSubmatch(body, -1)
+	// 2. Extrai wikilinks do corpo (ignorando blocos de código e inline code)
+	cleanBody := stripCodeBlocks(body)
+	matches := wikilinkDetailedRegex.FindAllStringSubmatch(cleanBody, -1)
 	seenTargets := make(map[string]bool)
 
 	for _, m := range matches {
@@ -151,6 +165,9 @@ func ExtractConnections(content string) ExtractedConnections {
 			rawLink := m[2]
 
 			lt := ParseWikilink(rawLink, isEmbed)
+			if lt.Target == "" && !lt.IsSameDoc {
+				continue
+			}
 			conn.Links = append(conn.Links, lt)
 
 			// Só adiciona a OutgoingLinks se tiver destino externo
@@ -164,7 +181,7 @@ func ExtractConnections(content string) ExtractedConnections {
 	}
 
 	// 3. Extrai tags inline do corpo (removendo wikilinks para não capturar âncoras [[#Secao]])
-	bodyWithoutWikilinks := wikilinkDetailedRegex.ReplaceAllString(body, " ")
+	bodyWithoutWikilinks := wikilinkDetailedRegex.ReplaceAllString(cleanBody, " ")
 
 	seenTags := make(map[string]bool)
 	for _, t := range conn.Tags {

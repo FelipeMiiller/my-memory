@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -40,8 +41,11 @@ func main() {
 	}
 
 	ctx := context.Background()
-	emb := embedder.NewOllamaClient("", "nomic-embed-text")
-	tq := turboquant.NewQuantizer(EmbeddingDim)
+
+	// Carrega automaticamente variáveis de ambiente de .memory/.env ou .env se presente
+	_, _ = config.FindAndLoadDotEnv(".")
+
+	emb, tq, _ := resolveEmbedder(nil)
 	defaultRepo := repo.DetectRepository(".")
 
 	switch os.Args[1] {
@@ -93,6 +97,7 @@ func main() {
 		var cfg *config.Config
 		cfgPath, err := config.FindConfigFile(searchDir)
 		if err == nil {
+			_, _ = config.FindAndLoadDotEnv(searchDir)
 			if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
 				cfg = loaded
 				if target == "" {
@@ -117,34 +122,8 @@ func main() {
 			return
 		}
 
-		resolvedRepo := *targetRepo
-		if resolvedRepo == "" {
-			if cfg.Repository != "" {
-				resolvedRepo = cfg.Repository
-			} else if envRepo := os.Getenv("MY_MEMORY_REPO"); envRepo != "" {
-				resolvedRepo = envRepo
-			} else {
-				resolvedRepo = defaultRepo
-			}
-		}
-
-		resolvedDB := *dbPath
-		if resolvedDB == "" {
-			if cfg.Storage.SQLitePath != "" {
-				resolvedDB = cfg.Storage.SQLitePath
-			} else {
-				resolvedDB = "memory.db"
-			}
-		}
-
-		resolvedPG := *pgURL
-		if resolvedPG == "" {
-			if envPG := os.Getenv("MY_MEMORY_PG_URL"); envPG != "" {
-				resolvedPG = envPG
-			} else if cfg.Storage.Engine == "postgres" && cfg.Storage.PostgresURL != "" {
-				resolvedPG = cfg.Storage.PostgresURL
-			}
-		}
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ = resolveEmbedder(cfg)
 
 		if resolvedPG != "" {
 			pgStore, err := store.NewPostgresStore(resolvedPG)
@@ -210,6 +189,7 @@ func main() {
 		}
 
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ = resolveEmbedder(cfg)
 
 		setFlags := make(map[string]bool)
 		watchCmd.Visit(func(f *flag.Flag) {
@@ -288,6 +268,7 @@ func main() {
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ = resolveEmbedder(cfg)
 
 		setFlags := make(map[string]bool)
 		searchCmd.Visit(func(f *flag.Flag) {
@@ -387,6 +368,7 @@ func main() {
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ := resolveEmbedder(cfg)
 
 		targetHTTP := *httpAddr
 		if targetHTTP == "" && *port > 0 {
@@ -418,7 +400,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao SQLite: %s\n", resolvedDB)
 		}
 
-		runMCPServer(ctx, pgStore, database, emb, resolvedRepo, targetHTTP, *cors)
+		runMCPServer(ctx, pgStore, database, emb, tq, resolvedRepo, targetHTTP, *cors)
 
 	case "export":
 		exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
@@ -541,6 +523,7 @@ func main() {
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		emb, tq, _ = resolveEmbedder(cfg)
 
 		if resolvedPG != "" {
 			pgStore, err := store.NewPostgresStore(resolvedPG)
@@ -716,8 +699,12 @@ repository: %q
 vault_name: "Knowledge Vault"
 
 # Padrões glob de arquivos a serem indexados
+# Exemplos: pastas específicas (docs, specs), extensões ou arquivos únicos
 include:
-  - "**/*.md"
+  - "docs/**/*.md"      # Exemplo: Documentações em docs/
+  - "specs/**/*.md"     # Exemplo: Especificações em specs/
+  - ".specs/**/*.md"    # Exemplo: Especificações técnicas em .specs/
+  - "**/*.md"           # Padrão: Todos os arquivos Markdown
 
 # Padrões glob e diretórios ignorados durante a varredura
 exclude:
@@ -730,9 +717,9 @@ exclude:
 
 # Configurações do motor de persistência
 storage:
-  engine: "sqlite"          # "sqlite" ou "postgres"
+  engine: "sqlite"          # "sqlite" ou "postgres" (se houver .memory/.env com MY_MEMORY_PG_URL, conecta no PostgreSQL automaticamente)
   sqlite_path: %q     # Caminho do banco SQLite local
-  # postgres_url: "postgres://user:pass@localhost:5432/memory?sslmode=disable"
+  postgres_url: "postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable" # Conexão PostgreSQL (pgvector)
 
 # Configurações do modelo de embeddings
 embedding:
@@ -761,6 +748,115 @@ watcher:
 			return fmt.Errorf("erro ao salvar arquivo de configuração: %w", err)
 		}
 
+		// Criação padrão de .memory/.gitignore para proteger segredos e bancos locais
+		gitIgnorePath := filepath.Join(memDir, ".gitignore")
+		if _, err := os.Stat(gitIgnorePath); os.IsNotExist(err) || force {
+			gitIgnoreContent := `# Variáveis de ambiente locais com credenciais reais (não commitar no Git)
+*.local
+*.env.local
+
+# Permite o .env padrão do repositório (comentado para SQLite)
+!.env
+
+# Bancos de dados SQLite locais
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+`
+			_ = os.WriteFile(gitIgnorePath, []byte(gitIgnoreContent), 0644)
+		}
+
+		// Criação padrão de .memory/.env.example para template de PostgreSQL e IA de indexação
+		envExamplePath := filepath.Join(memDir, ".env.example")
+		if _, err := os.Stat(envExamplePath); os.IsNotExist(err) || force {
+			envExampleContent := `# ==============================================================================
+# My-Memory - Variáveis de Ambiente (.memory/.env)
+# ==============================================================================
+
+# --- Banco de Dados PostgreSQL (pgvector) ---
+# Ao definir MY_MEMORY_PG_URL aqui, o My-Memory conecta automaticamente no PostgreSQL:
+MY_MEMORY_PG_URL=postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable
+# MY_MEMORY_REPO=FelipeMiiller/my-memory
+
+# --- Modelo de IA de Indexação / Embeddings (Opcional) ---
+# Por padrão, o My-Memory já utiliza o modelo embutido (nomic-embed-text na porta 11434, dim 768).
+# Para substituir por outro modelo (ex: bge-m3, mxbai-embed-large, all-minilm), descomente abaixo:
+# MY_MEMORY_EMBED_PROVIDER=ollama
+# MY_MEMORY_EMBED_URL=http://localhost:11434
+# MY_MEMORY_EMBED_MODEL=nomic-embed-text
+# MY_MEMORY_EMBED_DIM=768
+`
+			_ = os.WriteFile(envExamplePath, []byte(envExampleContent), 0644)
+		}
+
+		// Criação padrão de .memory/AGENTS.md como modelo para o usuário colocar na raiz do repo
+		agentsTemplatePath := filepath.Join(memDir, "AGENTS.md")
+		if _, err := os.Stat(agentsTemplatePath); os.IsNotExist(err) || force {
+			agentsContent := `# AGENTS.md
+
+Instruções operacionais e diretrizes para **Agentes de IA** (Antigravity, Claude Code, Cursor, Windsurf, Copilot) neste repositório.
+
+> [!TIP]
+> **Dica de Instalação:** Mova ou copie este arquivo para a raiz do seu repositório:
+> ` + "`" + `cp .memory/AGENTS.md ./AGENTS.md` + "`" + `
+
+---
+
+## 🧠 Memória do Repositório (My-Memory)
+
+Este repositório utiliza o **My-Memory** como motor de contexto semântico, relacional e busca híbrida.
+
+### 1. Verificação de Inicialização Obrigatória
+Ao iniciar qualquer tarefa neste repositório:
+1. Verifique se o diretório ` + "`.memory/`" + ` ou o arquivo ` + "`.memory/config.yaml`" + ` existe.
+2. Se **NÃO existir**:
+   - Execute no terminal: ` + "`mem init`" + ` (ou ` + "`go run ./cmd/mem init`" + `).
+   - O comando gerará de forma segura:
+     - ` + "`.memory/config.yaml`" + `: Escopo de pastas e banco de dados.
+     - ` + "`.memory/.gitignore`" + `: Protege credenciais e bancos locais.
+     - ` + "`.memory/.env.example`" + `: Modelo de variáveis de ambiente.
+     - ` + "`.memory/AGENTS.md`" + `: Este modelo de instruções.
+   - Em seguida, execute ` + "`mem index`" + ` para alimentar a base.
+
+### 2. Diretrizes de Uso da Memória pelo Agente
+1. **Consulte antes de modificar**: Antes de refatorar código ou criar novas funcionalidades, execute ` + "`memory_search`" + ` (ou ` + "`mem search \"<tema>\"`" + `) para verificar decisões de arquitetura e notas existentes.
+2. **Avalie o Raio de Impacto (Blast Radius)**: Ao modificar ou renomear arquivos e conceitos críticos, use ` + "`memory_get_impact`" + ` (ou ` + "`mem impact <id>`" + `) para analisar dependentes diretos e reversos.
+3. **Persista Conhecimento Atômico**: Após tomar decisões ou implementar novas features, utilize ` + "`memory_write_note`" + ` para salvar a síntese no vault com ` + "`[[wikilinks]]`" + `.
+4. **Higiene e Integridade**: Use ` + "`memory_doctor`" + ` para auditar a saúde do grafo e detectar links quebrados.
+
+---
+
+## 🛠 Comandos Operacionais para o Agente
+
+` + "```bash" + `
+# Indexar alterações no vault de notas
+mem index
+
+# Busca híbrida no contexto
+mem search "<pergunta ou conceito>"
+
+# Inspecionar nó cirúrgico em 3 colunas (in-links, nó central, out-links)
+mem inspect "<caminho ou id>"
+
+# Avaliar raio de impacto de alterações
+mem impact "<caminho ou id>" --depth 2
+
+# Iniciar servidor Model Context Protocol (MCP)
+mem mcp
+` + "```" + `
+
+---
+
+## 📌 Regras de Conduta para Agentes de IA
+1. **Codificação:** Arquivos em **UTF-8 sem BOM**.
+2. **Commits:** Padrão *Conventional Commits* (` + "`feat:`" + `, ` + "`fix:`" + `, ` + "`docs:`" + `, ` + "`chore:`" + `, ` + "`refactor:`" + `).
+3. **Testes:** Sempre execute a suíte de testes antes de concluir tarefas.
+4. **Memória Atualizada:** Mantenha notas de documentação sincronizadas ao alterar componentes críticos.
+`
+			_ = os.WriteFile(agentsTemplatePath, []byte(agentsContent), 0644)
+		}
+
 		if _, err := config.LoadConfig(cfgPath); err != nil {
 			return fmt.Errorf("erro de validação do arquivo de configuração gerado: %w", err)
 		}
@@ -768,6 +864,7 @@ watcher:
 		fmt.Printf("✅ Configuração inicializada com sucesso em %s\n", cfgPath)
 		fmt.Printf("   Repositório: %s\n", repoSlug)
 		fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
+		fmt.Printf("   Modelos: %s, %s e %s gerados por padrão\n", gitIgnorePath, envExamplePath, agentsTemplatePath)
 	}
 
 	if vscode {
@@ -949,6 +1046,7 @@ func runWatch(
 }
 
 func resolveConfig() *config.Config {
+	_, _ = config.FindAndLoadDotEnv(".")
 	cfgPath, err := config.FindConfigFile(".")
 	if err == nil {
 		if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
@@ -956,6 +1054,9 @@ func resolveConfig() *config.Config {
 		}
 	}
 	def := config.DefaultConfig()
+	if stat, err := os.Stat(".memory"); err == nil && stat.IsDir() {
+		def.Storage.SQLitePath = filepath.Join(".memory", "memory.db")
+	}
 	return &def
 }
 
@@ -989,12 +1090,50 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 	if pg == "" {
 		if envPG := os.Getenv("MY_MEMORY_PG_URL"); envPG != "" {
 			pg = envPG
+		} else if envPG := os.Getenv("POSTGRES_URL"); envPG != "" {
+			pg = envPG
+		} else if envPG := os.Getenv("DATABASE_URL"); envPG != "" {
+			pg = envPG
 		} else if cfg.Storage.Engine == "postgres" && cfg.Storage.PostgresURL != "" {
 			pg = cfg.Storage.PostgresURL
 		}
 	}
 
 	return repo, db, pg
+}
+
+func resolveEmbedder(cfg *config.Config) (*embedder.OllamaClient, *turboquant.Quantizer, int) {
+	embedURL := ""
+	embedModel := "nomic-embed-text"
+	dim := EmbeddingDim
+
+	if cfg != nil {
+		if cfg.Embedding.URL != "" {
+			embedURL = cfg.Embedding.URL
+		}
+		if cfg.Embedding.Model != "" {
+			embedModel = cfg.Embedding.Model
+		}
+		if cfg.Embedding.Dimension > 0 {
+			dim = cfg.Embedding.Dimension
+		}
+	}
+
+	if envURL := os.Getenv("MY_MEMORY_EMBED_URL"); envURL != "" {
+		embedURL = envURL
+	}
+	if envModel := os.Getenv("MY_MEMORY_EMBED_MODEL"); envModel != "" {
+		embedModel = envModel
+	}
+	if envDim := os.Getenv("MY_MEMORY_EMBED_DIM"); envDim != "" {
+		if d, err := strconv.Atoi(envDim); err == nil && d > 0 {
+			dim = d
+		}
+	}
+
+	emb := embedder.NewOllamaClient(embedURL, embedModel)
+	tq := turboquant.NewQuantizer(dim)
+	return emb, tq, dim
 }
 
 func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
@@ -1394,7 +1533,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 	}
 }
 
-func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, defaultRepo string, httpAddr string, corsEnabled bool) {
+func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
 
 	if pgStore != nil {
@@ -1596,7 +1735,9 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			return pgStore.InspectNode(ctx, repo, nodeID, maxContentLen)
 		})
 	} else if database != nil {
-		tq := turboquant.NewQuantizer(EmbeddingDim)
+		if tq == nil {
+			tq = turboquant.NewQuantizer(EmbeddingDim)
+		}
 		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
 			limit := params.Limit
 			if limit <= 0 {

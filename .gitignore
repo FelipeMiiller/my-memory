@@ -12,14 +12,22 @@ dist/
 *.db-journal
 *.db-wal
 *.db-shm
+.memory/*.db
+.memory/*.db-*
 
 # Dados de teste e vaults locais
 data/
 vault_test/
 
-# Arquivos de ambiente e segredos
+# Arquivos de ambiente e segredos locais (não commitar no Git)
 .env
+*.env
 *.env.local
+.memory/*.local
+.memory/*.env.local
+
+# Permite versionar a configuração padrão do .memory/.env (SQLite padrão)
+!.memory/.env
 
 # IDEs e editores
 .vscode/

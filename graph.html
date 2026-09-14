@@ -1,19 +1,9 @@
-package graphview
-
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"html/template"
-	"os"
-)
-
-const htmlPageTemplate = `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ .Title }}</title>
+  <title>Grafo de Memória [FelipeMiiller/my-memory]</title>
   <style>
     :root {
       --bg: #090d16;
@@ -359,14 +349,14 @@ const htmlPageTemplate = `<!DOCTYPE html>
 <body>
   <header>
     <div class="title-row">
-      <div class="title">{{ .Title }}</div>
-      {{ if .Repository }}<span class="badge">{{ .Repository }}</span>{{ end }}
+      <div class="title">Grafo de Memória [FelipeMiiller/my-memory]</div>
+      <span class="badge">FelipeMiiller/my-memory</span>
     </div>
     <div class="stats-row">
-      <span>Nós: <strong>{{ .Stats.TotalNodes }}</strong></span>
-      <span>Arestas: <strong>{{ .Stats.TotalEdges }}</strong></span>
-      <span>Hubs: <strong>{{ .Stats.HubCount }}</strong></span>
-      <span>Densidade: <strong>{{ .Stats.Density }}</strong></span>
+      <span>Nós: <strong>40</strong></span>
+      <span>Arestas: <strong>6</strong></span>
+      <span>Hubs: <strong>1</strong></span>
+      <span>Densidade: <strong>0.004</strong></span>
     </div>
     <div class="search-row">
       <input type="text" id="search-input" class="search-input" placeholder="Filtrar notas...">
@@ -443,7 +433,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Modal do Tríptico (3 Colunas) -->
+  
   <div id="triptych-modal" class="triptych-modal">
     <div class="triptych-container">
       <div class="triptych-header">
@@ -482,14 +472,14 @@ const htmlPageTemplate = `<!DOCTYPE html>
   </div>
 
   <script>
-    const DATA = {{ .DataJSON }};
+    const DATA = {"title":"Grafo de Memória [FelipeMiiller/my-memory]","repository":"FelipeMiiller/my-memory","max_depth":2,"generated_at":"2026-09-14T13:00:05.7630318Z","stats":{"total_nodes":40,"total_edges":6,"max_degree":4,"avg_degree":0.3,"density":0.004,"hub_count":1,"community_count":35,"modularity":0.403},"nodes":[{"id":"C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md","title":"008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":20,"community_label":"C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md","community_color":"#f43f5e"},{"id":"C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md","title":"006-integracao-com-agentes-de-ia-via-mcp","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":18,"community_label":"C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md","community_color":"#06b6d4"},{"id":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","title":"ARCHITECTURE","type":"reference","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#a855f7","community_id":8,"community_label":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","community_color":"#f43f5e"},{"id":"C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md","title":"014-centralidade-de-grafo-com-pagerank-ponderado","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":25,"community_label":"C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md","community_color":"#6366f1"},{"id":"wikilinks","title":"wikilinks","type":"other","pagerank":0.04180791217382842,"in_degree":1,"out_degree":0,"radius":17.3,"color":"#64748b","community_id":3,"community_label":"wikilinks","community_color":"#14b8a6"},{"id":"C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md","title":"023-analise-de-impacto-e-raio-de-destruicao-blast-radius","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":34,"community_label":"C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md","community_color":"#84cc16"},{"id":"C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md","title":"016-configuracao-declarativa-e-auto-scoping-de-vault","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":27,"community_label":"C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md","community_color":"#14b8a6"},{"id":"C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md","title":"024-visualizacao-cirurgica-em-3-colunas-triptych-inspector","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":35,"community_label":"C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md","community_color":"#d946ef"},{"id":"C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md","title":"015-decaimento-temporal-exponencial-na-busca-hibrida","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":26,"community_label":"C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md","community_color":"#ec4899"},{"id":"C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md","title":"011-arestas-epistemicas-e-god-nodes","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":22,"community_label":"C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md","community_color":"#84cc16"},{"id":"C:\\repository\\my-memory\\README.md","title":"README","type":"other","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#64748b","community_id":6,"community_label":"C:\\repository\\my-memory\\README.md","community_color":"#06b6d4"},{"id":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","title":"AGENT_INTEGRATION_GUIDE","type":"guide","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#10b981","community_id":7,"community_label":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","community_color":"#10b981"},{"id":"C:\\repository\\my-memory\\docs\\TURBOQUANT.md","title":"TURBOQUANT","type":"reference","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#a855f7","community_id":13,"community_label":"C:\\repository\\my-memory\\docs\\TURBOQUANT.md","community_color":"#6366f1"},{"id":"C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md","title":"001-uso-de-sqlite-como-camada-unificada-de-dados","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":14,"community_label":"C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md","community_color":"#ec4899"},{"id":"C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md","title":"018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":29,"community_label":"C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md","community_color":"#8b5cf6"},{"id":"C:\\repository\\my-memory\\AGENTS.md","title":"AGENTS","type":"other","pagerank":0.022598869689453096,"in_degree":0,"out_degree":1,"radius":13,"color":"#64748b","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md","title":"REPOSITORY_BRAIN","type":"reference","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#a855f7","community_id":12,"community_label":"C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md","community_color":"#eab308"},{"id":"C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md","title":"012-benchmarks-e-conexoes-inesperadas","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":23,"community_label":"C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md","community_color":"#d946ef"},{"id":"C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md","title":"020-visualizador-interativo-de-grafo-em-html-svg","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":31,"community_label":"C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md","community_color":"#10b981"},{"id":"C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md","title":"003-compressao-vetorial-de-4-bit-via-turboquant","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":16,"community_label":"C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md","community_color":"#f59e0b"},{"id":"C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md","title":"009-busca-hibrida-com-reciprocal-rank-fusion-rrf","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":21,"community_label":"C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md","community_color":"#3b82f6"},{"id":"C:\\repository\\my-memory\\docs\\adr\\010-cache-incremental-de-indexacao-com-sha256.md","title":"010-cache-incremental-de-indexacao-com-sha256","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":1,"radius":13,"color":"#f43f5e","community_id":3,"community_label":"wikilinks","community_color":"#14b8a6"},{"id":"C:\\repository\\my-memory\\COMO_USAR.md","title":"COMO_USAR","type":"other","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#64748b","community_id":5,"community_label":"C:\\repository\\my-memory\\COMO_USAR.md","community_color":"#8b5cf6"},{"id":"C:\\repository\\my-memory\\docs\\BENCHMARKS.md","title":"BENCHMARKS","type":"reference","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#a855f7","community_id":9,"community_label":"C:\\repository\\my-memory\\docs\\BENCHMARKS.md","community_color":"#3b82f6"},{"id":"C:\\repository\\my-memory\\docs\\README.md","title":"README","type":"reference","pagerank":0.022598869689453096,"in_degree":0,"out_degree":1,"radius":13,"color":"#a855f7","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"C:\\repository\\my-memory\\COMO_FUNCIONA.md","title":"COMO_FUNCIONA","type":"other","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#64748b","community_id":4,"community_label":"C:\\repository\\my-memory\\COMO_FUNCIONA.md","community_color":"#f59e0b"},{"id":"Tags","title":"Tags","type":"other","pagerank":0.032203390931640756,"in_degree":1,"out_degree":0,"radius":15.2,"color":"#64748b","community_id":2,"community_label":"Tags","community_color":"#ec4899"},{"id":"C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md","title":"007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":19,"community_label":"C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md","community_color":"#10b981"},{"id":"C:\\repository\\my-memory\\docs\\adr\\005-markdown-com-wikilinks-como-fonte-de-verdade.md","title":"005-markdown-com-wikilinks-como-fonte-de-verdade","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":2,"radius":13,"color":"#f43f5e","community_id":2,"community_label":"Tags","community_color":"#ec4899"},{"id":"C:\\repository\\my-memory\\docs\\REFERENCES.md","title":"REFERENCES","type":"reference","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#a855f7","community_id":11,"community_label":"C:\\repository\\my-memory\\docs\\REFERENCES.md","community_color":"#d946ef"},{"id":"C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md","title":"013-higiene-de-grafo-pruning-e-doctor","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":24,"community_label":"C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md","community_color":"#eab308"},{"id":"C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md","title":"021-servidor-mcp-com-transporte-http-sse","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":32,"community_label":"C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md","community_color":"#f43f5e"},{"id":"C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md","title":"019-versionamento-semantico-e-tagging-ci","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":30,"community_label":"C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md","community_color":"#06b6d4"},{"id":"C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md","title":"017-indexacao-continua-com-file-watcher-e-git-hooks","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":28,"community_label":"C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md","community_color":"#f59e0b"},{"id":"C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md","title":"022-deteccao-de-comunidades-e-clusters-no-grafo","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":33,"community_label":"C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md","community_color":"#3b82f6"},{"id":"Wikilinks","title":"Wikilinks","type":"other","pagerank":0.08983051838476673,"in_degree":4,"out_degree":0,"radius":28,"color":"#64748b","is_hub":true,"community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md","title":"004-modelagem-de-grafo-com-recursive-ctes","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":17,"community_label":"C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md","community_color":"#8b5cf6"},{"id":"C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md","title":"002-adocao-de-go-como-linguagem-principal","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#f43f5e","community_id":15,"community_label":"C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md","community_color":"#14b8a6"},{"id":"C:\\repository\\my-memory\\docs\\adr\\README.md","title":"README","type":"decision","pagerank":0.022598869689453096,"in_degree":0,"out_degree":1,"radius":13,"color":"#f43f5e","community_id":1,"community_label":"Wikilinks","community_color":"#6366f1"},{"id":"C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","title":"CLI_GUIDE","type":"guide","pagerank":0.022598869689453096,"in_degree":0,"out_degree":0,"radius":13,"color":"#10b981","community_id":10,"community_label":"C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","community_color":"#84cc16"}],"edges":[{"source":"C:\\repository\\my-memory\\AGENTS.md","target":"Wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\README.md","target":"Wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\adr\\005-markdown-com-wikilinks-como-fonte-de-verdade.md","target":"Wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\adr\\005-markdown-com-wikilinks-como-fonte-de-verdade.md","target":"Tags","relation":"tagged_as","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\adr\\010-cache-incremental-de-indexacao-com-sha256.md","target":"wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"},{"source":"C:\\repository\\my-memory\\docs\\adr\\README.md","target":"Wikilinks","relation":"links_to","epistemic_status":"EXTRACTED","weight":1,"color":"#475569"}],"communities":[{"id":1,"label":"Wikilinks","lead_node":"Wikilinks","members":["C:\\repository\\my-memory\\AGENTS.md","C:\\repository\\my-memory\\docs\\README.md","C:\\repository\\my-memory\\docs\\adr\\README.md","Wikilinks"],"size":4,"dominant_type":"other"},{"id":2,"label":"Tags","lead_node":"Tags","members":["C:\\repository\\my-memory\\docs\\adr\\005-markdown-com-wikilinks-como-fonte-de-verdade.md","Tags"],"size":2,"dominant_type":"decision"},{"id":3,"label":"wikilinks","lead_node":"wikilinks","members":["C:\\repository\\my-memory\\docs\\adr\\010-cache-incremental-de-indexacao-com-sha256.md","wikilinks"],"size":2,"dominant_type":"decision"},{"id":4,"label":"C:\\repository\\my-memory\\COMO_FUNCIONA.md","lead_node":"C:\\repository\\my-memory\\COMO_FUNCIONA.md","members":["C:\\repository\\my-memory\\COMO_FUNCIONA.md"],"size":1,"dominant_type":"other"},{"id":5,"label":"C:\\repository\\my-memory\\COMO_USAR.md","lead_node":"C:\\repository\\my-memory\\COMO_USAR.md","members":["C:\\repository\\my-memory\\COMO_USAR.md"],"size":1,"dominant_type":"other"},{"id":6,"label":"C:\\repository\\my-memory\\README.md","lead_node":"C:\\repository\\my-memory\\README.md","members":["C:\\repository\\my-memory\\README.md"],"size":1,"dominant_type":"other"},{"id":7,"label":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","lead_node":"C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md","members":["C:\\repository\\my-memory\\docs\\AGENT_INTEGRATION_GUIDE.md"],"size":1,"dominant_type":"guide"},{"id":8,"label":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","lead_node":"C:\\repository\\my-memory\\docs\\ARCHITECTURE.md","members":["C:\\repository\\my-memory\\docs\\ARCHITECTURE.md"],"size":1,"dominant_type":"reference"},{"id":9,"label":"C:\\repository\\my-memory\\docs\\BENCHMARKS.md","lead_node":"C:\\repository\\my-memory\\docs\\BENCHMARKS.md","members":["C:\\repository\\my-memory\\docs\\BENCHMARKS.md"],"size":1,"dominant_type":"reference"},{"id":10,"label":"C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","lead_node":"C:\\repository\\my-memory\\docs\\CLI_GUIDE.md","members":["C:\\repository\\my-memory\\docs\\CLI_GUIDE.md"],"size":1,"dominant_type":"guide"},{"id":11,"label":"C:\\repository\\my-memory\\docs\\REFERENCES.md","lead_node":"C:\\repository\\my-memory\\docs\\REFERENCES.md","members":["C:\\repository\\my-memory\\docs\\REFERENCES.md"],"size":1,"dominant_type":"reference"},{"id":12,"label":"C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md","lead_node":"C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md","members":["C:\\repository\\my-memory\\docs\\REPOSITORY_BRAIN.md"],"size":1,"dominant_type":"reference"},{"id":13,"label":"C:\\repository\\my-memory\\docs\\TURBOQUANT.md","lead_node":"C:\\repository\\my-memory\\docs\\TURBOQUANT.md","members":["C:\\repository\\my-memory\\docs\\TURBOQUANT.md"],"size":1,"dominant_type":"reference"},{"id":14,"label":"C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md","members":["C:\\repository\\my-memory\\docs\\adr\\001-uso-de-sqlite-como-camada-unificada-de-dados.md"],"size":1,"dominant_type":"decision"},{"id":15,"label":"C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md","members":["C:\\repository\\my-memory\\docs\\adr\\002-adocao-de-go-como-linguagem-principal.md"],"size":1,"dominant_type":"decision"},{"id":16,"label":"C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md","members":["C:\\repository\\my-memory\\docs\\adr\\003-compressao-vetorial-de-4-bit-via-turboquant.md"],"size":1,"dominant_type":"decision"},{"id":17,"label":"C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md","members":["C:\\repository\\my-memory\\docs\\adr\\004-modelagem-de-grafo-com-recursive-ctes.md"],"size":1,"dominant_type":"decision"},{"id":18,"label":"C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md","members":["C:\\repository\\my-memory\\docs\\adr\\006-integracao-com-agentes-de-ia-via-mcp.md"],"size":1,"dominant_type":"decision"},{"id":19,"label":"C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md","members":["C:\\repository\\my-memory\\docs\\adr\\007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md"],"size":1,"dominant_type":"decision"},{"id":20,"label":"C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md","members":["C:\\repository\\my-memory\\docs\\adr\\008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md"],"size":1,"dominant_type":"decision"},{"id":21,"label":"C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md","members":["C:\\repository\\my-memory\\docs\\adr\\009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md"],"size":1,"dominant_type":"decision"},{"id":22,"label":"C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md","members":["C:\\repository\\my-memory\\docs\\adr\\011-arestas-epistemicas-e-god-nodes.md"],"size":1,"dominant_type":"decision"},{"id":23,"label":"C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md","members":["C:\\repository\\my-memory\\docs\\adr\\012-benchmarks-e-conexoes-inesperadas.md"],"size":1,"dominant_type":"decision"},{"id":24,"label":"C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md","members":["C:\\repository\\my-memory\\docs\\adr\\013-higiene-de-grafo-pruning-e-doctor.md"],"size":1,"dominant_type":"decision"},{"id":25,"label":"C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md","members":["C:\\repository\\my-memory\\docs\\adr\\014-centralidade-de-grafo-com-pagerank-ponderado.md"],"size":1,"dominant_type":"decision"},{"id":26,"label":"C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md","members":["C:\\repository\\my-memory\\docs\\adr\\015-decaimento-temporal-exponencial-na-busca-hibrida.md"],"size":1,"dominant_type":"decision"},{"id":27,"label":"C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md","members":["C:\\repository\\my-memory\\docs\\adr\\016-configuracao-declarativa-e-auto-scoping-de-vault.md"],"size":1,"dominant_type":"decision"},{"id":28,"label":"C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md","members":["C:\\repository\\my-memory\\docs\\adr\\017-indexacao-continua-com-file-watcher-e-git-hooks.md"],"size":1,"dominant_type":"decision"},{"id":29,"label":"C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md","members":["C:\\repository\\my-memory\\docs\\adr\\018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md"],"size":1,"dominant_type":"decision"},{"id":30,"label":"C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md","members":["C:\\repository\\my-memory\\docs\\adr\\019-versionamento-semantico-e-tagging-ci.md"],"size":1,"dominant_type":"decision"},{"id":31,"label":"C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md","members":["C:\\repository\\my-memory\\docs\\adr\\020-visualizador-interativo-de-grafo-em-html-svg.md"],"size":1,"dominant_type":"decision"},{"id":32,"label":"C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md","members":["C:\\repository\\my-memory\\docs\\adr\\021-servidor-mcp-com-transporte-http-sse.md"],"size":1,"dominant_type":"decision"},{"id":33,"label":"C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md","members":["C:\\repository\\my-memory\\docs\\adr\\022-deteccao-de-comunidades-e-clusters-no-grafo.md"],"size":1,"dominant_type":"decision"},{"id":34,"label":"C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md","members":["C:\\repository\\my-memory\\docs\\adr\\023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md"],"size":1,"dominant_type":"decision"},{"id":35,"label":"C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md","lead_node":"C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md","members":["C:\\repository\\my-memory\\docs\\adr\\024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md"],"size":1,"dominant_type":"decision"}]};
     const nodes = DATA.nodes;
     const edges = DATA.edges;
 
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    // Inicialização espalhada em anel elíptico proporcional à tela
+    
     const nodeMap = new Map();
     const rx = Math.min(width, height) * 0.35;
     nodes.forEach((n, i) => {
@@ -502,7 +492,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       nodeMap.set(n.id, n);
     });
 
-    // Mapeamento de arestas com referências diretas
+    
     const links = [];
     edges.forEach(e => {
       const source = nodeMap.get(e.source);
@@ -517,7 +507,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
     const edgesLayer = document.getElementById('edges-layer');
     const nodesLayer = document.getElementById('nodes-layer');
 
-    // Renderizar Arestas SVG
+    
     links.forEach(l => {
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('class', 'edge' + (l.epistemic_status === 'INFERRED' ? ' inferred' : ''));
@@ -527,14 +517,14 @@ const htmlPageTemplate = `<!DOCTYPE html>
       edgesLayer.appendChild(line);
     });
 
-    // Renderizar Nós SVG
+    
     nodes.forEach(n => {
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.setAttribute('class', 'node-group' + (n.is_hub ? ' hub' : ''));
       g.setAttribute('data-id', n.id);
       g.setAttribute('data-type', n.type);
 
-      // Identifica nós com maior relevância para exibir rótulo por padrão
+      
       const degree = (n.in_degree || 0) + (n.out_degree || 0);
       if (n.is_hub || degree >= 3 || (n.pagerank && n.pagerank > 0.015)) {
         g.setAttribute('data-important', 'true');
@@ -545,7 +535,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       circle.setAttribute('r', n.radius || 10);
       circle.setAttribute('fill', n.color);
 
-      // Tooltip nativo
+      
       const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
       svgTitle.textContent = (n.title || n.id) + ' (Grau: ' + degree + ', PR: ' + (n.pagerank ? n.pagerank.toFixed(4) : '0') + ')';
       g.appendChild(svgTitle);
@@ -554,7 +544,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       text.setAttribute('class', 'node-label');
       text.setAttribute('dy', (n.radius || 10) + 14);
 
-      // Limpeza e encurtamento do título para o nó no canvas
+      
       let displayTitle = n.title || n.id;
       const lastSlash = Math.max(displayTitle.lastIndexOf('/'), displayTitle.lastIndexOf('\\'));
       if (lastSlash !== -1) {
@@ -569,7 +559,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       g.appendChild(text);
       n.element = g;
 
-      // Eventos de clique e arraste
+      
       g.addEventListener('click', (ev) => {
         ev.stopPropagation();
         selectNode(n);
@@ -583,7 +573,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       nodesLayer.appendChild(g);
     });
 
-    // Simulação Force-Directed Graph com anti-colisão física
+    
     let alpha = 1.0;
     const alphaDecay = 0.008;
     const alphaMin = 0.001;
@@ -591,10 +581,10 @@ const htmlPageTemplate = `<!DOCTYPE html>
     function tickSimulation() {
       if (alpha < alphaMin) return;
 
-      const k = 150; // distância ideal de mola
-      const repStrength = 4200; // força de repulsão
+      const k = 150; 
+      const repStrength = 4200; 
 
-      // 1. Repulsão Many-Body (Coulomb) + Anti-colisão física
+      
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
         for (let j = i + 1; j < nodes.length; j++) {
@@ -608,7 +598,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
           let fx = (dx / dist) * f;
           let fy = (dy / dist) * f;
 
-          // Anti-colisão: mantém espaçamento físico entre círculos
+          
           const minDist = (a.radius || 10) + (b.radius || 10) + 26;
           if (dist < minDist) {
             const overlap = (minDist - dist) / minDist;
@@ -622,7 +612,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
         }
       }
 
-      // 2. Atração por Arestas (Hooke)
+      
       for (let i = 0; i < links.length; i++) {
         const l = links[i];
         let dx = l.target.x - l.source.x;
@@ -637,7 +627,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
         if (!l.target.pinned) { l.target.vx -= fx; l.target.vy -= fy; }
       }
 
-      // 3. Centralização Suave e Amortecimento
+      
       const centerX = width / 2;
       const centerY = height / 2;
       for (let i = 0; i < nodes.length; i++) {
@@ -656,7 +646,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
 
       alpha *= (1 - alphaDecay);
 
-      // Atualizar SVG
+      
       links.forEach(l => {
         l.element.setAttribute('x1', l.source.x);
         l.element.setAttribute('y1', l.source.y);
@@ -678,7 +668,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       requestAnimationFrame(tickSimulation);
     }
 
-    // Zoom e Pan
+    
     let zoom = 1.0;
     let panX = 0;
     let panY = 0;
@@ -732,14 +722,14 @@ const htmlPageTemplate = `<!DOCTYPE html>
       }
     });
 
-    // Drag & Drop
+    
     let draggedNode = null;
     function startDrag(n, ev) {
       draggedNode = n;
       restartSimulation();
     }
 
-    // Controles
+    
     const btnToggleLabels = document.getElementById('btn-toggle-labels');
     if (btnToggleLabels) {
       btnToggleLabels.addEventListener('click', () => {
@@ -766,7 +756,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       restartSimulation();
     });
 
-    // Painel Lateral e Seleção
+    
     const sidebar = document.getElementById('sidebar');
     let selectedNode = null;
 
@@ -778,11 +768,11 @@ const htmlPageTemplate = `<!DOCTYPE html>
       document.getElementById('sb-in').textContent = n.in_degree;
       document.getElementById('sb-out').textContent = n.out_degree;
 
-      // Deep link para Obsidian
+      
       const obsLink = 'obsidian://open?file=' + encodeURIComponent(n.id);
       document.getElementById('sb-obsidian-link').setAttribute('href', obsLink);
 
-      // In-links
+      
       const inList = document.getElementById('sb-in-links');
       inList.innerHTML = '';
       const inEdges = links.filter(l => l.target.id === n.id);
@@ -798,7 +788,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
         });
       }
 
-      // Out-links
+      
       const outList = document.getElementById('sb-out-links');
       outList.innerHTML = '';
       const outEdges = links.filter(l => l.source.id === n.id);
@@ -814,7 +804,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
         });
       }
 
-      // Destaque visual
+      
       highlightConnections(n);
       sidebar.classList.add('open');
     }
@@ -872,7 +862,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       }
     });
 
-    // Busca em tempo real
+    
     const searchInput = document.getElementById('search-input');
     searchInput.addEventListener('input', () => {
       const query = searchInput.value.trim().toLowerCase();
@@ -886,7 +876,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       });
     });
 
-    // Filtros por tipo de nota
+    
     const chips = document.querySelectorAll('.filter-chips .chip');
     chips.forEach(chip => {
       chip.addEventListener('click', () => {
@@ -908,7 +898,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       });
     });
 
-    // Funções do Visualizador Cirúrgico (Triptych Modal)
+    
     function openTriptychModal() {
       if (!selectedNode) return;
       renderTriptych(selectedNode);
@@ -930,7 +920,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
       const obsLink = 'obsidian://open?file=' + encodeURIComponent(n.id);
       document.getElementById('tp-obsidian-btn').setAttribute('href', obsLink);
 
-      // Inbound
+      
       const inList = document.getElementById('tp-in-list');
       inList.innerHTML = '';
       const inEdges = links.filter(l => l.target.id === n.id);
@@ -971,7 +961,7 @@ const htmlPageTemplate = `<!DOCTYPE html>
         });
       }
 
-      // Outbound
+      
       const outList = document.getElementById('tp-out-list');
       outList.innerHTML = '';
       const outEdges = links.filter(l => l.source.id === n.id);
@@ -1005,48 +995,4 @@ const htmlPageTemplate = `<!DOCTYPE html>
     });
   </script>
 </body>
-</html>`
-
-// TemplateData empacota os dados para injeção no template HTML
-type TemplateData struct {
-	Title      string
-	Repository string
-	Stats      GraphStats
-	DataJSON   template.JS
-}
-
-// RenderHTML renderiza a página HTML standalone em memória com todos os dados do grafo embutidos
-func RenderHTML(gv *GraphView) ([]byte, error) {
-	dataBytes, err := json.Marshal(gv)
-	if err != nil {
-		return nil, fmt.Errorf("falha ao serializar GraphView em JSON: %w", err)
-	}
-
-	tmpl, err := template.New("graphview").Parse(htmlPageTemplate)
-	if err != nil {
-		return nil, fmt.Errorf("falha ao compilar template html do grafo: %w", err)
-	}
-
-	td := TemplateData{
-		Title:      gv.Title,
-		Repository: gv.Repository,
-		Stats:      gv.Stats,
-		DataJSON:   template.JS(dataBytes),
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, td); err != nil {
-		return nil, fmt.Errorf("falha ao executar template html: %w", err)
-	}
-
-	return buf.Bytes(), nil
-}
-
-// ExportHTML gera o arquivo HTML standalone no caminho de destino
-func ExportHTML(gv *GraphView, outputPath string) error {
-	htmlBytes, err := RenderHTML(gv)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(outputPath, htmlBytes, 0644)
-}
+</html>

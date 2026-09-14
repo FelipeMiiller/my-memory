@@ -104,3 +104,4 @@ func TestSearchDefaultsFromConfig(t *testing.T) {
 		t.Errorf("esperava use_turbo true")
 	}
 }
+

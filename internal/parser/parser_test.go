@@ -220,3 +220,34 @@ Tags do documento: #arquitetura #mvp
 		t.Errorf("Aresta frontmatter 'refutes:HipoteseLegada' não encontrada: %+v", e)
 	}
 }
+
+func TestExtractConnections_IgnoreCodeBlocks(t *testing.T) {
+	markdown := `
+# Documento com Exemplos
+
+Aqui está um link real: [[NotaReal]].
+E uma tag real: #producao
+
+Abaixo está um bloco de exemplo que não deve virar aresta:
+` + "```markdown" + `
+Exemplo de link: [[Nome da Nota]] ou [[Target\\]]
+Exemplo de tag: #exemplo
+` + "```" + `
+
+E aqui um exemplo inline: ` + "`[[ExemploInline]]`" + ` e ` + "`#inline-tag`" + `.
+Também link com ellipsis: [[...]]
+`
+
+	conn := ExtractConnections(markdown)
+
+	expectedLinks := []string{"NotaReal"}
+	if !reflect.DeepEqual(conn.OutgoingLinks, expectedLinks) {
+		t.Errorf("Esperava apenas links fora de blocos de código: %v, obteve: %v", expectedLinks, conn.OutgoingLinks)
+	}
+
+	expectedTags := []string{"producao"}
+	if !reflect.DeepEqual(conn.Tags, expectedTags) {
+		t.Errorf("Esperava apenas tags fora de blocos de código: %v, obteve: %v", expectedTags, conn.Tags)
+	}
+}
+

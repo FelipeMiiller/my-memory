@@ -13,6 +13,7 @@ Este documento é o **mapa central de conhecimento** do projeto **My-Memory**. E
 | **[`docs/BENCHMARKS.md`](BENCHMARKS.md)** | Performance & Métricas | Relatório empírico de micro-benchmarks (TurboQuant 4-bit, RRF, hashing SHA-256 e parsing). |
 | **[`docs/CLI_GUIDE.md`](CLI_GUIDE.md)** | Operação | Manual prático de comandos da CLI (`mem index`, `mem search`, `mem bench`, `mem insights`). |
 | **[`docs/REPOSITORY_BRAIN.md`](REPOSITORY_BRAIN.md)** | Integração com IA | Como utilizar o `my-memory` como memória de contexto dentro de projetos via **Model Context Protocol (MCP)**. |
+| **[`docs/AGENT_INTEGRATION_GUIDE.md`](AGENT_INTEGRATION_GUIDE.md)** | Guia para Agentes | Manual completo de integração, comandos CLI, servidor MCP e instruções para `AGENTS.md`. |
 | **[`docs/REFERENCES.md`](REFERENCES.md)** | Arte Prévia & Referências | Referências técnicas e ecossistemas que inspiram e refinam o projeto (`graphify`, `ai-memory`, `obsidian-skills`, `codegraph`). |
 
 ---

@@ -199,6 +199,12 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.Search.DecayWeight = 0.3
 	}
 
+	// Expande variáveis de ambiente (${VAR}) em caminhos e URLs
+	cfg.Storage.SQLitePath = os.ExpandEnv(cfg.Storage.SQLitePath)
+	cfg.Storage.PostgresURL = os.ExpandEnv(cfg.Storage.PostgresURL)
+	cfg.Embedding.URL = os.ExpandEnv(cfg.Embedding.URL)
+	cfg.Repository = os.ExpandEnv(cfg.Repository)
+
 	return &cfg, nil
 }
 
