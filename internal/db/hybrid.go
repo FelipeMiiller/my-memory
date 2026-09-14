@@ -12,22 +12,30 @@ import (
 
 // SearchFTS busca trechos via texto completo na tabela chunks_fts utilizando ordenação nativa BM25 do FTS5
 func SearchFTS(ctx context.Context, database *sql.DB, query string, limit int) ([]SearchResult, error) {
+	return SearchFTSWithOptions(ctx, database, query, limit, store.SearchOptions{Level: "l1"})
+}
+
+// SearchFTSWithOptions busca trechos via texto completo com filtro por categoria
+func SearchFTSWithOptions(ctx context.Context, database *sql.DB, query string, limit int, searchOpts store.SearchOptions) ([]SearchResult, error) {
 	sanitized := store.SanitizeFTS5Query(query)
 	if sanitized == "" {
 		return nil, nil
 	}
 
+	cat := strings.TrimSpace(searchOpts.Category)
 	q := `
-	SELECT c.id, c.document_id, c.content, fts.rank, COALESCE(d.updated_at, 0)
+	SELECT c.id, c.document_id, c.content, fts.rank, COALESCE(d.updated_at, 0),
+	       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 	FROM chunks_fts fts
 	JOIN chunks c ON c.id = fts.chunk_id
 	LEFT JOIN documents d ON d.id = c.document_id
 	WHERE chunks_fts MATCH ?
+	  AND (? = '' OR LOWER(d.category) = LOWER(?))
 	ORDER BY fts.rank
 	LIMIT ?
 	`
 
-	rows, err := database.QueryContext(ctx, q, sanitized, limit)
+	rows, err := database.QueryContext(ctx, q, sanitized, cat, cat, limit)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca textual FTS5: %w", err)
 	}
@@ -37,7 +45,7 @@ func SearchFTS(ctx context.Context, database *sql.DB, query string, limit int) (
 	for rows.Next() {
 		var r SearchResult
 		var rank float64
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &rank, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &rank, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 		// Distância invertida/normalizada baseada no rank BM25
@@ -56,11 +64,16 @@ func SearchFTS(ctx context.Context, database *sql.DB, query string, limit int) (
 
 // SearchHybridRRF funde busca textual FTS5, busca vetorial (sqlite-vec ou TurboQuant) e vizinhos no grafo via RRF
 func SearchHybridRRF(ctx context.Context, database *sql.DB, q *turboquant.Quantizer, query string, queryVec []float32, limit, k int, useTurbo bool) ([]SearchResult, error) {
-	return SearchHybridRRFWithDecay(ctx, database, q, query, queryVec, limit, k, useTurbo, store.DefaultDecayOptions())
+	return SearchHybridRRFWithOptions(ctx, database, q, query, queryVec, limit, k, useTurbo, store.DefaultDecayOptions(), store.SearchOptions{Level: "l1"})
 }
 
 // SearchHybridRRFWithDecay funde busca textual FTS5, busca vetorial e vizinhos no grafo aplicando RRF e decaimento temporal
 func SearchHybridRRFWithDecay(ctx context.Context, database *sql.DB, q *turboquant.Quantizer, query string, queryVec []float32, limit, k int, useTurbo bool, opts store.DecayOptions) ([]SearchResult, error) {
+	return SearchHybridRRFWithOptions(ctx, database, q, query, queryVec, limit, k, useTurbo, opts, store.SearchOptions{Level: "l1"})
+}
+
+// SearchHybridRRFWithOptions funde busca textual FTS5, busca vetorial e vizinhos no grafo aplicando RRF, decaimento temporal, filtro de categoria e densidade de contexto
+func SearchHybridRRFWithOptions(ctx context.Context, database *sql.DB, q *turboquant.Quantizer, query string, queryVec []float32, limit, k int, useTurbo bool, opts store.DecayOptions, searchOpts store.SearchOptions) ([]SearchResult, error) {
 	candidateLimit := limit * 2
 	if candidateLimit < 10 {
 		candidateLimit = 10
@@ -69,19 +82,19 @@ func SearchHybridRRFWithDecay(ctx context.Context, database *sql.DB, q *turboqua
 	// 1. Busca Léxica (FTS5)
 	var ftsResults []SearchResult
 	if strings.TrimSpace(query) != "" {
-		ftsResults, _ = SearchFTS(ctx, database, query, candidateLimit)
+		ftsResults, _ = SearchFTSWithOptions(ctx, database, query, candidateLimit, searchOpts)
 	}
 
 	// 2. Busca Vetorial (sqlite-vec ou TurboQuant)
 	var vecResults []SearchResult
 	if len(queryVec) > 0 {
 		if (useTurbo || !HasSqliteVec) && q != nil {
-			vecResults, _ = SearchTurboQuant(ctx, database, q, queryVec, candidateLimit)
+			vecResults, _ = SearchTurboQuantWithOptions(ctx, database, q, queryVec, candidateLimit, searchOpts)
 		} else {
 			var err error
-			vecResults, err = SearchKNN(ctx, database, queryVec, candidateLimit)
+			vecResults, err = SearchKNNWithOptions(ctx, database, queryVec, candidateLimit, searchOpts)
 			if (err != nil || len(vecResults) == 0) && q != nil {
-				vecResults, _ = SearchTurboQuant(ctx, database, q, queryVec, candidateLimit)
+				vecResults, _ = SearchTurboQuantWithOptions(ctx, database, q, queryVec, candidateLimit, searchOpts)
 			}
 		}
 	}
@@ -103,6 +116,7 @@ func SearchHybridRRFWithDecay(ctx context.Context, database *sql.DB, q *turboqua
 
 	var graphResults []SearchResult
 	seenChunks := make(map[string]bool)
+	cat := strings.TrimSpace(searchOpts.Category)
 	for seed := range seedDocs {
 		neighbors, err := GetNodeNeighbors(ctx, database, seed, 1)
 		if err != nil {
@@ -111,20 +125,22 @@ func SearchHybridRRFWithDecay(ctx context.Context, database *sql.DB, q *turboqua
 
 		for _, n := range neighbors {
 			rows, err := database.QueryContext(ctx, `
-				SELECT c.id, c.document_id, c.content, COALESCE(d.updated_at, 0)
+				SELECT c.id, c.document_id, c.content, COALESCE(d.updated_at, 0),
+				       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 				FROM chunks c
 				LEFT JOIN documents d ON d.id = c.document_id
 				WHERE c.document_id = ?
+				  AND (? = '' OR LOWER(d.category) = LOWER(?))
 				ORDER BY c.chunk_index
 				LIMIT 2
-			`, n)
+			`, n, cat, cat)
 			if err != nil {
 				continue
 			}
 
 			for rows.Next() {
 				var gr SearchResult
-				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Content, &gr.UpdatedAt); err == nil {
+				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Content, &gr.UpdatedAt, &gr.Abstract, &gr.Category); err == nil {
 					if !seenChunks[gr.ChunkID] {
 						seenChunks[gr.ChunkID] = true
 						graphResults = append(graphResults, gr)
@@ -135,14 +151,14 @@ func SearchHybridRRFWithDecay(ctx context.Context, database *sql.DB, q *turboqua
 		}
 	}
 
-	// 4. Fusão RRF com decaimento temporal através de store.FuseSearchResultsWithDecay
+	// 4. Fusão RRF com decaimento temporal e opções de nível através de store.FuseSearchResultsWithOptions
 	sources := []store.RankedResultSource{
 		{Name: "fts", Results: toStoreResults(ftsResults)},
 		{Name: "vector", Results: toStoreResults(vecResults)},
 		{Name: "graph", Results: toStoreResults(graphResults)},
 	}
 
-	fusedStoreResults := store.FuseSearchResultsWithDecay(sources, k, limit, opts)
+	fusedStoreResults := store.FuseSearchResultsWithOptions(sources, k, limit, opts, searchOpts)
 	return fromStoreResults(fusedStoreResults), nil
 }
 
@@ -158,6 +174,8 @@ func toStoreResults(items []SearchResult) []store.SearchResult {
 			Sources:    it.Sources,
 			Neighbors:  it.Neighbors,
 			UpdatedAt:  it.UpdatedAt,
+			Abstract:   it.Abstract,
+			Category:   it.Category,
 		}
 	}
 	return res
@@ -175,7 +193,10 @@ func fromStoreResults(items []store.SearchResult) []SearchResult {
 			Sources:    it.Sources,
 			Neighbors:  it.Neighbors,
 			UpdatedAt:  it.UpdatedAt,
+			Abstract:   it.Abstract,
+			Category:   it.Category,
 		}
 	}
 	return res
 }
+

@@ -9,8 +9,9 @@
 
 ### Banco de Dados e Migração (`internal/db/` e `internal/store/`)
 - [x] `TestSchemaMigration_AbstractAndCategory`: Testa abertura de banco SQLite antigo sem as colunas e valida migração sem perda de dados.
-- [ ] `TestSearch_CategoryFilter`: Testa busca filtrando por `category="memory"` garantindo exclusão de notas de outros tipos.
-- [ ] `TestSearch_LevelL0Projection`: Valida que o resultado de busca em nível L0 retorna `Abstract` preenchido e corpo de conteúdo enxuto.
+- [x] `TestSearch_CategoryFilter`: Testa busca filtrando por `category="memory"` garantindo exclusão de notas de outros tipos.
+- [x] `TestSearch_LevelL0Projection`: Valida que o resultado de busca em nível L0 retorna `Abstract` preenchido e corpo de conteúdo enxuto.
+
 
 ### Linha de Comando (`cmd/mem/`)
 - [ ] `TestSearchCLI_LevelL0`: Executa `mem search --level l0` e valida formato compacto no stdout.

@@ -12,11 +12,12 @@
   - [x] Atualizar pipeline de indexação em `internal/db/store.go` e `internal/store/postgres.go` para persistir `abstract` e `category`.
   - [x] Escrever testes cobrindo extração via frontmatter explícito e via heurística de primeiro parágrafo.
 
-- [ ] **T3**: Motores de Busca com Níveis L0/L1/L2 e Filtro por Categoria (`internal/db/` e `internal/store/`)
-  - [ ] Atualizar queries de `SearchFTS`, `SearchVector` e `SearchHybrid` para aceitar filtro opcional `category`.
-  - [ ] Implementar projeção de campos: em modo `l0`, omitir blocos massivos de chunks e retornar apenas `Abstract`, metadados e score.
-  - [ ] Adicionar suporte a decaimento temporal ponderado preservando o nível selecionado.
-  - [ ] Testes automatizados em `internal/db/hybrid_test.go` e `internal/store/rrf_test.go`.
+- [x] **T3**: Motores de Busca com Níveis L0/L1/L2 e Filtro por Categoria (`internal/db/` e `internal/store/`)
+  - [x] Atualizar queries de `SearchFTS`, `SearchVector` e `SearchHybrid` para aceitar filtro opcional `category`.
+  - [x] Implementar projeção de campos: em modo `l0`, omitir blocos massivos de chunks e retornar apenas `Abstract`, metadados e score.
+  - [x] Adicionar suporte a decaimento temporal ponderado preservando o nível selecionado.
+  - [x] Testes automatizados em `internal/db/hybrid_test.go` e `internal/store/rrf_test.go`.
+
 
 - [ ] **T4**: Subcomando CLI mem search com Flags de Densidade (`cmd/mem/`)
   - [ ] Adicionar flags `--level` (`l0`, `l1`, `l2`) e `--category` (`resource`, `memory`, `skill`) em `cmd/mem/main.go`.

@@ -28,6 +28,11 @@ type SearchResult struct {
 
 // SearchKNN busca os pedaços mais próximos usando sqlite-vec nativo
 func SearchKNN(ctx context.Context, db *sql.DB, queryVec []float32, limit int) ([]SearchResult, error) {
+	return SearchKNNWithOptions(ctx, db, queryVec, limit, store.SearchOptions{Level: "l1"})
+}
+
+// SearchKNNWithOptions busca os pedaços mais próximos usando sqlite-vec nativo com opções de busca
+func SearchKNNWithOptions(ctx context.Context, db *sql.DB, queryVec []float32, limit int, searchOpts store.SearchOptions) ([]SearchResult, error) {
 	if !HasSqliteVec {
 		return nil, fmt.Errorf("sqlite-vec não está disponível nesta plataforma (use TurboQuant)")
 	}
@@ -37,16 +42,19 @@ func SearchKNN(ctx context.Context, db *sql.DB, queryVec []float32, limit int) (
 		return nil, fmt.Errorf("erro ao serializar vetor de busca: %w", err)
 	}
 
+	cat := strings.TrimSpace(searchOpts.Category)
 	query := `
-	SELECT c.id, c.document_id, c.content, v.distance, COALESCE(d.updated_at, 0)
+	SELECT c.id, c.document_id, c.content, v.distance, COALESCE(d.updated_at, 0),
+	       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 	FROM chunks_vec v
 	JOIN chunks c ON c.id = v.chunk_id
 	LEFT JOIN documents d ON d.id = c.document_id
 	WHERE v.embedding MATCH ? AND k = ?
+	  AND (? = '' OR LOWER(d.category) = LOWER(?))
 	ORDER BY v.distance
 	`
 
-	rows, err := db.QueryContext(ctx, query, vecBlob, limit)
+	rows, err := db.QueryContext(ctx, query, vecBlob, limit, cat, cat)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca vetorial: %w", err)
 	}
@@ -55,7 +63,7 @@ func SearchKNN(ctx context.Context, db *sql.DB, queryVec []float32, limit int) (
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Distance, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Distance, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 
@@ -72,14 +80,22 @@ func SearchKNN(ctx context.Context, db *sql.DB, queryVec []float32, limit int) (
 
 // SearchTurboQuant busca usando a projeção ortogonal e os vetores 4-bit comprimidos
 func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, queryVec []float32, limit int) ([]SearchResult, error) {
+	return SearchTurboQuantWithOptions(ctx, db, q, queryVec, limit, store.SearchOptions{Level: "l1"})
+}
+
+// SearchTurboQuantWithOptions busca usando a projeção ortogonal e os vetores 4-bit comprimidos com opções de busca
+func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, queryVec []float32, limit int, searchOpts store.SearchOptions) ([]SearchResult, error) {
 	rotatedQuery := q.RotateQuery(queryVec)
+	cat := strings.TrimSpace(searchOpts.Category)
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT tq.chunk_id, c.document_id, c.content, tq.scale, tq.data, COALESCE(d.updated_at, 0)
+		SELECT tq.chunk_id, c.document_id, c.content, tq.scale, tq.data, COALESCE(d.updated_at, 0),
+		       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 		FROM chunks_turboquant tq
 		JOIN chunks c ON c.id = tq.chunk_id
 		LEFT JOIN documents d ON d.id = c.document_id
-	`)
+		WHERE (? = '' OR LOWER(d.category) = LOWER(?))
+	`, cat, cat)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao consultar chunks turboquant: %w", err)
 	}
@@ -91,6 +107,8 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 		content    string
 		score      float32
 		updatedAt  int64
+		abstract   string
+		category   string
 	}
 
 	var items []scoredItem
@@ -99,8 +117,9 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 		var scale float32
 		var data []byte
 		var updatedAt int64
+		var abstract, category string
 
-		if err := rows.Scan(&chunkID, &docID, &content, &scale, &data, &updatedAt); err != nil {
+		if err := rows.Scan(&chunkID, &docID, &content, &scale, &data, &updatedAt, &abstract, &category); err != nil {
 			continue
 		}
 
@@ -117,6 +136,8 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 			content:    content,
 			score:      dot,
 			updatedAt:  updatedAt,
+			abstract:   abstract,
+			category:   category,
 		})
 	}
 
@@ -142,11 +163,14 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 			Distance:   dist,
 			Neighbors:  neighbors,
 			UpdatedAt:  it.updatedAt,
+			Abstract:   it.abstract,
+			Category:   it.category,
 		})
 	}
 
 	return results, nil
 }
+
 
 // GetNodeNeighbors realiza travessia de grafo em SQL usando Recursive CTE
 func GetNodeNeighbors(ctx context.Context, db *sql.DB, nodeID string, maxDepth int) ([]string, error) {

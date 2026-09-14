@@ -36,6 +36,13 @@ type SearchResult struct {
 	Category   string   `json:"category,omitempty"`
 }
 
+// SearchOptions define critérios de filtragem por taxonomia e nível de densidade de contexto
+type SearchOptions struct {
+	Category string `json:"category,omitempty"` // "resource", "memory", "skill" ou "" (todas)
+	Level    string `json:"level,omitempty"`    // "l0", "l1", "l2" (default: "l1")
+}
+
+
 // GodNode representa um nó com alta centralidade estrutural (in-degree + out-degree) no grafo
 type GodNode struct {
 	ID          string `json:"id"`
@@ -142,14 +149,23 @@ type Store interface {
 	// SearchKNN busca os K pedaços mais próximos vetorialmente (se repo != "", filtra por repositório)
 	SearchKNN(ctx context.Context, repo string, queryVec []float32, limit int) ([]SearchResult, error)
 
+	// SearchKNNWithOptions busca os K pedaços mais próximos vetorialmente com opções de categoria e nível
+	SearchKNNWithOptions(ctx context.Context, repo string, queryVec []float32, limit int, searchOpts SearchOptions) ([]SearchResult, error)
+
 	// SearchFTS busca trechos via texto completo (FTS5 no SQLite / tsvector no Postgres)
 	SearchFTS(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error)
+
+	// SearchFTSWithOptions busca trechos via texto completo com opções de categoria e nível
+	SearchFTSWithOptions(ctx context.Context, repo string, query string, limit int, searchOpts SearchOptions) ([]SearchResult, error)
 
 	// SearchHybridRRF executa busca híbrida fundindo FTS, vetores e grafo via RRF
 	SearchHybridRRF(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int) ([]SearchResult, error)
 
 	// SearchHybridRRFWithDecay executa busca híbrida com RRF ponderado por decaimento temporal
 	SearchHybridRRFWithDecay(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, opts DecayOptions) ([]SearchResult, error)
+
+	// SearchHybridWithOptions executa busca híbrida fundindo FTS, vetores e grafo com decaimento temporal, categoria e nível
+	SearchHybridWithOptions(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, decayOpts DecayOptions, searchOpts SearchOptions) ([]SearchResult, error)
 
 	// GetNodeNeighbors executa busca recursiva de nós vizinhos conectados via CTE
 	GetNodeNeighbors(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error)

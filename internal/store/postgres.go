@@ -473,19 +473,25 @@ func (s *PostgresStore) ComputePageRank(ctx context.Context, repo string, dampin
 }
 
 func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []float32, limit int) ([]SearchResult, error) {
+	return s.SearchKNNWithOptions(ctx, repo, queryVec, limit, SearchOptions{Level: "l1"})
+}
+
+func (s *PostgresStore) SearchKNNWithOptions(ctx context.Context, repo string, queryVec []float32, limit int, searchOpts SearchOptions) ([]SearchResult, error) {
 	vecStr := FormatVector(queryVec)
+	cat := strings.TrimSpace(searchOpts.Category)
 
 	query := `
 		SELECT c.id, c.document_id, c.repository, c.content, (c.embedding <=> $1::vector) AS distance,
-		       COALESCE(d.updated_at, 0)
+		       COALESCE(d.updated_at, 0), COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 		FROM chunks c
 		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
+		  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
 		ORDER BY c.embedding <=> $1::vector
-		LIMIT $3
+		LIMIT $4
 	`
 
-	rows, err := s.db.QueryContext(ctx, query, vecStr, repo, limit)
+	rows, err := s.db.QueryContext(ctx, query, vecStr, repo, cat, limit)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca vetorial postgres: %w", err)
 	}
@@ -494,7 +500,7 @@ func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []f
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &r.Distance, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &r.Distance, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 
@@ -543,23 +549,29 @@ func (s *PostgresStore) GetNodeNeighbors(ctx context.Context, repo string, nodeI
 }
 
 func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error) {
+	return s.SearchFTSWithOptions(ctx, repo, query, limit, SearchOptions{Level: "l1"})
+}
+
+func (s *PostgresStore) SearchFTSWithOptions(ctx context.Context, repo string, query string, limit int, searchOpts SearchOptions) ([]SearchResult, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
 
+	cat := strings.TrimSpace(searchOpts.Category)
 	q := `
 		SELECT c.id, c.document_id, c.repository, c.content,
 		       ts_rank(to_tsvector('simple', c.content), plainto_tsquery('simple', $1)) AS rank,
-		       COALESCE(d.updated_at, 0)
+		       COALESCE(d.updated_at, 0), COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 		FROM chunks c
 		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
+		  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
 		  AND to_tsvector('simple', c.content) @@ plainto_tsquery('simple', $1)
 		ORDER BY rank DESC
-		LIMIT $3
+		LIMIT $4
 	`
 
-	rows, err := s.db.QueryContext(ctx, q, query, repo, limit)
+	rows, err := s.db.QueryContext(ctx, q, query, repo, cat, limit)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca textual postgres: %w", err)
 	}
@@ -569,7 +581,7 @@ func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string
 	for rows.Next() {
 		var r SearchResult
 		var rank float64
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &rank, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &rank, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 		r.Distance = rank
@@ -586,10 +598,14 @@ func (s *PostgresStore) SearchFTS(ctx context.Context, repo string, query string
 }
 
 func (s *PostgresStore) SearchHybridRRF(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int) ([]SearchResult, error) {
-	return s.SearchHybridRRFWithDecay(ctx, repo, query, queryVec, limit, k, DefaultDecayOptions())
+	return s.SearchHybridWithOptions(ctx, repo, query, queryVec, limit, k, DefaultDecayOptions(), SearchOptions{Level: "l1"})
 }
 
 func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, opts DecayOptions) ([]SearchResult, error) {
+	return s.SearchHybridWithOptions(ctx, repo, query, queryVec, limit, k, opts, SearchOptions{Level: "l1"})
+}
+
+func (s *PostgresStore) SearchHybridWithOptions(ctx context.Context, repo string, query string, queryVec []float32, limit int, k int, opts DecayOptions, searchOpts SearchOptions) ([]SearchResult, error) {
 	candidateLimit := limit * 2
 	if candidateLimit < 10 {
 		candidateLimit = 10
@@ -598,13 +614,13 @@ func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo strin
 	// 1. Busca textual via FTS
 	var ftsResults []SearchResult
 	if strings.TrimSpace(query) != "" {
-		ftsResults, _ = s.SearchFTS(ctx, repo, query, candidateLimit)
+		ftsResults, _ = s.SearchFTSWithOptions(ctx, repo, query, candidateLimit, searchOpts)
 	}
 
 	// 2. Busca vetorial via pgvector
 	var vecResults []SearchResult
 	if len(queryVec) > 0 {
-		vecResults, _ = s.SearchKNN(ctx, repo, queryVec, candidateLimit)
+		vecResults, _ = s.SearchKNNWithOptions(ctx, repo, queryVec, candidateLimit, searchOpts)
 	}
 
 	// 3. Expansão de vizinhos estruturais no grafo a partir das sementes mais relevantes
@@ -624,6 +640,7 @@ func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo strin
 
 	var graphResults []SearchResult
 	seenChunks := make(map[string]bool)
+	cat := strings.TrimSpace(searchOpts.Category)
 	for seed := range seedDocs {
 		neighbors, err := s.GetNodeNeighbors(ctx, repo, seed, 1)
 		if err != nil {
@@ -632,20 +649,22 @@ func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo strin
 
 		for _, n := range neighbors {
 			rows, err := s.db.QueryContext(ctx, `
-				SELECT c.id, c.document_id, c.repository, c.content, COALESCE(d.updated_at, 0)
+				SELECT c.id, c.document_id, c.repository, c.content, COALESCE(d.updated_at, 0),
+				       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 				FROM chunks c
 				LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
-				WHERE c.document_id = $1 AND ($2 = '' OR repository = $2)
+				WHERE c.document_id = $1 AND ($2 = '' OR c.repository = $2)
+				  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
 				ORDER BY chunk_index
 				LIMIT 2
-			`, n, repo)
+			`, n, repo, cat)
 			if err != nil {
 				continue
 			}
 
 			for rows.Next() {
 				var gr SearchResult
-				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Repository, &gr.Content, &gr.UpdatedAt); err == nil {
+				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Repository, &gr.Content, &gr.UpdatedAt, &gr.Abstract, &gr.Category); err == nil {
 					if !seenChunks[gr.ChunkID] {
 						seenChunks[gr.ChunkID] = true
 						graphResults = append(graphResults, gr)
@@ -656,15 +675,16 @@ func (s *PostgresStore) SearchHybridRRFWithDecay(ctx context.Context, repo strin
 		}
 	}
 
-	// 4. Fusão RRF através de FuseSearchResultsWithDecay
+	// 4. Fusão RRF através de FuseSearchResultsWithOptions
 	sources := []RankedResultSource{
 		{Name: "fts", Results: ftsResults},
 		{Name: "vector", Results: vecResults},
 		{Name: "graph", Results: graphResults},
 	}
 
-	return FuseSearchResultsWithDecay(sources, k, limit, opts), nil
+	return FuseSearchResultsWithOptions(sources, k, limit, opts, searchOpts), nil
 }
+
 
 // FindSurprisingConnections descobre conexões latentes entre documentos conceitualmente similares sem arestas no grafo
 func (s *PostgresStore) FindSurprisingConnections(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error) {
