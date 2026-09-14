@@ -91,7 +91,6 @@ func runPackCommand(ctx context.Context, defaultRepo string, args []string, out 
 		}
 	}
 
-
 	// 2. Saída JSON
 	if *jsonOutput {
 		enc := json.NewEncoder(out)

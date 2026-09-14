@@ -336,5 +336,3 @@ func TestExtractMicroAbstract_Fallback(t *testing.T) {
 		t.Errorf("Esperava string vazia para documento apenas com tabela, obteve %q", got)
 	}
 }
-
-

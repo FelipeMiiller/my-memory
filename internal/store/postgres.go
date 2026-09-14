@@ -685,7 +685,6 @@ func (s *PostgresStore) SearchHybridWithOptions(ctx context.Context, repo string
 	return FuseSearchResultsWithOptions(sources, k, limit, opts, searchOpts), nil
 }
 
-
 // FindSurprisingConnections descobre conexões latentes entre documentos conceitualmente similares sem arestas no grafo
 func (s *PostgresStore) FindSurprisingConnections(ctx context.Context, repo string, limit int, minSimilarity float64) ([]SurprisingConnection, error) {
 	if limit <= 0 {
@@ -1399,7 +1398,3 @@ func (s *PostgresStore) PackContext(ctx context.Context, repo string, rootQuery 
 
 	return graph.PackContext(packNodes, edges, canonicalRoot, opts)
 }
-
-
-
-

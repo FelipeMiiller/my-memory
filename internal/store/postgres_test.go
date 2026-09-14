@@ -284,7 +284,6 @@ func TestPostgresStore_Integration(t *testing.T) {
 		t.Errorf("PackContext retornou root incorreto: %s", packRes.RootID)
 	}
 
-
 	// 5. DeleteDocumentData
 	err = s.DeleteDocumentData(ctx, repo, docID)
 	if err != nil {

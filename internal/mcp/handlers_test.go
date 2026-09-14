@@ -962,4 +962,3 @@ func TestServer_ToolsCall_MemorySearch_CategoryFilter(t *testing.T) {
 		t.Errorf("esperava '[SKILL]' no resultado L1, obteve: %s", text)
 	}
 }
-

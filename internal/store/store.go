@@ -53,7 +53,6 @@ type SearchOptions struct {
 	ShowLinks bool   `json:"show_links,omitempty"` // Exibe e preenche deep links nos resultados
 }
 
-
 // GodNode representa um nó com alta centralidade estrutural (in-degree + out-degree) no grafo
 type GodNode struct {
 	ID          string `json:"id"`
@@ -201,7 +200,6 @@ type Store interface {
 
 	// FixHealthIssues repara problemas comuns como self-loops e links mortos
 	FixHealthIssues(ctx context.Context, repo string) (int, error)
-
 
 	// Close encerra a conexão com o banco de dados
 	Close() error

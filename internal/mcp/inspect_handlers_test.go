@@ -208,4 +208,3 @@ func TestMemoryInspectNodeHandler_NilFuncFallback(t *testing.T) {
 		t.Errorf("texto esperado não encontrado no fallback: %s", callRes.Content[0].Text)
 	}
 }
-

@@ -58,13 +58,13 @@ type InitializeResult struct {
 
 // Server gerencia o loop de mensagens e ciclo de vida do servidor MCP
 type Server struct {
-	name         string
-	version      string
-	reader       *MessageReader
-	writer       *MessageWriter
-	logger       *log.Logger
-	handlers     map[string]HandlerFunc
-	tools        []Tool
+	name              string
+	version           string
+	reader            *MessageReader
+	writer            *MessageWriter
+	logger            *log.Logger
+	handlers          map[string]HandlerFunc
+	tools             []Tool
 	toolHandlers      map[string]ToolHandlerFunc
 	stalenessDetector *staleness.Detector
 	mu                sync.RWMutex
@@ -114,7 +114,6 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 
 	return s
 }
-
 
 // SetStalenessDetector configura o detector de integridade e staleness do vault
 func (s *Server) SetStalenessDetector(d *staleness.Detector) {

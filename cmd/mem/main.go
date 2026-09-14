@@ -386,7 +386,6 @@ func main() {
 			runSearchSQLite(ctx, database, emb, tq, query, resolvedMode, resolvedUseTurbo, resolvedLimit, resolvedK, decayOpts, searchOpts)
 		}
 
-
 	case "mcp":
 		mcpCmd := flag.NewFlagSet("mcp", flag.ExitOnError)
 		dbPath := mcpCmd.String("db", "", "Caminho do arquivo SQLite")
@@ -663,7 +662,6 @@ func main() {
 			os.Exit(1)
 		}
 
-
 	case "status":
 		if err := runStatusCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -721,7 +719,6 @@ func printHelp() {
 	fmt.Println("      Abre diretamente a nota ou nó no editor configurado (Obsidian, VS Code) ou exibe deep links acionáveis")
 	fmt.Println("  mem drift [--since <faixa>] [--threshold <0.0-1.0>] [--uncovered] [--strict] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Analisa desvio entre commits de código e notas de memória (Semantic Drift) e detecta código órfão")
-
 
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
@@ -1803,8 +1800,6 @@ func rearrangeSearchArgs(args []string) []string {
 	}
 	return append(flags, nonFlags...)
 }
-
-
 
 func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool, cfg ...*config.Config) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)

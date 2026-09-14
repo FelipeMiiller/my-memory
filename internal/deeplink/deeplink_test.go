@@ -7,9 +7,9 @@ import (
 )
 
 type mockLauncher struct {
-	lastCmd  string
-	lastArgs []string
-	callCount int
+	lastCmd     string
+	lastArgs    []string
+	callCount   int
 	errToReturn error
 }
 

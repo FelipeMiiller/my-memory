@@ -49,7 +49,7 @@ func TestDetectClients_WindowsPaths(t *testing.T) {
 		appData: `C:\Users\Developer\AppData\Roaming`,
 		dirs: map[string]bool{
 			`C:\Users\Developer\AppData\Roaming\Claude`: true,
-			`C:\Users\Developer\.cursor`:               true,
+			`C:\Users\Developer\.cursor`:                true,
 		},
 		files: map[string]bool{
 			`C:\Users\Developer\AppData\Roaming\Claude\claude_desktop_config.json`: true,

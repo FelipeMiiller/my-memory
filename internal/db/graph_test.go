@@ -349,7 +349,3 @@ func TestPackContext(t *testing.T) {
 		t.Errorf("Markdown não contém título da nota raiz")
 	}
 }
-
-
-
-

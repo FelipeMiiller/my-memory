@@ -184,4 +184,3 @@ func TestImpactCLI_FlagAfterTargetNode(t *testing.T) {
 		t.Errorf("nó dependente 'dep-node' não encontrado na saída:\n%s", out)
 	}
 }
-

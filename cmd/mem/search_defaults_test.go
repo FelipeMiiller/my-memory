@@ -147,6 +147,3 @@ func TestRearrangeSearchArgs(t *testing.T) {
 		t.Errorf("último elemento deveria ser o termo de busca, obteve '%s'", rearranged[len(rearranged)-1])
 	}
 }
-
-
-

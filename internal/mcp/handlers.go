@@ -76,7 +76,6 @@ type SearchParams struct {
 	Category    string  // "resource", "memory", "skill" ou ""
 }
 
-
 // AdvancedSearchFunc assinatura da função que executa busca avançada suportando modo híbrido e RRF
 type AdvancedSearchFunc func(ctx context.Context, params SearchParams) ([]SearchResult, error)
 
@@ -398,7 +397,6 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 		return NewTextResult(FormatSearchResultsWithOptions(results, detailLevel)), nil
 	}
 }
-
 
 // NewMemoryNeighborsHandler cria o handler para a ferramenta memory_get_neighbors
 func NewMemoryNeighborsHandler(neighborsFn NeighborsFunc) ToolHandlerFunc {

@@ -267,4 +267,3 @@ func TestFuseSearchResults_LevelL0(t *testing.T) {
 		}
 	}
 }
-

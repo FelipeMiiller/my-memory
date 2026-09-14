@@ -39,7 +39,6 @@ type SearchConfig struct {
 	Category    string  `yaml:"category,omitempty" json:"category,omitempty"`         // "resource", "memory", "skill" ou ""
 }
 
-
 // WatcherConfig define os parâmetros para monitoramento contínuo de arquivos em tempo real
 type WatcherConfig struct {
 	DebounceMs int `yaml:"debounce_ms,omitempty" json:"debounce_ms,omitempty"` // Janela de debounce em milissegundos (default: 500)

@@ -746,4 +746,3 @@ func GetDocumentsMetadata(ctx context.Context, db *sql.DB) (map[string]store.Doc
 
 	return metaMap, nil
 }
-

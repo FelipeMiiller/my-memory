@@ -404,6 +404,3 @@ func TestSQLite_GetDocumentsMetadata(t *testing.T) {
 		t.Errorf("Documento 2 inconsistente: %+v", m2)
 	}
 }
-
-
-

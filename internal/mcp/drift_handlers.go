@@ -110,4 +110,3 @@ func NewMemoryGetDriftHandler(analyzer DriftAnalysisFunc) ToolHandlerFunc {
 func (s *Server) SetDriftHandler(analyzer DriftAnalysisFunc) {
 	s.RegisterToolHandler(ToolMemoryGetDrift.Name, NewMemoryGetDriftHandler(analyzer))
 }
-

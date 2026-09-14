@@ -178,4 +178,3 @@ func TestInspectCLI_FullFlag(t *testing.T) {
 		t.Errorf("com flag --full, o conteúdo não deveria ser truncado")
 	}
 }
-

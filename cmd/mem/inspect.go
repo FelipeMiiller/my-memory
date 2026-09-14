@@ -208,4 +208,3 @@ func rearrangeInspectArgs(args []string) []string {
 	}
 	return append(flags, nonFlags...)
 }
-

@@ -66,7 +66,6 @@ var (
 		},
 	}
 
-
 	ToolMemoryGetNeighbors = Tool{
 		Name:        "memory_get_neighbors",
 		Description: "Retorna nós e notas vizinhas no grafo relacional a partir de um node_id via CTE recursivo",
@@ -451,7 +450,6 @@ var (
 		},
 	}
 
-
 	ToolMemoryPackContext = Tool{
 		Name:        "memory_pack_context",
 		Description: "Extrai e consolida um subgrafo conexo centrado em uma nota raiz, empacotando documentos centrais (L2), resumos periféricos (L0/L1) e diagrama Mermaid em um bundle coerente com limite de tokens",
@@ -543,7 +541,6 @@ var (
 		},
 	}
 )
-
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor
 func (s *Server) RegisterTool(tool Tool, handler ToolHandlerFunc) {

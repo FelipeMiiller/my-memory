@@ -173,7 +173,6 @@ func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.
 	return results, nil
 }
 
-
 // GetNodeNeighbors realiza travessia de grafo em SQL usando Recursive CTE
 func GetNodeNeighbors(ctx context.Context, db *sql.DB, nodeID string, maxDepth int) ([]string, error) {
 	cteQuery := `
@@ -893,6 +892,3 @@ func PackContext(ctx context.Context, db *sql.DB, rootQuery string, opts graph.P
 
 	return graph.PackContext(packNodes, edges, canonicalRoot, opts)
 }
-
-
-

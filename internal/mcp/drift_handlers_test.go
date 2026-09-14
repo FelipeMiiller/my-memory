@@ -54,12 +54,12 @@ func TestNewMemoryGetDriftHandler_WithReport(t *testing.T) {
 	mockAnalyzer := func(ctx context.Context, rangeStr string, threshold float64, includeUncovered bool, repoSlug string) (*drift.DriftReport, error) {
 		links := deeplink.GenerateLinks("/repo", "TestVault", "docs/adr/001.md", 0)
 		return &drift.DriftReport{
-			RangeStr:     rangeStr,
-			TotalCommits: 3,
-			TotalChanged: 2,
-			OverallScore: 72.5,
+			RangeStr:      rangeStr,
+			TotalCommits:  3,
+			TotalChanged:  2,
+			OverallScore:  72.5,
 			CriticalCount: 1,
-			AnalyzedAt:   time.Now(),
+			AnalyzedAt:    time.Now(),
 			DriftedNotes: []drift.NoteDrift{
 				{
 					NoteID:        "docs/adr/001.md",

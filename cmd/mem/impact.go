@@ -154,4 +154,3 @@ func rearrangeImpactArgs(args []string) []string {
 	}
 	return append(flags, nonFlags...)
 }
-
