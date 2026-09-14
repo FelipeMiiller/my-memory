@@ -180,3 +180,36 @@ func TestLoadConfigJSON(t *testing.T) {
 		t.Errorf("esperava limit 5, obteve %d", loaded.Search.Limit)
 	}
 }
+
+func TestEditorConfig_DefaultsAndCustom(t *testing.T) {
+	// 1. Defaults
+	def := DefaultConfig()
+	if def.Editor.DefaultApp != "obsidian" {
+		t.Errorf("esperava DefaultApp 'obsidian', obteve '%s'", def.Editor.DefaultApp)
+	}
+	if def.ResolveDefaultApp() != "obsidian" {
+		t.Errorf("esperava ResolveDefaultApp 'obsidian', obteve '%s'", def.ResolveDefaultApp())
+	}
+	// Sem ObsidianVault e sem VaultName -> usa repoRoot
+	if def.ResolveObsidianVault("/path/to/my-repo") != "my-repo" {
+		t.Errorf("esperava 'my-repo', obteve '%s'", def.ResolveObsidianVault("/path/to/my-repo"))
+	}
+
+	// 2. Com VaultName
+	def.VaultName = "Central Vault"
+	if def.ResolveObsidianVault("/path/to/my-repo") != "Central Vault" {
+		t.Errorf("esperava 'Central Vault', obteve '%s'", def.ResolveObsidianVault("/path/to/my-repo"))
+	}
+
+	// 3. Com ObsidianVault explícito (tem precedência máxima)
+	def.Editor.ObsidianVault = "Custom Obsidian"
+	if def.ResolveObsidianVault("/path/to/my-repo") != "Custom Obsidian" {
+		t.Errorf("esperava 'Custom Obsidian', obteve '%s'", def.ResolveObsidianVault("/path/to/my-repo"))
+	}
+
+	// 4. Custom DefaultApp
+	def.Editor.DefaultApp = "vscode"
+	if def.ResolveDefaultApp() != "vscode" {
+		t.Errorf("esperava 'vscode', obteve '%s'", def.ResolveDefaultApp())
+	}
+}

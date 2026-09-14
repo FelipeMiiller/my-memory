@@ -46,6 +46,12 @@ type WatcherConfig struct {
 	IntervalMs int `yaml:"interval_ms,omitempty" json:"interval_ms,omitempty"` // Intervalo de polling em milissegundos (default: 1000)
 }
 
+// EditorConfig define as preferências de integração e navegação em editores externos
+type EditorConfig struct {
+	DefaultApp    string `yaml:"default_app,omitempty" json:"default_app,omitempty"`       // "obsidian", "vscode", "system" (default: "obsidian")
+	ObsidianVault string `yaml:"obsidian_vault,omitempty" json:"obsidian_vault,omitempty"` // Nome customizado do vault do Obsidian (opcional)
+}
+
 // Config estrutura raiz de configuração declarativa do vault / repositório
 type Config struct {
 	Version    int             `yaml:"version" json:"version"`
@@ -57,6 +63,7 @@ type Config struct {
 	Embedding  EmbeddingConfig `yaml:"embedding,omitempty" json:"embedding,omitempty"`
 	Search     SearchConfig    `yaml:"search,omitempty" json:"search,omitempty"`
 	Watcher    WatcherConfig   `yaml:"watcher,omitempty" json:"watcher,omitempty"`
+	Editor     EditorConfig    `yaml:"editor,omitempty" json:"editor,omitempty"`
 }
 
 // DefaultConfig retorna as configurações padrão do My-Memory
@@ -95,12 +102,38 @@ func DefaultConfig() Config {
 			Level:       "l1",
 			Category:    "",
 		},
-
 		Watcher: WatcherConfig{
 			DebounceMs: 500,
 			IntervalMs: 1000,
 		},
+		Editor: EditorConfig{
+			DefaultApp: "obsidian",
+		},
 	}
+}
+
+// ResolveObsidianVault determina o nome do vault do Obsidian a ser usado em deep links
+func (c *Config) ResolveObsidianVault(repoRoot string) string {
+	if c != nil {
+		if strings.TrimSpace(c.Editor.ObsidianVault) != "" {
+			return strings.TrimSpace(c.Editor.ObsidianVault)
+		}
+		if strings.TrimSpace(c.VaultName) != "" {
+			return strings.TrimSpace(c.VaultName)
+		}
+	}
+	if repoRoot != "" {
+		return filepath.Base(repoRoot)
+	}
+	return ""
+}
+
+// ResolveDefaultApp determina o aplicativo padrão configurado ("obsidian", "vscode", "system")
+func (c *Config) ResolveDefaultApp() string {
+	if c != nil && strings.TrimSpace(c.Editor.DefaultApp) != "" {
+		return strings.ToLower(strings.TrimSpace(c.Editor.DefaultApp))
+	}
+	return "obsidian"
 }
 
 // CandidateConfigFileNames lista em ordem de prioridade os arquivos de configuração procurados
