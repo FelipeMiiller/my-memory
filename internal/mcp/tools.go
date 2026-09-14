@@ -516,6 +516,32 @@ var (
 			"required": []string{"node_id"},
 		},
 	}
+
+	ToolMemoryGetDrift = Tool{
+		Name:        "memory_get_drift",
+		Description: "Analisa o desvio semântico entre alterações recentes de código-fonte no Git e as notas/ADRs da base de memória, identificando documentação defasada e código órfão sem decisões arquiteturais vinculadas",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"since": map[string]any{
+					"type":        "string",
+					"description": "Faixa de commits do Git para análise (ex: 'HEAD~5..HEAD', 'commit..HEAD' ou 'HEAD~10'). Se omitido, analisa os últimos 5 commits.",
+				},
+				"threshold": map[string]any{
+					"type":        "number",
+					"description": "Limite mínimo de score de drift normalizado (0.0 a 1.0) para incluir notas no relatório (padrão: 0.20)",
+				},
+				"include_uncovered": map[string]any{
+					"type":        "boolean",
+					"description": "Indica se deve incluir arquivos de código modificados que não possuem notas associadas (padrão: true)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório para contextualizar a análise (opcional)",
+				},
+			},
+		},
+	}
 )
 
 

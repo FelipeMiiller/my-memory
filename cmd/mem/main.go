@@ -22,6 +22,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/deeplink"
+	"github.com/FelipeMiiller/my-memory/internal/drift"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/graphview"
@@ -2056,6 +2057,12 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return pgStore.ResolveNodeCanonicalID(ctx, repo, nodeID)
 		}, cwd, mcpCfg.ResolveObsidianVault(cwd), deeplink.DefaultLauncher)
+
+		srv.SetDriftHandler(func(ctx context.Context, rangeStr string, threshold float64, includeUncovered bool, repoSlug string) (*drift.DriftReport, error) {
+			repoRoot, _ := os.Getwd()
+			vaultName := mcpCfg.ResolveObsidianVault(repoRoot)
+			return drift.AnalyzeDrift(ctx, drift.NewOSGitRunner(), pgStore.DB(), repoRoot, vaultName, rangeStr, threshold, includeUncovered)
+		})
 	} else if database != nil {
 
 		if tq == nil {
@@ -2259,6 +2266,12 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 		srv.SetOpenHandler(func(ctx context.Context, repo, nodeID string) (string, error) {
 			return db.ResolveNodeCanonicalID(ctx, database, nodeID)
 		}, cwd, mcpCfg.ResolveObsidianVault(cwd), deeplink.DefaultLauncher)
+
+		srv.SetDriftHandler(func(ctx context.Context, rangeStr string, threshold float64, includeUncovered bool, repoSlug string) (*drift.DriftReport, error) {
+			repoRoot, _ := os.Getwd()
+			vaultName := mcpCfg.ResolveObsidianVault(repoRoot)
+			return drift.AnalyzeDrift(ctx, drift.NewOSGitRunner(), database, repoRoot, vaultName, rangeStr, threshold, includeUncovered)
+		})
 	}
 
 	if httpAddr != "" {
