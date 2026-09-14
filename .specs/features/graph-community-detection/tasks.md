@@ -55,10 +55,10 @@ T1 -> T2 -> T3 -> T4
 **Tests**: internal/graphview/community_test.go
 **Gate**: go test -v ./internal/graph/... ./internal/graphview/...
 **Done when**:
-- [ ] Adicionar CommunityID e CommunityLabel na struct Node em internal/graphview/model.go
-- [ ] Implementar função de identificação de nó líder por PageRank e tipo de nota dominante por comunidade
-- [ ] Enriquecer BuildGraphView para associar cores categóricas de comunidade quando ativado
-- [ ] Adicionar testes em internal/graphview/community_test.go
+- [x] Adicionar CommunityID e CommunityLabel na struct Node em internal/graphview/model.go
+- [x] Implementar função de identificação de nó líder por PageRank e tipo de nota dominante por comunidade
+- [x] Enriquecer BuildGraphView para associar cores categóricas de comunidade quando ativado
+- [x] Adicionar testes em internal/graphview/community_test.go
 
 ### T3: Subcomando CLI mem clusters
 **What**: Implementar subcomando mem clusters com formatação tabular e suporte a --min-size e --json

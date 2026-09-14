@@ -117,6 +117,25 @@ func BuildGraphView(docs []RawDoc, edges []RawEdge, rootNode string, maxDepth in
 		maxPR = 1.0
 	}
 
+	// Detectar comunidades temáticas e clusters sobre o grafo ativo
+	nodeTypes := make(map[string]string, len(activeNodes))
+	for id := range activeNodes {
+		nodeTypes[id] = InferNoteType(id)
+	}
+
+	commResult := graph.DetectCommunities(nodeList, weightedEdges, graph.CommunityOptions{
+		MaxIterations:  graph.DefaultCommunityMaxIter,
+		MinClusterSize: 1,
+		NodeTypes:      nodeTypes,
+	})
+
+	nodeToCommunity := make(map[string]graph.Community, len(activeNodes))
+	for _, c := range commResult.Communities {
+		for _, m := range c.Members {
+			nodeToCommunity[m] = c
+		}
+	}
+
 	// Montar nós e calcular métricas
 	nodes := make([]Node, 0, len(activeNodes))
 	maxDegree := 0
@@ -154,17 +173,30 @@ func BuildGraphView(docs []RawDoc, edges []RawEdge, rootNode string, maxDepth in
 			hubCount++
 		}
 
+		comm, hasComm := nodeToCommunity[id]
+		commID := 0
+		commLabel := ""
+		commColor := "#64748b"
+		if hasComm {
+			commID = comm.ID
+			commLabel = comm.Label
+			commColor = GetColorForCommunity(comm.ID)
+		}
+
 		nodes = append(nodes, Node{
-			ID:        id,
-			Title:     title,
-			Type:      noteType,
-			PageRank:  pr,
-			InDegree:  in,
-			OutDegree: out,
-			Radius:    math.Round(radius*10) / 10,
-			Color:     color,
-			IsRoot:    isRoot,
-			IsHub:     isHub,
+			ID:             id,
+			Title:          title,
+			Type:           noteType,
+			PageRank:       pr,
+			InDegree:       in,
+			OutDegree:      out,
+			Radius:         math.Round(radius*10) / 10,
+			Color:          color,
+			IsRoot:         isRoot,
+			IsHub:          isHub,
+			CommunityID:    commID,
+			CommunityLabel: commLabel,
+			CommunityColor: commColor,
 		})
 	}
 
@@ -210,15 +242,18 @@ func BuildGraphView(docs []RawDoc, edges []RawEdge, rootNode string, maxDepth in
 		MaxDepth:    maxDepth,
 		GeneratedAt: time.Now().UTC(),
 		Stats: GraphStats{
-			TotalNodes: len(nodes),
-			TotalEdges: len(edgesFinal),
-			MaxDegree:  maxDegree,
-			AvgDegree:  math.Round(avgDeg*100) / 100,
-			Density:    math.Round(density*1000) / 1000,
-			HubCount:   hubCount,
+			TotalNodes:     len(nodes),
+			TotalEdges:     len(edgesFinal),
+			MaxDegree:      maxDegree,
+			AvgDegree:      math.Round(avgDeg*100) / 100,
+			Density:        math.Round(density*1000) / 1000,
+			HubCount:       hubCount,
+			CommunityCount: len(commResult.Communities),
+			Modularity:     math.Round(commResult.Modularity*1000) / 1000,
 		},
-		Nodes: nodes,
-		Edges: edgesFinal,
+		Nodes:       nodes,
+		Edges:       edgesFinal,
+		Communities: commResult.Communities,
 	}
 }
 
@@ -325,4 +360,44 @@ func BuildFromPostgres(ctx context.Context, pgStore *store.PostgresStore, reposi
 	}
 
 	return BuildGraphView(docs, edges, rootNode, maxDepth, repository), nil
+}
+
+// FindCommunityLeader identifica o nó com maior centralidade/PageRank dentro da comunidade
+func FindCommunityLeader(members []string, prScores map[string]float64) string {
+	if len(members) == 0 {
+		return ""
+	}
+	lead := members[0]
+	maxPR := prScores[lead]
+	for _, m := range members[1:] {
+		pr := prScores[m]
+		if pr > maxPR || (pr == maxPR && m < lead) {
+			maxPR = pr
+			lead = m
+		}
+	}
+	return lead
+}
+
+// FindDominantType identifica o tipo de nota mais frequente dentro do grupo de membros
+func FindDominantType(members []string, nodeTypes map[string]string) string {
+	if len(members) == 0 || len(nodeTypes) == 0 {
+		return ""
+	}
+	counts := make(map[string]int)
+	for _, m := range members {
+		t := nodeTypes[m]
+		if t != "" {
+			counts[t]++
+		}
+	}
+	maxCount := 0
+	dominant := ""
+	for t, count := range counts {
+		if count > maxCount || (count == maxCount && (dominant == "" || t < dominant)) {
+			maxCount = count
+			dominant = t
+		}
+	}
+	return dominant
 }
