@@ -19,14 +19,16 @@
 - **AD-021**: Servidor MCP com Transporte HTTP e Server-Sent Events (SSE) (`docs/adr/021-servidor-mcp-com-transporte-http-sse.md`)
 - **AD-022**: Detecção de Comunidades e Clusters no Grafo de Conhecimento (`docs/adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md`)
 - **AD-023**: Análise de Impacto e Raio de Destruição (Blast Radius Analysis) (`docs/adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md`)
+- **AD-024**: Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector) (`docs/adr/024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md`)
 
 ## Handoff
 
-- **Feature**: blast-radius-impact-analysis (.specs/features/blast-radius-impact-analysis)
+- **Feature**: triptych-node-inspector (.specs/features/triptych-node-inspector)
 - **Phase / Task**: Phase 1 / T4 (Completed)
-- **Completed**: T1 (Cálculo de Impacto e RiskScore), T2 (Resolução Canônica e Inbound Traversal DB), T3 (Subcomando mem impact), T4 (Ferramenta MCP memory_get_impact e ADR-023)
+- **Completed**: T1 (Motor de Montagem do Tríptico e Truncamento UTF-8), T2 (Resolução Canônica com Normalização de Barras e InspectNode em SQLite/PostgreSQL), T3 (Subcomando mem inspect com --json e rearranjo de flags), T4 (Ferramenta MCP memory_inspect_node, Visualizador HTML/SVG 3-colunas e ADR-024)
 - **In-progress**: none
-- **Next step**: Pronto para push/Pull Request para main ou seleção da próxima feature
+- **Next step**: Validação de regressão, git push e Pull Request para main (ou release v1.3.0)
 - **Blockers**: none
 - **Branch**: develop
+
 
