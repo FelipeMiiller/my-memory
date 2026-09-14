@@ -618,6 +618,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "inspect":
+		if err := runInspectCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		if err := runVersionCLI(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -650,6 +656,8 @@ func printHelp() {
 	fmt.Println("      Detecta clusters e módulos conceituais no grafo via LPA ponderado e Modularidade Newman-Girvan Q")
 	fmt.Println("  mem impact <nota_ou_id> [--depth 2] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Analisa o raio de destruição (Blast Radius) e dependentes reversos com score de risco")
+	fmt.Println("  mem inspect <nota_ou_id> [--json] [--full] [--max-len 500] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Visualização cirúrgica em 3 colunas (in-links, nó central e out-links) com risco e preview")
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
 	fmt.Println("  mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open] [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -1580,6 +1588,13 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return pgStore.CalculateImpact(ctx, repo, nodeID, maxDepth)
 		})
+
+		srv.SetInspectHandler(func(ctx context.Context, repo, nodeID string, maxContentLen int) (*graph.TriptychView, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.InspectNode(ctx, repo, nodeID, maxContentLen)
+		})
 	} else if database != nil {
 		tq := turboquant.NewQuantizer(EmbeddingDim)
 		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -1752,6 +1767,10 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 
 		srv.SetImpactHandler(func(ctx context.Context, repo, nodeID string, maxDepth int) (*graph.ImpactResult, error) {
 			return db.CalculateImpactForTarget(ctx, database, nodeID, maxDepth)
+		})
+
+		srv.SetInspectHandler(func(ctx context.Context, repo, nodeID string, maxContentLen int) (*graph.TriptychView, error) {
+			return db.InspectNode(ctx, database, nodeID, maxContentLen)
 		})
 	}
 
