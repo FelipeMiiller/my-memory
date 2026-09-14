@@ -143,6 +143,9 @@ type Store interface {
 	// CalculateImpact calcula o fechamento de dependências reversas e score de risco (blast radius)
 	CalculateImpact(ctx context.Context, repo string, targetQuery string, maxDepth int) (*graph.ImpactResult, error)
 
+	// InspectNode constrói a visualização cirúrgica em 3 colunas (Triptych) de um nó
+	InspectNode(ctx context.Context, repo string, targetQuery string, maxContentLen int) (*graph.TriptychView, error)
+
 	// FixHealthIssues repara problemas comuns como self-loops e links mortos
 	FixHealthIssues(ctx context.Context, repo string) (int, error)
 

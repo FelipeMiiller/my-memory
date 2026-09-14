@@ -120,3 +120,69 @@ func TestCalculateImpactForTarget(t *testing.T) {
 		t.Errorf("RiskScore inválido: %f", res.RiskScore)
 	}
 }
+
+func TestInspectNode(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_inspect.db")
+	database, err := InitDB(dbPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("Pulando teste: ambiente sem FTS5")
+		}
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	// Inserir nós e documentos
+	_ = InsertDocument(ctx, database, "target-doc", "docs/target.md", "Target Architectural Spec", now, "hash-t")
+	_ = InsertChunk(ctx, database, "chunk-1", "target-doc", "Este é o conteúdo principal da especificação de arquitetura.", 0, nil)
+
+	_ = InsertDocument(ctx, database, "caller-svc", "services/caller.md", "Caller Service", now, "hash-c")
+	_ = InsertDocument(ctx, database, "callee-dep", "deps/callee.md", "Callee Dependency", now, "hash-d")
+
+	// Arestas: caller-svc -> target-doc -> callee-dep
+	_ = InsertEdgeWithProps(ctx, database, "caller-svc", "target-doc", "implements", "EXTRACTED", 1.0)
+	_ = InsertEdgeWithProps(ctx, database, "target-doc", "callee-dep", "depends_on", "EXTRACTED", 1.0)
+	// Tag
+	_ = InsertEdgeWithProps(ctx, database, "target-doc", "#architecture", "tagged_as", "EXTRACTED", 0.5)
+
+	view, err := InspectNode(ctx, database, "Target Architectural Spec", 100)
+	if err != nil {
+		t.Fatalf("InspectNode falhou: %v", err)
+	}
+
+	if view.Target.ID != "target-doc" {
+		t.Errorf("esperava Target.ID = 'target-doc', obteve '%s'", view.Target.ID)
+	}
+	if view.Target.Title != "Target Architectural Spec" {
+		t.Errorf("esperava Target.Title = 'Target Architectural Spec', obteve '%s'", view.Target.Title)
+	}
+	if !strings.Contains(view.Target.ContentPreview, "conteúdo principal") {
+		t.Errorf("esperava preview com conteúdo, obteve: %s", view.Target.ContentPreview)
+	}
+	if view.TotalInbound != 1 {
+		t.Errorf("esperava 1 inbound link, obteve %d", view.TotalInbound)
+	}
+	if view.Inbound[0].SourceID != "caller-svc" || view.Inbound[0].Severity != graph.SeverityCritical {
+		t.Errorf("esperava inbound caller-svc com severidade CRITICAL, obteve %+v", view.Inbound[0])
+	}
+	// TotalOutbound inclui callee-dep e a tag #architecture
+	if view.TotalOutbound < 1 {
+		t.Errorf("esperava pelo menos 1 outbound link, obteve %d", view.TotalOutbound)
+	}
+	var foundCallee bool
+	for _, out := range view.Outbound {
+		if out.TargetID == "callee-dep" {
+			foundCallee = true
+			if !out.Exists {
+				t.Errorf("esperava callee-dep como existente")
+			}
+		}
+	}
+	if !foundCallee {
+		t.Errorf("esperava encontrar callee-dep nos outbounds")
+	}
+}
+

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
@@ -352,13 +353,16 @@ func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (stri
 		return "", fmt.Errorf("identificador de busca não pode ser vazio")
 	}
 
-	// 1. Checagem exata em documents por id ou path
+	cleanSlash := strings.ReplaceAll(clean, "\\", "/")
+	cleanBack := strings.ReplaceAll(clean, "/", "\\")
+
+	// 1. Checagem exata em documents por id ou path (suportando / e \)
 	var canonicalID string
 	err := db.QueryRowContext(ctx, `
 		SELECT id FROM documents 
-		WHERE id = ? OR path = ? OR path = ?
+		WHERE id = ? OR path = ? OR path = ? OR path = ? OR path = ?
 		LIMIT 1
-	`, clean, clean, clean+".md").Scan(&canonicalID)
+	`, clean, cleanSlash, cleanBack, cleanSlash+".md", cleanBack+".md").Scan(&canonicalID)
 	if err == nil && canonicalID != "" {
 		return canonicalID, nil
 	}
@@ -366,9 +370,9 @@ func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (stri
 	// 2. Checagem em graph_nodes por id ou name
 	err = db.QueryRowContext(ctx, `
 		SELECT id FROM graph_nodes 
-		WHERE id = ? OR name = ?
+		WHERE id = ? OR name = ? OR id = ? OR name = ?
 		LIMIT 1
-	`, clean, clean).Scan(&canonicalID)
+	`, clean, clean, cleanSlash, cleanBack).Scan(&canonicalID)
 	if err == nil && canonicalID != "" {
 		return canonicalID, nil
 	}
@@ -384,29 +388,30 @@ func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (stri
 	}
 
 	// 4. Checagem difusa (LIKE) em id, path ou title
-	likeQuery := "%" + clean + "%"
+	likeSlash := "%" + cleanSlash + "%"
+	likeBack := "%" + cleanBack + "%"
 	err = db.QueryRowContext(ctx, `
 		SELECT id FROM documents 
-		WHERE id LIKE ? OR path LIKE ? OR title LIKE ?
+		WHERE id LIKE ? OR path LIKE ? OR path LIKE ? OR title LIKE ?
 		ORDER BY 
 			CASE 
 				WHEN id LIKE ? THEN 1
-				WHEN path LIKE ? THEN 2
+				WHEN path LIKE ? OR path LIKE ? THEN 2
 				ELSE 3
 			END
 		LIMIT 1
-	`, likeQuery, likeQuery, likeQuery, clean+"%", "%"+clean).Scan(&canonicalID)
+	`, likeSlash, likeSlash, likeBack, "%"+clean+"%", clean+"%", cleanSlash+"%", cleanBack+"%").Scan(&canonicalID)
 	if err == nil && canonicalID != "" {
 		return canonicalID, nil
 	}
 
 	// 5. Se existe nas arestas do grafo como source ou target direto
 	err = db.QueryRowContext(ctx, `
-		SELECT target_id FROM graph_edges WHERE target_id = ?
+		SELECT target_id FROM graph_edges WHERE target_id = ? OR target_id = ? OR target_id = ?
 		UNION
-		SELECT source_id FROM graph_edges WHERE source_id = ?
+		SELECT source_id FROM graph_edges WHERE source_id = ? OR source_id = ? OR source_id = ?
 		LIMIT 1
-	`, clean, clean).Scan(&canonicalID)
+	`, clean, cleanSlash, cleanBack, clean, cleanSlash, cleanBack).Scan(&canonicalID)
 	if err == nil && canonicalID != "" {
 		return canonicalID, nil
 	}
@@ -498,3 +503,174 @@ func CalculateImpactForTarget(ctx context.Context, db *sql.DB, targetQuery strin
 
 	return graph.CalculateImpact(allNodes, edges, canonicalID, opts)
 }
+
+// InspectNode constrói a visualização cirúrgica em 3 colunas (Triptych) de um nó no banco SQLite
+func InspectNode(ctx context.Context, db *sql.DB, targetQuery string, maxContentLen int) (*graph.TriptychView, error) {
+	canonicalID, err := ResolveNodeCanonicalID(ctx, db, targetQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. Carregar metadados do documento alvo
+	var targetTitle, targetPath string
+	var targetUpdatedAt int64
+	_ = db.QueryRowContext(ctx, "SELECT COALESCE(title, ''), COALESCE(path, ''), COALESCE(updated_at, 0) FROM documents WHERE id = ?", canonicalID).Scan(&targetTitle, &targetPath, &targetUpdatedAt)
+
+	var targetType string
+	_ = db.QueryRowContext(ctx, "SELECT COALESCE(type, 'note') FROM graph_nodes WHERE id = ?", canonicalID).Scan(&targetType)
+	if targetType == "" {
+		targetType = "note"
+	}
+	if targetTitle == "" {
+		targetTitle = canonicalID
+	}
+
+	// 2. Carregar preview do conteúdo do nó alvo
+	var contentBuilder strings.Builder
+	chunkRows, err := db.QueryContext(ctx, "SELECT content FROM chunks WHERE document_id = ? ORDER BY chunk_index ASC", canonicalID)
+	if err == nil {
+		defer chunkRows.Close()
+		for chunkRows.Next() {
+			var chunkContent string
+			if err := chunkRows.Scan(&chunkContent); err == nil {
+				if contentBuilder.Len() > 0 {
+					contentBuilder.WriteString("\n\n")
+				}
+				contentBuilder.WriteString(chunkContent)
+				if maxContentLen > 0 && contentBuilder.Len() > maxContentLen*3 {
+					break
+				}
+			}
+		}
+	}
+
+	// 3. Tags associadas ao nó
+	var tags []string
+	tagRows, err := db.QueryContext(ctx, "SELECT target_id FROM graph_edges WHERE source_id = ? AND (relation = 'tagged_as' OR target_id LIKE '#%')", canonicalID)
+	if err == nil {
+		defer tagRows.Close()
+		for tagRows.Next() {
+			var t string
+			if err := tagRows.Scan(&t); err == nil {
+				tags = append(tags, t)
+			}
+		}
+	}
+
+	// 4. Carregar todos os nós, tipos, títulos e status de existência
+	nodeTypes := make(map[string]string)
+	titles := make(map[string]string)
+	existingNodes := make(map[string]bool)
+	nodesSet := make(map[string]bool)
+
+	docRows, err := db.QueryContext(ctx, "SELECT id, COALESCE(title, id) FROM documents")
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id, t string
+			if err := docRows.Scan(&id, &t); err == nil {
+				nodesSet[id] = true
+				existingNodes[id] = true
+				titles[id] = t
+				nodeTypes[id] = "note"
+			}
+		}
+	}
+
+	gnRows, err := db.QueryContext(ctx, "SELECT id, COALESCE(name, id), COALESCE(type, 'other') FROM graph_nodes")
+	if err == nil {
+		defer gnRows.Close()
+		for gnRows.Next() {
+			var id, n, t string
+			if err := gnRows.Scan(&id, &n, &t); err == nil {
+				nodesSet[id] = true
+				existingNodes[id] = true
+				if titles[id] == "" || titles[id] == id {
+					titles[id] = n
+				}
+				nodeTypes[id] = t
+			}
+		}
+	}
+
+	// 5. Carregar todas as arestas
+	edgeRows, err := db.QueryContext(ctx, "SELECT source_id, target_id, COALESCE(relation, 'links_to'), COALESCE(weight, 1.0) FROM graph_edges")
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para inspeção: %w", err)
+	}
+	defer edgeRows.Close()
+
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, rel string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &rel, &weight); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		edges = append(edges, graph.WeightedEdge{
+			Source: src,
+			Target: tgt,
+			Type:   rel,
+			Weight: weight,
+		})
+	}
+
+	allNodes := make([]string, 0, len(nodesSet))
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+
+	// 6. Calcular PageRank e Comunidades
+	prScores := graph.ComputePageRank(allNodes, edges, graph.DefaultPageRankOptions())
+	commRes := graph.DetectCommunities(allNodes, edges, graph.DefaultCommunityOptions())
+	commMap := make(map[string]int)
+	commLabels := make(map[int]string)
+	for _, c := range commRes.Communities {
+		commLabels[c.ID] = c.DominantType
+		for _, m := range c.Members {
+			commMap[m] = c.ID
+		}
+	}
+
+	// 7. Calcular Impacto / Risco para o alvo
+	impactRes, _ := graph.CalculateImpact(allNodes, edges, canonicalID, graph.ImpactOptions{
+		MaxDepth:    2,
+		NodeTypes:   nodeTypes,
+		Communities: commMap,
+		PageRanks:   prScores,
+	})
+
+	var updatedTime time.Time
+	if targetUpdatedAt > 0 {
+		updatedTime = time.Unix(targetUpdatedAt, 0)
+	}
+
+	targetSummary := graph.NodeSummary{
+		ID:             canonicalID,
+		Title:          targetTitle,
+		Path:           targetPath,
+		Type:           targetType,
+		Tags:           tags,
+		PageRank:       prScores[canonicalID],
+		CommunityID:    commMap[canonicalID],
+		CommunityLabel: commLabels[commMap[canonicalID]],
+		ContentPreview: contentBuilder.String(),
+		UpdatedAt:      updatedTime,
+	}
+
+	opts := graph.InspectorOptions{
+		MaxContentLength: maxContentLen,
+		PageRanks:        prScores,
+		Communities:      commMap,
+		CommunityLabels:  commLabels,
+		NodeTypes:        nodeTypes,
+		Titles:           titles,
+		ExistingNodes:    existingNodes,
+		RiskResult:       impactRes,
+	}
+
+	return graph.BuildTriptychView(targetSummary, edges, opts)
+}
+
