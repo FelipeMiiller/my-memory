@@ -634,6 +634,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "install", "setup":
+		if err := runInstallCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		if err := runVersionCLI(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -683,6 +689,8 @@ func printHelp() {
 	fmt.Println("      Compila e sintetiza fragmentos de busca em uma nota atômica com backlinks (Compile-not-Retrieve)")
 	fmt.Println("  mem mcp [--port <porta>] [--host <ip>] [--http <addr>] [--cors] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Inicia servidor Model Context Protocol via stdio (padrão) ou via HTTP/SSE na porta indicada")
+	fmt.Println("  mem install [--target <ferramenta>] [--dry-run] [--workspace] [--global] [--force]")
+	fmt.Println("      Auto-wiring zero-touch: registra o servidor MCP em Claude Desktop, Cursor, VS Code e Windsurf (alias: mem setup)")
 	fmt.Println("  mem version [--json]")
 	fmt.Println("      Exibe metadados de versão, commit, data de compilação e arquitetura (ou via -v, --version)")
 	fmt.Println()

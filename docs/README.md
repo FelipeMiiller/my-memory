@@ -48,6 +48,7 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-023`](adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md)** — Análise de Impacto e Raio de Destruição (Blast Radius Analysis)
 * **[`ADR-024`](adr/024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md)** — Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector)
 * **[`ADR-025`](adr/025-progressive-context-loading-e-taxonomia-de-memoria.md)** — Carregamento Progressivo de Contexto e Taxonomia de Memória
+* **[`ADR-026`](adr/026-auto-wiring-e-instalacao-zero-touch-de-ferramentas-de-ia.md)** — Auto-Wiring e Instalação Zero-Touch de Ferramentas de IA (`mem install` / `mem setup`)
 
 
 ---

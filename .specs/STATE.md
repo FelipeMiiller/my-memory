@@ -21,15 +21,16 @@
 - **AD-023**: Análise de Impacto e Raio de Destruição (Blast Radius Analysis) (`docs/adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md`)
 - **AD-024**: Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector) (`docs/adr/024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md`)
 - **AD-025**: Carregamento Progressivo de Contexto e Taxonomia de Memória (`docs/adr/025-progressive-context-loading-e-taxonomia-de-memoria.md`)
+- **AD-026**: Auto-Wiring e Instalação Zero-Touch de Ferramentas de IA (`docs/adr/026-auto-wiring-e-instalacao-zero-touch-de-ferramentas-de-ia.md`)
 
 ## Handoff
 
-- **Feature**: progressive-context-loading (.specs/features/progressive-context-loading)
-- **Phase / Task**: Feature 100% Concluída e Validada (T1, T2, T3, T4, T5)
-- **Planned**: Todas as tarefas (T1 a T5) executadas e validadas.
-- **Completed Features**: progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: Nenhuma
-- **Next step**: Atualizar walkthrough.md, compilar bin/mem.exe e efetuar o commit da T5
+- **Feature**: ai-tool-auto-wiring (.specs/features/ai-tool-auto-wiring)
+- **Phase / Task**: Concluído (T1 a T4 finalizadas)
+- **Planned**: Todas as tarefas (T1, T2, T3, T4) concluídas e validadas com 100% de cobertura nos 15 pacotes Go
+- **Completed Features**: ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: nenhuma
+- **Next step**: Consultar próxima tarefa do backlog ou abrir PR para integração
 - **Blockers**: none
 - **Branch**: develop
 

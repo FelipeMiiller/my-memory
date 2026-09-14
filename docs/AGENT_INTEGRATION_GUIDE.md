@@ -194,6 +194,7 @@ embedding:
 | `mem compile` | Síntese de fragmentos recuperados em uma nota consolidada (*Compile-not-Retrieve*). | `mem compile --topic "autenticação" --out auth.md` |
 | `mem watch` | Monitora continuamente o sistema de arquivos e reindexa notas em tempo real. | `mem watch --debounce 500` |
 | `mem hook install` | Instala Git pre-commit hook para indexação automática prévia ao commit. | `mem hook install` |
+| `mem install` | Auto-wiring zero-touch de clientes MCP (Claude Desktop, Cursor, VS Code, Windsurf). | `mem install` *(ou `mem setup`)* |
 | `mem mcp` | Inicia o servidor MCP via stdio (para IDEs) ou HTTP/SSE. | `mem mcp --port 38400` |
 
 ---

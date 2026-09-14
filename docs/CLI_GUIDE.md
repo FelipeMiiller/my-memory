@@ -363,6 +363,59 @@ Analisa preventivamente o **raio de destruição (*blast radius*)** e o fechamen
 
 ---
 
+### 18. `mem inspect <node_id> [--full] [--json] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Inspeciona cirurgicamente qualquer nó da base de conhecimento e do grafo no padrão **Tríptico Cirúrgico em 3 Colunas** (*Zero File Reads*):
+* **Coluna 1 (Conexões de Entrada):** Precedentes estruturais, dependentes reversos e callers diretos (`[[wikilinks]]` e referências que apontam para este nó).
+* **Coluna 2 (Foco Central):** Metadados primários, autoridade topológica (**PageRank** normalizado), cluster temático (ADR-022) e corpo textual (resumo cirúrgico ou `--full` para conteúdo integral).
+* **Coluna 3 (Conexões de Saída):** Relações downstream, contratos de dependência e links epistêmicos derivados.
+* `--full`: Exibe o corpo completo do documento sem truncamento.
+* `--json`: Emite o tríptico em formato JSON estruturado para consumo de agentes autônomos.
+
+**Exemplos:**
+```bash
+# Inspecionar nó por caminho relativo ou título:
+./bin/mem.exe inspect "concepts/auth.md"
+
+# Inspecionar nó com corpo textual completo:
+./bin/mem.exe inspect "internal/graph/impact.go" --full
+
+# Exportar tríptico em formato JSON:
+./bin/mem.exe inspect "decisions/adr-001.md" --json
+```
+
+---
+
+### 19. `mem install` ou `mem setup` `[--target <cliente>] [--dry-run] [--workspace] [--global] [--force] [--db <caminho>] [--repo <slug>]`
+Configuração e **Auto-Wiring Zero-Touch** das ferramentas de IA e clientes MCP suportados (**Claude Desktop**, **Cursor IDE**, **VS Code / GitHub Copilot**, **Windsurf**):
+* **Detecção Automática:** Escaneia o sistema operacional (Windows, macOS, Linux) e o diretório de trabalho atual identificando clientes instalados e arquivos de configuração existentes.
+* **Injeção Não-Destrutiva:** Preserva integralmente outros servidores MCP já configurados sob a chave `mcpServers` e gera backups automáticos com extensão `.bak` antes de qualquer alteração.
+* **Auto-Scoping de Vault:** Detecta `.memory/config.yaml` no diretório atual e auto-injeta os argumentos `--db` e `--repo` correspondentes.
+* `--dry-run`: Simula a detecção e exibe os fragmentos JSON de payload sem modificar arquivos em disco.
+* `--target <cliente>`: Restringe a instalação a um cliente específico (`claude-desktop`, `cursor`, `vscode`, `windsurf` ou `all`).
+* `--workspace`: Limita a configuração exclusivamente ao escopo de workspace local (`.cursor/mcp.json`, `.vscode/mcp.json`, etc.).
+* `--global`: Limita a configuração aos diretórios globais do usuário/sistema.
+* `--force`: Permite sobrescrever configurações existentes sem confirmação interativa.
+
+**Exemplos:**
+```bash
+# Auto-detectar todas as ferramentas instaladas e configurar automaticamente:
+./bin/mem.exe install
+
+# Simular a configuração sem modificar o disco:
+./bin/mem.exe install --dry-run
+
+# Configurar exclusivamente o Cursor IDE:
+./bin/mem.exe install --target cursor
+
+# Configurar apenas o workspace atual:
+./bin/mem.exe install --workspace
+
+# Alias idêntico de setup:
+./bin/mem.exe setup --dry-run
+```
+
+---
+
 ## ⚙️ Configuração Declarativa do Vault (`.memory/config.yaml`)
 
 O My-Memory suporta configuração declarativa por projeto ou vault de notas. Ao executar qualquer comando, o binário procura recursivamente de baixo para cima por `.memory/config.yaml`, `.mem.yaml` ou `.mem.json`.
