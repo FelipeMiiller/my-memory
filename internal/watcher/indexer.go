@@ -75,23 +75,27 @@ func IndexSingleFileSQLite(
 		_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 	}
 
-	// 4. Divide em chunks e gera embeddings (se emb configurado)
+	// 4. Divide em chunks e indexa no FTS e vetorial (com fallback para FTS se offline)
 	chunks := parser.ChunkText(content, 200, 30)
-	if emb != nil {
-		for i, c := range chunks {
-			chunkID := fmt.Sprintf("%s#%d", docID, i)
-			vec, err := emb.GenerateEmbedding(c)
-			if err != nil {
-				continue
+	for i, c := range chunks {
+		chunkID := fmt.Sprintf("%s#%d", docID, i)
+		var vec []float32
+		if emb != nil {
+			v, err := emb.GenerateEmbedding(c)
+			if err == nil {
+				vec = v
 			}
+		}
+		if vec == nil {
+			vec = make([]float32, 768)
+		}
 
-			_ = db.InsertChunk(ctx, database, chunkID, docID, c, i, vec)
+		_ = db.InsertChunk(ctx, database, chunkID, docID, c, i, vec)
 
-			if tq != nil {
-				cv, err := tq.Quantize(vec)
-				if err == nil {
-					_ = db.InsertTurboQuantChunk(ctx, database, chunkID, cv.Scale, cv.Data)
-				}
+		if tq != nil {
+			cv, err := tq.Quantize(vec)
+			if err == nil {
+				_ = db.InsertTurboQuantChunk(ctx, database, chunkID, cv.Scale, cv.Data)
 			}
 		}
 	}
@@ -169,16 +173,20 @@ func IndexSingleFilePostgres(
 	}
 
 	chunks := parser.ChunkText(content, 200, 30)
-	if emb != nil {
-		for i, c := range chunks {
-			chunkID := fmt.Sprintf("%s#%d", docID, i)
-			vec, err := emb.GenerateEmbedding(c)
-			if err != nil {
-				continue
+	for i, c := range chunks {
+		chunkID := fmt.Sprintf("%s#%d", docID, i)
+		var vec []float32
+		if emb != nil {
+			v, err := emb.GenerateEmbedding(c)
+			if err == nil {
+				vec = v
 			}
-
-			_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)
 		}
+		if vec == nil {
+			vec = make([]float32, 768)
+		}
+
+		_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)
 	}
 
 	return &IndexResult{

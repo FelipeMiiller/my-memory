@@ -1059,14 +1059,21 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 			_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 		}
 
-		// 3. Divide em chunks e gera embeddings
+		// 3. Divide em chunks e gera embeddings (com fallback FTS se offline)
 		chunks := parser.ChunkText(content, 200, 30)
 		for i, c := range chunks {
 			chunkID := fmt.Sprintf("%s#%d", docID, i)
-			vec, err := emb.GenerateEmbedding(c)
-			if err != nil {
-				fmt.Printf("Aviso: falha ao gerar embedding para %s (Ollama está rodando?)\n", chunkID)
-				continue
+			var vec []float32
+			if emb != nil {
+				v, err := emb.GenerateEmbedding(c)
+				if err == nil {
+					vec = v
+				} else if i == 0 {
+					fmt.Printf("Aviso: Ollama indisponível (%s); indexando em modo léxico FTS\n", chunkID)
+				}
+			}
+			if vec == nil {
+				vec = make([]float32, 768)
 			}
 
 			_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)
@@ -1174,14 +1181,21 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 			_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 		}
 
-		// 3. Divide em chunks e gera embeddings
+		// 3. Divide em chunks e gera embeddings (com fallback FTS se offline)
 		chunks := parser.ChunkText(content, 200, 30)
 		for i, c := range chunks {
 			chunkID := fmt.Sprintf("%s#%d", docID, i)
-			vec, err := emb.GenerateEmbedding(c)
-			if err != nil {
-				fmt.Printf("Aviso: falha ao gerar embedding para %s (Ollama está rodando?)\n", chunkID)
-				continue
+			var vec []float32
+			if emb != nil {
+				v, err := emb.GenerateEmbedding(c)
+				if err == nil {
+					vec = v
+				} else if i == 0 {
+					fmt.Printf("Aviso: Ollama indisponível (%s); indexando em modo léxico FTS\n", chunkID)
+				}
+			}
+			if vec == nil {
+				vec = make([]float32, 768)
 			}
 
 			// Inserção padrão (sqlite-vec + FTS5)
