@@ -23,6 +23,10 @@ type SearchResult struct {
 
 // SearchKNN busca os pedaços mais próximos usando sqlite-vec nativo
 func SearchKNN(ctx context.Context, db *sql.DB, queryVec []float32, limit int) ([]SearchResult, error) {
+	if !HasSqliteVec {
+		return nil, fmt.Errorf("sqlite-vec não está disponível nesta plataforma (use TurboQuant)")
+	}
+
 	vecBlob, err := serializeFloat32(queryVec)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao serializar vetor de busca: %w", err)

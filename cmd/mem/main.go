@@ -1206,7 +1206,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 
 func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions) {
 	vecSubmode := "sqlite-vec"
-	if useTurbo {
+	if useTurbo || !db.HasSqliteVec {
 		vecSubmode = "TurboQuant"
 	}
 	decayInfo := ""
@@ -1227,10 +1227,13 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 			fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", embErr)
 			return
 		}
-		if useTurbo {
+		if useTurbo || !db.HasSqliteVec {
 			results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
 		} else {
 			results, err = db.SearchKNN(ctx, database, queryVec, limit)
+			if err != nil {
+				results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+			}
 		}
 	default: // hybrid
 		var queryVec []float32
@@ -1488,7 +1491,14 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				if embErr != nil {
 					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
 				}
-				dbResults, err = db.SearchKNN(ctx, database, queryVec, limit)
+				if !db.HasSqliteVec {
+					dbResults, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+				} else {
+					dbResults, err = db.SearchKNN(ctx, database, queryVec, limit)
+					if err != nil {
+						dbResults, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+					}
+				}
 			default: // hybrid
 				var queryVec []float32
 				vec, embErr := emb.GenerateEmbedding(params.Query)

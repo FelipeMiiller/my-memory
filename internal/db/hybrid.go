@@ -75,10 +75,14 @@ func SearchHybridRRFWithDecay(ctx context.Context, database *sql.DB, q *turboqua
 	// 2. Busca Vetorial (sqlite-vec ou TurboQuant)
 	var vecResults []SearchResult
 	if len(queryVec) > 0 {
-		if useTurbo && q != nil {
+		if (useTurbo || !HasSqliteVec) && q != nil {
 			vecResults, _ = SearchTurboQuant(ctx, database, q, queryVec, candidateLimit)
 		} else {
-			vecResults, _ = SearchKNN(ctx, database, queryVec, candidateLimit)
+			var err error
+			vecResults, err = SearchKNN(ctx, database, queryVec, candidateLimit)
+			if (err != nil || len(vecResults) == 0) && q != nil {
+				vecResults, _ = SearchTurboQuant(ctx, database, q, queryVec, candidateLimit)
+			}
 		}
 	}
 

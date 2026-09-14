@@ -219,14 +219,16 @@ func setupTables(t *testing.T, dbConn *sql.DB) {
 }
 
 func insertDoc(t *testing.T, dbConn *sql.DB, id, title string) {
-	_, err := dbConn.Exec("INSERT OR REPLACE INTO documents (id, title, updated_at) VALUES (?, ?, ?)", id, title, 1000)
+	_, err := dbConn.Exec("INSERT OR REPLACE INTO documents (id, path, title, updated_at) VALUES (?, ?, ?, ?)", id, id+".md", title, 1000)
 	if err != nil {
 		t.Fatalf("falha ao inserir documento %s: %v", id, err)
 	}
 }
 
 func insertEdge(t *testing.T, dbConn *sql.DB, src, tgt, status string, weight float64) {
-	_, err := dbConn.Exec("INSERT OR REPLACE INTO graph_edges (source_id, target_id, epistemic_status, weight) VALUES (?, ?, ?, ?)",
+	_, _ = dbConn.Exec("INSERT OR IGNORE INTO graph_nodes (id, type, name) VALUES (?, 'note', ?)", src, src)
+	_, _ = dbConn.Exec("INSERT OR IGNORE INTO graph_nodes (id, type, name) VALUES (?, 'note', ?)", tgt, tgt)
+	_, err := dbConn.Exec("INSERT OR REPLACE INTO graph_edges (source_id, target_id, relation, epistemic_status, weight) VALUES (?, ?, 'links_to', ?, ?)",
 		src, tgt, status, weight)
 	if err != nil {
 		t.Fatalf("falha ao inserir aresta %s -> %s: %v", src, tgt, err)
