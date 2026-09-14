@@ -271,7 +271,7 @@ func TestPostgresStore_Integration(t *testing.T) {
 	if len(docMetaMap) < 2 {
 		t.Errorf("GetDocumentsMetadata esperava pelo menos 2 documentos, obteve %d", len(docMetaMap))
 	}
-	if meta, ok := docMetaMap[filepath.Clean("notes/doc.md")]; !ok || meta.ID != docID {
+	if meta, ok := docMetaMap[filepath.Clean("notes/test.md")]; !ok || meta.ID != docID {
 		t.Errorf("GetDocumentsMetadata doc-1 inválido: %+v", meta)
 	}
 
