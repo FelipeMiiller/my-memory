@@ -103,11 +103,11 @@ O My-Memory atualmente permite busca híbrida (ADR-009), travessia de vizinhos d
 
 | Requirement ID | User Story | Acceptance Criteria | Target Component | Status |
 | -------------- | ---------- | ------------------- | ---------------- | ------ |
-| IMPACT-01 | P1 | AC-1, AC-2 | `internal/graph/impact.go` | pending |
-| IMPACT-02 | P1 | AC-3 | `internal/graph/impact.go` | pending |
-| IMPACT-03 | P1 | AC-4 | `internal/graph/impact.go` | pending |
-| IMPACT-04 | P1 | AC-5 | `internal/graph/impact.go` | pending |
-| IMPACT-05 | P2 | AC-1, AC-2 | `internal/db/graph.go`, `internal/store/postgres.go` | pending |
-| IMPACT-06 | P3 | AC-1, AC-2, AC-3 | `cmd/mem/impact.go` | pending |
-| IMPACT-07 | P4 | AC-1, AC-2 | `internal/mcp/impact_handlers.go` | pending |
-| IMPACT-08 | P4 | AC-3 | `docs/adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md` | pending |
+| IMPACT-01 | P1 | AC-1, AC-2 | `internal/graph/impact.go` | complete |
+| IMPACT-02 | P1 | AC-3 | `internal/graph/impact.go` | complete |
+| IMPACT-03 | P1 | AC-4 | `internal/graph/impact.go` | complete |
+| IMPACT-04 | P1 | AC-5 | `internal/graph/impact.go` | complete |
+| IMPACT-05 | P2 | AC-1, AC-2 | `internal/db/graph.go`, `internal/store/postgres.go` | complete |
+| IMPACT-06 | P3 | AC-1, AC-2, AC-3 | `cmd/mem/impact.go` | complete |
+| IMPACT-07 | P4 | AC-1, AC-2 | `internal/mcp/impact_handlers.go` | complete |
+| IMPACT-08 | P4 | AC-3 | `docs/adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md` | complete |
