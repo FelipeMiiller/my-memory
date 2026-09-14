@@ -126,6 +126,29 @@ func TestRunOpenCommand_DryRunAndJSON(t *testing.T) {
 	if jsonRes.Links.Obsidian == "" || jsonRes.Links.VSCode == "" || jsonRes.Links.File == "" {
 		t.Errorf("esperava todos os links populados, obteve %+v", jsonRes.Links)
 	}
+	if !jsonRes.Opened {
+		t.Errorf("esperava Opened=true em modo json sem dry-run")
+	}
+	if mock.calls != 1 {
+		t.Errorf("esperava 1 chamada ao launcher, obteve %d", mock.calls)
+	}
+
+	// 3. Teste JSON com Dry-Run
+	var jsonDryBuf bytes.Buffer
+	err = runOpenCommand(ctx, "repo", []string{docPath, "--json", "--dry-run"}, &jsonDryBuf, mock)
+	if err != nil {
+		t.Fatalf("erro no json dry-run: %v", err)
+	}
+	var jsonDryRes OpenOutput
+	if err := json.Unmarshal(jsonDryBuf.Bytes(), &jsonDryRes); err != nil {
+		t.Fatalf("saída JSON inválida: %v", err)
+	}
+	if jsonDryRes.Opened {
+		t.Errorf("esperava Opened=false em modo json dry-run")
+	}
+	if mock.calls != 1 {
+		t.Errorf("launcher não deveria ter sido chamado novamente, total de chamadas: %d", mock.calls)
+	}
 }
 
 func TestRunOpenCommand_WithDatabaseResolution(t *testing.T) {

@@ -129,7 +129,20 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 		targetURI = links.Obsidian
 	}
 
-	// 5. Tratamento de saída JSON
+	// 5. Execução real da abertura se não for dry-run
+	opened := false
+	if !*dryRun {
+		if launcher == nil {
+			launcher = deeplink.DefaultLauncher
+		}
+		_, err := deeplink.Open(resolvedPath, selectedApp, *lineFlag, repoRoot, vaultName, launcher)
+		if err != nil {
+			return fmt.Errorf("erro ao abrir nota no editor: %w", err)
+		}
+		opened = true
+	}
+
+	// 6. Tratamento de saída JSON
 	if *jsonOutput {
 		outObj := OpenOutput{
 			Node:      targetNode,
@@ -138,16 +151,16 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 			Line:      *lineFlag,
 			Links:     links,
 			TargetURI: targetURI,
-			Opened:    false,
+			Opened:    opened,
 		}
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(outObj)
 	}
 
-	// 6. Tratamento de modo Dry-Run
-	cmdName, cmdArgs := deeplink.BuildOSCommand(targetURI)
+	// 7. Tratamento de modo Dry-Run
 	if *dryRun {
+		cmdName, cmdArgs := deeplink.BuildOSCommand(targetURI)
 		fmt.Fprintf(out, "🔎 [dry-run] Simulação de abertura:\n")
 		fmt.Fprintf(out, "   Nó/Arquivo: %s\n", resolvedPath)
 		fmt.Fprintf(out, "   App:        %s\n", selectedApp)
@@ -159,19 +172,9 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 		return nil
 	}
 
-	// 7. Execução real da abertura via launcher
-	if launcher == nil {
-		launcher = deeplink.DefaultLauncher
-	}
-
-	openedURI, err := deeplink.Open(resolvedPath, selectedApp, *lineFlag, repoRoot, vaultName, launcher)
-	if err != nil {
-		return fmt.Errorf("erro ao abrir nota no editor: %w", err)
-	}
-
 	fmt.Fprintf(out, "🚀 Abrindo no %s...\n", selectedApp)
 	fmt.Fprintf(out, "   Arquivo: %s\n", resolvedPath)
-	fmt.Fprintf(out, "   URI:     %s\n", openedURI)
+	fmt.Fprintf(out, "   URI:     %s\n", targetURI)
 	return nil
 }
 
