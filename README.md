@@ -201,11 +201,11 @@ Inicia o servidor Model Context Protocol via `stdio` (padrão local para Cursor 
 # Modo stdio clássico (processo filho):
 ./bin/mem.exe mcp
 
-# Modo servidor de rede HTTP/SSE na porta 8080:
-./bin/mem.exe mcp --port 8080
+# Modo servidor de rede HTTP/SSE na porta 38400:
+./bin/mem.exe mcp --port 38400
 
 # Exposto na rede local para múltiplos agentes:
-./bin/mem.exe mcp --host 0.0.0.0 --port 8080
+./bin/mem.exe mcp --host 0.0.0.0 --port 38400
 ```
 
 ---
@@ -246,7 +246,7 @@ O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)*
 {
   "mcpServers": {
     "my-memory": {
-      "url": "http://127.0.0.1:8080/sse"
+      "url": "http://127.0.0.1:38400/sse"
     }
   }
 }

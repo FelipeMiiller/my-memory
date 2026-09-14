@@ -90,12 +90,12 @@ Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de co
 ```
 
 ### Modo 3: Servidor Remoto via HTTP/SSE (Rede / Nuvem / Múltiplos Agentes)
-Iniciado previamente via `mem mcp --port 8080 [--host 0.0.0.0]`:
+Iniciado previamente via `mem mcp --port 38400 [--host 0.0.0.0]`:
 ```json
 {
   "mcpServers": {
     "my-memory": {
-      "url": "http://127.0.0.1:8080/sse"
+      "url": "http://127.0.0.1:38400/sse"
     }
   }
 }

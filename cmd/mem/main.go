@@ -371,9 +371,9 @@ func main() {
 		dbPath := mcpCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := mcpCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := mcpCmd.String("repo", "", "Identificador padrão do repositório")
-		port := mcpCmd.Int("port", 0, "Porta para iniciar o servidor MCP via HTTP/SSE (ex: 8080)")
+		port := mcpCmd.Int("port", 0, "Porta para iniciar o servidor MCP via HTTP/SSE (ex: 38400)")
 		host := mcpCmd.String("host", "127.0.0.1", "Host/interface de rede para o servidor HTTP")
-		httpAddr := mcpCmd.String("http", "", "Endereço completo para o servidor HTTP (ex: :8080 ou 0.0.0.0:8080)")
+		httpAddr := mcpCmd.String("http", "", "Endereço completo para o servidor HTTP (ex: :38400 ou 0.0.0.0:38400)")
 		cors := mcpCmd.Bool("cors", true, "Habilita suporte a CORS para conexões de navegadores")
 		mcpCmd.Parse(os.Args[2:])
 

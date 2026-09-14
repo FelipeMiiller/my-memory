@@ -1,4 +1,4 @@
-﻿# ADR-021: Servidor MCP com Transporte HTTP e Server-Sent Events (SSE)
+# ADR-021: Servidor MCP com Transporte HTTP e Server-Sent Events (SSE)
 
 - **Date**: 2026-09-13
 - **Status**: Accepted
@@ -41,9 +41,9 @@ Adotou-se o servidor de rede em `internal/mcp/http_server.go` integrado ao coman
 
 2. **Flags na CLI (`cmd/mem/`):**
    - `mem mcp`: Executa no modo clássico `stdio` para processos filhos.
-   - `mem mcp --port 8080`: Inicia o servidor HTTP/SSE na porta 8080 (ligado a `127.0.0.1`).
-   - `mem mcp --host 0.0.0.0 --port 8080`: Expõe o servidor MCP para a rede local ou containers.
-   - `mem mcp --http :8080`: Atalho alternativo para especificação direta de host:porta.
+   - `mem mcp --port 38400`: Inicia o servidor HTTP/SSE na porta 38400 (ligado a `127.0.0.1`).
+   - `mem mcp --host 0.0.0.0 --port 38400`: Expõe o servidor MCP para a rede local ou containers.
+   - `mem mcp --http :38400`: Atalho alternativo para especificação direta de host:porta.
 
 ### Positive Consequences
 

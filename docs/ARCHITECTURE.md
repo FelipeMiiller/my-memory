@@ -126,7 +126,7 @@ Para particionar a memória em clusters temáticos coesos de forma autônoma:
 
 O My-Memory atua como servidor de contexto para LLMs e agentes através de dois mecanismos de transporte:
 1. **Stdio (Processo Filho):** Comunicação padrão via `stdin`/`stdout` com framing JSON-RPC 2.0 delimitado por quebras de linha (`\n`), consumido nativamente por Claude Code, Cursor, Windsurf e Antigravity.
-2. **HTTP com Server-Sent Events (SSE):** Servidor autônomo de rede (`mem mcp --port 8080`) com:
+2. **HTTP com Server-Sent Events (SSE):** Servidor autônomo de rede (`mem mcp --port 38400`) com:
    * `GET /sse`: Stream SSE unidirecional com handshake `endpoint`.
    * `POST /message?sessionId=<uuid>`: Recepção de comandos JSON-RPC vinculados à sessão ativa.
    * `POST /mcp`: Chamadas diretas (stateless) para scripts rápidos ou ferramentas web.

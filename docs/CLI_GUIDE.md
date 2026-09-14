@@ -140,17 +140,17 @@ Inicia o servidor Model Context Protocol (MCP) via **`stdio`** (padrão) ou como
 # 1. Modo Stdio local tradicional:
 ./bin/mem.exe mcp --db memory.db
 
-# 2. Modo Servidor HTTP/SSE na porta 8080:
-./bin/mem.exe mcp --port 8080
+# 2. Modo Servidor HTTP/SSE na porta 38400:
+./bin/mem.exe mcp --port 38400
 
 # 3. Expondo na rede local para múltiplos agentes:
-./bin/mem.exe mcp --host 0.0.0.0 --port 8080 --repo "meu-org/projeto"
+./bin/mem.exe mcp --host 0.0.0.0 --port 38400 --repo "meu-org/projeto"
 
 # 4. Verificando a saúde via curl:
-curl http://localhost:8080/health
+curl http://localhost:38400/health
 
 # 5. Executando busca via endpoint direto:
-curl -X POST http://localhost:8080/mcp \
+curl -X POST http://localhost:38400/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_search","arguments":{"query":"arquitetura"}}}'
 ```

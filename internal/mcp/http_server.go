@@ -51,7 +51,7 @@ type HealthResponse struct {
 // NewHTTPServer cria e configura um servidor HTTP para o protocolo MCP
 func NewHTTPServer(srv *Server, opts HTTPServerOptions) *HTTPServer {
 	if opts.Addr == "" {
-		opts.Addr = ":8080"
+		opts.Addr = ":38400"
 	}
 	logger := opts.Logger
 	if logger == nil {
