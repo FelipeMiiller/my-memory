@@ -12,7 +12,7 @@ func TestRunInit(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// 1. Inicializar config pela primeira vez
-	err := runInit(tmpDir, "test-owner/test-vault", "custom.db", false)
+	err := runInit(tmpDir, "test-owner/test-vault", "custom.db", false, false, false, false)
 	if err != nil {
 		t.Fatalf("erro ao executar runInit: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestRunInit(t *testing.T) {
 	}
 
 	// 3. Tentar executar novamente sem force não deve sobrescrever
-	err = runInit(tmpDir, "outra-coisa", "outro.db", false)
+	err = runInit(tmpDir, "outra-coisa", "outro.db", false, false, false, false)
 	if err != nil {
 		t.Fatalf("runInit sem force não deveria retornar erro: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestRunInit(t *testing.T) {
 	}
 
 	// 4. Executar com force=true deve sobrescrever
-	err = runInit(tmpDir, "novo-repo", "novo.db", true)
+	err = runInit(tmpDir, "novo-repo", "novo.db", true, false, false, false)
 	if err != nil {
 		t.Fatalf("runInit com force deveria funcionar: %v", err)
 	}
@@ -65,5 +65,29 @@ func TestRunInit(t *testing.T) {
 	}
 	if cfgOverwritten.Storage.SQLitePath != "novo.db" {
 		t.Errorf("esperava novo sqlite_path 'novo.db', obteve '%s'", cfgOverwritten.Storage.SQLitePath)
+	}
+}
+
+func TestRunInit_IDEs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	err := runInit(tmpDir, "org/repo", "memory.db", false, true, true, true)
+	if err != nil {
+		t.Fatalf("erro ao executar runInit com IDEs: %v", err)
+	}
+
+	vscodeFile := filepath.Join(tmpDir, ".vscode", "mcp.json")
+	if _, err := os.Stat(vscodeFile); os.IsNotExist(err) {
+		t.Errorf("esperava arquivo %s gerado", vscodeFile)
+	}
+
+	copilotFile := filepath.Join(tmpDir, ".github", "copilot-instructions.md")
+	if _, err := os.Stat(copilotFile); os.IsNotExist(err) {
+		t.Errorf("esperava arquivo %s gerado", copilotFile)
+	}
+
+	cursorFile := filepath.Join(tmpDir, ".cursor", "mcp.json")
+	if _, err := os.Stat(cursorFile); os.IsNotExist(err) {
+		t.Errorf("esperava arquivo %s gerado", cursorFile)
 	}
 }

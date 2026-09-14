@@ -58,10 +58,44 @@ meu-projeto/
 
 ## 🔌 Integração com Model Context Protocol (MCP)
 
-Ferramentas como Claude Code, Cursor e Antigravity suportam servidores MCP nativamente.
-Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de configuração do Claude:
+Ferramentas como **VS Code (GitHub Copilot)**, Cursor, Claude Code e Antigravity suportam servidores MCP nativamente.
 
-### Modo 1: SQLite Local (Zero-Config)
+### Configuração no VS Code & GitHub Copilot (`.vscode/mcp.json`)
+
+O VS Code e o GitHub Copilot Chat utilizam o padrão `"servers"` com especificação do tipo de transporte (`stdio` ou `sse`):
+
+```json
+{
+  "servers": {
+    "my-memory": {
+      "type": "stdio",
+      "command": "mem",
+      "args": ["mcp", "--db", ".memory/memory.db"]
+    }
+  }
+}
+```
+
+Ou apontando para o servidor de rede HTTP/SSE (porta `38400`):
+
+```json
+{
+  "servers": {
+    "my-memory": {
+      "type": "sse",
+      "url": "http://127.0.0.1:38400/sse"
+    }
+  }
+}
+```
+
+> 💡 **Auto-wiring:** Você pode gerar o arquivo `.vscode/mcp.json` e as diretrizes do Copilot (`.github/copilot-instructions.md`) diretamente via CLI:
+> ```bash
+> mem init --vscode --copilot
+> ```
+
+### Configuração no Cursor (`.cursor/mcp.json`) e Claude Desktop
+
 ```json
 {
   "mcpServers": {
@@ -73,7 +107,8 @@ Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de co
 }
 ```
 
-### Modo 2: PostgreSQL Centralizado com pgvector (Multi-Repositório)
+### Modo PostgreSQL Centralizado com pgvector (Multi-Repositório)
+
 ```json
 {
   "mcpServers": {
@@ -89,12 +124,13 @@ Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de co
 }
 ```
 
-### Modo 3: Servidor Remoto via HTTP/SSE (Rede / Nuvem / Múltiplos Agentes)
+### Modo Servidor Remoto via HTTP/SSE (Rede / Nuvem / Múltiplos Agentes)
 Iniciado previamente via `mem mcp --port 38400 [--host 0.0.0.0]`:
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "my-memory": {
+      "type": "sse",
       "url": "http://127.0.0.1:38400/sse"
     }
   }

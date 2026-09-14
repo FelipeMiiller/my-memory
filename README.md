@@ -214,14 +214,37 @@ Inicia o servidor Model Context Protocol via `stdio` (padrão local para Cursor 
 
 O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)** em qualquer IDE ou ferramenta de IA compatível.
 
-### Configuração no Cursor (`.cursor/mcp.json`) ou VS Code (`.vscode/mcp.json`):
+### Configuração no VS Code & GitHub Copilot (`.vscode/mcp.json`):
+
+O VS Code suporta nativamente o Model Context Protocol para o **GitHub Copilot Chat** através do arquivo `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "my-memory": {
+      "type": "stdio",
+      "command": "mem",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+> **Dica:** Para gerar automaticamente as configurações do VS Code e as instruções de contexto do Copilot (`.github/copilot-instructions.md`), execute:
+> ```bash
+> mem init --vscode --copilot
+> # Ou para todas as IDEs (VS Code Copilot + Cursor):
+> mem init --all
+> ```
+
+### Configuração no Cursor (`.cursor/mcp.json`):
 
 ```json
 {
   "mcpServers": {
     "my-memory": {
       "command": "mem",
-      "args": ["mcp", "--db", ".memory/memory.db"]
+      "args": ["mcp"]
     }
   }
 }
@@ -240,12 +263,13 @@ O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)*
 }
 ```
 
-### Configuração Remota via HTTP/SSE (Qualquer Agente / Nuvem):
+### Configuração Remota via HTTP/SSE (Qualquer Agente / Nuvem / Copilot Remoto):
 
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "my-memory": {
+      "type": "sse",
       "url": "http://127.0.0.1:38400/sse"
     }
   }

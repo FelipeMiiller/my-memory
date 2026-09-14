@@ -17,15 +17,26 @@ go build -o bin/mem.exe ./cmd/mem
 
 ## 📖 Comandos Disponíveis
 
-### 1. `mem init [--repo <slug>] [--db <caminho>] [--force] [<pasta>]`
+### 1. `mem init [--repo <slug>] [--db <caminho>] [--force] [--vscode] [--copilot] [--cursor] [--all] [<pasta>]`
 Inicializa um novo vault criando a pasta `.memory/` e gerando o arquivo de configuração declarativa `config.yaml` com comentários explicativos:
 * `--repo`: Slug do repositório/vault (padrão: inferido do Git ou `local/vault`).
 * `--db`: Caminho do banco SQLite padrão (padrão: `memory.db`).
-* `--force`: Sobrescreve o arquivo caso já exista.
+* `--force`: Sobrescreve arquivos caso já existam.
+* `--vscode`: Gera `.vscode/mcp.json` configurado para integração com o VS Code e Copilot Chat via MCP.
+* `--copilot`: Gera `.github/copilot-instructions.md` com instruções obrigatórias de contexto para o GitHub Copilot.
+* `--cursor`: Gera `.cursor/mcp.json` para o Cursor IDE.
+* `--all`: Gera todas as configurações de IDE acima de uma só vez.
 
-**Exemplo:**
+**Exemplos:**
 ```bash
+# Inicialização básica (apenas .memory/config.yaml):
 ./bin/mem.exe init --repo "empresa/meu-vault"
+
+# Inicialização com integração completa para VS Code e GitHub Copilot:
+./bin/mem.exe init --vscode --copilot
+
+# Inicialização universal para todas as IDEs suportadas:
+./bin/mem.exe init --all
 ```
 
 ---

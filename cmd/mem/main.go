@@ -50,6 +50,10 @@ func main() {
 		repoSlug := initCmd.String("repo", defaultRepo, "Identificador/slug do repositório para o arquivo de configuração")
 		dbPath := initCmd.String("db", "memory.db", "Caminho padrão do arquivo de banco SQLite")
 		force := initCmd.Bool("force", false, "Sobrescreve o arquivo de configuração existente se já existir")
+		vscode := initCmd.Bool("vscode", false, "Gera configuração .vscode/mcp.json para VS Code Copilot")
+		copilot := initCmd.Bool("copilot", false, "Gera instruções .github/copilot-instructions.md para o GitHub Copilot")
+		cursor := initCmd.Bool("cursor", false, "Gera configuração .cursor/mcp.json para o Cursor IDE")
+		all := initCmd.Bool("all", false, "Gera integrações para todas as IDEs suportadas (VS Code Copilot, Cursor)")
 		initCmd.Parse(os.Args[2:])
 
 		targetDir := "."
@@ -57,7 +61,11 @@ func main() {
 			targetDir = initCmd.Arg(0)
 		}
 
-		if err := runInit(targetDir, *repoSlug, *dbPath, *force); err != nil {
+		genVSCode := *vscode || *all
+		genCopilot := *copilot || *all
+		genCursor := *cursor || *all
+
+		if err := runInit(targetDir, *repoSlug, *dbPath, *force, genVSCode, genCopilot, genCursor); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro ao inicializar vault: %v\n", err)
 			os.Exit(1)
 		}
@@ -618,8 +626,8 @@ func main() {
 func printHelp() {
 	fmt.Println("=== My-Memory CLI (SQLite / PostgreSQL com pgvector / TurboQuant / MCP) ===")
 	fmt.Println("Comandos disponíveis:")
-	fmt.Println("  mem init [--repo <slug>] [--db <arq>] [--force] [<pasta>]")
-	fmt.Println("      Inicializa um novo vault criando .memory/config.yaml com configurações declarativas")
+	fmt.Println("  mem init [--repo <slug>] [--db <arq>] [--force] [--vscode] [--copilot] [--cursor] [--all] [<pasta>]")
+	fmt.Println("      Inicializa novo vault (.memory/config.yaml) e opcionalmente gera integrações para VS Code Copilot e Cursor")
 	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
 	fmt.Println("  mem watch [--debounce <ms>] [--interval <ms>] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
@@ -656,30 +664,29 @@ func printHelp() {
 	fmt.Println("  MY_MEMORY_REPO   - Força o slug do repositório atual (sobrescreve auto-detecção git)")
 }
 
-func runInit(targetDir, repoSlug, dbPath string, force bool) error {
+func runInit(targetDir, repoSlug, dbPath string, force bool, vscode, copilot, cursor bool) error {
 	if targetDir == "" {
 		targetDir = "."
 	}
 	memDir := filepath.Join(targetDir, ".memory")
 	cfgPath := filepath.Join(memDir, "config.yaml")
 
+	configCreated := false
 	if _, err := os.Stat(cfgPath); err == nil && !force {
 		fmt.Printf("⚠️ Arquivo de configuração já existe em %s. Use --force para sobrescrever.\n", cfgPath)
-		return nil
-	}
+	} else {
+		if err := os.MkdirAll(memDir, 0755); err != nil {
+			return fmt.Errorf("erro ao criar diretório .memory: %w", err)
+		}
 
-	if err := os.MkdirAll(memDir, 0755); err != nil {
-		return fmt.Errorf("erro ao criar diretório .memory: %w", err)
-	}
+		if repoSlug == "" {
+			repoSlug = "local/vault"
+		}
+		if dbPath == "" {
+			dbPath = "memory.db"
+		}
 
-	if repoSlug == "" {
-		repoSlug = "local/vault"
-	}
-	if dbPath == "" {
-		dbPath = "memory.db"
-	}
-
-	template := fmt.Sprintf(`# ==============================================================================
+		template := fmt.Sprintf(`# ==============================================================================
 # My-Memory Vault Configuration
 # Documentação: docs/REPOSITORY_BRAIN.md e docs/CLI_GUIDE.md
 # ==============================================================================
@@ -734,18 +741,94 @@ watcher:
   interval_ms: 1000         # Intervalo de polling periódico
 `, repoSlug, dbPath)
 
-	if err := os.WriteFile(cfgPath, []byte(template), 0644); err != nil {
-		return fmt.Errorf("erro ao salvar arquivo de configuração: %w", err)
+		if err := os.WriteFile(cfgPath, []byte(template), 0644); err != nil {
+			return fmt.Errorf("erro ao salvar arquivo de configuração: %w", err)
+		}
+
+		if _, err := config.LoadConfig(cfgPath); err != nil {
+			return fmt.Errorf("erro de validação do arquivo de configuração gerado: %w", err)
+		}
+		configCreated = true
+		fmt.Printf("✅ Configuração inicializada com sucesso em %s\n", cfgPath)
+		fmt.Printf("   Repositório: %s\n", repoSlug)
+		fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
 	}
 
-	if _, err := config.LoadConfig(cfgPath); err != nil {
-		return fmt.Errorf("erro de validação do arquivo de configuração gerado: %w", err)
+	if vscode {
+		vscodeDir := filepath.Join(targetDir, ".vscode")
+		if err := os.MkdirAll(vscodeDir, 0755); err == nil {
+			mcpFile := filepath.Join(vscodeDir, "mcp.json")
+			if _, err := os.Stat(mcpFile); os.IsNotExist(err) || force {
+				vscodeContent := `{
+  "servers": {
+    "my-memory": {
+      "type": "stdio",
+      "command": "mem",
+      "args": ["mcp"]
+    }
+  }
+}
+`
+				if err := os.WriteFile(mcpFile, []byte(vscodeContent), 0644); err == nil {
+					fmt.Printf("   VS Code Copilot: %s gerado com sucesso\n", mcpFile)
+				}
+			}
+		}
 	}
 
-	fmt.Printf("✅ Configuração inicializada com sucesso em %s\n", cfgPath)
-	fmt.Printf("   Repositório: %s\n", repoSlug)
-	fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
-	fmt.Println("   Dica: execute 'mem index' para iniciar a indexação automática.")
+	if copilot {
+		ghDir := filepath.Join(targetDir, ".github")
+		if err := os.MkdirAll(ghDir, 0755); err == nil {
+			instructionsFile := filepath.Join(ghDir, "copilot-instructions.md")
+			if _, err := os.Stat(instructionsFile); os.IsNotExist(err) || force {
+				copilotContent := `# Instruções para o GitHub Copilot (My-Memory)
+
+Este repositório está integrado com o **My-Memory** como motor de memória semântica e relacional de contexto via Model Context Protocol (MCP).
+
+## Ferramentas MCP Disponíveis para o Copilot
+- ` + "`memory_search`" + `: Recupera notas e trechos cirúrgicos via busca híbrida (BM25 + embeddings + grafo).
+- ` + "`memory_get_neighbors`" + `: Retorna dependências, chamadores e notas conectadas no grafo.
+- ` + "`memory_get_clusters`" + `: Lista os clusters temáticos e comunidades conceituais do repositório.
+- ` + "`memory_write_note`" + `: Cria ou atualiza notas atômicas no vault de conhecimento com frontmatter e conexões tipadas.
+- ` + "`memory_compile_note`" + `: Sintetiza e compila fragmentos em uma nova nota consolidada (Compile-not-Retrieve).
+- ` + "`memory_visualize_graph`" + `: Exporta visualização interativa do grafo em HTML/SVG.
+
+## Diretrizes de Uso Obrigatórias
+1. **Consulte a Memória Antes de Sugerir Mudanças Estruturais**: Sempre utilize ` + "`memory_search`" + ` para verificar decisões de arquitetura e precedentes documentados em notas ou ADRs antes de propor novos padrões.
+2. **Respeite o Grafo de Dependências**: Consulte ` + "`memory_get_neighbors`" + ` para analisar o raio de impacto (*blast radius*) antes de renomear ou modificar módulos críticos.
+3. **Padrão Compile-not-Retrieve**: Quando o usuário solicitar documentar um novo tema, utilize ` + "`memory_compile_note`" + ` ou ` + "`memory_write_note`" + ` para persistir o conhecimento diretamente no vault.
+`
+				if err := os.WriteFile(instructionsFile, []byte(copilotContent), 0644); err == nil {
+					fmt.Printf("   GitHub Copilot: %s gerado com sucesso\n", instructionsFile)
+				}
+			}
+		}
+	}
+
+	if cursor {
+		cursorDir := filepath.Join(targetDir, ".cursor")
+		if err := os.MkdirAll(cursorDir, 0755); err == nil {
+			mcpFile := filepath.Join(cursorDir, "mcp.json")
+			if _, err := os.Stat(mcpFile); os.IsNotExist(err) || force {
+				cursorContent := `{
+  "mcpServers": {
+    "my-memory": {
+      "command": "mem",
+      "args": ["mcp"]
+    }
+  }
+}
+`
+				if err := os.WriteFile(mcpFile, []byte(cursorContent), 0644); err == nil {
+					fmt.Printf("   Cursor IDE: %s gerado com sucesso\n", mcpFile)
+				}
+			}
+		}
+	}
+
+	if configCreated {
+		fmt.Println("   Dica: execute 'mem index' para iniciar a indexação automática.")
+	}
 	return nil
 }
 
