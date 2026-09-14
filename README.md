@@ -142,23 +142,31 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 | 📖 [**`COMO_USAR.md`**](COMO_USAR.md) | **Desenvolvedores** | Manual prático de comandos CLI, exemplos de busca, configuração de PostgreSQL/SQLite e monitoramento em tempo real. |
 | 🔍 [**`COMO_FUNCIONA.md`**](COMO_FUNCIONA.md) | **Engenheiros & Arquitetos** | Explicação profunda da arquitetura, matemática do TurboQuant, algoritmo RRF, CTEs recursivas e ciclo de vida do cache. |
 | 🤖 [**`AGENT_INTEGRATION_GUIDE.md`**](docs/AGENT_INTEGRATION_GUIDE.md) | **Agentes de IA & Integrações** | Como integrar o My-Memory com Cursor, Claude Code, Copilot e Antigravity via MCP e regras `AGENTS.md`. |
-| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 25 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
+| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 31 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
 
 ---
 
 ## 🤖 Ferramentas MCP para Assistentes de IA
 
-Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza para a IA:
+Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 17 ferramentas para o ecossistema de IA:
 
 - `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional.
-- `memory_get_neighbors`: Expansão recursiva de nós e dependências conectadas.
-- `memory_get_impact`: Análise de raio de destruição (*Blast Radius*) e dependentes reversos.
-- `memory_get_clusters`: Detecção de comunidades e módulos temáticos via LPA ponderado.
-- `memory_get_hubs`: Identificação de God Nodes e nós líderes por PageRank ponderado.
+- `memory_get_neighbors`: Expansão recursiva de nós e dependências conectadas via SQL recursivo (CTEs).
+- `memory_find_path`: Descoberta do caminho mais curto entre duas notas via BFS bidirecional com pesos epistêmicos.
+- `memory_get_impact`: Análise de raio de destruição (*Blast Radius*) e dependentes reversos com risk scoring.
+- `memory_get_clusters`: Detecção de comunidades e módulos temáticos via LPA ponderado e modularidade Q.
+- `memory_get_hubs`: Identificação de God Nodes e nós líderes por grau ou PageRank ponderado.
+- `memory_get_insights`: Métricas globais da topologia da base de conhecimento (densidade, componentes, isolados).
+- `memory_inspect_node`: Inspeção cirúrgica de nós (in-links, out-links, chunks quantizados e status).
 - `memory_doctor`: Auditoria de integridade do grafo com detecção de dead links e notas órfãs.
-- `memory_write_note`: Criação de notas atômicas estruturadas com sincronização instantânea.
-- `memory_compile_note`: Síntese de fragmentos recuperados (*Compile-not-Retrieve*).
-- `memory_visualize_graph`: Exportação de visualizador interativo em HTML/SVG.
+- `memory_get_drift`: Auditoria de desvio semântico e divergência entre código e documentação.
+- `memory_write_note`: Criação de notas atômicas estruturadas com sincronização e indexação instantâneas.
+- `memory_append_section`: Adição atômica de seções a notas existentes com auto-linking e parsing.
+- `memory_compile_note`: Síntese de fragmentos recuperados (*Compile-not-Retrieve*) para economia de contexto.
+- `memory_pack_context`: Empacotamento de orçamento de contexto de tokens (Tier L0/L1/L2) com subgrafos Mermaid.
+- `memory_visualize_graph`: Exportação de visualizador interativo em HTML/SVG standalone com física de forças.
+- `memory_export_canvas`: Exportação bidirecional para o padrão Obsidian JSON Canvas 1.0 (.canvas).
+- `memory_open_node`: Abertura cirúrgica de arquivos no editor do desenvolvedor via deep links de IDE.
 
 ---
 
@@ -166,19 +174,26 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza para a
 
 ```text
 my-memory/
-├── cmd/mem/            # Ponto de entrada CLI (init, index, search, inspect, impact, mcp, etc.)
+├── cmd/mem/            # Ponto de entrada CLI (init, index, search, inspect, impact, drift, mcp, etc.)
 ├── internal/
+│   ├── autowire/       # Injeção e sugestão automática de wikilinks em Markdown
+│   ├── canvas/         # Conversor e exportador para formato JSON Canvas 1.0 (.canvas)
+│   ├── compiler/       # Compilador semântico de contexto e síntese sob demanda
 │   ├── config/         # Configuração declarativa, descoberta de vault e variáveis de ambiente
 │   ├── db/             # Schemas SQLite, virtual tables sqlite-vec e queries recursivas CTE
+│   ├── deeplink/       # Integração e deep linking com editores (VS Code, Cursor, Obsidian)
+│   ├── drift/          # Análise de divergência semântica e staleness entre git e documentação
 │   ├── embedder/       # Cliente Ollama e resolução dinâmica de modelos de embedding
 │   ├── graph/          # Algoritmos de grafo (LPA, modularidade Q, PageRank, Blast Radius, Inspector)
 │   ├── graphview/      # Visualizador interativo HTML/SVG standalone com física de forças
-│   ├── mcp/            # Servidor Model Context Protocol (stdio + HTTP/SSE)
+│   ├── mcp/            # Servidor Model Context Protocol com 17 tools (stdio + HTTP/SSE)
 │   ├── parser/         # Extração de wikilinks, tags, metadados e chunking
+│   ├── repo/           # Scanner de arquivos do repositório respeitando escopo e gitignore
+│   ├── staleness/      # Rastreamento de desatualização temporal de notas e links quebrados
 │   ├── store/          # Camada de armazenamento unificada e suporte a PostgreSQL com pgvector
 │   ├── turboquant/     # Rotações ortogonais de Householder e quantização de 4-bit
 │   └── watcher/        # File watcher em segundo plano com debouncing inteligente
-├── docs/               # Documentação técnica detalhada e 25 ADRs
+├── docs/               # Documentação técnica detalhada e 31 ADRs
 ├── COMO_USAR.md        # Manual prático passo a passo para o usuário
 ├── COMO_FUNCIONA.md    # Explicação detalhada da arquitetura e funcionamento interno
 ├── AGENTS.md           # Regras operacionais para Agentes de IA
@@ -189,7 +204,7 @@ my-memory/
 
 ## 🧪 Validação e Testes
 
-O My-Memory conta com cobertura de testes unitários e de integração em todos os 14 pacotes Go:
+O My-Memory conta com cobertura de testes unitários e de integração em todos os 18 pacotes Go:
 
 ```bash
 # Executar todos os testes do repositório

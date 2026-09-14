@@ -285,14 +285,20 @@ mem mcp --port 38400
 | Comando | Descrição |
 | :--- | :--- |
 | `mem init [--all]` | Inicializa `.memory/` com `config.yaml`, `.gitignore`, `.env.example` e `AGENTS.md`. |
+| `mem install [--tools]` | Auto-configura MCP em ferramentas de IA instaladas (Cursor, VS Code, Claude Desktop). |
 | `mem index [--force]` | Indexa arquivos Markdown com cache SHA-256 e pruning de deletados. |
 | `mem search "<pergunta>"` | Busca híbrida com RRF, vetores, BM25 e decaimento temporal opcional. |
+| `mem path <de> <para>` | Encontra o caminho mais curto entre dois conceitos no grafo de conhecimento. |
 | `mem inspect <nota>` | Visão cirúrgica em 3 colunas (in-links, nota central e out-links). |
 | `mem impact <nota>` | Calcula o raio de destruição e dependentes reversos com score de risco. |
 | `mem hubs` | Lista os nós centrais via conexões (degree) ou autoridade (PageRank). |
 | `mem clusters` | Detecta módulos conceituais e clusters temáticos via LPA. |
 | `mem doctor [--fix]` | Audita e limpa dead links, notas órfãs e calcula o Health Score. |
+| `mem status` | Verifica a saúde do repositório e identifica notas desatualizadas (*staleness*). |
+| `mem drift [--since] [--strict]` | Audita divergência semântica entre código e documentação (evita drift de memória). |
 | `mem insights` | Descobre conexões surpreendentes entre notas sem links diretos. |
+| `mem pack <nota>` | Empacota subgrafo e contexto para prompt de IA respeitando orçamento de tokens. |
+| `mem open <nota>` | Abre a nota diretamente no seu editor de código preferido (VS Code, Cursor, Obsidian). |
 | `mem graph view [--open]` | Gera visualizador HTML/SVG interativo com física e filtros. |
 | `mem export --canvas <nota>` | Exporta subgrafo para formato JSON Canvas do Obsidian (.canvas). |
 | `mem note <create\|append>` | Cria notas ou anexa seções com metadados e indexação atômica. |

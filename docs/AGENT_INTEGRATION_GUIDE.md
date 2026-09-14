@@ -214,11 +214,13 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | `memory_get_impact` | Antes de refatorar, excluir ou renomear nós para avaliar o raio de destruição. | `node_id` (string), `depth` (int) |
 | `memory_get_clusters` | Para entender a divisão macro de módulos e domínios do repositório. | `min_size` (int) |
 | `memory_get_hubs` | Para identificar as notas e arquivos mais centrais e influentes do sistema. | `top` (int), `algorithm` ("pagerank" \| "degree") |
+| `memory_get_insights` | Para obter métricas topológicas globais (densidade, diâmetro, nós isolados). | (nenhum obrigatório) |
 | `memory_doctor` | Para verificar a integridade estrutural do grafo e detectar links quebrados. | `fix` (bool) |
 | `memory_write_note` | Para criar notas conceituais com backlinks após implementar features. | `path`, `title`, `content`, `tags` |
 | `memory_append_section`| Para adicionar exemplos, testes ou logs a uma nota existente. | `path`, `header`, `content` |
 | `memory_compile_note` | Para consolidar tópicos dispersos em uma síntese única com fontes. | `topic`, `out_path`, `limit` |
 | `memory_visualize_graph`| Para renderizar o grafo de conhecimento em HTML standalone interativo. | `root_node`, `depth` |
+| `memory_export_canvas` | Para exportar subgrafo para o formato visual Obsidian JSON Canvas 1.0. | `root_node` (string), `out_path` (string), `depth` (int) |
 | `memory_inspect_node` | Para inspeção cirúrgica em 3 colunas (in-links, nó e out-links) com zero file reads. | `node_id` (string), `max_content_length` (int) |
 | `memory_find_path` | Para rastrear a cadeia de dependências ou menor caminho epistêmico entre dois nós. | `source` (string), `target` (string), `max_depth` (int), `directed` (bool), `mode` ("epistemic" \| "hops") |
 | `memory_pack_context` | Para extrair e empacotar um subgrafo conexo com limite rígido de tokens em prompt único. | `root_node` (string), `max_depth` (int), `max_tokens` (int), `direction` ("both" \| "outbound" \| "inbound") |
