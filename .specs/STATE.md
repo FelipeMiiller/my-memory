@@ -24,13 +24,14 @@
 ## Handoff
 
 - **Feature**: progressive-context-loading (.specs/features/progressive-context-loading)
-- **Phase / Task**: Phase 4 / T4 (Ready for Implementation)
-- **Planned**: T1 (Extensão de Schema e Migrações - CONCLUÍDO), T2 (Extração Heurística de L0 e Taxonomia - CONCLUÍDO), T3 (Motores de Busca com L0/L1/L2 e Filtro de Categoria - CONCLUÍDO), T4 (CLI mem search com --level e --category), T5 (MCP memory_search com detail_level e ADR-025)
+- **Phase / Task**: Phase 5 / T5 (Ready for Implementation)
+- **Planned**: T1 (Extensão de Schema e Migrações - CONCLUÍDO), T2 (Extração Heurística de L0 e Taxonomia - CONCLUÍDO), T3 (Motores de Busca com L0/L1/L2 e Filtro de Categoria - CONCLUÍDO), T4 (CLI mem search com --level e --category - CONCLUÍDO), T5 (MCP memory_search com detail_level e ADR-025)
 - **Completed Features**: triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: T4 (Subcomando CLI mem search com Flags de Densidade)
-- **Next step**: Adicionar flags `--level` e `--category` em `cmd/mem/main.go` e implementar layout compacto no terminal para L0
+- **In-progress**: T5 (MCP memory_search com detail_level, Taxonomia e ADR-025)
+- **Next step**: Atualizar schema de memory_search em internal/mcp/tools.go e handlers em internal/mcp/handlers.go e cmd/mem/main.go
 - **Blockers**: none
 - **Branch**: develop
+
 
 
 

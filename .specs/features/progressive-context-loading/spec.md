@@ -18,7 +18,8 @@ Além disso, introduz-se a **Taxonomia de Contexto Tripartida** (`category: reso
 - [x] **G1**: Estender o esquema de banco de dados (`documents` em SQLite e PostgreSQL) com as colunas `abstract TEXT` (L0) e `category TEXT` (`resource`, `memory`, `skill`).
 - [x] **G2**: Atualizar o parser Markdown (`internal/parser/`) para extrair automaticamente o micro-abstract do frontmatter (`summary:`, `abstract:`) ou sinteticamente do primeiro parágrafo relevante da nota.
 - [x] **G3**: Estender `db.SearchResult` e os motores de busca híbrida (`internal/db/hybrid.go`, `internal/store/rrf.go`) para suportar seleção de nível de detalhe (`l0`, `l1`, `l2`) e filtro por categoria.
-- [ ] **G4**: Atualizar o subcomando de terminal `mem search` com as flags `--level [l0|l1|l2]` (padrão adaptativo ou configurável) e `--category [resource|memory|skill]`.
+- [x] **G4**: Atualizar o subcomando de terminal `mem search` com as flags `--level [l0|l1|l2]` (padrão adaptativo ou configurável) e `--category [resource|memory|skill]`.
+
 - [ ] **G5**: Atualizar a ferramenta MCP `memory_search` com os novos parâmetros opcionais `detail_level` ("l0" | "l1" | "l2") e `category` ("resource" | "memory" | "skill").
 - [ ] **G6**: Registrar as decisões no documento de arquitetura `docs/adr/025-progressive-context-loading-e-taxonomia-de-memoria.md`.
 

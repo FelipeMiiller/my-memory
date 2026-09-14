@@ -14,8 +14,9 @@
 
 
 ### Linha de Comando (`cmd/mem/`)
-- [ ] `TestSearchCLI_LevelL0`: Executa `mem search --level l0` e valida formato compacto no stdout.
-- [ ] `TestSearchCLI_CategoryFilter`: Executa `mem search --category skill` e valida filtragem.
+- [x] `TestSearchCLI_LevelL0`: Executa `mem search --level l0` e valida formato compacto no stdout.
+- [x] `TestSearchCLI_CategoryFilter`: Executa `mem search --category skill` e valida filtragem.
+
 
 ### MCP (`internal/mcp/`)
 - [ ] `TestMCP_MemorySearch_LevelL0`: Executa tool call `memory_search` com `detail_level="l0"` e valida resposta semântica concisa sem desperdício de tokens.

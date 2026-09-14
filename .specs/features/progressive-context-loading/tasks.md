@@ -19,11 +19,12 @@
   - [x] Testes automatizados em `internal/db/hybrid_test.go` e `internal/store/rrf_test.go`.
 
 
-- [ ] **T4**: Subcomando CLI mem search com Flags de Densidade (`cmd/mem/`)
-  - [ ] Adicionar flags `--level` (`l0`, `l1`, `l2`) e `--category` (`resource`, `memory`, `skill`) em `cmd/mem/main.go`.
-  - [ ] Implementar layout compacto no terminal para L0 (exibição em 1-2 linhas por resultado com badges ANSI).
-  - [ ] Atualizar documentação e ajuda (`mem search --help`).
-  - [ ] Escrever testes de integração em `cmd/mem/search_defaults_test.go`.
+- [x] **T4**: Subcomando CLI mem search com Flags de Densidade (`cmd/mem/`)
+  - [x] Adicionar flags `--level` (`l0`, `l1`, `l2`) e `--category` (`resource`, `memory`, `skill`) em `cmd/mem/main.go`.
+  - [x] Implementar layout compacto no terminal para L0 (exibição em 1-2 linhas por resultado com badges ANSI).
+  - [x] Atualizar documentação e ajuda (`mem search --help`).
+  - [x] Escrever testes de integração em `cmd/mem/search_defaults_test.go`.
+
 
 - [ ] **T5**: MCP memory_search com detail_level, Taxonomia e ADR-025 (`internal/mcp/`)
   - [ ] Atualizar schema de `memory_search` em `internal/mcp/tools.go` com `detail_level` e `category`.

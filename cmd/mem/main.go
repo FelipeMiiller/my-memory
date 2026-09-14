@@ -250,6 +250,8 @@ func main() {
 		searchCmd := flag.NewFlagSet("search", flag.ExitOnError)
 		useTurbo := searchCmd.Bool("tq", false, "Usar busca via TurboQuant (4-bits, SQLite)")
 		mode := searchCmd.String("mode", "", "Modo de busca: 'hybrid' (FTS+vetor+grafo via RRF), 'vector' (apenas k-NN), 'fts' (apenas léxico)")
+		level := searchCmd.String("level", "", "Nível de densidade de contexto: 'l0' (micro-abstract cirúrgico), 'l1' (overview/tríptico padrão), 'l2' (detalhes completos)")
+		category := searchCmd.String("category", "", "Filtra por taxonomia de memória: 'resource', 'memory', 'skill' (padrão: todas)")
 		k := searchCmd.Int("k", 0, "Constante de suavização do algoritmo RRF (padrão: 60)")
 		limit := searchCmd.Int("limit", 0, "Número máximo de resultados (padrão: 5)")
 		decay := searchCmd.Bool("decay", false, "Ativa decaimento temporal exponencial para priorizar notas mais recentes")
@@ -258,11 +260,11 @@ func main() {
 		dbPath := searchCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := searchCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := searchCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
-		searchCmd.Parse(os.Args[2:])
+		searchCmd.Parse(rearrangeSearchArgs(os.Args[2:]))
 
 		query := strings.Join(searchCmd.Args(), " ")
 		if query == "" {
-			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
+			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
 			return
 		}
 
@@ -282,6 +284,30 @@ func main() {
 			} else {
 				resolvedMode = "hybrid"
 			}
+		}
+
+		resolvedLevel := *level
+		if !setFlags["level"] {
+			if cfg.Search.Level != "" {
+				resolvedLevel = cfg.Search.Level
+			} else {
+				resolvedLevel = "l1"
+			}
+		}
+		resolvedLevel = strings.ToLower(strings.TrimSpace(resolvedLevel))
+		if resolvedLevel != "l0" && resolvedLevel != "l1" && resolvedLevel != "l2" {
+			resolvedLevel = "l1"
+		}
+
+		resolvedCategory := *category
+		if !setFlags["category"] {
+			resolvedCategory = cfg.Search.Category
+		}
+		resolvedCategory = strings.ToLower(strings.TrimSpace(resolvedCategory))
+
+		searchOpts := store.SearchOptions{
+			Level:    resolvedLevel,
+			Category: resolvedCategory,
 		}
 
 		resolvedLimit := *limit
@@ -344,7 +370,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runSearchPostgres(ctx, pgStore, emb, query, resolvedRepo, resolvedMode, resolvedLimit, resolvedK, decayOpts)
+			runSearchPostgres(ctx, pgStore, emb, query, resolvedRepo, resolvedMode, resolvedLimit, resolvedK, decayOpts, searchOpts)
 		} else {
 			database, err := db.InitDB(resolvedDB)
 			if err != nil {
@@ -352,8 +378,9 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runSearchSQLite(ctx, database, emb, tq, query, resolvedMode, resolvedUseTurbo, resolvedLimit, resolvedK, decayOpts)
+			runSearchSQLite(ctx, database, emb, tq, query, resolvedMode, resolvedUseTurbo, resolvedLimit, resolvedK, decayOpts, searchOpts)
 		}
+
 
 	case "mcp":
 		mcpCmd := flag.NewFlagSet("mcp", flag.ExitOnError)
@@ -631,8 +658,9 @@ func printHelp() {
 	fmt.Println("      Instala ou remove o Git pre-commit hook para indexação automática pré-commit")
 	fmt.Println("  mem doctor [--fix] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score)")
-	fmt.Println("  mem search [--mode hybrid|vector|fts] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
-	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), decaimento temporal, FTS5/tsvector, vetores e grafo")
+	fmt.Println("  mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
+	fmt.Println("      Busca com Progressive Context Loading (L0/L1/L2), filtro de categoria, RRF, decaimento temporal e grafo")
+
 	fmt.Println("  mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exibe os nós centrais por grau (God Nodes) ou por autoridade estrutural (PageRank ponderado)")
 	fmt.Println("  mem clusters [--min-size 2] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -1422,26 +1450,32 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
 }
 
-func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions) {
+func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
 	decayInfo := ""
 	if decayOpts.Enabled {
 		decayInfo = fmt.Sprintf(" [Decay: ativo (meia-vida: %.1fd, peso: %.2f)]", decayOpts.HalfLife, decayOpts.Weight)
 	}
-	fmt.Printf("🔎 Buscando no PostgreSQL (pgvector) [Repo: %s, Modo: %s%s] por: \"%s\"\n\n", targetRepo, mode, decayInfo, query)
+	catInfo := ""
+	if searchOpts.Category != "" {
+		catInfo = fmt.Sprintf(" [Categoria: %s]", strings.ToUpper(searchOpts.Category))
+	}
+	levelInfo := fmt.Sprintf(" [Nível: %s]", strings.ToUpper(searchOpts.Level))
+
+	fmt.Printf("🔎 Buscando no PostgreSQL (pgvector) [Repo: %s, Modo: %s%s%s%s] por: \"%s\"\n\n", targetRepo, mode, levelInfo, catInfo, decayInfo, query)
 
 	var results []store.SearchResult
 	var err error
 
 	switch strings.ToLower(mode) {
 	case "fts":
-		results, err = s.SearchFTS(ctx, targetRepo, query, limit)
+		results, err = s.SearchFTSWithOptions(ctx, targetRepo, query, limit, searchOpts)
 	case "vector":
 		queryVec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
 			fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", embErr)
 			return
 		}
-		results, err = s.SearchKNN(ctx, targetRepo, queryVec, limit)
+		results, err = s.SearchKNNWithOptions(ctx, targetRepo, queryVec, limit, searchOpts)
 	default: // hybrid
 		var queryVec []float32
 		vec, embErr := emb.GenerateEmbedding(query)
@@ -1450,7 +1484,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		} else {
 			queryVec = vec
 		}
-		results, err = s.SearchHybridRRFWithDecay(ctx, targetRepo, query, queryVec, limit, k, decayOpts)
+		results, err = s.SearchHybridWithOptions(ctx, targetRepo, query, queryVec, limit, k, decayOpts, searchOpts)
 	}
 
 	if err != nil {
@@ -1463,8 +1497,44 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		return
 	}
 
+	if strings.EqualFold(searchOpts.Level, "l0") {
+		for i, res := range results {
+			catBadge := "RESOURCE"
+			if res.Category != "" {
+				catBadge = strings.ToUpper(res.Category)
+			}
+			dateStr := ""
+			if res.UpdatedAt > 0 {
+				dateStr = fmt.Sprintf(" | %s", time.Unix(res.UpdatedAt, 0).UTC().Format("2006-01-02"))
+			}
+			scoreStr := ""
+			if res.Score > 0 {
+				scoreStr = fmt.Sprintf(" (Score: %.4f%s)", res.Score, dateStr)
+			} else if res.Distance > 0 {
+				scoreStr = fmt.Sprintf(" (Dist: %.4f%s)", res.Distance, dateStr)
+			}
+
+			fmt.Printf("[%d] \033[1;34m[%s]\033[0m \033[1m%s\033[0m%s\n", i+1, catBadge, res.DocumentID, scoreStr)
+			abstract := res.Abstract
+			if abstract == "" {
+				abstract = "(sem abstract disponível)"
+			}
+			fmt.Printf("    💡 %s\n", abstract)
+			if len(res.Neighbors) > 0 {
+				fmt.Printf("    🕸  Vizinhos: [%s]\n", strings.Join(res.Neighbors, ", "))
+			}
+			fmt.Println()
+		}
+		return
+	}
+
 	for i, res := range results {
 		var headers []string
+		if res.Category != "" {
+			headers = append(headers, fmt.Sprintf("[%s]", strings.ToUpper(res.Category)))
+		} else {
+			headers = append(headers, "[RESOURCE]")
+		}
 		if res.Score > 0 {
 			headers = append(headers, fmt.Sprintf("Score RRF: %.4f", res.Score))
 		}
@@ -1480,10 +1550,15 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		headers = append(headers, fmt.Sprintf("Documento: %s", res.DocumentID))
 
 		fmt.Printf("--- [%d] %s ---\n", i+1, strings.Join(headers, " | "))
+		if res.Abstract != "" {
+			fmt.Printf("💡 Resumo (L0): %s\n", res.Abstract)
+		}
 		if len(res.Sources) > 0 {
 			fmt.Printf("📊 Fontes RRF: [%s]\n", strings.Join(res.Sources, ", "))
 		}
-		fmt.Println(res.Content)
+		if res.Content != "" {
+			fmt.Println(res.Content)
+		}
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
 		}
@@ -1491,7 +1566,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 	}
 }
 
-func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions) {
+func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
 	vecSubmode := "sqlite-vec"
 	if useTurbo || !db.HasSqliteVec {
 		vecSubmode = "TurboQuant"
@@ -1500,14 +1575,20 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 	if decayOpts.Enabled {
 		decayInfo = fmt.Sprintf(" [Decay: ativo (meia-vida: %.1fd, peso: %.2f)]", decayOpts.HalfLife, decayOpts.Weight)
 	}
-	fmt.Printf("🔎 Buscando no SQLite por: \"%s\" [Modo: %s (%s)%s]\n\n", query, mode, vecSubmode, decayInfo)
+	catInfo := ""
+	if searchOpts.Category != "" {
+		catInfo = fmt.Sprintf(" [Categoria: %s]", strings.ToUpper(searchOpts.Category))
+	}
+	levelInfo := fmt.Sprintf(" [Nível: %s]", strings.ToUpper(searchOpts.Level))
+
+	fmt.Printf("🔎 Buscando no SQLite por: \"%s\" [Modo: %s (%s)%s%s%s]\n\n", query, mode, vecSubmode, levelInfo, catInfo, decayInfo)
 
 	var results []db.SearchResult
 	var err error
 
 	switch strings.ToLower(mode) {
 	case "fts":
-		results, err = db.SearchFTS(ctx, database, query, limit)
+		results, err = db.SearchFTSWithOptions(ctx, database, query, limit, searchOpts)
 	case "vector":
 		queryVec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
@@ -1515,11 +1596,11 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 			return
 		}
 		if useTurbo || !db.HasSqliteVec {
-			results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+			results, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
 		} else {
-			results, err = db.SearchKNN(ctx, database, queryVec, limit)
+			results, err = db.SearchKNNWithOptions(ctx, database, queryVec, limit, searchOpts)
 			if err != nil {
-				results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+				results, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
 			}
 		}
 	default: // hybrid
@@ -1530,7 +1611,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		} else {
 			queryVec = vec
 		}
-		results, err = db.SearchHybridRRFWithDecay(ctx, database, tq, query, queryVec, limit, k, useTurbo, decayOpts)
+		results, err = db.SearchHybridRRFWithOptions(ctx, database, tq, query, queryVec, limit, k, useTurbo, decayOpts, searchOpts)
 	}
 
 	if err != nil {
@@ -1543,8 +1624,44 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		return
 	}
 
+	if strings.EqualFold(searchOpts.Level, "l0") {
+		for i, res := range results {
+			catBadge := "RESOURCE"
+			if res.Category != "" {
+				catBadge = strings.ToUpper(res.Category)
+			}
+			dateStr := ""
+			if res.UpdatedAt > 0 {
+				dateStr = fmt.Sprintf(" | %s", time.Unix(res.UpdatedAt, 0).UTC().Format("2006-01-02"))
+			}
+			scoreStr := ""
+			if res.Score > 0 {
+				scoreStr = fmt.Sprintf(" (Score: %.4f%s)", res.Score, dateStr)
+			} else if res.Distance > 0 {
+				scoreStr = fmt.Sprintf(" (Dist: %.4f%s)", res.Distance, dateStr)
+			}
+
+			fmt.Printf("[%d] \033[1;34m[%s]\033[0m \033[1m%s\033[0m%s\n", i+1, catBadge, res.DocumentID, scoreStr)
+			abstract := res.Abstract
+			if abstract == "" {
+				abstract = "(sem abstract disponível)"
+			}
+			fmt.Printf("    💡 %s\n", abstract)
+			if len(res.Neighbors) > 0 {
+				fmt.Printf("    🕸  Vizinhos: [%s]\n", strings.Join(res.Neighbors, ", "))
+			}
+			fmt.Println()
+		}
+		return
+	}
+
 	for i, res := range results {
 		var headers []string
+		if res.Category != "" {
+			headers = append(headers, fmt.Sprintf("[%s]", strings.ToUpper(res.Category)))
+		} else {
+			headers = append(headers, "[RESOURCE]")
+		}
 		if res.Score > 0 {
 			headers = append(headers, fmt.Sprintf("Score RRF: %.4f", res.Score))
 		}
@@ -1557,16 +1674,53 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		headers = append(headers, fmt.Sprintf("Documento: %s", res.DocumentID))
 
 		fmt.Printf("--- [%d] %s ---\n", i+1, strings.Join(headers, " | "))
+		if res.Abstract != "" {
+			fmt.Printf("💡 Resumo (L0): %s\n", res.Abstract)
+		}
 		if len(res.Sources) > 0 {
 			fmt.Printf("📊 Fontes RRF: [%s]\n", strings.Join(res.Sources, ", "))
 		}
-		fmt.Println(res.Content)
+		if res.Content != "" {
+			fmt.Println(res.Content)
+		}
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
 		}
 		fmt.Println()
 	}
 }
+
+func rearrangeSearchArgs(args []string) []string {
+	var flags []string
+	var nonFlags []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "-") {
+			flags = append(flags, arg)
+			// Se a flag espera um argumento posicional separado por espaço
+			if !strings.Contains(arg, "=") && (arg == "--mode" || arg == "-mode" ||
+				arg == "--level" || arg == "-level" ||
+				arg == "--category" || arg == "-category" ||
+				arg == "--k" || arg == "-k" ||
+				arg == "--limit" || arg == "-limit" ||
+				arg == "--half-life" || arg == "-half-life" ||
+				arg == "--decay-weight" || arg == "-decay-weight" ||
+				arg == "--db" || arg == "-db" ||
+				arg == "--postgres" || arg == "-postgres" ||
+				arg == "--repo" || arg == "-repo") {
+				if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+					flags = append(flags, args[i+1])
+					i++
+				}
+			}
+		} else {
+			nonFlags = append(nonFlags, arg)
+		}
+	}
+	return append(flags, nonFlags...)
+}
+
+
 
 func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)

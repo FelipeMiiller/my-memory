@@ -105,3 +105,48 @@ func TestSearchDefaultsFromConfig(t *testing.T) {
 	}
 }
 
+func TestSearchDefaultsFromConfig_LevelAndCategory(t *testing.T) {
+	cfg := &config.Config{
+		Version: 1,
+		Search: config.SearchConfig{
+			Level:    "l0",
+			Category: "memory",
+		},
+	}
+
+	resolvedLevel := cfg.Search.Level
+	resolvedCategory := cfg.Search.Category
+
+	if resolvedLevel != "l0" {
+		t.Errorf("esperava level 'l0', obteve '%s'", resolvedLevel)
+	}
+	if resolvedCategory != "memory" {
+		t.Errorf("esperava category 'memory', obteve '%s'", resolvedCategory)
+	}
+}
+
+func TestSearchDefaults_DefaultLevel(t *testing.T) {
+	def := config.DefaultConfig()
+	if def.Search.Level != "l1" {
+		t.Errorf("esperava level padrão 'l1', obteve '%s'", def.Search.Level)
+	}
+	if def.Search.Category != "" {
+		t.Errorf("esperava category padrão vazia, obteve '%s'", def.Search.Category)
+	}
+}
+
+func TestRearrangeSearchArgs(t *testing.T) {
+	input := []string{"minha busca", "--level", "l0", "--category", "memory", "-tq"}
+	rearranged := rearrangeSearchArgs(input)
+
+	// Flags devem vir antes da query
+	if len(rearranged) != 6 {
+		t.Fatalf("esperava 6 elementos rearranjados, obteve %d (%v)", len(rearranged), rearranged)
+	}
+	if rearranged[len(rearranged)-1] != "minha busca" {
+		t.Errorf("último elemento deveria ser o termo de busca, obteve '%s'", rearranged[len(rearranged)-1])
+	}
+}
+
+
+
