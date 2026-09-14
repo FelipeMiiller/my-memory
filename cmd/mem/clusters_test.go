@@ -20,7 +20,8 @@ func TestClustersCLI_EmptyAndDegraded(t *testing.T) {
 	var buf bytes.Buffer
 
 	// Executa com um arquivo de banco inexistente; deve degradar graciosamente sem pânico
-	err := runClustersCommand(ctx, "test-repo", []string{"--db", "non_existent_db_12345.db", "--min-size", "2"}, &buf)
+	dbPath := filepath.Join(t.TempDir(), "non_existent_db_12345.db")
+	err := runClustersCommand(ctx, "test-repo", []string{"--db", dbPath, "--min-size", "2"}, &buf)
 	if err != nil {
 		t.Fatalf("esperava sucesso na degradação graciosa, obteve erro: %v", err)
 	}
@@ -35,7 +36,8 @@ func TestClustersCLI_JSONOutput(t *testing.T) {
 	ctx := context.Background()
 	var buf bytes.Buffer
 
-	err := runClustersCommand(ctx, "test-repo", []string{"--db", "non_existent.db", "--json", "--min-size", "1"}, &buf)
+	dbPath := filepath.Join(t.TempDir(), "non_existent.db")
+	err := runClustersCommand(ctx, "test-repo", []string{"--db", dbPath, "--json", "--min-size", "1"}, &buf)
 	if err != nil {
 		t.Fatalf("erro ao executar comando com --json: %v", err)
 	}
