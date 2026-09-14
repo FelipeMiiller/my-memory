@@ -23,11 +23,12 @@
 
 ## Handoff
 
-- **Feature**: triptych-node-inspector (.specs/features/triptych-node-inspector)
-- **Phase / Task**: Phase 1 / T4 (Completed)
-- **Completed**: T1 (Motor de Montagem do Tríptico e Truncamento UTF-8), T2 (Resolução Canônica com Normalização de Barras e InspectNode em SQLite/PostgreSQL), T3 (Subcomando mem inspect com --json e rearranjo de flags), T4 (Ferramenta MCP memory_inspect_node, Visualizador HTML/SVG 3-colunas e ADR-024)
-- **In-progress**: none
-- **Next step**: Validação de regressão, git push e Pull Request para main (ou release v1.3.0)
+- **Feature**: progressive-context-loading (.specs/features/progressive-context-loading)
+- **Phase / Task**: Phase 1 / T1 (Planning & Ready for Implementation)
+- **Planned**: T1 (Extensão de Schema e Migrações), T2 (Extração Heurística de L0 e Taxonomia), T3 (Motores de Busca com L0/L1/L2 e Filtro de Categoria), T4 (CLI mem search com --level e --category), T5 (MCP memory_search com detail_level e ADR-025)
+- **Completed Features**: triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: T1 (Extensão do Schema e Migração Idempotente)
+- **Next step**: Implementar migração das colunas `abstract` e `category` no SQLite e PostgreSQL
 - **Blockers**: none
 - **Branch**: develop
 
