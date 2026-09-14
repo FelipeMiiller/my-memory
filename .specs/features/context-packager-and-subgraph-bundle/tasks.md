@@ -18,11 +18,12 @@
   - [x] Adicionar testes em `internal/store/postgres_test.go`.
 
 
-- [ ] **T3**: Subcomando CLI `mem pack` (`cmd/mem/`)
-  - [ ] Criar `cmd/mem/pack.go` com flags `--depth`, `--max-tokens`, `--direction`, `--out` e `--json`.
-  - [ ] Renderizar resumo no terminal (tokens consumidos, nós incluídos vs omitidos) e gravação em arquivo / stdout.
-  - [ ] Integrar no switch de comandos e ajuda em `cmd/mem/main.go`.
-  - [ ] Escrever testes de CLI em `cmd/mem/pack_test.go`.
+- [x] **T3**: Subcomando CLI `mem pack` (`cmd/mem/`)
+  - [x] Criar `cmd/mem/pack.go` com flags `--depth`, `--max-tokens`, `--direction`, `--out` e `--json`.
+  - [x] Renderizar resumo no terminal (tokens consumidos, nós incluídos vs omitidos) e gravação em arquivo / stdout.
+  - [x] Integrar no switch de comandos e ajuda em `cmd/mem/main.go`.
+  - [x] Escrever testes de CLI em `cmd/mem/pack_test.go`.
+
 
 - [ ] **T4**: Ferramenta MCP `memory_pack_context` (`internal/mcp/`)
   - [ ] Declarar `ToolMemoryPackContext` em `internal/mcp/tools.go` e adicionar a `AllTools`.

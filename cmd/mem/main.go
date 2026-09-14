@@ -641,6 +641,13 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "pack":
+		if err := runPackCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+
 	case "status":
 		if err := runStatusCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -692,6 +699,9 @@ func printHelp() {
 	fmt.Println("      Visualização cirúrgica em 3 colunas (in-links, nó central e out-links) com risco e preview")
 	fmt.Println("  mem path <origem> <destino> [--undirected] [--max-depth 6] [--mode epistemic|hops] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descoberta de rotas e menor caminho ponderado por custos epistêmicos entre dois nós do grafo")
+	fmt.Println("  mem pack <nota_ou_id> [--depth 2] [--max-tokens 4000] [--direction both] [--out <bundle.md>] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Empacota um subgrafo de contexto coerente centrado em uma nota raiz com controle rígido de tokens")
+
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
 	fmt.Println("  mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open] [--db <arq>] [--postgres <url>] [--repo <slug>]")
