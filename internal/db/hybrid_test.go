@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -46,10 +45,6 @@ func TestSearchHybridRRFWithDecay_SQLite(t *testing.T) {
 
 	database, err := InitDB(dbPath)
 	if err != nil {
-		if strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "stub") {
-			t.Skip("Pulando teste SQLite: ambiente sem CGO (go-sqlite3 stub)")
-			return
-		}
 		t.Fatalf("falha ao inicializar SQLite: %v", err)
 	}
 	defer database.Close()
@@ -72,8 +67,8 @@ func TestSearchHybridRRFWithDecay_SQLite(t *testing.T) {
 	_, err = database.ExecContext(ctx, `
 		INSERT INTO chunks (id, document_id, chunk_index, content)
 		VALUES 
-			('c_old', 'doc_old', 0, 'go concurrency patterns memory management go go'),
-			('c_new', 'doc_new', 0, 'go concurrency patterns')
+			('c_old', 'doc_old', 0, 'go concurrency patterns go concurrency patterns go concurrency patterns memory management'),
+			('c_new', 'doc_new', 0, 'go concurrency patterns other text here')
 	`)
 	if err != nil {
 		t.Fatalf("falha ao inserir chunks: %v", err)
@@ -83,8 +78,8 @@ func TestSearchHybridRRFWithDecay_SQLite(t *testing.T) {
 	_, err = database.ExecContext(ctx, `
 		INSERT INTO chunks_fts (chunk_id, content)
 		VALUES 
-			('c_old', 'go concurrency patterns memory management go go'),
-			('c_new', 'go concurrency patterns')
+			('c_old', 'go concurrency patterns go concurrency patterns go concurrency patterns memory management'),
+			('c_new', 'go concurrency patterns other text here')
 	`)
 	if err != nil {
 		t.Fatalf("falha ao indexar chunks no FTS: %v", err)

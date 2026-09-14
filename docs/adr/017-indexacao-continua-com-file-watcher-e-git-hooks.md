@@ -1,4 +1,4 @@
-﻿# ADR-017: Indexação Contínua em Tempo Real com File Watcher e Git Hooks
+# ADR-017: Indexação Contínua em Tempo Real com File Watcher e Git Hooks
 
 - **Date**: 2026-09-13
 - **Status**: Accepted
@@ -62,3 +62,11 @@ Adotou-se o motor de **Indexação Contínua e Gestão de Hooks** implementado n
 ### Negative Consequences / Trade-offs
 
 - **Uso de CPU em Polling**: O watcher baseado em polling consome uma fração mínima de CPU a cada ciclo configurado (`interval_ms`), o que é amplamente mitigado pelo filtro de diretórios ignorados (`SkipDir`) e checagem rápida de metadata.
+
+---
+
+## Links e Referências
+
+- **[CodeGraph Auto-Sync (colbymchenry/codegraph)](https://github.com/colbymchenry/codegraph)**: Referência em sincronização reativa com debounced file watcher e staleness banners para agentes de IA.
+- [ADR-010: Cache Incremental de Indexação com SHA-256](010-cache-incremental-de-indexacao-com-sha256.md)
+- [ADR-016: Configuração Declarativa e Auto-Scoping de Vault](016-configuracao-declarativa-e-auto-scoping-de-vault.md)

@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -19,6 +21,8 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
+	"github.com/FelipeMiiller/my-memory/internal/graph"
+	"github.com/FelipeMiiller/my-memory/internal/graphview"
 	"github.com/FelipeMiiller/my-memory/internal/mcp"
 	"github.com/FelipeMiiller/my-memory/internal/parser"
 	"github.com/FelipeMiiller/my-memory/internal/repo"
@@ -46,6 +50,10 @@ func main() {
 		repoSlug := initCmd.String("repo", defaultRepo, "Identificador/slug do repositório para o arquivo de configuração")
 		dbPath := initCmd.String("db", "memory.db", "Caminho padrão do arquivo de banco SQLite")
 		force := initCmd.Bool("force", false, "Sobrescreve o arquivo de configuração existente se já existir")
+		vscode := initCmd.Bool("vscode", false, "Gera configuração .vscode/mcp.json para VS Code Copilot")
+		copilot := initCmd.Bool("copilot", false, "Gera instruções .github/copilot-instructions.md para o GitHub Copilot")
+		cursor := initCmd.Bool("cursor", false, "Gera configuração .cursor/mcp.json para o Cursor IDE")
+		all := initCmd.Bool("all", false, "Gera integrações para todas as IDEs suportadas (VS Code Copilot, Cursor)")
 		initCmd.Parse(os.Args[2:])
 
 		targetDir := "."
@@ -53,7 +61,11 @@ func main() {
 			targetDir = initCmd.Arg(0)
 		}
 
-		if err := runInit(targetDir, *repoSlug, *dbPath, *force); err != nil {
+		genVSCode := *vscode || *all
+		genCopilot := *copilot || *all
+		genCursor := *cursor || *all
+
+		if err := runInit(targetDir, *repoSlug, *dbPath, *force, genVSCode, genCopilot, genCursor); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro ao inicializar vault: %v\n", err)
 			os.Exit(1)
 		}
@@ -367,10 +379,19 @@ func main() {
 		dbPath := mcpCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := mcpCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := mcpCmd.String("repo", "", "Identificador padrão do repositório")
+		port := mcpCmd.Int("port", 0, "Porta para iniciar o servidor MCP via HTTP/SSE (ex: 38400)")
+		host := mcpCmd.String("host", "127.0.0.1", "Host/interface de rede para o servidor HTTP")
+		httpAddr := mcpCmd.String("http", "", "Endereço completo para o servidor HTTP (ex: :38400 ou 0.0.0.0:38400)")
+		cors := mcpCmd.Bool("cors", true, "Habilita suporte a CORS para conexões de navegadores")
 		mcpCmd.Parse(os.Args[2:])
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+
+		targetHTTP := *httpAddr
+		if targetHTTP == "" && *port > 0 {
+			targetHTTP = fmt.Sprintf("%s:%d", *host, *port)
+		}
 
 		var pgStore *store.PostgresStore
 		var database *sql.DB
@@ -397,24 +418,57 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao SQLite: %s\n", resolvedDB)
 		}
 
-		runMCPServer(ctx, pgStore, database, emb, resolvedRepo)
+		runMCPServer(ctx, pgStore, database, emb, resolvedRepo, targetHTTP, *cors)
 
 	case "export":
 		exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
 		canvasNode := exportCmd.String("canvas", "", "Nome ou identificador da nota raiz para exportar subgrafo para JSON Canvas (.canvas)")
+		htmlOut := exportCmd.String("html", "", "Exporta visualização interativa do grafo para arquivo HTML standalone")
 		depth := exportCmd.Int("depth", 1, "Profundidade máxima de vizinhos no grafo (padrão: 1)")
 		outFile := exportCmd.String("out", "", "Caminho do arquivo .canvas de saída (padrão: <nota>.canvas)")
+		openHTML := exportCmd.Bool("open", false, "Abre automaticamente o arquivo no navegador (apenas para exportação HTML)")
 		dbPath := exportCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := exportCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := exportCmd.String("repo", "", "Identificador/slug do repositório")
 		exportCmd.Parse(os.Args[2:])
+
+		if *htmlOut != "" || (exportCmd.NArg() > 0 && strings.HasSuffix(exportCmd.Arg(0), ".html")) {
+			targetOut := *htmlOut
+			if targetOut == "" && exportCmd.NArg() > 0 {
+				targetOut = exportCmd.Arg(0)
+			}
+			var gArgs []string
+			if *openHTML {
+				gArgs = append(gArgs, "view")
+			} else {
+				gArgs = append(gArgs, "export")
+			}
+			gArgs = append(gArgs, "--out", targetOut, "--depth", fmt.Sprintf("%d", *depth))
+			if *canvasNode != "" {
+				gArgs = append(gArgs, "--root", *canvasNode)
+			}
+			if *dbPath != "" {
+				gArgs = append(gArgs, "--db", *dbPath)
+			}
+			if *pgURL != "" {
+				gArgs = append(gArgs, "--postgres", *pgURL)
+			}
+			if *targetRepo != "" {
+				gArgs = append(gArgs, "--repo", *targetRepo)
+			}
+			if err := runGraphCLI(ctx, defaultRepo, gArgs); err != nil {
+				fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
 
 		node := *canvasNode
 		if node == "" && exportCmd.NArg() > 0 {
 			node = exportCmd.Arg(0)
 		}
 		if node == "" {
-			fmt.Println("Uso: mem export --canvas <nota> [--depth 1] [--out <saida.canvas>] [--db <caminho>] [--postgres <url>] [--repo <slug>]")
+			fmt.Println("Uso: mem export --canvas <nota> [--depth 1] [--out <saida.canvas>] ou mem export --html <saida.html>")
 			return
 		}
 
@@ -429,6 +483,12 @@ func main() {
 		}
 
 		runExportCanvas(ctx, resolvedPG, resolvedDB, resolvedRepo, node, *depth, *outFile)
+
+	case "graph":
+		if err := runGraphCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
 
 	case "hubs":
 		hubsCmd := flag.NewFlagSet("hubs", flag.ExitOnError)
@@ -546,6 +606,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "clusters":
+		if err := runClustersCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		if err := runVersionCLI(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -560,8 +626,8 @@ func main() {
 func printHelp() {
 	fmt.Println("=== My-Memory CLI (SQLite / PostgreSQL com pgvector / TurboQuant / MCP) ===")
 	fmt.Println("Comandos disponíveis:")
-	fmt.Println("  mem init [--repo <slug>] [--db <arq>] [--force] [<pasta>]")
-	fmt.Println("      Inicializa um novo vault criando .memory/config.yaml com configurações declarativas")
+	fmt.Println("  mem init [--repo <slug>] [--db <arq>] [--force] [--vscode] [--copilot] [--cursor] [--all] [<pasta>]")
+	fmt.Println("      Inicializa novo vault (.memory/config.yaml) e opcionalmente gera integrações para VS Code Copilot e Cursor")
 	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
 	fmt.Println("  mem watch [--debounce <ms>] [--interval <ms>] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
@@ -574,18 +640,22 @@ func printHelp() {
 	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), decaimento temporal, FTS5/tsvector, vetores e grafo")
 	fmt.Println("  mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exibe os nós centrais por grau (God Nodes) ou por autoridade estrutural (PageRank ponderado)")
+	fmt.Println("  mem clusters [--min-size 2] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Detecta clusters e módulos conceituais no grafo via LPA ponderado e Modularidade Newman-Girvan Q")
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
-	fmt.Println("  mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
-	fmt.Println("      Exporta um subgrafo em torno de uma nota no formato aberto JSON Canvas (.canvas) do Obsidian")
+	fmt.Println("  mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Visualizador interativo de grafo em HTML/SVG standalone com física de forças, busca e PageRank")
+	fmt.Println("  mem export [--canvas <nota>] [--html <saida.html>] [--depth 1] [--out <arquivo>] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Exporta o grafo para JSON Canvas 1.0 (.canvas) do Obsidian ou visualizador HTML standalone interativo")
 	fmt.Println("  mem bench")
 	fmt.Println("      Executa micro-benchmarks de performance (TurboQuant, RRF, SHA-256, Parsing) com resumo tabular")
 	fmt.Println("  mem note <create|append> [opções] <caminho>")
 	fmt.Println("      Cria ou anexa seções em notas Markdown atômicas com frontmatter e sincronização imediata")
 	fmt.Println("  mem compile --topic \"<termo>\" --out \"<caminho.md>\" [--limit 5] [--mode hybrid|vector|fts]")
 	fmt.Println("      Compila e sintetiza fragmentos de busca em uma nota atômica com backlinks (Compile-not-Retrieve)")
-	fmt.Println("  mem mcp [--db <arq>] [--postgres <url>] [--repo <slug>]")
-	fmt.Println("      Inicia servidor Model Context Protocol via stdio para agentes de IA (Claude, Cursor, etc)")
+	fmt.Println("  mem mcp [--port <porta>] [--host <ip>] [--http <addr>] [--cors] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Inicia servidor Model Context Protocol via stdio (padrão) ou via HTTP/SSE na porta indicada")
 	fmt.Println("  mem version [--json]")
 	fmt.Println("      Exibe metadados de versão, commit, data de compilação e arquitetura (ou via -v, --version)")
 	fmt.Println()
@@ -594,30 +664,29 @@ func printHelp() {
 	fmt.Println("  MY_MEMORY_REPO   - Força o slug do repositório atual (sobrescreve auto-detecção git)")
 }
 
-func runInit(targetDir, repoSlug, dbPath string, force bool) error {
+func runInit(targetDir, repoSlug, dbPath string, force bool, vscode, copilot, cursor bool) error {
 	if targetDir == "" {
 		targetDir = "."
 	}
 	memDir := filepath.Join(targetDir, ".memory")
 	cfgPath := filepath.Join(memDir, "config.yaml")
 
+	configCreated := false
 	if _, err := os.Stat(cfgPath); err == nil && !force {
 		fmt.Printf("⚠️ Arquivo de configuração já existe em %s. Use --force para sobrescrever.\n", cfgPath)
-		return nil
-	}
+	} else {
+		if err := os.MkdirAll(memDir, 0755); err != nil {
+			return fmt.Errorf("erro ao criar diretório .memory: %w", err)
+		}
 
-	if err := os.MkdirAll(memDir, 0755); err != nil {
-		return fmt.Errorf("erro ao criar diretório .memory: %w", err)
-	}
+		if repoSlug == "" {
+			repoSlug = "local/vault"
+		}
+		if dbPath == "" {
+			dbPath = "memory.db"
+		}
 
-	if repoSlug == "" {
-		repoSlug = "local/vault"
-	}
-	if dbPath == "" {
-		dbPath = "memory.db"
-	}
-
-	template := fmt.Sprintf(`# ==============================================================================
+		template := fmt.Sprintf(`# ==============================================================================
 # My-Memory Vault Configuration
 # Documentação: docs/REPOSITORY_BRAIN.md e docs/CLI_GUIDE.md
 # ==============================================================================
@@ -672,18 +741,94 @@ watcher:
   interval_ms: 1000         # Intervalo de polling periódico
 `, repoSlug, dbPath)
 
-	if err := os.WriteFile(cfgPath, []byte(template), 0644); err != nil {
-		return fmt.Errorf("erro ao salvar arquivo de configuração: %w", err)
+		if err := os.WriteFile(cfgPath, []byte(template), 0644); err != nil {
+			return fmt.Errorf("erro ao salvar arquivo de configuração: %w", err)
+		}
+
+		if _, err := config.LoadConfig(cfgPath); err != nil {
+			return fmt.Errorf("erro de validação do arquivo de configuração gerado: %w", err)
+		}
+		configCreated = true
+		fmt.Printf("✅ Configuração inicializada com sucesso em %s\n", cfgPath)
+		fmt.Printf("   Repositório: %s\n", repoSlug)
+		fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
 	}
 
-	if _, err := config.LoadConfig(cfgPath); err != nil {
-		return fmt.Errorf("erro de validação do arquivo de configuração gerado: %w", err)
+	if vscode {
+		vscodeDir := filepath.Join(targetDir, ".vscode")
+		if err := os.MkdirAll(vscodeDir, 0755); err == nil {
+			mcpFile := filepath.Join(vscodeDir, "mcp.json")
+			if _, err := os.Stat(mcpFile); os.IsNotExist(err) || force {
+				vscodeContent := `{
+  "servers": {
+    "my-memory": {
+      "type": "stdio",
+      "command": "mem",
+      "args": ["mcp"]
+    }
+  }
+}
+`
+				if err := os.WriteFile(mcpFile, []byte(vscodeContent), 0644); err == nil {
+					fmt.Printf("   VS Code Copilot: %s gerado com sucesso\n", mcpFile)
+				}
+			}
+		}
 	}
 
-	fmt.Printf("✅ Configuração inicializada com sucesso em %s\n", cfgPath)
-	fmt.Printf("   Repositório: %s\n", repoSlug)
-	fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
-	fmt.Println("   Dica: execute 'mem index' para iniciar a indexação automática.")
+	if copilot {
+		ghDir := filepath.Join(targetDir, ".github")
+		if err := os.MkdirAll(ghDir, 0755); err == nil {
+			instructionsFile := filepath.Join(ghDir, "copilot-instructions.md")
+			if _, err := os.Stat(instructionsFile); os.IsNotExist(err) || force {
+				copilotContent := `# Instruções para o GitHub Copilot (My-Memory)
+
+Este repositório está integrado com o **My-Memory** como motor de memória semântica e relacional de contexto via Model Context Protocol (MCP).
+
+## Ferramentas MCP Disponíveis para o Copilot
+- ` + "`memory_search`" + `: Recupera notas e trechos cirúrgicos via busca híbrida (BM25 + embeddings + grafo).
+- ` + "`memory_get_neighbors`" + `: Retorna dependências, chamadores e notas conectadas no grafo.
+- ` + "`memory_get_clusters`" + `: Lista os clusters temáticos e comunidades conceituais do repositório.
+- ` + "`memory_write_note`" + `: Cria ou atualiza notas atômicas no vault de conhecimento com frontmatter e conexões tipadas.
+- ` + "`memory_compile_note`" + `: Sintetiza e compila fragmentos em uma nova nota consolidada (Compile-not-Retrieve).
+- ` + "`memory_visualize_graph`" + `: Exporta visualização interativa do grafo em HTML/SVG.
+
+## Diretrizes de Uso Obrigatórias
+1. **Consulte a Memória Antes de Sugerir Mudanças Estruturais**: Sempre utilize ` + "`memory_search`" + ` para verificar decisões de arquitetura e precedentes documentados em notas ou ADRs antes de propor novos padrões.
+2. **Respeite o Grafo de Dependências**: Consulte ` + "`memory_get_neighbors`" + ` para analisar o raio de impacto (*blast radius*) antes de renomear ou modificar módulos críticos.
+3. **Padrão Compile-not-Retrieve**: Quando o usuário solicitar documentar um novo tema, utilize ` + "`memory_compile_note`" + ` ou ` + "`memory_write_note`" + ` para persistir o conhecimento diretamente no vault.
+`
+				if err := os.WriteFile(instructionsFile, []byte(copilotContent), 0644); err == nil {
+					fmt.Printf("   GitHub Copilot: %s gerado com sucesso\n", instructionsFile)
+				}
+			}
+		}
+	}
+
+	if cursor {
+		cursorDir := filepath.Join(targetDir, ".cursor")
+		if err := os.MkdirAll(cursorDir, 0755); err == nil {
+			mcpFile := filepath.Join(cursorDir, "mcp.json")
+			if _, err := os.Stat(mcpFile); os.IsNotExist(err) || force {
+				cursorContent := `{
+  "mcpServers": {
+    "my-memory": {
+      "command": "mem",
+      "args": ["mcp"]
+    }
+  }
+}
+`
+				if err := os.WriteFile(mcpFile, []byte(cursorContent), 0644); err == nil {
+					fmt.Printf("   Cursor IDE: %s gerado com sucesso\n", mcpFile)
+				}
+			}
+		}
+	}
+
+	if configCreated {
+		fmt.Println("   Dica: execute 'mem index' para iniciar a indexação automática.")
+	}
 	return nil
 }
 
@@ -1144,7 +1289,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 
 func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions) {
 	vecSubmode := "sqlite-vec"
-	if useTurbo {
+	if useTurbo || !db.HasSqliteVec {
 		vecSubmode = "TurboQuant"
 	}
 	decayInfo := ""
@@ -1165,10 +1310,13 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 			fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", embErr)
 			return
 		}
-		if useTurbo {
+		if useTurbo || !db.HasSqliteVec {
 			results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
 		} else {
 			results, err = db.SearchKNN(ctx, database, queryVec, limit)
+			if err != nil {
+				results, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+			}
 		}
 	default: // hybrid
 		var queryVec []float32
@@ -1216,7 +1364,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 	}
 }
 
-func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, defaultRepo string) {
+func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, defaultRepo string, httpAddr string, corsEnabled bool) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
 
 	if pgStore != nil {
@@ -1380,6 +1528,29 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				return pgStore.FixHealthIssues(ctx, repo)
 			},
 		)
+
+		srv.SetGraphViewHandler(func(ctx context.Context, repo, rootNode string, maxDepth int) (*graphview.GraphView, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return graphview.BuildFromPostgres(ctx, pgStore, repo, rootNode, maxDepth)
+		}, ".")
+
+		srv.SetClustersHandler(func(ctx context.Context, repo string, minSize int) (graph.CommunityResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			gv, err := graphview.BuildFromPostgres(ctx, pgStore, repo, "", 0)
+			if err != nil {
+				return graph.CommunityResult{}, err
+			}
+			return graph.CommunityResult{
+				Communities: gv.Communities,
+				Modularity:  gv.Stats.Modularity,
+				TotalNodes:  gv.Stats.TotalNodes,
+				TotalEdges:  gv.Stats.TotalEdges,
+			}, nil
+		})
 	} else if database != nil {
 		tq := turboquant.NewQuantizer(EmbeddingDim)
 		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -1403,7 +1574,14 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				if embErr != nil {
 					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
 				}
-				dbResults, err = db.SearchKNN(ctx, database, queryVec, limit)
+				if !db.HasSqliteVec {
+					dbResults, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+				} else {
+					dbResults, err = db.SearchKNN(ctx, database, queryVec, limit)
+					if err != nil {
+						dbResults, err = db.SearchTurboQuant(ctx, database, tq, queryVec, limit)
+					}
+				}
 			default: // hybrid
 				var queryVec []float32
 				vec, embErr := emb.GenerateEmbedding(params.Query)
@@ -1519,6 +1697,64 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				return db.FixHealthIssues(ctx, database)
 			},
 		)
+
+		srv.SetGraphViewHandler(func(ctx context.Context, repo, rootNode string, maxDepth int) (*graphview.GraphView, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return graphview.BuildFromSQLite(ctx, database, rootNode, maxDepth, repo)
+		}, ".")
+
+		srv.SetClustersHandler(func(ctx context.Context, repo string, minSize int) (graph.CommunityResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			gv, err := graphview.BuildFromSQLite(ctx, database, "", 0, repo)
+			if err != nil {
+				return graph.CommunityResult{}, err
+			}
+			return graph.CommunityResult{
+				Communities: gv.Communities,
+				Modularity:  gv.Stats.Modularity,
+				TotalNodes:  gv.Stats.TotalNodes,
+				TotalEdges:  gv.Stats.TotalEdges,
+			}, nil
+		})
+	}
+
+	if httpAddr != "" {
+		httpSrv := mcp.NewHTTPServer(srv, mcp.HTTPServerOptions{
+			Addr:        httpAddr,
+			CORSEnabled: corsEnabled,
+			DefaultRepo: defaultRepo,
+			Logger:      log.New(os.Stderr, "[mcp-http] ", log.LstdFlags),
+		})
+
+		ctxSig, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+		defer cancel()
+
+		serverErr := make(chan error, 1)
+		go func() {
+			fmt.Fprintf(os.Stderr, "🚀 Servidor MCP HTTP/SSE ativo em http://%s\n", httpAddr)
+			fmt.Fprintf(os.Stderr, "   - Endpoint SSE:      http://%s/sse\n", httpAddr)
+			fmt.Fprintf(os.Stderr, "   - Endpoint Mensagem: http://%s/message?sessionId=<uuid>\n", httpAddr)
+			fmt.Fprintf(os.Stderr, "   - Endpoint Direto:   http://%s/mcp\n", httpAddr)
+			fmt.Fprintf(os.Stderr, "   - Diagnóstico:       http://%s/health\n", httpAddr)
+			serverErr <- httpSrv.ListenAndServe()
+		}()
+
+		select {
+		case <-ctxSig.Done():
+			fmt.Fprintf(os.Stderr, "\n[mcp] Encerrando servidor HTTP graciosamente...\n")
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			_ = httpSrv.Shutdown(shutdownCtx)
+		case err := <-serverErr:
+			if err != nil && err != http.ErrServerClosed {
+				fmt.Fprintf(os.Stderr, "[mcp] Erro fatal no servidor HTTP: %v\n", err)
+			}
+		}
+		return
 	}
 
 	if err := srv.Run(ctx); err != nil && err != context.Canceled {

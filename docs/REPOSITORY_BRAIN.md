@@ -9,6 +9,7 @@ Este documento descreve como integrar o `my-memory` dentro do repositório de qu
 1. **Elimina a perda de contexto**: Em bases de código com centenas de arquivos, a janela de contexto das IAs não comporta todo o código. O `my-memory` traz apenas as seções cirúrgicas necessárias.
 2. **Evita que a IA quebre dependências**: O grafo (`graph_edges`) avisa quais módulos dependem daquele arquivo antes da IA alterá-lo.
 3. **Memória de Decisões (ADRs)**: Evita que a IA proponha soluções ingênuas ou tente refatorar partes do sistema contrariando decisões arquiteturais tomadas no passado.
+4. **Contexto Cirúrgico (*Zero File Reads* - inspiração CodeGraph)**: A IA elimina explorações cegas e dezenas de leituras manuais de arquivos; as ferramentas de memória entregam a vizinhança e dependências exatas em uma única chamada.
 
 ---
 
@@ -57,10 +58,44 @@ meu-projeto/
 
 ## 🔌 Integração com Model Context Protocol (MCP)
 
-Ferramentas como Claude Code, Cursor e Antigravity suportam servidores MCP nativamente.
-Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de configuração do Claude:
+Ferramentas como **VS Code (GitHub Copilot)**, Cursor, Claude Code e Antigravity suportam servidores MCP nativamente.
 
-### Modo 1: SQLite Local (Zero-Config)
+### Configuração no VS Code & GitHub Copilot (`.vscode/mcp.json`)
+
+O VS Code e o GitHub Copilot Chat utilizam o padrão `"servers"` com especificação do tipo de transporte (`stdio` ou `sse`):
+
+```json
+{
+  "servers": {
+    "my-memory": {
+      "type": "stdio",
+      "command": "mem",
+      "args": ["mcp", "--db", ".memory/memory.db"]
+    }
+  }
+}
+```
+
+Ou apontando para o servidor de rede HTTP/SSE (porta `38400`):
+
+```json
+{
+  "servers": {
+    "my-memory": {
+      "type": "sse",
+      "url": "http://127.0.0.1:38400/sse"
+    }
+  }
+}
+```
+
+> 💡 **Auto-wiring:** Você pode gerar o arquivo `.vscode/mcp.json` e as diretrizes do Copilot (`.github/copilot-instructions.md`) diretamente via CLI:
+> ```bash
+> mem init --vscode --copilot
+> ```
+
+### Configuração no Cursor (`.cursor/mcp.json`) e Claude Desktop
+
 ```json
 {
   "mcpServers": {
@@ -72,7 +107,8 @@ Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de co
 }
 ```
 
-### Modo 2: PostgreSQL Centralizado com pgvector (Multi-Repositório)
+### Modo PostgreSQL Centralizado com pgvector (Multi-Repositório)
+
 ```json
 {
   "mcpServers": {
@@ -88,13 +124,28 @@ Ao plugar o `my-memory` como servidor MCP no arquivo `.vscode/mcp.json` ou de co
 }
 ```
 
+### Modo Servidor Remoto via HTTP/SSE (Rede / Nuvem / Múltiplos Agentes)
+Iniciado previamente via `mem mcp --port 38400 [--host 0.0.0.0]`:
+```json
+{
+  "servers": {
+    "my-memory": {
+      "type": "sse",
+      "url": "http://127.0.0.1:38400/sse"
+    }
+  }
+}
+```
+
 A IA ganha acesso automático a ferramentas com escopo de repositório:
 * `memory_search(query, mode?, limit?, repository?, decay?, half_life?, decay_weight?)`: Recupera os chunks de maior relevância semântica, léxica ou híbrida (RRF), com suporte a decaimento temporal exponencial (ADR-015).
 * `memory_get_neighbors(node_id, max_depth?, repository?)`: Retorna nós vizinhos e dependências conectadas no grafo via SQL recursivo.
+* `memory_get_clusters(min_size?, repository?)`: Detecta e lista comunidades/clusters temáticos densos no grafo via LPA ponderado e Modularidade Newman-Girvan \(Q\) (ADR-022).
 * `memory_write_note(path, content, title?, tags?, aliases?, note_type?, relations?, overwrite?, repository?)`: Cria ou atualiza notas atômicas no vault com frontmatter e conexões tipadas, disparando indexação cirúrgica imediata.
 * `memory_append_section(path, heading, content, create_if_missing?, repository?)`: Anexa seções e blocos de conteúdo sob cabeçalhos Markdown existentes ou novos.
 * `memory_compile_note(topic, target_path, title?, search_mode?, limit?, tags?, overwrite?, repository?)`: Sintetiza conhecimento sobre um tópico a partir de buscas no repositório (padrão *Compile-not-Retrieve*), gravando nota estruturada com backlinks.
 * `memory_export_canvas(node_id, max_depth?, repository?)`: Gera JSON Canvas 1.0 espacial para visualização gráfica no Obsidian.
+* `memory_visualize_graph(root_node?, max_depth?, output_path?, repository?)`: Exporta uma visualização interativa do grafo em página HTML/SVG standalone com física de forças, busca em tempo real, PageRank e agrupamento por cores de comunidade.
 * `memory_doctor(repository?, fix?)`: Audita a integridade do grafo (dead links, notas órfãs, self-loops e Health Score), com suporte a reparo automático.
 
 ---

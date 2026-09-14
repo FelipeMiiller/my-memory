@@ -169,20 +169,82 @@ Exibe versão SemVer, hash Git do commit, data de compilação e arquitetura em 
 ./bin/mem.exe version --json
 ```
 
+#### 10. Visualização Interativa de Grafo (`mem graph view` / `mem graph export`)
+Gera visualização espacial interativa do grafo da memória em HTML/SVG 100% autocontido (Zero-CDN), com simulação de física de forças, escala proporcional por PageRank, busca em tempo real, alternância de cores por cluster e painel lateral com links Obsidian:
+```bash
+# Abrir visualização no navegador padrão:
+./bin/mem.exe graph view
+
+# Visualizar subgrafo de uma nota específica:
+./bin/mem.exe graph view --root "concepts/auth.md" --depth 2
+
+# Exportar para arquivo HTML estático:
+./bin/mem.exe graph export --out "grafo.html"
+```
+
+#### 11. Detecção de Comunidades e Clusters (`mem clusters`)
+Detecta agrupamentos temáticos e partições conceituais densas no grafo de conhecimento usando o *Weighted Label Propagation Algorithm* (LPA) ponderado e calcula a Modularidade Newman-Girvan \(Q\):
+```bash
+# Exibir clusters com tamanho >= 2 em tabela alinhada:
+./bin/mem.exe clusters
+
+# Incluir nós isolados (tamanho >= 1):
+./bin/mem.exe clusters --min-size 1
+
+# Exportar dados de clusters e modularidade em JSON:
+./bin/mem.exe clusters --json
+```
+
+#### 12. Servidor MCP Multi-Modo (Stdio ou HTTP/SSE de Rede)
+Inicia o servidor Model Context Protocol via `stdio` (padrão local para Cursor e Claude Desktop) ou como servidor de rede HTTP/SSE com suporte a múltiplos clientes concorrentes, CORS e endpoints de diagnóstico:
+```bash
+# Modo stdio clássico (processo filho):
+./bin/mem.exe mcp
+
+# Modo servidor de rede HTTP/SSE na porta 38400:
+./bin/mem.exe mcp --port 38400
+
+# Exposto na rede local para múltiplos agentes:
+./bin/mem.exe mcp --host 0.0.0.0 --port 38400
+```
+
 ---
 
 ## 🤖 Integração com Agentes de IA (MCP)
 
 O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)** em qualquer IDE ou ferramenta de IA compatível.
 
-### Configuração no Cursor (`.cursor/mcp.json`) ou VS Code (`.vscode/mcp.json`):
+### Configuração no VS Code & GitHub Copilot (`.vscode/mcp.json`):
+
+O VS Code suporta nativamente o Model Context Protocol para o **GitHub Copilot Chat** através do arquivo `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "my-memory": {
+      "type": "stdio",
+      "command": "mem",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+> **Dica:** Para gerar automaticamente as configurações do VS Code e as instruções de contexto do Copilot (`.github/copilot-instructions.md`), execute:
+> ```bash
+> mem init --vscode --copilot
+> # Ou para todas as IDEs (VS Code Copilot + Cursor):
+> mem init --all
+> ```
+
+### Configuração no Cursor (`.cursor/mcp.json`):
 
 ```json
 {
   "mcpServers": {
     "my-memory": {
       "command": "mem",
-      "args": ["mcp", "--db", ".memory/memory.db"]
+      "args": ["mcp"]
     }
   }
 }
@@ -201,12 +263,27 @@ O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)*
 }
 ```
 
+### Configuração Remota via HTTP/SSE (Qualquer Agente / Nuvem / Copilot Remoto):
+
+```json
+{
+  "servers": {
+    "my-memory": {
+      "type": "sse",
+      "url": "http://127.0.0.1:38400/sse"
+    }
+  }
+}
+```
+
 ### Ferramentas Expostas para a IA:
 
 | Ferramenta | Descrição |
 | :--- | :--- |
 | `memory_search` | Busca híbrida (RRF) unificando FTS, vetores e grafo, com decaimento temporal exponencial opcional (`decay`, `half_life`, `decay_weight`). |
 | `memory_get_neighbors` | Expande nós e documentos conectados no grafo através de travessia recursiva SQL. |
+| `memory_get_clusters` | Detecta partições temáticas e comunidades no grafo via LPA ponderado, calculando modularidade Newman-Girvan \(Q\), nós líderes e tipos dominantes. |
+| `memory_visualize_graph` | Exporta uma visualização interativa do grafo da memória para uma página HTML/SVG standalone com física de forças, busca e filtros. |
 | `memory_write_note` | Grava ou atualiza notas atômicas no vault com frontmatter e conexões tipadas, disparando sincronização imediata no grafo. |
 | `memory_append_section` | Anexa cirurgicamente blocos de texto sob seções existentes ou novas sem quebrar a estrutura do documento. |
 | `memory_compile_note` | Compila e sintetiza conhecimento sobre um tópico a partir de buscas híbridas (padrão *Compile-not-Retrieve*), gerando nota com backlinks. |
@@ -222,13 +299,14 @@ O `my-memory` pode ser configurado como servidor **MCP (Model Context Protocol)*
 ```text
 my-memory/
 ├── cmd/
-│   └── mem/                # Ponto de entrada da CLI (init, index, search, mcp, doctor, hubs, insights, export)
+│   └── mem/                # Ponto de entrada da CLI (init, index, search, clusters, mcp, doctor, hubs, insights, export)
 ├── internal/
 │   ├── config/             # Configuração declarativa, descoberta ascendente e filtragem glob
 │   ├── db/                 # Schemas SQLite, FTS5, sqlite-vec e queries CTE
 │   ├── embedder/           # Integração com Ollama (nomic-embed-text)
-│   ├── graph/              # Algoritmos de grafo (PageRank ponderado, God Nodes)
-│   ├── mcp/                # Servidor MCP (JSON-RPC 2.0, framing, tools)
+│   ├── graph/              # Algoritmos de grafo (LPA, modularidade Q, PageRank ponderado, God Nodes)
+│   ├── graphview/          # Construtor de grafo interativo, clusters e templates HTML/SVG
+│   ├── mcp/                # Servidor MCP (stdio + HTTP/SSE, framing JSON-RPC 2.0, tools)
 │   ├── parser/             # Extração de [[wikilinks]], tags e chunking
 │   ├── repo/               # Detecção e normalização de slug de repositório Git
 │   ├── store/              # Interfaces unificadas de armazenamento e PostgreSQL com pgvector
@@ -271,6 +349,9 @@ my-memory/
   - [ADR-017: Indexação Contínua em Tempo Real com File Watcher e Git Hooks](docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md)
   - [ADR-018: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP](docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md)
   - [ADR-019: Versionamento Semântico Automatizado e Criação de Tags no CI](docs/adr/019-versionamento-semantico-e-tagging-ci.md)
+  - [ADR-020: Visualizador Interativo de Grafo em HTML/SVG Standalone](docs/adr/020-visualizador-interativo-de-grafo-em-html-svg.md)
+  - [ADR-021: Servidor MCP com Transporte HTTP e Server-Sent Events (SSE)](docs/adr/021-servidor-mcp-com-transporte-http-sse.md)
+  - [ADR-022: Detecção de Comunidades e Clusters no Grafo de Conhecimento](docs/adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md)
 
 ---
 

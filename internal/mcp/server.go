@@ -100,6 +100,8 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryWriteNote, NewMemoryWriteNoteHandler(nil, "."))
 	s.RegisterTool(ToolMemoryAppendSection, NewMemoryAppendSectionHandler(nil, "."))
 	s.RegisterTool(ToolMemoryCompileNote, NewMemoryCompileNoteHandler(nil, nil, "."))
+	s.RegisterTool(ToolMemoryVisualizeGraph, NewMemoryVisualizeGraphHandler(nil, "."))
+	s.RegisterTool(ToolMemoryGetClusters, NewMemoryGetClustersHandler(nil))
 
 	return s
 }
@@ -142,37 +144,49 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Server) dispatch(ctx context.Context, req *Request) {
+// HandleRequest processa uma requisição JSON-RPC e retorna a resposta MCP correspondente
+func (s *Server) HandleRequest(ctx context.Context, req *Request) *Response {
 	s.mu.RLock()
 	handler, exists := s.handlers[req.Method]
 	s.mu.RUnlock()
 
 	if !exists {
-		if !req.IsNotification() {
-			resp := NewErrorResponse(req.ID, CodeMethodNotFound, fmt.Sprintf("Método '%s' não encontrado", req.Method), nil)
-			_ = s.writer.WriteResponse(resp)
+		if req.IsNotification() {
+			return nil
 		}
-		return
+		return NewErrorResponse(req.ID, CodeMethodNotFound, fmt.Sprintf("Método '%s' não encontrado", req.Method), nil)
 	}
 
 	result, err := handler(ctx, req.Params)
 	if req.IsNotification() {
-		return
+		return nil
 	}
 
 	if err != nil {
-		var resp *Response
 		if mcpErr, ok := err.(*Error); ok {
-			resp = NewErrorResponse(req.ID, mcpErr.Code, mcpErr.Message, mcpErr.Data)
-		} else {
-			resp = NewErrorResponse(req.ID, CodeInternalError, err.Error(), nil)
+			return NewErrorResponse(req.ID, mcpErr.Code, mcpErr.Message, mcpErr.Data)
 		}
-		_ = s.writer.WriteResponse(resp)
-		return
+		return NewErrorResponse(req.ID, CodeInternalError, err.Error(), nil)
 	}
 
-	resp := NewSuccessResponse(req.ID, result)
-	_ = s.writer.WriteResponse(resp)
+	return NewSuccessResponse(req.ID, result)
+}
+
+// Name retorna o nome configurado do servidor MCP
+func (s *Server) Name() string {
+	return s.name
+}
+
+// Version retorna a versão do servidor MCP
+func (s *Server) Version() string {
+	return s.version
+}
+
+func (s *Server) dispatch(ctx context.Context, req *Request) {
+	resp := s.HandleRequest(ctx, req)
+	if resp != nil {
+		_ = s.writer.WriteResponse(resp)
+	}
 }
 
 func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (any, error) {

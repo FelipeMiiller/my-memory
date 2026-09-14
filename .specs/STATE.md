@@ -15,13 +15,17 @@
 - **AD-017**: Indexação Contínua em Tempo Real com File Watcher e Git Hooks (`docs/adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md`)
 - **AD-018**: Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP e CLI (`docs/adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md`)
 - **AD-019**: Versionamento Semântico Automatizado e Criação de Tags no CI (`docs/adr/019-versionamento-semantico-e-tagging-ci.md`)
+- **AD-020**: Visualizador Interativo de Grafo em HTML/SVG Standalone (`docs/adr/020-visualizador-interativo-de-grafo-em-html-svg.md`)
+- **AD-021**: Servidor MCP com Transporte HTTP e Server-Sent Events (SSE) (`docs/adr/021-servidor-mcp-com-transporte-http-sse.md`)
+- **AD-022**: Detecção de Comunidades e Clusters no Grafo de Conhecimento (`docs/adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md`)
 
 ## Handoff
 
-- **Feature**: automated-semver-and-ci-tagging (.specs/features/automated-semver-and-ci-tagging)
+- **Feature**: graph-community-detection (.specs/features/graph-community-detection)
 - **Phase / Task**: Phase 1 / T4 (Completed)
-- **Completed**: T1, T2, T3, T4 (Versionamento Go, Workflow de Tagging, Build Multiplataforma e ADR-019)
+- **Completed**: T1 (LPA e Modularidade Q), T2 (Enriquecimento GraphView), T3 (Subcomando mem clusters), T4 (Ferramenta MCP memory_get_clusters e ADR-022)
 - **In-progress**: none
-- **Next step**: Pronto para envio para a branch main e disparo da tag v1.0.0
+- **Next step**: Executar Verifier TLC (validation.md) e validação final
 - **Blockers**: none
-- **Branch**: main
+- **Branch**: develop
+

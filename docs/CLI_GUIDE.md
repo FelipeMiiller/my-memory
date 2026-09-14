@@ -17,15 +17,26 @@ go build -o bin/mem.exe ./cmd/mem
 
 ## 📖 Comandos Disponíveis
 
-### 1. `mem init [--repo <slug>] [--db <caminho>] [--force] [<pasta>]`
+### 1. `mem init [--repo <slug>] [--db <caminho>] [--force] [--vscode] [--copilot] [--cursor] [--all] [<pasta>]`
 Inicializa um novo vault criando a pasta `.memory/` e gerando o arquivo de configuração declarativa `config.yaml` com comentários explicativos:
 * `--repo`: Slug do repositório/vault (padrão: inferido do Git ou `local/vault`).
 * `--db`: Caminho do banco SQLite padrão (padrão: `memory.db`).
-* `--force`: Sobrescreve o arquivo caso já exista.
+* `--force`: Sobrescreve arquivos caso já existam.
+* `--vscode`: Gera `.vscode/mcp.json` configurado para integração com o VS Code e Copilot Chat via MCP.
+* `--copilot`: Gera `.github/copilot-instructions.md` com instruções obrigatórias de contexto para o GitHub Copilot.
+* `--cursor`: Gera `.cursor/mcp.json` para o Cursor IDE.
+* `--all`: Gera todas as configurações de IDE acima de uma só vez.
 
-**Exemplo:**
+**Exemplos:**
 ```bash
+# Inicialização básica (apenas .memory/config.yaml):
 ./bin/mem.exe init --repo "empresa/meu-vault"
+
+# Inicialização com integração completa para VS Code e GitHub Copilot:
+./bin/mem.exe init --vscode --copilot
+
+# Inicialização universal para todas as IDEs suportadas:
+./bin/mem.exe init --all
 ```
 
 ---
@@ -124,30 +135,51 @@ Realiza a busca ultrarrápida utilizando os blocos compactados em 4-bits no SQLi
 
 ---
 
-### 7. `mem mcp [--db <caminho>] [--postgres <url>] [--repo <slug>]`
-Inicia o servidor Model Context Protocol (MCP) via `stdio` (JSON-RPC 2.0):
-* Exposto para agentes como Claude Code, Cursor, Windsurf e Antigravity.
-* Fornece as ferramentas `memory_search` e `memory_get_neighbors`.
-* Suporta isolamento por repositório e conexões via SQLite local ou PostgreSQL centralizado.
+### 7. `mem mcp [--port <porta>] [--host <ip>] [--http <addr>] [--cors] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Inicia o servidor Model Context Protocol (MCP) via **`stdio`** (padrão) ou como **servidor de rede HTTP / Server-Sent Events (SSE)** conforme a especificação oficial da Anthropic (ADR-021):
+* **Modo Stdio (Padrão):** Ideal para processos filhos locais gerenciados por Claude Code, Cursor, Windsurf e Antigravity.
+* **Modo Servidor de Rede (`--port` ou `--http`):** Permite acesso de agentes remotos, múltiplos clientes paralelos e dashboards web.
+* **Endpoints HTTP Disponíveis:**
+  * `GET /sse`: Inicia stream Server-Sent Events e emite o evento `endpoint`.
+  * `POST /message?sessionId=<uuid>`: Envia requisições JSON-RPC 2.0 associadas à sessão SSE ativa.
+  * `POST /mcp`: Chamada JSON-RPC direta (stateless) para scripts rápidos ou `curl`.
+  * `GET /health`: Diagnóstico com uptime, ferramentas registradas e status operacional.
+* **CORS Habilitado:** `--cors` (padrão: ativo) permite chamadas de navegadores web com preflight `OPTIONS`.
 
-**Exemplo:**
+**Exemplos:**
 ```bash
+# 1. Modo Stdio local tradicional:
 ./bin/mem.exe mcp --db memory.db
-# Ou conectado a uma base central PostgreSQL:
-./bin/mem.exe mcp --postgres "postgres://user:pass@localhost:5432/memory?sslmode=disable" --repo "meu-org/meu-projeto"
+
+# 2. Modo Servidor HTTP/SSE na porta 38400:
+./bin/mem.exe mcp --port 38400
+
+# 3. Expondo na rede local para múltiplos agentes:
+./bin/mem.exe mcp --host 0.0.0.0 --port 38400 --repo "meu-org/projeto"
+
+# 4. Verificando a saúde via curl:
+curl http://localhost:38400/health
+
+# 5. Executando busca via endpoint direto:
+curl -X POST http://localhost:38400/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_search","arguments":{"query":"arquitetura"}}}'
 ```
 
 ---
 
-### 8. `mem export --canvas <nota> [--depth 1] [--out <arquivo.canvas>]`
-Exporta o subgrafo relacional centrado em uma nota para o formato aberto **JSON Canvas 1.0 (`.canvas`)** do Obsidian:
-* Realiza a travessia de vizinhos conectados até a profundidade indicada.
-* Calcula o posicionamento radial espacial para visualização sem nós sobrepostos.
-* Gera arquivo `.canvas` pronto para ser aberto diretamente no Obsidian.
+### 8. `mem export [--canvas <nota>] [--html <saida.html>] [--depth 1] [--out <arquivo>]`
+Exporta o grafo relacional para **JSON Canvas 1.0 (`.canvas`)** do Obsidian ou para uma página **HTML/SVG interativa standalone**:
+* Modo Canvas: Gera arquivo `.canvas` para abrir diretamente no Obsidian.
+* Modo HTML (`--html`): Gera página web standalone com simulação de física de forças, busca em tempo real e painel lateral de detalhes.
 
-**Exemplo:**
+**Exemplos:**
 ```bash
+# Exportar subgrafo para Obsidian JSON Canvas:
 ./bin/mem.exe export --canvas "Arquitetura" --depth 2 --out "mapa_arquitetura.canvas"
+
+# Exportar grafo completo para página HTML interativa:
+./bin/mem.exe export --html "grafo_completo.html"
 ```
 
 ---
@@ -183,7 +215,29 @@ Audita a saúde do grafo e tabelas relacionais de conhecimento:
 
 ---
 
-### 11. `mem bench`
+### 11. `mem clusters [--min-size 2] [--json] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Detecta comunidades temáticas e clusters densamente conectados no grafo relacional usando o algoritmo *Weighted Label Propagation Algorithm* (LPA) e calcula a Modularidade Newman-Girvan \(Q\):
+* **LPA Ponderado:** Considera os pesos epistêmicos das arestas (`EXTRACTED` 1.0, `INFERRED` 0.6, `TAG` 0.3) com desempate determinístico lexicográfico.
+* **Modularidade \(Q\):** Quantifica o grau de coesão e separação estrutural da memória (valores $> 0.3$ indicam forte coesão).
+* **Nó Líder e Tipo Dominante:** Identifica automaticamente o nó central com maior PageRank local e a categoria predominante de nota (`concept`, `decision`, etc.).
+* `--min-size <N>`: Filtra clusters menores que $N$ nós (padrão: 2, ocultando nós isolados).
+* `--json`: Emite o resultado em formato JSON estruturado com métricas globais e array de comunidades.
+
+**Exemplos:**
+```bash
+# Detectar clusters temáticos com tamanho >= 2:
+./bin/mem.exe clusters
+
+# Incluir nós isolados (tamanho 1):
+./bin/mem.exe clusters --min-size 1
+
+# Exportar partições e modularidade em JSON:
+./bin/mem.exe clusters --json
+```
+
+---
+
+### 12. `mem bench`
 Executa a suíte de micro-benchmarks quantitativos da biblioteca (TurboQuant 4-bit, fusão RRF, SHA-256 e parsing) com saída tabular detalhada.
 
 **Exemplo:**
@@ -193,7 +247,7 @@ Executa a suíte de micro-benchmarks quantitativos da biblioteca (TurboQuant 4-b
 
 ---
 
-### 12. `mem note <create|append> [opções] <caminho>`
+### 13. `mem note <create|append> [opções] <caminho>`
 Cria ou anexa seções em notas atômicas em Markdown com frontmatter YAML limpo e sincronização cirúrgica imediata no banco de dados e grafo:
 * `create`: Cria nota atômica com frontmatter (`title`, `type`, `tags`, `aliases`) e corpo Markdown. Rejeita sobrescrita a menos que `--overwrite` seja passado.
 * `append`: Anexa texto cirurgicamente antes da próxima seção de mesmo nível ou cria nova seção caso não exista.
@@ -209,7 +263,7 @@ Cria ou anexa seções em notas atômicas em Markdown com frontmatter YAML limpo
 
 ---
 
-### 13. `mem compile --topic "<termo>" --out "<caminho.md>" [--limit 5] [--mode hybrid|vector|fts]`
+### 14. `mem compile --topic "<termo>" --out "<caminho.md>" [--limit 5] [--mode hybrid|vector|fts]`
 Executa o padrão **Compile-not-Retrieve** (Karpathy LLM Wiki): recupera os fragmentos mais relevantes sobre um tópico via busca híbrida e gera uma nota consolidada com seção de síntese e backlinks tipados (`[[rel:derived_from:Doc]]`), sincronizando instantaneamente no grafo.
 
 **Exemplo:**
@@ -219,7 +273,7 @@ Executa o padrão **Compile-not-Retrieve** (Karpathy LLM Wiki): recupera os frag
 
 ---
 
-### 14. `mem version [--json]`
+### 15. `mem version [--json]`
 Exibe a versão do executável, hash Git do commit, data de compilação, versão do Go e arquitetura do sistema operacional. Também acessível através das flags `-v` e `--version`.
 
 **Exemplo:**
@@ -230,6 +284,33 @@ Exibe a versão do executável, hash Git do commit, data de compilação, versã
 
 # Saída estruturada em JSON (ideal para agentes e scripts):
 ./bin/mem.exe version --json
+```
+
+---
+
+### 16. `mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open]`
+Gera e abre no navegador uma visualização interativa do grafo da memória do repositório, em uma página HTML/SVG 100% autocontida (Zero-CDN) com simulação de física de forças:
+* **`mem graph view`**: Compila o grafo e abre imediatamente no navegador padrão do sistema.
+* **`mem graph export`**: Compila e grava o arquivo HTML no disco sem abrir o navegador (a menos que `--open` seja passado).
+* **Filtro de Subgrafo**: Use `--root <nota>` e `--depth <N>` para isolar a vizinhança de uma nota específica.
+* **Recursos da Interface**:
+  - Zoom e pan contínuo na tela.
+  - Arraste gravitacional interativo de nós.
+  - Nós dimensionados pela autoridade estrutural calculada via **PageRank**.
+  - Paleta de cores harmoniosa por tipo de nota (`concept`, `decision`, `guide`, `reference`, `synthesis`).
+  - Busca instantânea de notas com atenuação visual de nós não correlacionados.
+  - Painel lateral retrátil com conexões de entrada/saída e botão direto para abrir no Obsidian (`obsidian://open?file=...`).
+
+**Exemplos:**
+```bash
+# Visualizar o grafo global completo no navegador padrão:
+./bin/mem.exe graph view
+
+# Visualizar subgrafo centrado em uma decisão arquitetural:
+./bin/mem.exe graph view --root "decisions/adr-009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md" --depth 2
+
+# Exportar para arquivo específico sem abrir o navegador:
+./bin/mem.exe graph export --out "docs/mapa_conhecimento.html"
 ```
 
 ---

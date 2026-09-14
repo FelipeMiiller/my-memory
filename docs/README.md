@@ -13,7 +13,7 @@ Este documento é o **mapa central de conhecimento** do projeto **My-Memory**. E
 | **[`docs/BENCHMARKS.md`](BENCHMARKS.md)** | Performance & Métricas | Relatório empírico de micro-benchmarks (TurboQuant 4-bit, RRF, hashing SHA-256 e parsing). |
 | **[`docs/CLI_GUIDE.md`](CLI_GUIDE.md)** | Operação | Manual prático de comandos da CLI (`mem index`, `mem search`, `mem bench`, `mem insights`). |
 | **[`docs/REPOSITORY_BRAIN.md`](REPOSITORY_BRAIN.md)** | Integração com IA | Como utilizar o `my-memory` como memória de contexto dentro de projetos via **Model Context Protocol (MCP)**. |
-| **[`docs/REFERENCES.md`](REFERENCES.md)** | Arte Prévia & Referências | Referências técnicas e ecossistemas que inspiram e refinam o projeto (`graphify`, `ai-memory`, `obsidian-skills`). |
+| **[`docs/REFERENCES.md`](REFERENCES.md)** | Arte Prévia & Referências | Referências técnicas e ecossistemas que inspiram e refinam o projeto (`graphify`, `ai-memory`, `obsidian-skills`, `codegraph`). |
 
 ---
 
@@ -28,11 +28,22 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-004`](adr/004-modelagem-de-grafo-com-recursive-ctes.md)** — Modelagem e Travessia de Grafo com SQL Recursivo (CTEs)
 * **[`ADR-005`](adr/005-markdown-com-wikilinks-como-fonte-de-verdade.md)** — Markdown e [[Wikilinks]] como Entrada e Grafo Humano
 * **[`ADR-006`](adr/006-integracao-com-agentes-de-ia-via-mcp.md)** — Integração com Agentes de IA via Model Context Protocol (MCP)
+* **[`ADR-007`](adr/007-suporte-opcional-a-postgresql-com-pgvector-e-multi-repositorio.md)** — Suporte Opcional a PostgreSQL com pgvector e Referência Multi-Repositório
 * **[`ADR-008`](adr/008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md)** — Interoperabilidade com Obsidian Flavored Markdown e JSON Canvas 1.0
 * **[`ADR-009`](adr/009-busca-hibrida-com-reciprocal-rank-fusion-rrf.md)** — Busca Híbrida com Reciprocal Rank Fusion (RRF)
 * **[`ADR-010`](adr/010-cache-incremental-de-indexacao-com-sha256.md)** — Cache Incremental de Indexação com SHA-256
 * **[`ADR-011`](adr/011-arestas-epistemicas-e-god-nodes.md)** — Arestas Epistêmicas e God Nodes / Hubs de Conhecimento
 * **[`ADR-012`](adr/012-benchmarks-e-conexoes-inesperadas.md)** — Benchmarks de Performance e Conexões Inesperadas (Surprising Connections)
+* **[`ADR-013`](adr/013-higiene-de-grafo-pruning-e-doctor.md)** — Higiene de Grafo, Pruning Incremental e Linter Doctor
+* **[`ADR-014`](adr/014-centralidade-de-grafo-com-pagerank-ponderado.md)** — Centralidade de Grafo com PageRank Ponderado
+* **[`ADR-015`](adr/015-decaimento-temporal-exponencial-na-busca-hibrida.md)** — Decaimento Temporal Exponencial na Busca Híbrida
+* **[`ADR-016`](adr/016-configuracao-declarativa-e-auto-scoping-de-vault.md)** — Configuração Declarativa e Auto-Scoping de Vault
+* **[`ADR-017`](adr/017-indexacao-continua-com-file-watcher-e-git-hooks.md)** — Indexação Contínua em Tempo Real com File Watcher e Git Hooks
+* **[`ADR-018`](adr/018-padrao-compile-not-retrieve-e-escrita-bilateral-mcp.md)** — Padrão Compile-not-Retrieve e Escrita Bilateral na Memória via MCP e CLI
+* **[`ADR-019`](adr/019-versionamento-semantico-e-tagging-ci.md)** — Versionamento Semântico Automatizado e Criação de Tags no CI
+* **[`ADR-020`](adr/020-visualizador-interativo-de-grafo-em-html-svg.md)** — Visualizador Interativo de Grafo em HTML/SVG Standalone
+* **[`ADR-021`](adr/021-servidor-mcp-com-transporte-http-sse.md)** — Servidor MCP com Transporte HTTP e Server-Sent Events (SSE)
+* **[`ADR-022`](adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md)** — Detecção de Comunidades e Clusters no Grafo de Conhecimento
 
 ---
 

@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
@@ -21,12 +19,17 @@ import (
 func InitDB(dbPath string) (*sql.DB, error) {
 	initSqliteVec()
 
-	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on&_journal_mode=WAL")
+	db, err := openDB(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao abrir banco: %w", err)
 	}
 
-	if _, err := db.Exec(Schema); err != nil {
+	schemaToRun := Schema
+	if !HasSqliteVec {
+		schemaToRun = FallbackSchema
+	}
+
+	if _, err := db.Exec(schemaToRun); err != nil {
 		return nil, fmt.Errorf("erro ao executar schema: %w", err)
 	}
 

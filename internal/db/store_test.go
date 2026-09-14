@@ -1,5 +1,3 @@
-//go:build cgo
-
 package db
 
 import (
@@ -62,12 +60,14 @@ func TestSQLiteStore_Lifecycle(t *testing.T) {
 		t.Errorf("SearchFTS não encontrou resultados")
 	}
 
-	knnRes, err := SearchKNN(ctx, database, dummyVec, 5)
-	if err != nil {
-		t.Fatalf("SearchKNN falhou: %v", err)
-	}
-	if len(knnRes) == 0 {
-		t.Errorf("SearchKNN não encontrou resultados")
+	if HasSqliteVec {
+		knnRes, err := SearchKNN(ctx, database, dummyVec, 5)
+		if err != nil {
+			t.Fatalf("SearchKNN falhou: %v", err)
+		}
+		if len(knnRes) == 0 {
+			t.Errorf("SearchKNN não encontrou resultados")
+		}
 	}
 
 	hybridRes, err := SearchHybridRRF(ctx, database, tq, "FTS5", dummyVec, 5, 60, false)

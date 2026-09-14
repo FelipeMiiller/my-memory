@@ -804,6 +804,10 @@ func (s *PostgresStore) findSurprisingConnectionsLexical(ctx context.Context, re
 	return results, nil
 }
 
+func (s *PostgresStore) DB() *sql.DB {
+	return s.db
+}
+
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }

@@ -18,8 +18,8 @@ func TestSyncEngine_SQLite(t *testing.T) {
 	dbPath := filepath.Join(tempDir, "memory.db")
 	database, err := db.InitDB(dbPath)
 	if err != nil {
-		if strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "requires cgo to work") {
-			t.Skip("Pulando teste SQLite: ambiente sem CGO")
+		if strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "requires cgo to work") || strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("Pulando teste SQLite: ambiente sem CGO ou FTS5")
 		}
 		t.Fatalf("erro ao inicializar SQLite: %v", err)
 	}
