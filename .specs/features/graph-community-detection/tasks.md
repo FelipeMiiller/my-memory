@@ -68,10 +68,10 @@ T1 -> T2 -> T3 -> T4
 **Tests**: cmd/mem/clusters_test.go
 **Gate**: go test -v -run TestClustersCLI ./cmd/mem/...
 **Done when**:
-- [ ] Implementar runClustersCLI em cmd/mem/clusters.go com suporte a flags --min-size, --json, --db, --postgres, --repo
-- [ ] Implementar formatação tabular alinhada com colunas ID, Líder, Tamanho, Tipo Dominante e Membros
-- [ ] Conectar subcomando mem clusters no switch de cmd/mem/main.go e documentar em printHelp()
-- [ ] Adicionar testes unitários em cmd/mem/clusters_test.go
+- [x] Implementar runClustersCLI em cmd/mem/clusters.go com suporte a flags --min-size, --json, --db, --postgres, --repo
+- [x] Implementar formatação tabular alinhada com colunas ID, Líder, Tamanho, Tipo Dominante e Membros
+- [x] Conectar subcomando mem clusters no switch de cmd/mem/main.go e documentar em printHelp()
+- [x] Adicionar testes unitários em cmd/mem/clusters_test.go
 
 ### T4: Ferramenta MCP memory_get_clusters e ADR-022
 **What**: Registrar ferramenta MCP memory_get_clusters, criar ADR-022 e atualizar documentação do projeto

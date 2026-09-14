@@ -597,6 +597,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "clusters":
+		if err := runClustersCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		if err := runVersionCLI(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -625,6 +631,8 @@ func printHelp() {
 	fmt.Println("      Busca híbrida com Reciprocal Rank Fusion (RRF), decaimento temporal, FTS5/tsvector, vetores e grafo")
 	fmt.Println("  mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exibe os nós centrais por grau (God Nodes) ou por autoridade estrutural (PageRank ponderado)")
+	fmt.Println("  mem clusters [--min-size 2] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Detecta clusters e módulos conceituais no grafo via LPA ponderado e Modularidade Newman-Girvan Q")
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
 	fmt.Println("  mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open] [--db <arq>] [--postgres <url>] [--repo <slug>]")

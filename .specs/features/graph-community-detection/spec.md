@@ -106,7 +106,7 @@ O My-Memory atualmente analisa o grafo de conhecimento através de métricas de 
 | COMM-02 | Desempate determinístico e convergência de rótulos | verified |
 | COMM-03 | Cálculo de Modularidade Newman-Girvan Q | verified |
 | COMM-04 | Identificação de nó central/líder e tipo dominante | verified |
-| COMM-05 | Subcomando CLI mem clusters com tabela e --json | pending |
-| COMM-06 | Filtro de tamanho mínimo (--min-size) | pending |
+| COMM-05 | Subcomando CLI mem clusters com tabela e --json | verified |
+| COMM-06 | Filtro de tamanho mínimo (--min-size) | verified |
 | COMM-07 | Ferramenta MCP memory_get_clusters | pending |
 | COMM-08 | Integração com visualizador de grafo e ADR-022 | pending |

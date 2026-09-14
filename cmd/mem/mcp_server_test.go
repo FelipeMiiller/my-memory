@@ -34,10 +34,17 @@ func TestMCPServer_CLI_Network(t *testing.T) {
 		runMCPServer(ctx, nil, nil, nil, "test-repo", addr, true)
 	}()
 
+	client := &http.Client{
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+		Timeout: 2 * time.Second,
+	}
+
 	// Aguarda o servidor estar pronto (até 2 segundos)
 	ready := false
 	for i := 0; i < 20; i++ {
-		resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
+		resp, err := client.Get(fmt.Sprintf("http://%s/health", addr))
 		if err == nil {
 			resp.Body.Close()
 			ready = true
@@ -51,7 +58,7 @@ func TestMCPServer_CLI_Network(t *testing.T) {
 	}
 
 	// Valida /health
-	resp, err := http.Get(fmt.Sprintf("http://%s/health", addr))
+	resp, err := client.Get(fmt.Sprintf("http://%s/health", addr))
 	if err != nil {
 		t.Fatalf("falha ao consultar /health: %v", err)
 	}
