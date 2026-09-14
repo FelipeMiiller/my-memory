@@ -186,3 +186,65 @@ func TestInspectNode(t *testing.T) {
 	}
 }
 
+func TestResolveNodeCanonicalID_SlashNormalization(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_slash.db")
+	database, err := InitDB(dbPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("Pulando teste: ambiente sem FTS5")
+		}
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	// Inserir com barra invertida (padrão Windows)
+	_ = InsertDocument(ctx, database, "doc-windows", "docs\\adr\\001-login.md", "Login Spec", now, "h1")
+
+	// 1. Busca usando barra normal (Unix)
+	id1, err := ResolveNodeCanonicalID(ctx, database, "docs/adr/001-login.md")
+	if err != nil || id1 != "doc-windows" {
+		t.Errorf("esperava resolver 'docs/adr/001-login.md' para 'doc-windows', obteve %s (err: %v)", id1, err)
+	}
+
+	// 2. Busca usando sem extensão .md
+	id2, err := ResolveNodeCanonicalID(ctx, database, "docs/adr/001-login")
+	if err != nil || id2 != "doc-windows" {
+		t.Errorf("esperava resolver sem .md, obteve %s (err: %v)", id2, err)
+	}
+}
+
+func TestInspectNode_DeadLinks(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_dead_links.db")
+	database, err := InitDB(dbPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("Pulando teste: ambiente sem FTS5")
+		}
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	_ = InsertDocument(ctx, database, "source-doc", "docs/source.md", "Source Doc", now, "hs")
+	// Aresta para nó inexistente
+	_ = InsertEdgeWithProps(ctx, database, "source-doc", "ghost-target", "links_to", "EXTRACTED", 1.0)
+
+	view, err := InspectNode(ctx, database, "source-doc", 200)
+	if err != nil {
+		t.Fatalf("InspectNode falhou: %v", err)
+	}
+
+	if view.TotalOutbound != 1 {
+		t.Fatalf("esperado 1 outbound link, obteve %d", view.TotalOutbound)
+	}
+	if view.Outbound[0].Exists {
+		t.Errorf("esperado Outbound[0].Exists = false para ghost-target")
+	}
+}
+
+

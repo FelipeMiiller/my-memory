@@ -146,3 +146,50 @@ func TestBuildTriptychViewValidation(t *testing.T) {
 		t.Fatal("esperado erro para target vazio")
 	}
 }
+
+func TestBuildTriptychView_SelfLoopsAndTieBreak(t *testing.T) {
+	target := NodeSummary{
+		ID:    "node-a",
+		Title: "Node A",
+	}
+
+	// Duas arestas de entrada com mesma severidade e mesmo PageRank para testar desempate determinístico por ID
+	edges := []WeightedEdge{
+		{Source: "node-z", Target: "node-a", Type: "links_to", Weight: 1.0},
+		{Source: "node-b", Target: "node-a", Type: "links_to", Weight: 1.0},
+		{Source: "node-a", Target: "node-a", Type: "links_to", Weight: 1.0}, // self-loop não deve aparecer como in/out de terceiros
+		{Source: "node-a", Target: "node-z", Type: "links_to", Weight: 1.0},
+	}
+
+	view, err := BuildTriptychView(target, edges, InspectorOptions{})
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+
+	if view.TotalInbound != 2 {
+		t.Fatalf("esperado 2 inbounds (ignorando self-loop), obtido %d", view.TotalInbound)
+	}
+	// node-b antes de node-z por desempate alfabético de SourceID
+	if view.Inbound[0].SourceID != "node-b" || view.Inbound[1].SourceID != "node-z" {
+		t.Fatalf("esperado desempate alfabético node-b depois node-z, obtido: %s, %s",
+			view.Inbound[0].SourceID, view.Inbound[1].SourceID)
+	}
+
+	if view.TotalOutbound != 1 {
+		t.Fatalf("esperado 1 outbound (ignorando self-loop), obtido %d", view.TotalOutbound)
+	}
+	if view.Outbound[0].TargetID != "node-z" {
+		t.Fatalf("esperado outbound para node-z, obtido %s", view.Outbound[0].TargetID)
+	}
+}
+
+func TestTruncateContent_UTF8Multibyte(t *testing.T) {
+	// Texto com caracteres acentuados e emojis que ocupam múltiplos bytes
+	multibyte := "Olá 🚀 Mundo! Acentuação e caracteres especiais em UTF-8."
+	truncated := TruncateContent(multibyte, 10)
+	expectedPrefix := "Olá 🚀 Mun"
+	if !containsSubstring(truncated, expectedPrefix) {
+		t.Fatalf("esperado prefixo '%s', obtido '%s'", expectedPrefix, truncated)
+	}
+}
+

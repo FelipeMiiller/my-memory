@@ -187,3 +187,25 @@ func TestMemoryInspectNode_ServerIntegration(t *testing.T) {
 		t.Errorf("texto esperado não encontrado no output: %s", result.Content[0].Text)
 	}
 }
+
+func TestMemoryInspectNodeHandler_NilFuncFallback(t *testing.T) {
+	ctx := context.Background()
+	// Handler com função nil deve retornar fallback padrão sem entrar em pânico
+	handler := NewMemoryInspectNodeHandler(nil)
+
+	args := json.RawMessage(`{"node_id": "fallback-node"}`)
+	res, err := handler(ctx, args)
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+
+	callRes, ok := res.(CallToolResult)
+	if !ok || len(callRes.Content) == 0 {
+		t.Fatalf("resultado inválido: %+v", res)
+	}
+
+	if !strings.Contains(callRes.Content[0].Text, "fallback-node") {
+		t.Errorf("texto esperado não encontrado no fallback: %s", callRes.Content[0].Text)
+	}
+}
+

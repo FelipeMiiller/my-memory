@@ -112,3 +112,70 @@ func TestInspectCLI_TextAndJSONOutput(t *testing.T) {
 		t.Errorf("esperava TotalOutbound 1, obteve %d", view.TotalOutbound)
 	}
 }
+
+func TestInspectCLI_FlagRearranging(t *testing.T) {
+	ctx := context.Background()
+	dbFile := filepath.Join(t.TempDir(), "inspect_rearrange.db")
+
+	database, err := db.InitDB(dbFile)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("ambiente sem FTS5")
+		}
+		t.Fatalf("falha ao inicializar SQLite: %v", err)
+	}
+
+	now := time.Now().Unix()
+	_ = db.InsertDocument(ctx, database, "target-rearrange", "docs/rearrange.md", "Rearrange Target", now, "hr")
+	database.Close()
+
+	// Testa passagem de flag --json DEPOIS do identificador do nó
+	var buf bytes.Buffer
+	err = runInspectCommand(ctx, "test-repo", []string{"--db", dbFile, "target-rearrange", "--json"}, &buf)
+	if err != nil {
+		t.Fatalf("falha ao executar inspect com flag posicional posterior: %v", err)
+	}
+
+	var res graph.TriptychView
+	if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
+		t.Fatalf("esperado JSON válido mesmo com --json após o nome do nó, obteve: %s", buf.String())
+	}
+	if res.Target.ID != "target-rearrange" {
+		t.Errorf("esperava ID 'target-rearrange', obteve '%s'", res.Target.ID)
+	}
+}
+
+func TestInspectCLI_FullFlag(t *testing.T) {
+	ctx := context.Background()
+	dbFile := filepath.Join(t.TempDir(), "inspect_full.db")
+
+	database, err := db.InitDB(dbFile)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("ambiente sem FTS5")
+		}
+		t.Fatalf("falha ao inicializar SQLite: %v", err)
+	}
+
+	longContent := strings.Repeat("Texto longo para teste de conteúdo completo sem truncamento. ", 30)
+	now := time.Now().Unix()
+	_ = db.InsertDocument(ctx, database, "long-doc", "docs/long.md", "Long Doc", now, "hl")
+	_ = db.InsertChunk(ctx, database, "chk-long", "long-doc", longContent, 0, nil)
+	database.Close()
+
+	var buf bytes.Buffer
+	err = runInspectCommand(ctx, "test-repo", []string{"--db", dbFile, "long-doc", "--full", "--json"}, &buf)
+	if err != nil {
+		t.Fatalf("falha ao executar inspect com --full: %v", err)
+	}
+
+	var res graph.TriptychView
+	if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
+		t.Fatalf("falha ao parsear json: %v", err)
+	}
+
+	if strings.Contains(res.Target.ContentPreview, "[truncado]") {
+		t.Errorf("com flag --full, o conteúdo não deveria ser truncado")
+	}
+}
+

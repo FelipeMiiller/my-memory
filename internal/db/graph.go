@@ -571,6 +571,9 @@ func InspectNode(ctx context.Context, db *sql.DB, targetQuery string, maxContent
 			if err := docRows.Scan(&id, &t); err == nil {
 				nodesSet[id] = true
 				existingNodes[id] = true
+				if t != "" {
+					existingNodes[t] = true
+				}
 				titles[id] = t
 				nodeTypes[id] = "note"
 			}
@@ -584,11 +587,15 @@ func InspectNode(ctx context.Context, db *sql.DB, targetQuery string, maxContent
 			var id, n, t string
 			if err := gnRows.Scan(&id, &n, &t); err == nil {
 				nodesSet[id] = true
-				existingNodes[id] = true
 				if titles[id] == "" || titles[id] == id {
 					titles[id] = n
 				}
-				nodeTypes[id] = t
+				if nodeTypes[id] == "" {
+					nodeTypes[id] = t
+				}
+				if strings.HasPrefix(id, "#") || (t != "note" && t != "other") {
+					existingNodes[id] = true
+				}
 			}
 		}
 	}

@@ -204,6 +204,23 @@ func TestPostgresStore_Integration(t *testing.T) {
 		t.Errorf("Esperava encontrar conexao inesperada entre doc-1 e doc-close")
 	}
 
+	// 4.1. CalculateImpact e InspectNode no PostgreSQL
+	impact, err := s.CalculateImpact(ctx, repo, docID, 2)
+	if err != nil {
+		t.Fatalf("CalculateImpact falhou no PostgreSQL: %v", err)
+	}
+	if impact.TargetNode != docID {
+		t.Errorf("CalculateImpact retornou target incorreto: %s", impact.TargetNode)
+	}
+
+	view, err := s.InspectNode(ctx, repo, docID, 200)
+	if err != nil {
+		t.Fatalf("InspectNode falhou no PostgreSQL: %v", err)
+	}
+	if view.Target.ID != docID {
+		t.Errorf("InspectNode retornou target incorreto: %s", view.Target.ID)
+	}
+
 	// 5. DeleteDocumentData
 	err = s.DeleteDocumentData(ctx, repo, docID)
 	if err != nil {
