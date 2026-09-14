@@ -380,6 +380,29 @@ var (
 			"required": []string{"node_id"},
 		},
 	}
+
+	ToolMemoryInspectNode = Tool{
+		Name:        "memory_inspect_node",
+		Description: "Inspeção cirúrgica em 3 colunas (Triptych) de um nó no grafo: chamadores/dependentes (inbound), núcleo do nó e risco de blast radius, e referências de saída (outbound) sem leitura manual de arquivos",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"node_id": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho de arquivo do nó alvo a inspecionar",
+				},
+				"max_content_length": map[string]any{
+					"type":        "integer",
+					"description": "Tamanho máximo do preview de conteúdo textual da nota (padrão: 500 caracteres, 0 para ilimitado)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"node_id"},
+		},
+	}
 )
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor
