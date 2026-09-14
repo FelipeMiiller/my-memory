@@ -76,17 +76,17 @@ func DetectClientsWithEnv(rootDir string, targetFilter string, scopeFilter Confi
 		case "windows":
 			appData := env.AppData()
 			if appData != "" {
-				claudePath = filepath.Join(appData, "Claude", "claude_desktop_config.json")
+				claudePath = joinTargetOSPath(goos, appData, "Claude", "claude_desktop_config.json")
 			}
 		case "darwin":
 			home := env.HomeDir()
 			if home != "" {
-				claudePath = filepath.Join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")
+				claudePath = joinTargetOSPath(goos, home, "Library", "Application Support", "Claude", "claude_desktop_config.json")
 			}
 		default: // linux / bsd
 			home := env.HomeDir()
 			if home != "" {
-				claudePath = filepath.Join(home, ".config", "Claude", "claude_desktop_config.json")
+				claudePath = joinTargetOSPath(goos, home, ".config", "Claude", "claude_desktop_config.json")
 			}
 		}
 
@@ -103,7 +103,7 @@ func DetectClientsWithEnv(rootDir string, targetFilter string, scopeFilter Confi
 
 	// 2. Cursor IDE (Workspace)
 	if matchTarget(normTarget, "cursor") && matchScope(normScope, ScopeWorkspace) {
-		cursorWS := filepath.Join(rootDir, ".cursor", "mcp.json")
+		cursorWS := joinTargetOSPath(env.GOOS(), rootDir, ".cursor", "mcp.json")
 		candidates = append(candidates, makeClientTarget(
 			ClientCursor,
 			"Cursor IDE (Workspace)",
@@ -117,7 +117,7 @@ func DetectClientsWithEnv(rootDir string, targetFilter string, scopeFilter Confi
 	if matchTarget(normTarget, "cursor") && matchScope(normScope, ScopeGlobal) {
 		home := env.HomeDir()
 		if home != "" {
-			cursorGlobal := filepath.Join(home, ".cursor", "mcp.json")
+			cursorGlobal := joinTargetOSPath(env.GOOS(), home, ".cursor", "mcp.json")
 			candidates = append(candidates, makeClientTarget(
 				ClientCursor,
 				"Cursor IDE (Global)",
@@ -130,7 +130,7 @@ func DetectClientsWithEnv(rootDir string, targetFilter string, scopeFilter Confi
 
 	// 4. VS Code / Copilot (Workspace)
 	if matchTarget(normTarget, "vscode") && matchScope(normScope, ScopeWorkspace) {
-		vscodeWS := filepath.Join(rootDir, ".vscode", "mcp.json")
+		vscodeWS := joinTargetOSPath(env.GOOS(), rootDir, ".vscode", "mcp.json")
 		candidates = append(candidates, makeClientTarget(
 			ClientVSCode,
 			"VS Code / GitHub Copilot (Workspace)",
@@ -144,7 +144,7 @@ func DetectClientsWithEnv(rootDir string, targetFilter string, scopeFilter Confi
 	if matchTarget(normTarget, "windsurf") && matchScope(normScope, ScopeGlobal) {
 		home := env.HomeDir()
 		if home != "" {
-			windsurfGlobal := filepath.Join(home, ".codeium", "windsurf", "mcp_config.json")
+			windsurfGlobal := joinTargetOSPath(env.GOOS(), home, ".codeium", "windsurf", "mcp_config.json")
 			candidates = append(candidates, makeClientTarget(
 				ClientWindsurf,
 				"Windsurf / Codeium (Global)",
@@ -158,21 +158,62 @@ func DetectClientsWithEnv(rootDir string, targetFilter string, scopeFilter Confi
 	return candidates, nil
 }
 
+func joinTargetOSPath(goos string, elem ...string) string {
+	if goos == "windows" {
+		var parts []string
+		for _, el := range elem {
+			clean := strings.ReplaceAll(el, "/", `\`)
+			clean = strings.Trim(clean, `\`)
+			if clean != "" {
+				parts = append(parts, clean)
+			}
+		}
+		if len(elem) > 0 && len(elem[0]) >= 2 && elem[0][1] == ':' {
+			drive := elem[0][:2]
+			if len(parts) > 0 && len(parts[0]) >= 2 && parts[0][1] == ':' {
+				parts[0] = parts[0][2:]
+				parts[0] = strings.TrimLeft(parts[0], `\`)
+			}
+			return drive + `\` + strings.Join(parts, `\`)
+		}
+		return strings.Join(parts, `\`)
+	}
+	return filepath.Join(elem...)
+}
+
 func makeClientTarget(cType ClientType, name string, scope ConfigScope, configPath string, env SystemEnv) ClientTarget {
+	cfgPath := configPath
+	if env.GOOS() == "windows" {
+		cfgPath = strings.ReplaceAll(cfgPath, "/", `\`)
+	} else {
+		cfgPath = filepath.Clean(cfgPath)
+	}
+
 	target := ClientTarget{
 		Type:       cType,
 		Name:       name,
 		Scope:      scope,
-		ConfigPath: filepath.Clean(configPath),
+		ConfigPath: cfgPath,
 	}
 
 	if stat, err := env.Stat(target.ConfigPath); err == nil && !stat.IsDir() {
 		target.Exists = true
 	}
 
-	parentDir := filepath.Dir(target.ConfigPath)
-	if pStat, err := env.Stat(parentDir); err == nil && pStat.IsDir() {
-		target.ParentDirOK = true
+	var parentDir string
+	if env.GOOS() == "windows" {
+		idx := strings.LastIndex(cfgPath, `\`)
+		if idx > 0 {
+			parentDir = cfgPath[:idx]
+		}
+	} else {
+		parentDir = filepath.Dir(cfgPath)
+	}
+
+	if parentDir != "" {
+		if pStat, err := env.Stat(parentDir); err == nil && pStat.IsDir() {
+			target.ParentDirOK = true
+		}
 	}
 
 	return target

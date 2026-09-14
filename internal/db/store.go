@@ -301,17 +301,19 @@ func InsertChunk(ctx context.Context, db *sql.DB, chunkID, docID, content string
 	}
 
 	// 3. sqlite-vec (busca vetorial padrão float32)
-	vecBlob, err := serializeFloat32(vec)
-	if err != nil {
-		return fmt.Errorf("erro serializando vetor: %w", err)
-	}
+	if len(vec) > 0 {
+		vecBlob, err := serializeFloat32(vec)
+		if err != nil {
+			return fmt.Errorf("erro serializando vetor: %w", err)
+		}
 
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO chunks_vec (chunk_id, embedding)
-		VALUES (?, ?)
-	`, chunkID, vecBlob)
-	if err != nil {
-		return err
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO chunks_vec (chunk_id, embedding)
+			VALUES (?, ?)
+		`, chunkID, vecBlob)
+		if err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()

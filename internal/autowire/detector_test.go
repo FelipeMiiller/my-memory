@@ -20,12 +20,17 @@ func (m mockSystemEnv) GOOS() string    { return m.goos }
 func (m mockSystemEnv) HomeDir() string { return m.home }
 func (m mockSystemEnv) AppData() string { return m.appData }
 func (m mockSystemEnv) Stat(path string) (os.FileInfo, error) {
-	clean := filepath.Clean(path)
-	if m.files[clean] {
-		return mockFileInfo{name: filepath.Base(clean), isDir: false}, nil
+	norm := path
+	if m.goos == "windows" {
+		norm = strings.ReplaceAll(path, "/", `\`)
+	} else {
+		norm = filepath.Clean(path)
 	}
-	if m.dirs[clean] {
-		return mockFileInfo{name: filepath.Base(clean), isDir: true}, nil
+	if m.files[norm] || m.files[path] {
+		return mockFileInfo{name: filepath.Base(norm), isDir: false}, nil
+	}
+	if m.dirs[norm] || m.dirs[path] {
+		return mockFileInfo{name: filepath.Base(norm), isDir: true}, nil
 	}
 	return nil, os.ErrNotExist
 }
