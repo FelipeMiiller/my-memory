@@ -357,6 +357,29 @@ var (
 			},
 		},
 	}
+
+	ToolMemoryGetImpact = Tool{
+		Name:        "memory_get_impact",
+		Description: "Calcula a análise de impacto e raio de destruição (blast radius) de dependências reversas antes de alterações em notas ou código",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"node_id": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho de arquivo do nó alvo no grafo",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Profundidade máxima de propagação das dependências reversas (padrão: 2)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"node_id"},
+		},
+	}
 )
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor

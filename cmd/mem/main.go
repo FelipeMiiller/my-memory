@@ -1573,6 +1573,13 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				TotalEdges:  gv.Stats.TotalEdges,
 			}, nil
 		})
+
+		srv.SetImpactHandler(func(ctx context.Context, repo, nodeID string, maxDepth int) (*graph.ImpactResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.CalculateImpact(ctx, repo, nodeID, maxDepth)
+		})
 	} else if database != nil {
 		tq := turboquant.NewQuantizer(EmbeddingDim)
 		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -1741,6 +1748,10 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				TotalNodes:  gv.Stats.TotalNodes,
 				TotalEdges:  gv.Stats.TotalEdges,
 			}, nil
+		})
+
+		srv.SetImpactHandler(func(ctx context.Context, repo, nodeID string, maxDepth int) (*graph.ImpactResult, error) {
+			return db.CalculateImpactForTarget(ctx, database, nodeID, maxDepth)
 		})
 	}
 

@@ -18,12 +18,13 @@
 - **AD-020**: Visualizador Interativo de Grafo em HTML/SVG Standalone (`docs/adr/020-visualizador-interativo-de-grafo-em-html-svg.md`)
 - **AD-021**: Servidor MCP com Transporte HTTP e Server-Sent Events (SSE) (`docs/adr/021-servidor-mcp-com-transporte-http-sse.md`)
 - **AD-022**: Detecção de Comunidades e Clusters no Grafo de Conhecimento (`docs/adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md`)
+- **AD-023**: Análise de Impacto e Raio de Destruição (Blast Radius Analysis) (`docs/adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md`)
 
 ## Handoff
 
-- **Feature**: graph-community-detection (.specs/features/graph-community-detection)
+- **Feature**: blast-radius-impact-analysis (.specs/features/blast-radius-impact-analysis)
 - **Phase / Task**: Phase 1 / T4 (Completed)
-- **Completed**: T1 (LPA e Modularidade Q), T2 (Enriquecimento GraphView), T3 (Subcomando mem clusters), T4 (Ferramenta MCP memory_get_clusters e ADR-022)
+- **Completed**: T1 (Cálculo de Impacto e RiskScore), T2 (Resolução Canônica e Inbound Traversal DB), T3 (Subcomando mem impact), T4 (Ferramenta MCP memory_get_impact e ADR-023)
 - **In-progress**: none
 - **Next step**: Executar Verifier TLC (validation.md) e validação final
 - **Blockers**: none

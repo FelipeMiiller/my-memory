@@ -80,7 +80,7 @@ T1 -> T2 -> T3 -> T4
 **Tests**: internal/mcp/impact_handlers_test.go
 **Gate**: go test -count=1 ./...
 **Done when**:
-- [ ] Declarar schema de memory_get_impact em internal/mcp/tools.go e implementar handler em internal/mcp/impact_handlers.go
-- [ ] Adicionar testes de integração MCP em internal/mcp/impact_handlers_test.go
-- [ ] Criar docs/adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md no padrão MADR
-- [ ] Atualizar docs/adr/README.md, docs/CLI_GUIDE.md, docs/REFERENCES.md e .specs/STATE.md
+- [x] Declarar schema de memory_get_impact em internal/mcp/tools.go e implementar handler em internal/mcp/impact_handlers.go
+- [x] Adicionar testes de integração MCP em internal/mcp/impact_handlers_test.go
+- [x] Criar docs/adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md no padrão MADR
+- [x] Atualizar docs/adr/README.md, docs/CLI_GUIDE.md, docs/REFERENCES.md e .specs/STATE.md

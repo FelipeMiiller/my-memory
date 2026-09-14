@@ -315,6 +315,29 @@ Gera e abre no navegador uma visualização interativa do grafo da memória do r
 
 ---
 
+### 17. `mem impact <node_id> [--depth 2] [--json] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Analisa preventivamente o **raio de destruição (*blast radius*)** e o fechamento de dependências reversas antes de alterar arquivos de código ou notas arquiteturais:
+* **Travessia Reversa em Camadas:** Identifica todos os documentos e serviços que dependem direta ou indiretamente do nó alvo até a profundidade especificada (`--depth`, padrão: 2).
+* **Score de Risco Normalizado (0 a 100):** Pondera a quantidade de nós afetados, a severidade semântica das arestas, o decaimento hiperbólico por profundidade ($1/\text{depth}$) e a autoridade estrutural calculada via **PageRank**.
+* **Badges de Severidade Semântica:** Diferencia impactos `[CRITICAL]` (contratos de dependência e implementação direta), `[HIGH]`, `[MEDIUM]` (links conceituais) e `[LOW]`.
+* **Detecção de Domínios Cruzados:** Relaciona os clusters temáticos de conhecimento (ADR-022) atingidos pelo raio de destruição.
+* **Resolução Canônica Tolerante:** O identificador `<node_id>` aceita caminhos relativos de arquivos (`internal/graph/impact.go`), títulos de notas ou slugs parciais.
+* **Formato JSON Estruturado:** Com `--json`, exporta métricas e árvore de dependentes pronta para automações e pipelines CI/CD.
+
+**Exemplos:**
+```bash
+# Analisar impacto de uma nota central de autenticação (profundidade padrão: 2):
+./bin/mem.exe impact "concepts/auth.md"
+
+# Avaliar impacto profundo (até 3 níveis de dependências):
+./bin/mem.exe impact "internal/db/database.go" --depth 3
+
+# Exportar relatório de blast radius em JSON:
+./bin/mem.exe impact "decisions/adr-001.md" --json
+```
+
+---
+
 ## ⚙️ Configuração Declarativa do Vault (`.memory/config.yaml`)
 
 O My-Memory suporta configuração declarativa por projeto ou vault de notas. Ao executar qualquer comando, o binário procura recursivamente de baixo para cima por `.memory/config.yaml`, `.mem.yaml` ou `.mem.json`.

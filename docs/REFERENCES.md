@@ -88,3 +88,4 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
 | **Parsing de Notas** | Regex simples para `[[wikilinks]]` | **Obsidian Flavored Markdown** (YAML frontmatter, âncoras, aliases) | `kepano/obsidian-skills` |
 | **Multi-Repositório** | Detecção de Git Origin | **Auto-scoping com Marker File** (`.memory/config.yaml` / Git slug) | `ai-memory` |
 | **Transporte MCP** | Apenas stdio local | **Multi-transporte (stdio + HTTP/SSE)** para agentes remotos e locais | ADR-021 |
+| **Raio de Destruição** | Sem análise de dependências reversas | **Análise de Impacto Reversa e Risk Scoring** (BFS reversa, severidade, PageRank, clusters) | `colbymchenry/codegraph` & ADR-023 |
