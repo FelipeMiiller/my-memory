@@ -1,10 +1,10 @@
 # Tasks: progressive-context-loading
 
-- [ ] **T1**: Extensão do Schema e Migração Idempotente (`internal/db/` e `internal/store/`)
-  - [ ] Adicionar colunas `abstract TEXT` e `category TEXT DEFAULT 'resource'` na tabela `documents` do SQLite (`internal/db/schema.go`).
-  - [ ] Adicionar colunas `abstract TEXT` e `category TEXT DEFAULT 'resource'` no PostgreSQL (`internal/store/postgres.go`).
-  - [ ] Atualizar struct `Document` e `SearchResult` em `internal/db/store.go` e `internal/store/store.go`.
-  - [ ] Escrever testes unitários validando migrações em bancos existentes sem perda de dados.
+- [x] **T1**: Extensão do Schema e Migração Idempotente (`internal/db/` e `internal/store/`)
+  - [x] Adicionar colunas `abstract TEXT` e `category TEXT DEFAULT 'resource'` na tabela `documents` do SQLite (`internal/db/schema.go`).
+  - [x] Adicionar colunas `abstract TEXT` e `category TEXT DEFAULT 'resource'` no PostgreSQL (`internal/store/postgres.go`).
+  - [x] Atualizar struct `Document` e `SearchResult` em `internal/db/store.go` e `internal/store/store.go`.
+  - [x] Escrever testes unitários validando migrações em bancos existentes sem perda de dados.
 
 - [ ] **T2**: Extração Heurística de L0 (Micro-Abstract) e Taxonomia no Parser (`internal/parser/`)
   - [ ] Adicionar campos `Category`, `Summary` e `Abstract` no modelo `Frontmatter` (`internal/parser/frontmatter.go`).

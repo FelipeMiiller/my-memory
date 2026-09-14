@@ -9,6 +9,18 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 )
 
+// Document representa a entidade de um documento armazenado
+type Document struct {
+	ID          string `json:"id"`
+	Repository  string `json:"repository,omitempty"`
+	Path        string `json:"path"`
+	Title       string `json:"title"`
+	UpdatedAt   int64  `json:"updated_at"`
+	ContentHash string `json:"content_hash,omitempty"`
+	Abstract    string `json:"abstract,omitempty"`
+	Category    string `json:"category,omitempty"`
+}
+
 // SearchResult representa um trecho relevante retornado na busca
 type SearchResult struct {
 	ChunkID    string   `json:"chunk_id"`
@@ -20,6 +32,8 @@ type SearchResult struct {
 	Sources    []string `json:"sources,omitempty"` // Origens e posições (ex: ["fts:1", "vector:3"])
 	Neighbors  []string `json:"neighbors,omitempty"`
 	UpdatedAt  int64    `json:"updated_at,omitempty"`
+	Abstract   string   `json:"abstract,omitempty"`
+	Category   string   `json:"category,omitempty"`
 }
 
 // GodNode representa um nó com alta centralidade estrutural (in-degree + out-degree) no grafo

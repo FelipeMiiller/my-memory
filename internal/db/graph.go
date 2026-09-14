@@ -22,6 +22,8 @@ type SearchResult struct {
 	Sources    []string `json:"sources,omitempty"`
 	Neighbors  []string `json:"neighbors,omitempty"` // Conexões descobertas no grafo
 	UpdatedAt  int64    `json:"updated_at,omitempty"`
+	Abstract   string   `json:"abstract,omitempty"`
+	Category   string   `json:"category,omitempty"`
 }
 
 // SearchKNN busca os pedaços mais próximos usando sqlite-vec nativo

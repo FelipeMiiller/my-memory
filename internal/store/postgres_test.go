@@ -61,6 +61,37 @@ func TestPostgresSchema_ContentHash(t *testing.T) {
 	}
 }
 
+func TestPostgresSchema_AbstractAndCategory(t *testing.T) {
+	if !strings.Contains(PostgresSchema, "abstract TEXT") {
+		t.Fatalf("PostgresSchema deve conter coluna abstract TEXT")
+	}
+	if !strings.Contains(PostgresSchema, "category TEXT DEFAULT 'resource'") {
+		t.Fatalf("PostgresSchema deve conter coluna category TEXT DEFAULT 'resource'")
+	}
+	if !strings.Contains(PostgresSchema, "ALTER TABLE documents ADD COLUMN IF NOT EXISTS abstract TEXT;") {
+		t.Fatalf("PostgresSchema deve conter migração retrocompatível para abstract")
+	}
+	if !strings.Contains(PostgresSchema, "ALTER TABLE documents ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'resource';") {
+		t.Fatalf("PostgresSchema deve conter migração retrocompatível para category")
+	}
+}
+
+func TestDocument_Struct(t *testing.T) {
+	doc := Document{
+		ID:          "doc-1",
+		Repository:  "repo-1",
+		Path:        "docs/spec.md",
+		Title:       "Spec",
+		UpdatedAt:   123456,
+		ContentHash: "sha256",
+		Abstract:    "Resumo micro-abstract",
+		Category:    "memory",
+	}
+	if doc.Category != "memory" || doc.Abstract == "" {
+		t.Fatalf("Document struct inconsistente: %+v", doc)
+	}
+}
+
 func TestPostgresSchema_EpistemicEdges(t *testing.T) {
 	if !strings.Contains(PostgresSchema, "epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED'") {
 		t.Fatalf("PostgresSchema deve conter coluna epistemic_status")

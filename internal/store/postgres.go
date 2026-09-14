@@ -30,9 +30,13 @@ CREATE TABLE IF NOT EXISTS documents (
     title TEXT,
     updated_at BIGINT NOT NULL,
     content_hash TEXT,
+    abstract TEXT,
+    category TEXT DEFAULT 'resource',
     PRIMARY KEY (repository, id)
 );
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS abstract TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'resource';
 
 CREATE TABLE IF NOT EXISTS chunks (
     id TEXT NOT NULL,

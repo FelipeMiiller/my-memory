@@ -40,6 +40,19 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN content_hash TEXT")
 	}
 
+	// Migração retrocompatível: adiciona colunas abstract e category em documents se não existirem
+	var absColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'abstract'").Scan(&absColCount)
+	if absColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN abstract TEXT")
+	}
+
+	var catColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'category'").Scan(&catColCount)
+	if catColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN category TEXT DEFAULT 'resource'")
+	}
+
 	// Migração retrocompatível: adiciona colunas epistemic_status e weight em graph_edges se não existirem
 	var edgeColCount int
 	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('graph_edges') WHERE name = 'epistemic_status'").Scan(&edgeColCount)
@@ -49,6 +62,17 @@ func InitDB(dbPath string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+// Document representa a entidade canônica de um documento na tabela documents
+type Document struct {
+	ID          string `json:"id"`
+	Path        string `json:"path"`
+	Title       string `json:"title"`
+	UpdatedAt   int64  `json:"updated_at"`
+	ContentHash string `json:"content_hash,omitempty"`
+	Abstract    string `json:"abstract,omitempty"`
+	Category    string `json:"category,omitempty"`
 }
 
 // InsertDocument salva documento com content_hash e seus nós no grafo

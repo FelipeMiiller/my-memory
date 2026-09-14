@@ -24,11 +24,11 @@
 ## Handoff
 
 - **Feature**: progressive-context-loading (.specs/features/progressive-context-loading)
-- **Phase / Task**: Phase 1 / T1 (Planning & Ready for Implementation)
-- **Planned**: T1 (Extensão de Schema e Migrações), T2 (Extração Heurística de L0 e Taxonomia), T3 (Motores de Busca com L0/L1/L2 e Filtro de Categoria), T4 (CLI mem search com --level e --category), T5 (MCP memory_search com detail_level e ADR-025)
+- **Phase / Task**: Phase 2 / T2 (Ready for Implementation)
+- **Planned**: T1 (Extensão de Schema e Migrações - CONCLUÍDO), T2 (Extração Heurística de L0 e Taxonomia), T3 (Motores de Busca com L0/L1/L2 e Filtro de Categoria), T4 (CLI mem search com --level e --category), T5 (MCP memory_search com detail_level e ADR-025)
 - **Completed Features**: triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: T1 (Extensão do Schema e Migração Idempotente)
-- **Next step**: Implementar migração das colunas `abstract` e `category` no SQLite e PostgreSQL
+- **In-progress**: T2 (Extração Heurística de L0 e Taxonomia no Parser)
+- **Next step**: Implementar extração de micro-abstract L0 e category no parser Markdown e persistência no indexador
 - **Blockers**: none
 - **Branch**: develop
 

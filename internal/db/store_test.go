@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -197,3 +198,111 @@ func TestSQLite_FindSurprisingConnections_LexicalFallback(t *testing.T) {
 		t.Fatalf("Fallback léxico não detectou conexão surpreendente entre doc-1 e doc-2")
 	}
 }
+
+func TestSchemaMigration_AbstractAndCategory(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "legacy_migration.db")
+
+	// 1. Cria banco com schema legado pré-progressive-loading (sem abstract e sem category)
+	rawDB, err := openDB(dbPath)
+	if err != nil {
+		t.Fatalf("openDB falhou: %v", err)
+	}
+
+	legacySchema := `
+	CREATE TABLE documents (
+		id TEXT PRIMARY KEY,
+		path TEXT NOT NULL UNIQUE,
+		title TEXT,
+		updated_at INTEGER NOT NULL,
+		content_hash TEXT
+	);
+	`
+	if _, err := rawDB.Exec(legacySchema); err != nil {
+		t.Fatalf("Exec legacySchema falhou: %v", err)
+	}
+
+	// Insere registro legado
+	_, err = rawDB.Exec(`
+		INSERT INTO documents (id, path, title, updated_at, content_hash)
+		VALUES ('legacy-doc', 'docs/legacy.md', 'Legacy Title', 1000, 'hash-legacy')
+	`)
+	if err != nil {
+		t.Fatalf("Insert documento legado falhou: %v", err)
+	}
+	rawDB.Close()
+
+	// 2. Executa InitDB sobre a base legada existente
+	database, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB sobre base legada falhou: %v", err)
+	}
+	defer database.Close()
+
+	// 3. Valida se as colunas abstract e category foram adicionadas
+	var hasAbstract, hasCategory bool
+	rows, err := database.Query("SELECT name FROM pragma_table_info('documents')")
+	if err != nil {
+		t.Fatalf("pragma_table_info falhou: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var colName string
+		if err := rows.Scan(&colName); err != nil {
+			t.Fatalf("Scan coluna falhou: %v", err)
+		}
+		if colName == "abstract" {
+			hasAbstract = true
+		}
+		if colName == "category" {
+			hasCategory = true
+		}
+	}
+
+	if !hasAbstract {
+		t.Errorf("Coluna 'abstract' não foi adicionada na migração")
+	}
+	if !hasCategory {
+		t.Errorf("Coluna 'category' não foi adicionada na migração")
+	}
+
+	// 4. Valida integridade do registro pré-existente
+	var doc Document
+	var abs sql.NullString
+	err = database.QueryRow(`
+		SELECT id, path, title, updated_at, content_hash, abstract, category
+		FROM documents WHERE id = 'legacy-doc'
+	`).Scan(&doc.ID, &doc.Path, &doc.Title, &doc.UpdatedAt, &doc.ContentHash, &abs, &doc.Category)
+	if err != nil {
+		t.Fatalf("QueryRow documento legado falhou: %v", err)
+	}
+
+	if doc.ID != "legacy-doc" || doc.Title != "Legacy Title" || doc.ContentHash != "hash-legacy" {
+		t.Errorf("Dados legados corrompidos: %+v", doc)
+	}
+	if doc.Category != "resource" {
+		t.Errorf("Valor padrão de category esperado 'resource', obteve %q", doc.Category)
+	}
+	if abs.Valid && abs.String != "" {
+		t.Errorf("Abstract de documento legado esperado vazio, obteve %q", abs.String)
+	}
+
+	// 5. Valida atualização com nova categoria e abstract
+	_, err = database.Exec(`
+		UPDATE documents SET abstract = 'Micro resumo', category = 'memory' WHERE id = 'legacy-doc'
+	`)
+	if err != nil {
+		t.Fatalf("UPDATE abstract e category falhou: %v", err)
+	}
+
+	err = database.QueryRow(`
+		SELECT abstract, category FROM documents WHERE id = 'legacy-doc'
+	`).Scan(&doc.Abstract, &doc.Category)
+	if err != nil {
+		t.Fatalf("QueryRow após update falhou: %v", err)
+	}
+	if doc.Abstract != "Micro resumo" || doc.Category != "memory" {
+		t.Errorf("Valores pós-update inesperados: abstract=%q, category=%q", doc.Abstract, doc.Category)
+	}
+}
+
