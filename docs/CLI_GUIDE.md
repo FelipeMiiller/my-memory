@@ -204,7 +204,29 @@ Audita a saúde do grafo e tabelas relacionais de conhecimento:
 
 ---
 
-### 11. `mem bench`
+### 11. `mem clusters [--min-size 2] [--json] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Detecta comunidades temáticas e clusters densamente conectados no grafo relacional usando o algoritmo *Weighted Label Propagation Algorithm* (LPA) e calcula a Modularidade Newman-Girvan \(Q\):
+* **LPA Ponderado:** Considera os pesos epistêmicos das arestas (`EXTRACTED` 1.0, `INFERRED` 0.6, `TAG` 0.3) com desempate determinístico lexicográfico.
+* **Modularidade \(Q\):** Quantifica o grau de coesão e separação estrutural da memória (valores $> 0.3$ indicam forte coesão).
+* **Nó Líder e Tipo Dominante:** Identifica automaticamente o nó central com maior PageRank local e a categoria predominante de nota (`concept`, `decision`, etc.).
+* `--min-size <N>`: Filtra clusters menores que $N$ nós (padrão: 2, ocultando nós isolados).
+* `--json`: Emite o resultado em formato JSON estruturado com métricas globais e array de comunidades.
+
+**Exemplos:**
+```bash
+# Detectar clusters temáticos com tamanho >= 2:
+./bin/mem.exe clusters
+
+# Incluir nós isolados (tamanho 1):
+./bin/mem.exe clusters --min-size 1
+
+# Exportar partições e modularidade em JSON:
+./bin/mem.exe clusters --json
+```
+
+---
+
+### 12. `mem bench`
 Executa a suíte de micro-benchmarks quantitativos da biblioteca (TurboQuant 4-bit, fusão RRF, SHA-256 e parsing) com saída tabular detalhada.
 
 **Exemplo:**
@@ -214,7 +236,7 @@ Executa a suíte de micro-benchmarks quantitativos da biblioteca (TurboQuant 4-b
 
 ---
 
-### 12. `mem note <create|append> [opções] <caminho>`
+### 13. `mem note <create|append> [opções] <caminho>`
 Cria ou anexa seções em notas atômicas em Markdown com frontmatter YAML limpo e sincronização cirúrgica imediata no banco de dados e grafo:
 * `create`: Cria nota atômica com frontmatter (`title`, `type`, `tags`, `aliases`) e corpo Markdown. Rejeita sobrescrita a menos que `--overwrite` seja passado.
 * `append`: Anexa texto cirurgicamente antes da próxima seção de mesmo nível ou cria nova seção caso não exista.
@@ -230,7 +252,7 @@ Cria ou anexa seções em notas atômicas em Markdown com frontmatter YAML limpo
 
 ---
 
-### 13. `mem compile --topic "<termo>" --out "<caminho.md>" [--limit 5] [--mode hybrid|vector|fts]`
+### 14. `mem compile --topic "<termo>" --out "<caminho.md>" [--limit 5] [--mode hybrid|vector|fts]`
 Executa o padrão **Compile-not-Retrieve** (Karpathy LLM Wiki): recupera os fragmentos mais relevantes sobre um tópico via busca híbrida e gera uma nota consolidada com seção de síntese e backlinks tipados (`[[rel:derived_from:Doc]]`), sincronizando instantaneamente no grafo.
 
 **Exemplo:**
@@ -240,7 +262,7 @@ Executa o padrão **Compile-not-Retrieve** (Karpathy LLM Wiki): recupera os frag
 
 ---
 
-### 14. `mem version [--json]`
+### 15. `mem version [--json]`
 Exibe a versão do executável, hash Git do commit, data de compilação, versão do Go e arquitetura do sistema operacional. Também acessível através das flags `-v` e `--version`.
 
 **Exemplo:**
@@ -255,7 +277,7 @@ Exibe a versão do executável, hash Git do commit, data de compilação, versã
 
 ---
 
-### 15. `mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open]`
+### 16. `mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open]`
 Gera e abre no navegador uma visualização interativa do grafo da memória do repositório, em uma página HTML/SVG 100% autocontida (Zero-CDN) com simulação de física de forças:
 * **`mem graph view`**: Compila o grafo e abre imediatamente no navegador padrão do sistema.
 * **`mem graph export`**: Compila e grava o arquivo HTML no disco sem abrir o navegador (a menos que `--open` seja passado).

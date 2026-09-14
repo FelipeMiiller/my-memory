@@ -339,6 +339,24 @@ var (
 			},
 		},
 	}
+
+	ToolMemoryGetClusters = Tool{
+		Name:        "memory_get_clusters",
+		Description: "Detecta partições temáticas e comunidades no grafo relacional usando Weighted Label Propagation e calcula a Modularidade Newman-Girvan Q",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"min_size": map[string]any{
+					"type":        "integer",
+					"description": "Tamanho mínimo de nós para incluir um cluster no resultado (padrão: 2)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+		},
+	}
 )
 
 // RegisterTool adiciona ou atualiza uma ferramenta e seu respectivo handler no servidor

@@ -81,7 +81,7 @@ T1 -> T2 -> T3 -> T4
 **Tests**: internal/mcp/cluster_handlers_test.go
 **Gate**: go test -count=1 ./...
 **Done when**:
-- [ ] Declarar schema de memory_get_clusters em internal/mcp/tools.go e implementar handler
-- [ ] Adicionar testes de integração MCP em internal/mcp/cluster_handlers_test.go
-- [ ] Criar docs/adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md no padrão MADR
-- [ ] Atualizar docs/adr/README.md, docs/CLI_GUIDE.md e .specs/STATE.md
+- [x] Declarar schema de memory_get_clusters em internal/mcp/tools.go e implementar handler
+- [x] Adicionar testes de integração MCP em internal/mcp/cluster_handlers_test.go
+- [x] Criar docs/adr/022-deteccao-de-comunidades-e-clusters-no-grafo.md no padrão MADR
+- [x] Atualizar docs/adr/README.md, docs/CLI_GUIDE.md e .specs/STATE.md

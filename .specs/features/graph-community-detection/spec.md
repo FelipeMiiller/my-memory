@@ -108,5 +108,5 @@ O My-Memory atualmente analisa o grafo de conhecimento através de métricas de 
 | COMM-04 | Identificação de nó central/líder e tipo dominante | verified |
 | COMM-05 | Subcomando CLI mem clusters com tabela e --json | verified |
 | COMM-06 | Filtro de tamanho mínimo (--min-size) | verified |
-| COMM-07 | Ferramenta MCP memory_get_clusters | pending |
-| COMM-08 | Integração com visualizador de grafo e ADR-022 | pending |
+| COMM-07 | Ferramenta MCP memory_get_clusters | verified |
+| COMM-08 | Integração com visualizador de grafo e ADR-022 | verified |

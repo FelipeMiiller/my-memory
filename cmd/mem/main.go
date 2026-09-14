@@ -21,6 +21,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
+	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/graphview"
 	"github.com/FelipeMiiller/my-memory/internal/mcp"
 	"github.com/FelipeMiiller/my-memory/internal/parser"
@@ -1448,6 +1449,22 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return graphview.BuildFromPostgres(ctx, pgStore, repo, rootNode, maxDepth)
 		}, ".")
+
+		srv.SetClustersHandler(func(ctx context.Context, repo string, minSize int) (graph.CommunityResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			gv, err := graphview.BuildFromPostgres(ctx, pgStore, repo, "", 0)
+			if err != nil {
+				return graph.CommunityResult{}, err
+			}
+			return graph.CommunityResult{
+				Communities: gv.Communities,
+				Modularity:  gv.Stats.Modularity,
+				TotalNodes:  gv.Stats.TotalNodes,
+				TotalEdges:  gv.Stats.TotalEdges,
+			}, nil
+		})
 	} else if database != nil {
 		tq := turboquant.NewQuantizer(EmbeddingDim)
 		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -1594,6 +1611,22 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return graphview.BuildFromSQLite(ctx, database, rootNode, maxDepth, repo)
 		}, ".")
+
+		srv.SetClustersHandler(func(ctx context.Context, repo string, minSize int) (graph.CommunityResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			gv, err := graphview.BuildFromSQLite(ctx, database, "", 0, repo)
+			if err != nil {
+				return graph.CommunityResult{}, err
+			}
+			return graph.CommunityResult{
+				Communities: gv.Communities,
+				Modularity:  gv.Stats.Modularity,
+				TotalNodes:  gv.Stats.TotalNodes,
+				TotalEdges:  gv.Stats.TotalEdges,
+			}, nil
+		})
 	}
 
 	if httpAddr != "" {
