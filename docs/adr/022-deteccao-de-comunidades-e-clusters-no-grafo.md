@@ -72,3 +72,14 @@ Adotou-se o algoritmo **Weighted Label Propagation Algorithm (LPA)** com cálcul
 ### K-Means ou Spectral Clustering sobre Embeddings
 - *Bom*: Agrupa pela proximidade vetorial semântica.
 - *Ruim*: Exige fixar o número de clusters $K$ a priori e não reflete as arestas estruturais e epistêmicas estabelecidas explicitamente pelo desenvolvedor no vault.
+
+---
+
+## Links e Referências
+
+- **[CodeGraph (colbymchenry/codegraph)](https://github.com/colbymchenry/codegraph)**: Referência de ponta para grafos de conhecimento locais e pré-indexados integrados a agentes de IA (Claude Code, Cursor, Antigravity, Codex), com sincronização contínua via watcher, SQLite embarcado, visualização interativa e entrega cirúrgica de contexto estrutural sem leituras desnecessárias de arquivos.
+- **[Raghavan et al. (2007) - Near linear time algorithm to detect community structures in large-scale networks](https://arxiv.org/abs/0709.2938)**: Fundamentação do algoritmo Label Propagation Algorithm (LPA).
+- **[Newman (2006) - Modularity and community structure in networks](https://www.pnas.org/doi/10.1073/pnas.0601602103)**: Formulação canônica da Modularidade $Q$.
+- [ADR-011: Arestas Epistêmicas e God Nodes / Hubs de Conhecimento](011-arestas-epistemicas-e-god-nodes.md)
+- [ADR-014: Centralidade de Grafo com PageRank Ponderado](014-centralidade-de-grafo-com-pagerank-ponderado.md)
+- [ADR-020: Visualizador Interativo de Grafo em HTML/SVG Standalone](020-visualizador-interativo-de-grafo-em-html-svg.md)

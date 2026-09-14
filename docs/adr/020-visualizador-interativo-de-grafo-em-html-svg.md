@@ -54,6 +54,8 @@ Adotou-se o pacote `internal/graphview` e as integrações na CLI (`cmd/mem/`) e
 ## Links
 
 - [Graphify Prior Art Reference](https://github.com/Graphify-Labs/graphify)
+- [CodeGraph UI Reference (colbymchenry/codegraph)](https://github.com/colbymchenry/codegraph) - Visualização e inspeção de grafos de conhecimento locais para agentes de IA
 - [ADR-008: Interoperabilidade Obsidian e JSON Canvas 1.0](008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md)
 - [ADR-014: Centralidade de Grafo com PageRank Ponderado](014-centralidade-de-grafo-com-pagerank-ponderado.md)
+- [ADR-022: Detecção de Comunidades e Clusters no Grafo](022-deteccao-de-comunidades-e-clusters-no-grafo.md)
 - [Pacote internal/graphview](file:///C:/repository/my-memory/internal/graphview)
