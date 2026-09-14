@@ -66,8 +66,8 @@ Open questions: none (todas as premissas arquiteturais foram detalhadas e aprova
 
 | Requirement ID | Description | Status |
 | :--- | :--- | :--- |
-| SD-01 | Extração Determinística de Histórico e Diff do Git via `GitRunner` | pending |
-| SD-02 | Detecção e Cálculo de Semantic Drift com Scores e Severidades | pending |
-| SD-03 | Detecção e Agrupamento de Código Órfão de Decisões | pending |
-| SD-04 | Subcomando CLI `mem drift` com `--since`, `--threshold`, `--strict` e `--json` | pending |
-| SD-05 | Ferramenta MCP `memory_get_drift` com Deep Links e Recomendações | pending |
+| SD-01 | Extração Determinística de Histórico e Diff do Git via `GitRunner` | verified |
+| SD-02 | Detecção e Cálculo de Semantic Drift com Scores e Severidades | verified |
+| SD-03 | Detecção e Agrupamento de Código Órfão de Decisões | verified |
+| SD-04 | Subcomando CLI `mem drift` com `--since`, `--threshold`, `--strict` e `--json` | verified |
+| SD-05 | Ferramenta MCP `memory_get_drift` com Deep Links e Recomendações | verified |

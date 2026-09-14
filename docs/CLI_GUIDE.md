@@ -492,6 +492,32 @@ Abre diretamente qualquer nota, ADR ou arquivo no editor configurado ou exibe de
 
 ---
 
+### 23. `mem drift [--since <faixa>] [--threshold <0.0-1.0>] [--uncovered] [--strict] [--json]`
+Analisa o desvio semântico e estrutural entre alterações recentes no histórico do Git e as notas da base de memória:
+* **Cruzamento Código-Memória:** Mapeia arquivos de código modificados (`*.go`, `*.py`, `*.ts`, etc.) contra notas e ADRs que os mencionam ou pertencem ao mesmo componente.
+* **Cálculo de Drift Score (0 a 100):** Pondera a quantidade de commits posteriores ao `updated_at` da nota, volume de linhas modificadas (+adições/-deleções) e PageRank.
+* **Badges de Severidade:** Classifica em `[CRITICAL]` ($\ge 65$), `[HIGH]`, `[MEDIUM]` e `[LOW]`.
+* **Detecção de Código Órfão:** Identifica novos módulos ou arquivos de código alterados que não possuem nenhuma nota ou decisão associada no grafo.
+* **Flag `--strict` para CI/CD:** Interrompe a execução com código de saída `1` se houver qualquer desvio em nível `CRITICAL`, ideal para GitHub Actions e pré-commits.
+* **Saída Estruturada (`--json`):** Exporta métricas, notas defasadas e arquivos órfãos em JSON.
+
+**Exemplos:**
+```bash
+# Analisar desvio nos últimos 5 commits (padrão):
+./bin/mem.exe drift
+
+# Analisar faixa Git customizada e filtrar por threshold mínimo:
+./bin/mem.exe drift --since "HEAD~10..HEAD" --threshold 0.30
+
+# Gate rigoroso para pipelines de CI:
+./bin/mem.exe drift --strict
+
+# Exportar relatório completo em JSON:
+./bin/mem.exe drift --json
+```
+
+---
+
 
 ## 🔍 Status e Detecção de Desatualização (`mem status`)
 

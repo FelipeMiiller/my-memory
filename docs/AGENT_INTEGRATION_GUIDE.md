@@ -198,6 +198,7 @@ embedding:
 | `mem hook install` | Instala Git pre-commit hook para indexação automática prévia ao commit. | `mem hook install` |
 | `mem pack` | Empacota subgrafo conexo centrado em nota raiz com controle rígido de tokens. | `mem pack "docs/auth.md" --max-tokens 3000` |
 | `mem open` | Abre nota diretamente no Obsidian ou VS Code com cursor opcional na linha. | `mem open "docs/auth.md" --app vscode --line 42` |
+| `mem drift` | Diagnostica desvio entre commits de código e documentação (Semantic Drift). | `mem drift --since HEAD~5 --strict` |
 | `mem mcp` | Inicia o servidor MCP via stdio (para IDEs) ou HTTP/SSE. | `mem mcp --port 38400` |
 
 ---
@@ -222,6 +223,7 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | `memory_find_path` | Para rastrear a cadeia de dependências ou menor caminho epistêmico entre dois nós. | `source` (string), `target` (string), `max_depth` (int), `directed` (bool), `mode` ("epistemic" \| "hops") |
 | `memory_pack_context` | Para extrair e empacotar um subgrafo conexo com limite rígido de tokens em prompt único. | `root_node` (string), `max_depth` (int), `max_tokens` (int), `direction` ("both" \| "outbound" \| "inbound") |
 | `memory_open_node` | Para gerar links acionáveis (`obsidian://`, `vscode://`) ou solicitar abertura de nota no editor. | `node_id` (string), `app` ("obsidian" \| "vscode" \| "system"), `line` (int), `action` ("links_only" \| "open") |
+| `memory_get_drift` | Para identificar desvios entre código recente e notas, além de código órfão sem decisões. | `since` (string), `threshold` (float), `include_uncovered` (bool) |
 
 ---
 
