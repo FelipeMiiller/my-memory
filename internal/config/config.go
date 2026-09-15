@@ -1,15 +1,44 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+// Constantes de federação e identidade
+const (
+	CentralRepoID      = "repo_central"
+	GlobalConfigDirEnv = "MY_MEMORY_GLOBAL_CONFIG_DIR"
+)
+
+// CentralVaultConfig define os parâmetros de vinculação ao cofre central de conhecimento
+type CentralVaultConfig struct {
+	Path     string   `yaml:"path,omitempty" json:"path,omitempty"`           // Caminho do cofre central (ex: "~/Google Drive/Vault" ou "${CENTRAL_VAULT}")
+	ReadOnly bool     `yaml:"read_only,omitempty" json:"read_only,omitempty"` // Se true, o cofre central é tratado como somente-leitura
+	Include  []string `yaml:"include,omitempty" json:"include,omitempty"`     // Padrões glob específicos a indexar do cofre central
+}
+
+// MCPConfig define preferências para o servidor Model Context Protocol (MCP)
+type MCPConfig struct {
+	Port int `yaml:"port,omitempty" json:"port,omitempty"` // Porta padrão de execução do servidor MCP (default: 8080)
+}
+
+// GlobalConfig define o formato de configuração global do usuário (~/.memory/config.yaml)
+type GlobalConfig struct {
+	Version      int                `yaml:"version" json:"version"`
+	CentralVault CentralVaultConfig `yaml:"central_vault,omitempty" json:"central_vault,omitempty"`
+	Storage      StorageConfig      `yaml:"storage,omitempty" json:"storage,omitempty"`
+	MCP          MCPConfig          `yaml:"mcp,omitempty" json:"mcp,omitempty"`
+}
 
 // StorageConfig define os parâmetros da camada de persistência
 type StorageConfig struct {
@@ -53,16 +82,19 @@ type EditorConfig struct {
 
 // Config estrutura raiz de configuração declarativa do vault / repositório
 type Config struct {
-	Version    int             `yaml:"version" json:"version"`
-	Repository string          `yaml:"repository,omitempty" json:"repository,omitempty"` // Slug do repositório (ex: "owner/repo")
-	VaultName  string          `yaml:"vault_name,omitempty" json:"vault_name,omitempty"` // Nome amigável do vault de notas
-	Include    []string        `yaml:"include,omitempty" json:"include,omitempty"`       // Padrões glob de arquivos a indexar
-	Exclude    []string        `yaml:"exclude,omitempty" json:"exclude,omitempty"`       // Padrões glob de pastas/arquivos a ignorar
-	Storage    StorageConfig   `yaml:"storage,omitempty" json:"storage,omitempty"`
-	Embedding  EmbeddingConfig `yaml:"embedding,omitempty" json:"embedding,omitempty"`
-	Search     SearchConfig    `yaml:"search,omitempty" json:"search,omitempty"`
-	Watcher    WatcherConfig   `yaml:"watcher,omitempty" json:"watcher,omitempty"`
-	Editor     EditorConfig    `yaml:"editor,omitempty" json:"editor,omitempty"`
+	Version      int                `yaml:"version" json:"version"`
+	RepoID       string             `yaml:"repo_id,omitempty" json:"repo_id,omitempty"`             // ID criptográfico imutável do repositório (ex: "repo_a1b2c3d4e5f6")
+	Repository   string             `yaml:"repository,omitempty" json:"repository,omitempty"`       // Slug do repositório (ex: "owner/repo")
+	VaultName    string             `yaml:"vault_name,omitempty" json:"vault_name,omitempty"`       // Nome amigável do vault de notas
+	Include      []string           `yaml:"include,omitempty" json:"include,omitempty"`             // Padrões glob de arquivos a indexar
+	Exclude      []string           `yaml:"exclude,omitempty" json:"exclude,omitempty"`             // Padrões glob de pastas/arquivos a ignorar
+	CentralVault CentralVaultConfig `yaml:"central_vault,omitempty" json:"central_vault,omitempty"` // Configuração de integração com o cofre central
+	Storage      StorageConfig      `yaml:"storage,omitempty" json:"storage,omitempty"`
+	Embedding    EmbeddingConfig    `yaml:"embedding,omitempty" json:"embedding,omitempty"`
+	Search       SearchConfig       `yaml:"search,omitempty" json:"search,omitempty"`
+	Watcher      WatcherConfig      `yaml:"watcher,omitempty" json:"watcher,omitempty"`
+	Editor       EditorConfig       `yaml:"editor,omitempty" json:"editor,omitempty"`
+	MCP          MCPConfig          `yaml:"mcp,omitempty" json:"mcp,omitempty"`
 }
 
 // DefaultConfig retorna as configurações padrão do My-Memory
@@ -107,6 +139,9 @@ func DefaultConfig() Config {
 		},
 		Editor: EditorConfig{
 			DefaultApp: "obsidian",
+		},
+		MCP: MCPConfig{
+			Port: 8080,
 		},
 	}
 }
@@ -237,11 +272,15 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.Search.DecayWeight = 0.3
 	}
 
-	// Expande variáveis de ambiente (${VAR}) em caminhos e URLs
-	cfg.Storage.SQLitePath = os.ExpandEnv(cfg.Storage.SQLitePath)
+	// Expande variáveis de ambiente (${VAR}) e caminhos com til (~)
+	cfg.Storage.SQLitePath = ExpandPath(cfg.Storage.SQLitePath)
 	cfg.Storage.PostgresURL = os.ExpandEnv(cfg.Storage.PostgresURL)
 	cfg.Embedding.URL = os.ExpandEnv(cfg.Embedding.URL)
 	cfg.Repository = os.ExpandEnv(cfg.Repository)
+	cfg.CentralVault.Path = ExpandPath(cfg.CentralVault.Path)
+	if cfg.MCP.Port <= 0 {
+		cfg.MCP.Port = 8080
+	}
 
 	return &cfg, nil
 }
@@ -270,4 +309,206 @@ func SaveConfig(path string, cfg *Config) error {
 	}
 
 	return nil
+}
+
+// ExpandPath expande variáveis de ambiente (${VAR} ou $VAR) e til (~) para o diretório home do usuário
+func ExpandPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	expanded := os.ExpandEnv(path)
+	if strings.HasPrefix(expanded, "~/") || strings.HasPrefix(expanded, "~\\") {
+		if home, err := os.UserHomeDir(); err == nil {
+			expanded = filepath.Join(home, expanded[2:])
+		}
+	} else if expanded == "~" {
+		if home, err := os.UserHomeDir(); err == nil {
+			expanded = home
+		}
+	}
+	return expanded
+}
+
+// GenerateRepoID gera um identificador único criptográfico no formato "repo_<12-hex-chars>"
+func GenerateRepoID() string {
+	b := make([]byte, 6)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("repo_%012x", time.Now().UnixNano()&0xFFFFFFFFFFFF)
+	}
+	return fmt.Sprintf("repo_%s", hex.EncodeToString(b))
+}
+
+// EnsureRepoID garante que a configuração possui um repo_id válido.
+// Se estiver vazio, gera um novo repo_id criptográfico e retorna true.
+func EnsureRepoID(cfg *Config) bool {
+	if cfg == nil {
+		return false
+	}
+	if strings.TrimSpace(cfg.RepoID) == "" {
+		cfg.RepoID = GenerateRepoID()
+		return true
+	}
+	return false
+}
+
+// ResolveRepoDatabaseName determina o nome do banco de dados no PostgreSQL para o repositório ou central
+func ResolveRepoDatabaseName(repoID string) string {
+	if strings.TrimSpace(repoID) == "" || repoID == CentralRepoID {
+		return "my_memory_central"
+	}
+	cleanID := strings.TrimPrefix(repoID, "repo_")
+	return fmt.Sprintf("my_memory_repo_%s", cleanID)
+}
+
+// UserHomeConfigDir retorna o caminho padrão para o diretório de configuração global (~/.memory)
+func UserHomeConfigDir() (string, error) {
+	if envDir := os.Getenv(GlobalConfigDirEnv); envDir != "" {
+		return envDir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("erro ao obter diretório home do usuário: %w", err)
+	}
+	return filepath.Join(home, ".memory"), nil
+}
+
+// GlobalConfigPath retorna o caminho absoluto para o arquivo de configuração global (~/.memory/config.yaml)
+func GlobalConfigPath() (string, error) {
+	dir, err := UserHomeConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "config.yaml"), nil
+}
+
+// LoadGlobalConfig carrega a configuração global de ~/.memory/config.yaml se existir.
+// Retorna nil, nil caso o arquivo não exista.
+func LoadGlobalConfig() (*GlobalConfig, error) {
+	path, err := GlobalConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("erro ao ler config global em '%s': %w", path, err)
+	}
+
+	var gcfg GlobalConfig
+	if err := yaml.Unmarshal(data, &gcfg); err != nil {
+		return nil, fmt.Errorf("erro ao decodificar YAML de config global '%s': %w", path, err)
+	}
+
+	gcfg.CentralVault.Path = ExpandPath(gcfg.CentralVault.Path)
+	gcfg.Storage.SQLitePath = ExpandPath(gcfg.Storage.SQLitePath)
+	gcfg.Storage.PostgresURL = os.ExpandEnv(gcfg.Storage.PostgresURL)
+
+	return &gcfg, nil
+}
+
+// SaveGlobalConfig salva a configuração global em ~/.memory/config.yaml
+func SaveGlobalConfig(cfg *GlobalConfig) error {
+	if cfg == nil {
+		return errors.New("configuração global não pode ser nula")
+	}
+	path, err := GlobalConfigPath()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("erro ao criar diretório para config global: %w", err)
+	}
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("erro ao serializar config global: %w", err)
+	}
+
+	header := []byte("# Configuração Global do My-Memory (~/.memory/config.yaml)\n# Compartilhada entre todos os repositórios locais e central vault\n\n")
+	content := append(header, data...)
+
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		return fmt.Errorf("erro ao salvar arquivo de config global: %w", err)
+	}
+	return nil
+}
+
+// LoadCascadingConfig carrega a configuração aplicando a hierarquia em cascata:
+// 1. Defaults do sistema (DefaultConfig)
+// 2. Sobrescrito pela configuração global (~/.memory/config.yaml), se existir
+// 3. Sobrescrito pela configuração local (.memory/config.yaml), se existir
+// Retorna a configuração resultante, o caminho do arquivo local (se encontrado) e erro.
+func LoadCascadingConfig(repoDir string) (*Config, string, error) {
+	cfg := DefaultConfig()
+
+	// Camada 2: Configuração Global (~/.memory/config.yaml)
+	globalCfg, globalErr := LoadGlobalConfig()
+	if globalErr == nil && globalCfg != nil {
+		if strings.TrimSpace(globalCfg.CentralVault.Path) != "" {
+			cfg.CentralVault = globalCfg.CentralVault
+		}
+		if globalCfg.Storage.Engine != "" {
+			cfg.Storage.Engine = globalCfg.Storage.Engine
+		}
+		if globalCfg.Storage.SQLitePath != "" {
+			cfg.Storage.SQLitePath = globalCfg.Storage.SQLitePath
+		}
+		if globalCfg.Storage.PostgresURL != "" {
+			cfg.Storage.PostgresURL = globalCfg.Storage.PostgresURL
+		}
+		if globalCfg.MCP.Port > 0 {
+			cfg.MCP.Port = globalCfg.MCP.Port
+		}
+	}
+
+	// Camada 3: Configuração Local (.memory/config.yaml)
+	cfgPath, err := FindConfigFile(repoDir)
+	if err == nil {
+		data, readErr := os.ReadFile(cfgPath)
+		if readErr != nil {
+			return nil, cfgPath, fmt.Errorf("erro ao ler arquivo local '%s': %w", cfgPath, readErr)
+		}
+
+		type rawStorageCheck struct {
+			Storage *struct {
+				Engine string `yaml:"engine" json:"engine"`
+			} `yaml:"storage" json:"storage"`
+		}
+		var check rawStorageCheck
+		ext := strings.ToLower(filepath.Ext(cfgPath))
+		if ext == ".json" {
+			_ = json.Unmarshal(data, &check)
+			if unmarshalErr := json.Unmarshal(data, &cfg); unmarshalErr != nil {
+				return nil, cfgPath, fmt.Errorf("erro ao decodificar JSON de '%s': %w", cfgPath, unmarshalErr)
+			}
+		} else {
+			_ = yaml.Unmarshal(data, &check)
+			if unmarshalErr := yaml.Unmarshal(data, &cfg); unmarshalErr != nil {
+				return nil, cfgPath, fmt.Errorf("erro ao decodificar YAML de '%s': %w", cfgPath, unmarshalErr)
+			}
+		}
+
+		// Se o repositório local declarar explicitamente storage: sqlite, limpa postgres_url herdado
+		if check.Storage != nil && check.Storage.Engine == "sqlite" {
+			cfg.Storage.Engine = "sqlite"
+			cfg.Storage.PostgresURL = ""
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, "", err
+	}
+
+	// Expansão final de caminhos e envs
+	cfg.Storage.SQLitePath = ExpandPath(cfg.Storage.SQLitePath)
+	cfg.Storage.PostgresURL = os.ExpandEnv(cfg.Storage.PostgresURL)
+	cfg.Embedding.URL = os.ExpandEnv(cfg.Embedding.URL)
+	cfg.Repository = os.ExpandEnv(cfg.Repository)
+	cfg.CentralVault.Path = ExpandPath(cfg.CentralVault.Path)
+	if cfg.MCP.Port <= 0 {
+		cfg.MCP.Port = 8080
+	}
+
+	return &cfg, cfgPath, nil
 }
