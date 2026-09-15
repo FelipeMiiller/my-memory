@@ -27,14 +27,15 @@
 - **AD-029**: Context Packager e Subgraph Bundle com Orçamento de Tokens (`docs/adr/029-context-packager-e-subgraph-bundle.md`)
 - **AD-030**: Deep Linking e Integração de Navegação com Editores (`docs/adr/030-deep-linking-e-navegacao-de-editores.md`)
 - **AD-031**: Semantic Drift e Detecção de Desvio Código-Memória (`docs/adr/031-semantic-drift-e-deteccao-de-desvio-codigo-memoria.md`)
+- **AD-032**: Instalador Universal One-Liner para Windows, Linux e macOS (`docs/adr/032-instalador-universal-one-liner.md`)
 
 ## Handoff
 
-- **Feature**: semantic-drift-detection (.specs/features/semantic-drift-detection)
+- **Feature**: universal-binary-installer (.specs/features/universal-binary-installer)
 - **Phase / Task**: 100% Concluída, Testada e Integrada (T1 a T5 finalizadas)
-- **Completed**: Motor puro de extração Git e numstat (`internal/drift/git.go`), analisador de desvio de conhecimento e código órfão (`internal/drift/drift.go`), comando CLI `mem drift` (`cmd/mem/drift.go`), ferramenta MCP `memory_get_drift` (`internal/mcp/drift_handlers.go`), documentação completa e ADR-031 Aceito.
-- **Completed Features**: semantic-drift-detection (ADR-031), deep-linking-and-editor-navigation (ADR-030), context-packager-and-subgraph-bundle (ADR-029), staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: nenhuma (ADR-031 finalizado com sucesso)
+- **Completed**: Scripts universais de instalação oficial de 1 linha para Windows (`scripts/install.ps1`) e Linux/macOS (`scripts/install.sh`), com detecção de plataforma, resolução automática de versão da release no GitHub, verificação estrita de hash SHA-256 contra `checksums.txt`, diretório isolado de usuário (`$HOME/.mem/bin` e `~/.local/bin`), configuração de PATH, fallback para `go install`, suite de testes automatizados (`scripts/test_install.ps1` e `scripts/test_install.py`), ADR-032 registrado e documentação nos guias.
+- **Completed Features**: universal-binary-installer (ADR-032), semantic-drift-detection (ADR-031), deep-linking-and-editor-navigation (ADR-030), context-packager-and-subgraph-bundle (ADR-029), staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: nenhuma (ADR-032 finalizado com sucesso)
 - **Next step**: Validação com usuário e seleção do próximo item de backlog
 - **Blockers**: none
 - **Branch**: develop

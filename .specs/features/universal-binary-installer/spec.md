@@ -69,8 +69,8 @@ Open questions: none (todas as premissas técnicas e de segurança foram acordad
 
 | Requirement ID | Description | Status |
 | :--- | :--- | :--- |
-| INST-01 | Instalador PowerShell para Windows (`scripts/install.ps1`) | in tasks |
-| INST-02 | Instalador POSIX Shell para Linux e macOS (`scripts/install.sh`) | in tasks |
-| INST-03 | Verificação Criptográfica de Integridade (SHA-256) | in tasks |
-| INST-04 | Fallback Automático para Go Toolchain | in tasks |
-| INST-05 | Documentação e Decisão de Arquitetura (ADR-032) | in tasks |
+| INST-01 | Instalador PowerShell para Windows (`scripts/install.ps1`) | verified |
+| INST-02 | Instalador POSIX Shell para Linux e macOS (`scripts/install.sh`) | verified |
+| INST-03 | Verificação Criptográfica de Integridade (SHA-256) | verified |
+| INST-04 | Fallback Automático para Go Toolchain | verified |
+| INST-05 | Documentação e Decisão de Arquitetura (ADR-032) | verified |
