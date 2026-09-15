@@ -13,7 +13,7 @@ tags: [guide, howto, cli, skill]
 
 ## 📑 Índice
 1. [Visão Geral Rápida](#1-visão-geral-rápida)
-2. [Pré-requisitos e Compilação](#2-pré-requisitos-e-compilação)
+2. [Instalação Rápida e Pré-requisitos](#2-instalação-rápida-e-pré-requisitos)
 3. [Passo 1: Inicializando o Repositório (`mem init`)](#3-passo-1-inicializando-o-repositório-mem-init)
 4. [Passo 2: Configurando Banco e IA de Embeddings](#4-passo-2-configurando-banco-e-ia-de-embeddings)
 5. [Passo 3: Indexando Arquivos (`mem index`)](#5-passo-3-indexando-arquivos-mem-index)
@@ -36,24 +36,41 @@ O **My-Memory** unifica em uma única ferramenta:
 
 ---
 
-## 2. Pré-requisitos e Compilação
+## 2. Instalação Rápida e Pré-requisitos
 
-### Pré-requisitos
-- **Go 1.22+** instalado.
-- **Ollama** (para embeddings locais):
-  ```bash
-  ollama pull nomic-embed-text
+### Instalação Automática One-Liner (Recomendado)
+Instale a versão oficial do `mem` sem necessidade de ter Go instalado na máquina:
+
+- **Windows (PowerShell):**
+  ```powershell
+  irm https://raw.githubusercontent.com/FelipeMiiller/my-memory/main/scripts/install.ps1 | iex
   ```
-  *(Opcional: você também pode usar PostgreSQL com pgvector ou modelos alternativos como `bge-m3`)*.
 
-### Compilação do Executável
-No terminal da raiz do projeto, execute:
+- **Linux e macOS (POSIX Shell):**
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/FelipeMiiller/my-memory/main/scripts/install.sh | sh
+  ```
+
+### Instalação via Go Toolchain
+Caso você possua Go 1.22+ instalado:
 ```bash
+go install github.com/FelipeMiiller/my-memory/cmd/mem@latest
+```
+
+### Compilação Manual do Código-Fonte
+```bash
+git clone https://github.com/FelipeMiiller/my-memory.git
+cd my-memory
 go build -o bin/mem.exe ./cmd/mem
 ```
 *(No Linux/macOS: `go build -o bin/mem ./cmd/mem`)*.
 
-> **Dica:** Adicione a pasta `bin` ao seu `PATH` para poder rodar apenas `mem <comando>` em qualquer terminal.
+### Pré-requisitos Adicionais
+- **Ollama** (para embeddings vetoriais locais):
+  ```bash
+  ollama pull nomic-embed-text
+  ```
+  *(Opcional: você também pode usar PostgreSQL com pgvector ou modelos alternativos como `bge-m3`)*.
 
 ---
 

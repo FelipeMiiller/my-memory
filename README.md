@@ -75,9 +75,43 @@ Para um vetor de 768 dimensões (`nomic-embed-text`):
 
 ---
 
+## ⚡ Instalação Rápida (1 Comando)
+
+Instale a versão oficial compilada do **My-Memory** em segundos, com integridade criptográfica **SHA-256** verificada e configuração automática de PATH (sem requerer Go instalado):
+
+#### Windows (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/FelipeMiiller/my-memory/main/scripts/install.ps1 | iex
+```
+
+#### Linux & macOS (POSIX Shell)
+```bash
+curl -fsSL https://raw.githubusercontent.com/FelipeMiiller/my-memory/main/scripts/install.sh | sh
+```
+
+> **Opção via Go Toolchain:** Se você possui Go $\ge$ 1.22 instalado:
+> ```bash
+> go install github.com/FelipeMiiller/my-memory/cmd/mem@latest
+> ```
+
+---
+
 ## 🚀 Início Rápido (Quickstart)
 
-### 1. Compilar
+### 1. Inicializar o Vault no seu Projeto
+Na pasta raiz do seu repositório de código ou vault de notas:
+```bash
+mem init
+```
+*(ou `./bin/mem.exe init` caso esteja compilando localmente)*.
+
+### 2. Auto-Configurar Clientes de IA
+```bash
+mem install
+```
+*(Configura automaticamente Claude Desktop, Cursor, VS Code e Windsurf para se conectarem ao seu vault)*.
+
+### 3. Compilar do Código-Fonte (Opcional)
 ```bash
 git clone https://github.com/FelipeMiiller/my-memory.git
 cd my-memory

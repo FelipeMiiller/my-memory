@@ -11,9 +11,41 @@ O executável `mem` fornece uma interface direta para indexação e consulta sem
 
 ---
 
-## 🛠 Compilação
+## ⚡ Instalação e Compilação
 
-Para compilar o binário em Go:
+### 1. Instalador Automático One-Liner (Recomendado)
+
+O My-Memory fornece scripts de instalação automática que detectam o sistema operacional e a arquitetura, baixam o binário pré-compilado das Releases oficiais do GitHub, validam a integridade criptográfica **SHA-256** e adicionam o comando ao `PATH` do usuário sem exigir privilégios de administrador:
+
+#### Windows (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/FelipeMiiller/my-memory/main/scripts/install.ps1 | iex
+```
+
+Parâmetros suportados no Windows:
+* `-Version <vX.Y.Z>`: Instala uma versão específica da release (ex: `-Version v1.2.0`).
+* `-InstallDir <caminho>`: Define o diretório de destino (padrão: `$env:USERPROFILE\.mem\bin`).
+* `-NoPath`: Não altera o PATH do registro nem da sessão.
+* `-Force`: Sobrescreve o binário existente.
+
+#### Linux e macOS (POSIX Shell)
+```bash
+curl -fsSL https://raw.githubusercontent.com/FelipeMiiller/my-memory/main/scripts/install.sh | sh
+```
+
+Parâmetros suportados no Linux/macOS:
+* `--version <vX.Y.Z>` / `-v`: Instala uma versão específica da release.
+* `--dir <caminho>` / `-d`: Define o diretório de destino (padrão: `~/.local/bin` ou `/usr/local/bin` se root).
+* `--no-path`: Não sugere inclusão no PATH.
+* `--force` / `-f`: Sobrescreve o binário existente.
+
+### 2. Instalação via Go Toolchain
+```bash
+go install github.com/FelipeMiiller/my-memory/cmd/mem@latest
+```
+
+### 3. Compilação do Código-Fonte
+Para compilar o binário em Go localmente:
 
 ```bash
 # Na raiz do projeto:
