@@ -14,6 +14,7 @@ O **My-Memory** é uma engine de memória semântica e relacional local desenvol
 4. **CodeGraph**: Monitoramento contínuo em tempo real com file watcher reativo, contexto cirúrgico para agentes e análise de impacto.
 5. **TurboQuant (Google DeepMind, ICLR 2026)**: Compressão vetorial extrema em 4-bits com estimador de produto escalar não-viesado.
 6. **OpenViking (ByteDance/Volcengine)**: Carregamento progressivo em 3 camadas (L0 Micro-Abstract, L1 Overview estrutural, L2 Detalhes) e Taxonomia Tripartida (`resource`, `memory`, `skill`).
+7. **Atlas (EPAM/Open Knowledge Format - OKF v0.2)**: Arquitetura federada de cofre central (*Global Brain*) vs repositórios satélites (*Project Brains*), governança determinística de schemas e ciclo de vida staging.
 
 ---
 

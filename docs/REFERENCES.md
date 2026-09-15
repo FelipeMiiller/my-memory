@@ -86,6 +86,19 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
   3. **Busca Guiada por Comunidades e Domínios (Hierarchical Retrieval):**
      - Triagem preliminar de domínio/cluster de conhecimento antes da recuperação granular de trechos.
 
+### 1.6. [Atlas](https://github.com/sergio-sisternes-epam/atlas) (`sergio-sisternes-epam/atlas`)
+* **Autor / Organização:** Sergio Sisternes (@sergio-sisternes-epam, EPAM) / Open Knowledge Format (OKF)
+* **O que é:** Knowledge Substrate durável e distribuído para agentes LLM e skills APM baseado na especificação aberta **OKF v0.2** (*Open Knowledge Format*), utilizando Git submodules/branches, gates determinísticos de compilação/validação (`atlas compile` / `validate`), protocolo de endereçamento federado `atlas://` e ciclo de vida higiênico de memórias via `staging/` e promoção.
+* **Pontos de inspiração para o My-Memory:**
+  1. **Governança Estrita de Schemas e Gates de Qualidade (OKF & Deterministic Gates):**
+     - O `my-memory` deve dispor de validação formal de schema (`mem lint` / `mem doctor --strict`) para garantir que notas, ADRs e especificações criadas por agentes de IA obedeçam à taxonomia exigida (L0/L1/L2, category, summary, tags, aliases) antes do commit.
+  2. **Protocolo Canônico Federado Cross-Repository (`memory://<repo>/<doc>`):**
+     - Estabelecer uma notação canônica de URIs para cruzar referências entre repositórios e vaults distintos (`[[memory://central-brain/auth-standard]]` ou `[[memory://repo-b/api-contracts]]`), viabilizando a navegação federada sem quebrar a autonomia de cada repositório local.
+  3. **Higiene de Conhecimento e Workflow de Staging (`staging/` -> Promoção):**
+     - Proteger o grafo canônico da poluição de notas e rascunhos rasos gerados por agentes, mantendo notas recém-escritas em quarentena/staging até revisão ou promoção (`mem promote`).
+  4. **Topologia Multi-Store (Hub Central vs Repositórios Satélites):**
+     - Separação deliberada entre um *Vault Central de Conhecimento* (Global Brain com padrões transversais, aprofundamento e regras corporativas) e *Subvaults de Projeto* (Local Brains isolados com código, ADRs locais e especificações cirúrgicas).
+
 ---
 
 ## 🚀 2. Matriz de Refinamento Arquitetural para o My-Memory
@@ -106,4 +119,7 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
 | **Raio de Destruição** | Sem análise de dependências reversas | **Análise de Impacto Reversa e Risk Scoring** (BFS reversa, severidade, PageRank, clusters) | `colbymchenry/codegraph` & ADR-023 |
 | **Carregamento em Camadas** | Recuperação de texto plano integral | **Progressive Context Loading (L0/L1/L2)** com Micro-Abstracts e Triptych | `volcengine/OpenViking` & `codegraph` |
 | **Taxonomia de Conhecimento** | Notas tratadas de forma homogênea | **Tripartição `Resource` vs `Memory` vs `Skill`** no frontmatter | `volcengine/OpenViking` |
+| **Governança de Schema** | Validação informal | **Gates Determinísticos e Validação OKF** (`mem doctor --strict` / `mem lint`) | `sergio-sisternes-epam/atlas` |
+| **Federação Multi-Vault** | Isolamento por repositório local | **Protocolo Canônico Federado (`memory://`)** e Topologia Hub & Spoke | `sergio-sisternes-epam/atlas` & OKF v0.2 |
+| **Higiene de Memórias** | Escrita direta no cofre | **Ciclo de Vida Staging → Promote** para notas geradas por agentes | `sergio-sisternes-epam/atlas` |
 
