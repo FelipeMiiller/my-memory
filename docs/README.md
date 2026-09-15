@@ -54,6 +54,7 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-029`](adr/029-context-packager-e-subgraph-bundle.md)** — Context Packager e Subgraph Bundle com Orçamento de Tokens (`mem pack` / `memory_pack_context`)
 * **[`ADR-030`](adr/030-deep-linking-e-navegacao-de-editores.md)** — Deep Linking e Integração de Navegação com Editores (`mem open` e URIs `obsidian://` / `vscode://`)
 * **[`ADR-031`](adr/031-semantic-drift-e-deteccao-de-desvio-codigo-memoria.md)** — Semantic Drift e Detecção de Desvio Código-Memória (`mem drift` e `memory_get_drift`)
+* **[`ADR-032`](adr/032-instalador-universal-one-liner.md)** — Instalador Universal One-Liner para Windows, Linux e macOS
 
 
 
