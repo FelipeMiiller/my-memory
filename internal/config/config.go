@@ -32,12 +32,20 @@ type MCPConfig struct {
 	Port int `yaml:"port,omitempty" json:"port,omitempty"` // Porta padrão de execução do servidor MCP (default: 8080)
 }
 
+// RepositoryCatalogEntry registra um repositório satélite conhecido no catálogo global
+type RepositoryCatalogEntry struct {
+	ID   string `yaml:"id" json:"id"`                         // Identificador imutável repo_<12-hex-chars>
+	Path string `yaml:"path" json:"path"`                     // Caminho absoluto para a raiz do repositório no host
+	Name string `yaml:"name,omitempty" json:"name,omitempty"` // Nome amigável ou slug (ex: "owner/repo")
+}
+
 // GlobalConfig define o formato de configuração global do usuário (~/.memory/config.yaml)
 type GlobalConfig struct {
-	Version      int                `yaml:"version" json:"version"`
-	CentralVault CentralVaultConfig `yaml:"central_vault,omitempty" json:"central_vault,omitempty"`
-	Storage      StorageConfig      `yaml:"storage,omitempty" json:"storage,omitempty"`
-	MCP          MCPConfig          `yaml:"mcp,omitempty" json:"mcp,omitempty"`
+	Version      int                      `yaml:"version" json:"version"`
+	CentralVault CentralVaultConfig       `yaml:"central_vault,omitempty" json:"central_vault,omitempty"`
+	Storage      StorageConfig            `yaml:"storage,omitempty" json:"storage,omitempty"`
+	MCP          MCPConfig                `yaml:"mcp,omitempty" json:"mcp,omitempty"`
+	Repositories []RepositoryCatalogEntry `yaml:"repositories,omitempty" json:"repositories,omitempty"` // Catálogo de repositórios registrados
 }
 
 // StorageConfig define os parâmetros da camada de persistência
@@ -434,6 +442,55 @@ func SaveGlobalConfig(cfg *GlobalConfig) error {
 		return fmt.Errorf("erro ao salvar arquivo de config global: %w", err)
 	}
 	return nil
+}
+
+// RegisterRepositoryInGlobalConfig cadastra ou atualiza um repositório no catálogo de ~/.memory/config.yaml de forma idempotente
+func RegisterRepositoryInGlobalConfig(entry RepositoryCatalogEntry) error {
+	if strings.TrimSpace(entry.ID) == "" {
+		return errors.New("identificador do repositório (id) não pode ser vazio")
+	}
+	if strings.TrimSpace(entry.Path) == "" {
+		return errors.New("caminho do repositório (path) não pode ser vazio")
+	}
+
+	gcfg, err := LoadGlobalConfig()
+	if err != nil {
+		return err
+	}
+	if gcfg == nil {
+		gcfg = &GlobalConfig{
+			Version: 1,
+			Storage: StorageConfig{
+				Engine:     "sqlite",
+				SQLitePath: "memory.db",
+			},
+			MCP: MCPConfig{
+				Port: 8080,
+			},
+		}
+	}
+
+	cleanPath, err := filepath.Abs(ExpandPath(entry.Path))
+	if err != nil {
+		cleanPath = filepath.Clean(ExpandPath(entry.Path))
+	}
+	entry.Path = cleanPath
+
+	foundIndex := -1
+	for i, r := range gcfg.Repositories {
+		if r.ID == entry.ID || filepath.Clean(r.Path) == cleanPath {
+			foundIndex = i
+			break
+		}
+	}
+
+	if foundIndex >= 0 {
+		gcfg.Repositories[foundIndex] = entry
+	} else {
+		gcfg.Repositories = append(gcfg.Repositories, entry)
+	}
+
+	return SaveGlobalConfig(gcfg)
 }
 
 // LoadCascadingConfig carrega a configuração aplicando a hierarquia em cascata:

@@ -434,3 +434,68 @@ mcp:
 		t.Errorf("esperava override de mcp.port 7070, obteve %d", cascadedLocal.MCP.Port)
 	}
 }
+
+func TestRegisterRepositoryInGlobalConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv(GlobalConfigDirEnv, tmpDir)
+
+	// 1. Cadastra primeiro repositório
+	repo1Path := filepath.Join(tmpDir, "repo1")
+	entry1 := RepositoryCatalogEntry{
+		ID:   "repo_111122223333",
+		Path: repo1Path,
+		Name: "acme/api-core",
+	}
+	if err := RegisterRepositoryInGlobalConfig(entry1); err != nil {
+		t.Fatalf("erro ao registrar repo1: %v", err)
+	}
+
+	// 2. Cadastra segundo repositório
+	repo2Path := filepath.Join(tmpDir, "repo2")
+	entry2 := RepositoryCatalogEntry{
+		ID:   "repo_444455556666",
+		Path: repo2Path,
+		Name: "acme/frontend",
+	}
+	if err := RegisterRepositoryInGlobalConfig(entry2); err != nil {
+		t.Fatalf("erro ao registrar repo2: %v", err)
+	}
+
+	// 3. Lê config global e valida catálogo
+	gcfg, err := LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("erro ao carregar config global: %v", err)
+	}
+	if len(gcfg.Repositories) != 2 {
+		t.Fatalf("esperava 2 repositórios no catálogo, obteve %d", len(gcfg.Repositories))
+	}
+
+	// 4. Atualiza repo1 (idempotência com mesmo ID)
+	entry1Updated := RepositoryCatalogEntry{
+		ID:   "repo_111122223333",
+		Path: filepath.Join(tmpDir, "repo1-moved"),
+		Name: "acme/api-core-renamed",
+	}
+	if err := RegisterRepositoryInGlobalConfig(entry1Updated); err != nil {
+		t.Fatalf("erro ao atualizar repo1: %v", err)
+	}
+
+	gcfgUpdated, err := LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("erro ao carregar config global atualizada: %v", err)
+	}
+	if len(gcfgUpdated.Repositories) != 2 {
+		t.Fatalf("esperava manter 2 repositórios após atualização, obteve %d", len(gcfgUpdated.Repositories))
+	}
+	if gcfgUpdated.Repositories[0].Name != "acme/api-core-renamed" {
+		t.Errorf("esperava nome atualizado 'acme/api-core-renamed', obteve %s", gcfgUpdated.Repositories[0].Name)
+	}
+
+	// 5. Validação de erro em campos vazios
+	if err := RegisterRepositoryInGlobalConfig(RepositoryCatalogEntry{Path: "/foo"}); err == nil {
+		t.Errorf("esperava erro ao registrar repo sem ID")
+	}
+	if err := RegisterRepositoryInGlobalConfig(RepositoryCatalogEntry{ID: "repo_123"}); err == nil {
+		t.Errorf("esperava erro ao registrar repo sem Path")
+	}
+}

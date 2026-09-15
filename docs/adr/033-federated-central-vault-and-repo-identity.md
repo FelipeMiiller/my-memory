@@ -17,20 +17,21 @@ Adicionalmente, se múltiplos repositórios compartilham uma instância de Postg
 
 ## Decision Drivers
 
-- **Zero Poluição de Git**: Nenhum arquivo do cofre central deve ser clonado ou commitado dentro dos repositórios de código locais.
-- **Identidade Criptográfica Imutável (`repo_id`)**: Cada repositório deve receber um identificador único, persistente e imutável gerado na inicialização, utilizado para isolamento em bancos de dados.
+- **Zero Poluição de Git**: Nenhum arquivo do cofre central deve ser clonado ou commitado dentro dos repositórios de código locais, eliminando atritos de Git Submodules e merge conflicts.
+- **Identidade Criptográfica Imutável (`repo_id`)**: Cada repositório deve receber um identificador único, permanente e imutável gerado no `config.yaml` (`repo_<12-hex-chars>`), utilizado para isolamento em bancos de dados.
 - **Armazenamento Central em Nuvem (Google Drive / OneDrive / Obsidian)**: O Vault Central deve residir em uma pasta sincronizada pelo usuário, permitindo navegação fluida no Obsidian Desktop e Mobile.
 - **Isolamento e Limpeza no Armazenamento**: Arquivos de banco de dados SQLite central não devem poluir a raiz de notas Markdown, residindo isoladamente em `<central_path>/.memory/storage/memory.db`.
-- **Topologia de Banco Híbrida (PostgreSQL ou SQLite Everywhere)**:
-  - Se PostgreSQL estiver configurado (`MY_MEMORY_PG_URL`), ele centraliza todos os repositórios com particionamento/schemas isolados por `repo_<id>` e `repo_central`.
-  - Se SQLite for o único motor, cada repositório opera com seu banco local e consulta o banco central do Google Drive em modo somente-leitura com fusão via RRF.
-- **Zero-Touch Bootstrap**: Se o usuário referenciar uma pasta central vazia ou virgem no `config.yaml`, o `my-memory` deve inicializar automaticamente a árvore de diretórios estruturada (`standards/`, `architecture/`, `security/`, `infrastructure/`, `operations/`, `data/`, `ai-agents/`, `domain/`, `guides/`, `templates/`, `staging/`), com arquivos modelo e o banco central.
+- **Regra de Coerência de Motor ("Ou tudo PostgreSQL, ou tudo SQLite")**: A escolha do motor é configurada centralmente no arquivo global (`~/.memory/config.yaml`), aplicando-se uniformemente a todos os repositórios e ao cofre central, eliminando repetição de credenciais:
+  - Se configurado **PostgreSQL**: cada repositório opera em seu próprio banco dedicado batizado a partir do seu `repo_id` (ex: `my_memory_<repo_id>`), e o cofre central opera no banco `my_memory_central`.
+  - Se configurado **SQLite**: cada repositório opera com seu banco local isolado (`.memory/memory.db`) e o cofre central opera em `<central_path>/.memory/storage/memory.db`.
+- **Descoberta Não-Invasiva e Global pelo Servidor MCP**: O servidor MCP deve ler o arquivo global `~/.memory/config.yaml` no diretório home do usuário para descobrir instantaneamente a localização do cofre central, o motor de banco e o catálogo de repositórios conhecidos, mesmo quando iniciado fora da raiz de um repositório Git.
+- **Zero-Touch Auto-Bootstrap**: Se o usuário referenciar uma pasta central virgem, o `my-memory` inicializa automaticamente a árvore de 11 diretórios canônicos de engenharia (`standards/`, `architecture/`, `security/`, `infrastructure/`, `operations/`, `data/`, `ai-agents/`, `domain/`, `guides/`, `templates/`, `staging/`), com templates padrão e MOC navegável.
 
 ## Considered Options
 
 1. **Git Submodules / Git Subtree** (Descartado: alto atrito de manutenção, conflitos de branch e incompatibilidade no Obsidian Mobile).
 2. **Duplicação Manual de Arquivos** (Descartado: cria divergência de versões e impossibilita atualizações contínuas).
-3. **Vault Central Vinculado com Identidade Imutável (`repo_id`) e Auto-Bootstrap** (*Opção Escolhida*).
+3. **Vault Central Vinculado com Identidade Imutável (`repo_id`), Configuração Global em Cascata e Auto-Bootstrap** (*Opção Escolhida*).
 
 ## Decision Outcome
 
@@ -38,55 +39,92 @@ Adotou-se a **Opção 3**:
 
 ```mermaid
 graph TD
+    subgraph UserHome["🏠 Diretório Home do Usuário (~/.memory/config.yaml)"]
+        GC_Config["Configuração Global:\n- central_vault.path (Google Drive/OneDrive)\n- storage: postgres (ou sqlite em tudo)\n- mcp: port 8080\n- repositories: [{id, path, name}]"]
+    end
+
     subgraph CentralStorage["☁️ Google Drive / OneDrive (Central Vault)"]
         CV_Dirs["standards/, architecture/, security/, infrastructure/\noperations/, data/, ai-agents/, domain/, guides/, templates/, staging/"]
-        CV_DB[".memory/storage/memory.db (SQLite Central)"]
+        CV_DB[".memory/storage/memory.db (SQLite Central)\nou Banco 'my_memory_central' (PostgreSQL)"]
     end
 
     subgraph ProjectRepo["💻 Repositório Local (c:/meu-projeto)"]
-        PR_Config[".memory/config.yaml\nrepo_id: repo_xxx\ncentral_vault: path: G:/Meu Drive/..."]
+        PR_Config[".memory/config.yaml\nrepo_id: repo_xxx (imutável)\nrepository: empresa/projeto"]
         PR_Docs["docs/adr/, .specs/, README.md"]
-        PR_DB[".memory/memory.db (SQLite Local)"]
+        PR_DB[".memory/memory.db (SQLite Local)\nou Banco 'my_memory_repo_xxx' (PostgreSQL)"]
     end
 
-    PR_Config -.->|"Referência Declarativa"| CentralStorage
-    PR_DB <-->|"Busca Federada RRF (Local + Central)"| CV_DB
+    subgraph MCPServer["🤖 Servidor MCP (Cursor, Claude, Copilot, Antigravity)"]
+        MCP_Core["Descoberta Inteligente:\n1. Lê ~/.memory/config.yaml\n2. Localiza Central Vault\n3. Conecta no Repositório Atual\n4. Busca Federada Híbrida (RRF)"]
+    end
+
+    GC_Config -.->|"Herança e Catálogo"| ProjectRepo
+    GC_Config -.->|"Localização Global"| CentralStorage
+    MCPServer -->|"Lê Config Global"| GC_Config
+    MCPServer -->|"Consulta Local"| PR_DB
+    MCPServer -->|"Consulta Central"| CV_DB
 ```
 
-### 1. Identidade Imutável no `.memory/config.yaml`
-Na primeira execução de `mem init`, o sistema gera deterministicamente `repo_id` (ex: `repo_a1b2c3d4e5f6`), persistido no `config.yaml`. Esse identificador é permanente. O cofre central assume o ID canônico `repo_central`.
+### 1. Identidade Criptográfica Imutável (`repo_id`)
+Na primeira execução de `mem init`, o sistema gera deterministicamente `repo_id` no formato `repo_<12-hex-chars>` (ex: `repo_a1b2c3d4e5f6`), persistido em `.memory/config.yaml`. Esse identificador é permanente e imutável. O cofre central assume o ID canônico reservado `repo_central`.
 
-### 2. Configuração do Vault Central Vinculado
+### 2. Configuração Global Única (`~/.memory/config.yaml`)
+Localizada em `$HOME/.memory/config.yaml` (Linux/macOS) ou `%USERPROFILE%\.memory\config.yaml` (Windows).
+Elimina duplicação e unifica a topologia de banco de dados:
 ```yaml
-# .memory/config.yaml
 version: 1
-repo_id: "repo_9f8b7a12e34c"
-repository: "empresa/api-pagamentos"
-vault_name: "API de Pagamentos"
 
+# Caminho para a pasta sincronizada no Google Drive ou OneDrive
 central_vault:
-  path: "G:/Meu Drive/KnowledgeBase"   # ou ${MY_MEMORY_CENTRAL_VAULT}
-  read_only: true
+  path: "~/Google Drive/Meu Drive/KnowledgeVault"
+  read_only: false
+
+# Motor de dados global: "ou tudo PostgreSQL, ou tudo SQLite"
+storage:
+  engine: "postgres"
+  postgres_url: "postgres://postgres:secret@localhost:5432/my_memory?sslmode=disable"
+
+mcp:
+  port: 8080
+
+# Catálogo dinâmico de repositórios registrados na máquina
+repositories:
+  - id: "repo_a1b2c3d4e5f6"
+    path: "C:/repository/api-pagamentos"
+    name: "empresa/api-pagamentos"
 ```
 
-### 3. Auto-Bootstrap de Estrutura de Conhecimento
-Ao detectar que a pasta apontada em `central_vault.path` não possui `.memory/`, o `my-memory` cria:
-- `standards/`, `architecture/`, `security/`
-- `infrastructure/`, `operations/`, `data/`
-- `ai-agents/`, `domain/`, `guides/`, `templates/`, `staging/`
-- `README.md` raiz atuando como Mapa de Conteúdo (MOC) com `[[wikilinks]]`.
-- `.memory/config.yaml` e `.memory/storage/memory.db`.
+### 3. Topologia e Isolamento Físico de Banco de Dados
+- **Modo PostgreSQL ("PostgreSQL em tudo")**:
+  - Cada repositório satélite conecta em seu próprio banco dedicado: `my_memory_<repo_id>` (ex: `my_memory_repo_a1b2c3d4e5f6`).
+  - O cofre central opera no banco dedicado: `my_memory_central`.
+  - Isola fisicamente os dados de cada repositório sem misturar tabelas ou vetores.
+- **Modo SQLite ("SQLite em tudo")**:
+  - Repositório local: banco isolado em `<repo_path>/.memory/memory.db`.
+  - Cofre central: banco isolado exclusivamente na subpasta `<central_path>/.memory/storage/memory.db`, blindando a raiz do vault contra arquivos binários `.db`.
 
-### 4. Busca Federada Multi-Banco (RRF)
-Em tempo de consulta (`mem search` ou ferramenta MCP), o sistema consulta a base do projeto e a base central (SQLite em `.memory/storage/memory.db` ou PostgreSQL com `repo_central`), consolidando os resultados com **Reciprocal Rank Fusion**.
+### 4. Auto-Bootstrap Estruturado do Cofre Central
+Ao referenciar uma pasta vazia em `central_vault.path`, o `my-memory` cria automaticamente:
+- 11 pastas canônicas: `standards/`, `architecture/`, `security/`, `infrastructure/`, `operations/`, `data/`, `ai-agents/`, `domain/`, `guides/`, `templates/`, `staging/`.
+- Templates canônicos em `templates/`: `adr.md`, `rfc.md`, `runbook.md`, `spec.md`.
+- `README.md` raiz atuando como Mapa de Conteúdo (MOC) com `[[wikilinks]]` clicáveis no Obsidian.
+- Isolamento `.memory/config.yaml` (`repo_id: repo_central`) e `.memory/storage/`.
+
+### 5. Descoberta Inteligente no Servidor MCP
+Ao inicializar, o servidor MCP:
+1. Carrega `~/.memory/config.yaml` para obter as credenciais de banco e a localização do cofre central.
+2. Identifica se está rodando dentro de um repositório cadastrado.
+3. Se estiver em um projeto: executa busca federada unindo o repositório local e o cofre central via **Reciprocal Rank Fusion (RRF)** com anotação explícita de proveniência (`[local]` vs `[central]`).
+4. Se estiver fora de qualquer repositório (ex: aberto em pasta neutra): serve o cofre central de imediato e expõe o catálogo de repositórios disponíveis.
 
 ## Positive Consequences
 
-- **Repositórios Limpos**: Zero lixo de submódulos ou sincronizadores dentro do Git do projeto.
-- **Alta Resiliência e Portabilidade**: Suporte a caminhos parametrizados por variáveis de ambiente (`MY_MEMORY_CENTRAL_VAULT`).
-- **Navegação Perfeita no Obsidian**: O usuário edita o cofre central normalmente no Obsidian Desktop ou Mobile via Google Drive/OneDrive.
-- **Proteção Contra Escritas Indevidas**: Agentes de IA consom as normas centrais em modo somente-leitura, salvando código e ADRs locais apenas no projeto.
+- **Repositórios Limpos**: Zero poluição de submódulos ou arquivos binários no Git dos projetos.
+- **Configuração Centralizada**: Definir o banco (Postgres/SQLite) uma única vez no home do usuário governa todos os projetos sem redundância.
+- **Isolamento Físico no PostgreSQL**: Cada repositório possui seu próprio banco com o nome do seu `repo_id`.
+- **Experiência Perfeita no Obsidian**: O cofre central no Google Drive/OneDrive mantém apenas Markdown puro visível, com banco isolado em `.memory/storage/`.
+- **Descoberta Instantânea no MCP**: Qualquer agente de IA (Cursor, Claude, Copilot, Antigravity) tem acesso imediato à memória global e local.
 
 ## Negative Consequences
 
-- **Dependência de Montagem Local para SQLite**: No modo SQLite, a pasta do Google Drive/OneDrive precisa estar montada na máquina para que a busca federada acesse o cofre central (com fallback elegante para o cofre local caso a pasta esteja ausente).
+- **Dependência de Montagem para SQLite**: No modo SQLite, a pasta do Google Drive/OneDrive precisa estar montada na máquina para que a busca federada acesse o cofre central (com fallback transparente e não-bloqueante para o cofre local caso a pasta esteja ausente).

@@ -4,11 +4,11 @@
 
 | Task | Requirement | Unit / Integration Test | Target File |
 | :--- | :--- | :--- | :--- |
-| T1 | FED-01, FED-02, FED-06 | `internal/config/config_test.go` | `internal/config/config.go` |
+| T1 | FED-01, FED-02, FED-06, FED-07 | `internal/config/config_test.go` | `internal/config/config.go` |
 | T2 | FED-03, FED-04 | `internal/federation/bootstrap_test.go` | `internal/federation/bootstrap.go` |
-| T3 | FED-04, FED-05 | `internal/federation/search_test.go` | `internal/federation/search.go` |
-| T4 | FED-02, FED-03, FED-06 | `cmd/mem/setup_test.go` | `cmd/mem/setup.go` |
-| T5 | FED-01..06 | Verificador independente e relatório TLC | `.specs/features/federated-central-vault-and-repo-identity/validation.md` |
+| T3 | FED-04, FED-05, FED-07 | `internal/federation/search_test.go` | `internal/federation/search.go` |
+| T4 | FED-02, FED-03, FED-06, FED-07 | `cmd/mem/setup_test.go` | `cmd/mem/setup.go` |
+| T5 | FED-01..07 | Verificador independente e relatório TLC | `.specs/features/federated-central-vault-and-repo-identity/validation.md` |
 
 ---
 
@@ -79,30 +79,31 @@ Details:
 - Inicializar a subpasta isolada de dados `<central_path>/.memory/` com `config.yaml` (`repo_id: "repo_central"`) e banco SQLite em `storage/memory.db`.
 - Criar testes unitários e de integração em diretórios temporários simulando bootstrap completo.
 
-### Phase 3: Federated Search Engine
-
-#### T3: Implementar busca híbrida federada (Local + Central via RRF)
+### Phase 3: Federated Search Engine & MCP Discovery
+ 
+#### T3: Implementar busca híbrida federada (Local + Central via RRF) e descoberta MCP
 Where: internal/federation/search.go
 Depends on: T2
 Tests: internal/federation/search_test.go
 Gate: go test -v ./internal/federation/... ./internal/mcp/...
 Details:
 - Implementar `FederatedSearcher` capaz de consultar o cofre local e opcionalmente o cofre central.
-- Suportar cofre central em SQLite isolado (`storage/memory.db`) ou PostgreSQL com namespace `repo_central`.
+- Suportar cofre central em SQLite isolado (`storage/memory.db`) ou PostgreSQL com banco `my_memory_central`.
 - Fusão de resultados locais e centrais utilizando Reciprocal Rank Fusion (RRF) com anotação explícita de proveniência (`[local]` vs `[central]`).
 - Resiliência: se o caminho do cofre central não estiver montado ou acessível, registrar aviso suave e retornar resultados locais sem falhar.
-- Integrar com a ferramenta MCP `memory_search` para retornar contexto federado para agentes de IA.
+- Integrar com a ferramenta MCP `memory_search` para retornar contexto federado para agentes de IA e permitir resolução a partir de `~/.memory/config.yaml` mesmo fora de uma raiz Git (FED-05, FED-07).
 - Criar testes unitários validando fusão RRF, isolamento de escopo e tolerância a falhas.
-
-### Phase 4: CLI Commands & Documentation
-
-#### T4: Implementar assistente mem setup e subcomandos de central vault
+ 
+### Phase 4: CLI Commands, Repository Catalog & Documentation
+ 
+#### T4: Implementar assistente mem setup, catálogo de repositórios e subcomandos de central vault
 Where: cmd/mem/setup.go
 Depends on: T3
 Tests: cmd/mem/setup_test.go
 Gate: go test -v ./cmd/mem/... && .\bin\mem.exe status
 Details:
 - Implementar comando CLI `mem setup` para configuração guiada gravando em `~/.memory/config.yaml`.
+- Auto-registro do repositório no catálogo `repositories` de `~/.memory/config.yaml` ao rodar `mem init` ou `mem setup` (FED-07).
 - Adicionar comando CLI `mem central status` e `mem central bootstrap [<caminho>]`.
 - Atualizar `mem status` para exibir status de vinculação do Central Vault e presença do `repo_id`.
 - Atualizar `README.md`, `COMO_USAR.md` e `docs/CLI_GUIDE.md` com exemplos práticos de uso do Central Vault via Google Drive / OneDrive.

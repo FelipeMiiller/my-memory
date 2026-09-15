@@ -65,8 +65,9 @@ Open questions: none (todas as decisões foram alinhadas e acordadas com o usuá
 - **UBIQUITOUS**: The system SHALL initialize the central storage metadata in `<central_path>/.memory/config.yaml` with identity `repo_central`.
 
 ### FED-04: Isolamento Limpo de Persistência (SQLite e PostgreSQL)
+- **UBIQUITOUS**: The system SHALL treat the global configuration `~/.memory/config.yaml` as the authoritative source of truth for the storage engine choice ("all PostgreSQL or all SQLite") across all federated vaults unless explicitly overridden.
 - **WHERE**: Where the storage engine is SQLite, the system SHALL store the central database strictly in `<central_path>/.memory/storage/memory.db`.
-- **WHERE**: Where the storage engine is PostgreSQL, the system SHALL isolate records using the repository identifier namespace (`repo_<id>` and `repo_central`).
+- **WHERE**: Where the storage engine is PostgreSQL, the system SHALL isolate records into dedicated databases named `my_memory_<repo_id>` for satellite repositories and `my_memory_central` for the central knowledge base.
 
 ### FED-05: Busca Híbrida Federada (Local + Central)
 - **WHEN**: When a search is performed via `mem search` or MCP tool `memory_search` in a repository with a linked central vault, the system SHALL query both the local project database and the central vault database.
@@ -76,6 +77,11 @@ Open questions: none (todas as decisões foram alinhadas e acordadas com o usuá
 - **UBIQUITOUS**: The system SHALL support reading a user-level global configuration file at `~/.memory/config.yaml` to define the central vault path and storage credentials once.
 - **WHERE**: Where local repository configuration omits storage or central vault settings, the system SHALL inherit defaults from the global configuration file.
 - **WHEN**: When `mem setup` is executed, the system SHALL provide an interactive command to record central vault and database preferences into `~/.memory/config.yaml`.
+
+### FED-07: Catálogo de Repositórios no Global Config e Descoberta MCP
+- **UBIQUITOUS**: The system SHALL maintain a repository catalog (`repositories: [{id, path, name}]`) in `~/.memory/config.yaml`.
+- **WHEN**: When `mem init` or `mem setup` is executed in a repository, the system SHALL register or update the repository entry in `~/.memory/config.yaml`.
+- **WHEN**: When the MCP server initializes, the system SHALL read `~/.memory/config.yaml` to discover the central vault and registered repositories regardless of the working directory.
 
 ---
 
@@ -89,3 +95,4 @@ Open questions: none (todas as decisões foram alinhadas e acordadas com o usuá
 | FED-04 | Isolamento Limpo de Persistência (SQLite e PostgreSQL) | in tasks |
 | FED-05 | Busca Híbrida Federada (Local + Central) | in tasks |
 | FED-06 | Configuração Global em Cascata e Assistente `mem setup` | in tasks |
+| FED-07 | Catálogo de Repositórios e Descoberta Global no MCP | in tasks |
