@@ -74,11 +74,13 @@ mem init
 ```
 
 ### O que o `mem init` faz:
-1. Cria a pasta `.memory/` na raiz do projeto.
-2. Cria `.memory/config.yaml` já com escopo de pastas (`docs/**/*.md`, `specs/**/*.md`, `README.md`) e apontamento para `.memory/memory.db`.
-3. Cria `.memory/.gitignore` para garantir que arquivos confidenciais não sejam enviados ao Git.
-4. Cria `.memory/.env.example` com modelos de conexão para PostgreSQL e IA de indexação.
-5. **Garantia de Segurança:** Se `.memory/config.yaml` já existir, o comando aborta sem sobrescrever nada, a menos que você passe `--force`.
+1. Cria a pasta `.memory/` na raiz do projeto (convenção definitiva).
+2. Atribui um identificador criptográfico imutável `repo_id` (formato `repo_<12-hex-chars>`).
+3. Cria `.memory/config.yaml` limpo com escopo de pastas (`docs/**/*.md`, `specs/**/*.md`, `README.md`) e **sem blocos de credenciais de banco de dados** (Zero-Credentials no Git).
+4. Registra automaticamente o repositório no catálogo global `~/.memory/config.yaml`.
+5. Cria `.memory/.gitignore` para garantir que arquivos `.env` e bancos `.db` não sejam commitados no Git.
+6. Cria `.memory/.env.example` com modelos de conexão para PostgreSQL e IA de indexação.
+7. **Garantia de Segurança:** Se `.memory/config.yaml` já existir, o comando preserva a configuração e o `repo_id` existente, a menos que você passe `--force`.
 
 ### Flags Opcionais do `mem init`:
 ```bash
@@ -179,10 +181,13 @@ embedding:
 
 | Comando | Descrição | Exemplo de Uso |
 | :--- | :--- | :--- |
-| `mem init` | Inicializa a pasta `.memory/` com arquivos padrão protegidos. | `mem init` |
+| `mem init` | Inicializa a pasta `.memory/` com `repo_id`, templates e zero-credentials. | `mem init` |
+| `mem setup` | Assistente interativo global (~/.memory/config.yaml) para cofre central e banco. | `mem setup` |
+| `mem central` | Audita e inicializa o Cofre Central de Conhecimento (Global Brain). | `mem central status` / `mem central bootstrap` |
+| `mem repos` | Lista todos os repositórios federados registrados no catálogo global. | `mem repos` |
 | `mem index` | Varre as notas, calcula hash SHA-256 e gera embeddings com cache incremental. | `mem index` *(ou `mem index --force`)* |
-| `mem status` | Audita instantaneamente a sincronização entre arquivos em disco e a base indexada. | `mem status` *(ou `mem status --json`)* |
-| `mem search` | Busca híbrida (BM25 + vetores + grafo) com Reciprocal Rank Fusion (RRF). | `mem search "como funciona o cache SHA-256?"` |
+| `mem status` | Audita sincronização, repo_id imutável e conectividade do cofre central. | `mem status` *(ou `mem status --json`)* |
+| `mem search` | Busca híbrida federada (Local + Central via RRF) com anotação de proveniência. | `mem search "como funciona o cache SHA-256?"` |
 | `mem inspect` | Inspetor cirúrgico em 3 colunas: in-links (dependências), nó central e out-links. | `mem inspect "docs/ARCHITECTURE.md"` |
 | `mem path` | Descoberta de rotas e menor caminho ponderado por custos epistêmicos entre dois nós. | `mem path "auth" "redis"` |
 | `mem impact` | Analisa o raio de destruição (*Blast Radius*) e dependentes reversos de um nó. | `mem impact "internal/db/graph.go" --depth 2` |
@@ -199,7 +204,7 @@ embedding:
 | `mem pack` | Empacota subgrafo conexo centrado em nota raiz com controle rígido de tokens. | `mem pack "docs/auth.md" --max-tokens 3000` |
 | `mem open` | Abre nota diretamente no Obsidian ou VS Code com cursor opcional na linha. | `mem open "docs/auth.md" --app vscode --line 42` |
 | `mem drift` | Diagnostica desvio entre commits de código e documentação (Semantic Drift). | `mem drift --since HEAD~5 --strict` |
-| `mem mcp` | Inicia o servidor MCP via stdio (para IDEs) ou HTTP/SSE. | `mem mcp --port 38400` |
+| `mem mcp` | Inicia o servidor MCP via stdio (para IDEs) ou HTTP/SSE com federação RRF. | `mem mcp --port 38400` |
 
 ---
 
@@ -209,7 +214,7 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 
 | Ferramenta MCP | Quando o Agente deve chamar | Parâmetros Principais |
 | :--- | :--- | :--- |
-| `memory_search` | Sempre que precisar recuperar contexto semântico, arquitetural ou regras. | `query` (string), `limit` (int), `mode` ("hybrid" \| "vector" \| "fts") |
+| `memory_search` | Sempre que precisar recuperar contexto semântico, arquitetural ou regras (retorna proveniência `[local]` e `[central]`). | `query` (string), `limit` (int), `mode` ("hybrid" \| "vector" \| "fts") |
 | `memory_get_neighbors` | Para inspecionar dependências e conexões diretas de um arquivo ou conceito. | `node_id` (string), `depth` (int) |
 | `memory_get_impact` | Antes de refatorar, excluir ou renomear nós para avaliar o raio de destruição. | `node_id` (string), `depth` (int) |
 | `memory_get_clusters` | Para entender a divisão macro de módulos e domínios do repositório. | `min_size` (int) |

@@ -90,10 +90,10 @@ Open questions: none (todas as decisões foram alinhadas e acordadas com o usuá
 
 | Requirement ID | Description | Status |
 | :--- | :--- | :--- |
-| FED-01 | Identidade Imutável de Repositório (`repo_id`) | in tasks |
-| FED-02 | Configuração Declarativa de Central Vault Vinculado | in tasks |
-| FED-03 | Auto-Bootstrap do Vault Central Virgem | in tasks |
-| FED-04 | Isolamento Limpo de Persistência (SQLite e PostgreSQL) | in tasks |
-| FED-05 | Busca Híbrida Federada (Local + Central) | in tasks |
-| FED-06 | Configuração Global em Cascata e Assistente `mem setup` | in tasks |
-| FED-07 | Catálogo de Repositórios e Descoberta Global no MCP | in tasks |
+| FED-01 | Identidade Imutável de Repositório (`repo_id`) | verified |
+| FED-02 | Configuração Declarativa de Central Vault Vinculado | verified |
+| FED-03 | Auto-Bootstrap do Vault Central Virgem | verified |
+| FED-04 | Isolamento Limpo de Persistência (SQLite e PostgreSQL) | verified |
+| FED-05 | Busca Híbrida Federada (Local + Central) | verified |
+| FED-06 | Configuração Global em Cascata e Assistente `mem setup` | verified |
+| FED-07 | Catálogo de Repositórios e Descoberta Global no MCP | verified |

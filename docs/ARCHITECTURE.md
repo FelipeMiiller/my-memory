@@ -162,6 +162,40 @@ O pacote `internal/graphview` compila a topologia do grafo em um artefato HTML/S
 
 ---
 
+## 🏛️ Arquitetura Federada e Cofre Central de Conhecimento (ADR-033)
+
+Para conectar o conhecimento corporativo transversal (padrões de engenharia, RFCs, diretrizes de segurança) ao código local de múltiplos repositórios:
+
+```
+                      [ ~/.memory/config.yaml ]
+                   (Configuração Global Soberana)
+                                 │
+           ┌─────────────────────┴─────────────────────┐
+           ▼                                           ▼
+ [ Central Vault (Google Drive/OneDrive) ]   [ Repositório Local (Git) ]
+ ├── standards/, architecture/, ...          ├── .memory/config.yaml (repo_id)
+ ├── templates/ (ADR, RFC, Runbook, Spec)    ├── docs/adr/, .specs/, src/
+ └── .memory/storage/memory.db (SQLite)      └── .memory/memory.db (SQLite)
+           │                                           │
+           └─────────────────────┬─────────────────────┘
+                                 ▼
+                     [ FederatedSearcher (RRF) ]
+                     - Consultas Concorrentes
+                     - Proveniência [local] vs [central]
+                     - Fallback Não-Bloqueante
+                                 │
+                                 ▼
+                     [ Servidor MCP / CLI Search ]
+```
+
+1. **Identidade Criptográfica Imutável (`repo_id`)**: Formato `repo_<12-hex-chars>` gerado no `mem init` e persistido em `.memory/config.yaml`.
+2. **Zero-Credentials no Git**: A configuração local do repositório nunca armazena senhas de banco ou URLs. Toda a infraestrutura herda com segurança de `~/.memory/config.yaml`.
+3. **Persistência Estável no PostgreSQL**: Um único banco estável atende todos os repositórios, com separação determinística por `repo_id` (e `repo_central`).
+4. **Auto-Bootstrap de Cofre Virgem**: Cria automaticamente 11 pastas canônicas, templates Obsidian e o MOC `README.md` raiz.
+5. **Busca Federada com RRF**: Unifica resultados locais e centrais com marcação de proveniência (`[local]` e `[central]`) e tolerância a desconexão de nuvem.
+
+---
+
 ## 📚 Arte Prévia e Influências
 
 O My-Memory combina ideias comprovadas da literatura e projetos abertos de ponta:
