@@ -158,3 +158,45 @@ func TestBuildOSCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatFederatedURI(t *testing.T) {
+	tests := []struct {
+		repo     string
+		docPath  string
+		anchor   string
+		expected string
+	}{
+		{
+			repo:     "central",
+			docPath:  "standards/oauth2",
+			anchor:   "",
+			expected: "memory://central/standards/oauth2",
+		},
+		{
+			repo:     "central",
+			docPath:  "/architecture/pgvector.md",
+			anchor:   "Configuração",
+			expected: "memory://central/architecture/pgvector.md#Configuração",
+		},
+		{
+			repo:     "repo_1234567890ab",
+			docPath:  "docs/api.md",
+			anchor:   "#Rotas",
+			expected: "memory://repo_1234567890ab/docs/api.md#Rotas",
+		},
+		{
+			repo:     "org/project",
+			docPath:  "",
+			anchor:   "",
+			expected: "memory://org/project",
+		},
+	}
+
+	for _, tc := range tests {
+		got := FormatFederatedURI(tc.repo, tc.docPath, tc.anchor)
+		if got != tc.expected {
+			t.Errorf("FormatFederatedURI(%q, %q, %q) = %q, esperava %q", tc.repo, tc.docPath, tc.anchor, got, tc.expected)
+		}
+	}
+}
+

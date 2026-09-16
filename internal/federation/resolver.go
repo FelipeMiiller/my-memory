@@ -155,7 +155,15 @@ func ResolveFederatedURI(rawURI string, gcfg *config.GlobalConfig, lcfg *config.
 			return nil, fmt.Errorf("cofre central em '%s' não encontrado ou inacessível (verifique a sincronização/montagem do Google Drive ou OneDrive)", cleanCentral)
 		}
 
-		vaultName := filepath.Base(cleanCentral)
+		vaultName := ""
+		if lcfg != nil && strings.TrimSpace(lcfg.CentralVault.VaultName) != "" {
+			vaultName = strings.TrimSpace(lcfg.CentralVault.VaultName)
+		} else if gcfg != nil && strings.TrimSpace(gcfg.CentralVault.VaultName) != "" {
+			vaultName = strings.TrimSpace(gcfg.CentralVault.VaultName)
+		}
+		if vaultName == "" {
+			vaultName = filepath.Base(cleanCentral)
+		}
 		absFile, relFile, err := findDocumentInVault(cleanCentral, docPath)
 		if err != nil {
 			return nil, fmt.Errorf("documento '%s' no cofre central: %w", docPath, err)
@@ -196,7 +204,10 @@ func ResolveFederatedURI(rawURI string, gcfg *config.GlobalConfig, lcfg *config.
 		return nil, fmt.Errorf("pasta do repositório federado '%s' (%s) não encontrada no disco", matchedRepo.Name, cleanRepoPath)
 	}
 
-	vaultName := matchedRepo.Name
+	vaultName := strings.TrimSpace(matchedRepo.VaultName)
+	if vaultName == "" {
+		vaultName = matchedRepo.Name
+	}
 	if vaultName == "" {
 		vaultName = filepath.Base(cleanRepoPath)
 	}

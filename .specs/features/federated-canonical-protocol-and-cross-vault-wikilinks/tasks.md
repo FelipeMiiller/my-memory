@@ -80,7 +80,7 @@ Details:
 
 ### Phase 3: Editor Navigation & Deep Linking
 
-#### T3: Suporte a navegação federada em editores no CLI mem open
+#### T3: Suporte a navegação federada em editores no CLI mem open [x]
 Where: cmd/mem/open.go
 Depends on: T2
 Tests: cmd/mem/open_test.go

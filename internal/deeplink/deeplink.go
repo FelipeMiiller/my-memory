@@ -38,6 +38,21 @@ func NormalizePath(p string) string {
 	return filepath.ToSlash(cleaned)
 }
 
+// FormatFederatedURI gera a URI canônica federada no formato memory://<repo>/<docPath>[#anchor]
+func FormatFederatedURI(repo, docPath, anchor string) string {
+	cleanRepo := strings.Trim(repo, "/")
+	cleanPath := strings.TrimPrefix(filepath.ToSlash(docPath), "/")
+	base := fmt.Sprintf("memory://%s", cleanRepo)
+	if cleanPath != "" {
+		base = fmt.Sprintf("%s/%s", base, cleanPath)
+	}
+	cleanAnchor := strings.TrimPrefix(anchor, "#")
+	if cleanAnchor != "" {
+		base = fmt.Sprintf("%s#%s", base, cleanAnchor)
+	}
+	return base
+}
+
 // GenerateLinks gera as URIs correspondentes para Obsidian, VS Code e File a partir do caminho
 func GenerateLinks(repoRoot, vaultName, filePath string, line int) DeepLinks {
 	if filePath == "" {

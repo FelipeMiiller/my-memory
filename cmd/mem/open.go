@@ -10,20 +10,27 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/deeplink"
+	"github.com/FelipeMiiller/my-memory/internal/federation"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 )
 
 // OpenOutput representa o resultado estruturado em JSON do comando mem open
 type OpenOutput struct {
-	Node      string             `json:"node"`
-	Path      string             `json:"path"`
-	App       string             `json:"app"`
-	Line      int                `json:"line,omitempty"`
-	Links     deeplink.DeepLinks `json:"links"`
-	TargetURI string             `json:"target_uri"`
-	Opened    bool               `json:"opened"`
+	Node        string             `json:"node"`
+	Path        string             `json:"path"`
+	App         string             `json:"app"`
+	Line        int                `json:"line,omitempty"`
+	Links       deeplink.DeepLinks `json:"links"`
+	TargetURI   string             `json:"target_uri"`
+	Opened      bool               `json:"opened"`
+	URI         string             `json:"uri,omitempty"`
+	Vault       string             `json:"vault,omitempty"`
+	File        string             `json:"file,omitempty"`
+	DeepLink    string             `json:"deep_link,omitempty"`
+	IsFederated bool               `json:"is_federated,omitempty"`
 }
 
 // runOpenCLI executa o subcomando mem open direcionando a saída padrão para o terminal
@@ -69,46 +76,68 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 
 	// 2. Resolução do caminho do arquivo no disco ou no grafo
 	resolvedPath := ""
+	vaultName := ""
+	relFile := ""
+	isFederated := false
 
-	// 2.1. Verifica se targetNode já é um arquivo existente no disco
-	if stat, err := os.Stat(targetNode); err == nil && !stat.IsDir() {
-		resolvedPath = targetNode
-	} else if stat, err := os.Stat(filepath.Join(repoRoot, targetNode)); err == nil && !stat.IsDir() {
-		resolvedPath = filepath.Join(repoRoot, targetNode)
-	}
+	if strings.HasPrefix(targetNode, "memory://") {
+		isFederated = true
+		gcfg, _ := config.LoadGlobalConfig()
+		resolved, err := federation.ResolveFederatedURI(targetNode, gcfg, cfg)
+		if err != nil {
+			return fmt.Errorf("erro ao resolver URI federada '%s': %w", targetNode, err)
+		}
+		resolvedPath = resolved.AbsolutePath
+		repoRoot = resolved.VaultPath
+		vaultName = resolved.VaultName
+		relFile = resolved.RelativePath
+	} else {
+		// 2.1. Verifica se targetNode já é um arquivo existente no disco
+		if stat, err := os.Stat(targetNode); err == nil && !stat.IsDir() {
+			resolvedPath = targetNode
+		} else if stat, err := os.Stat(filepath.Join(repoRoot, targetNode)); err == nil && !stat.IsDir() {
+			resolvedPath = filepath.Join(repoRoot, targetNode)
+		}
 
-	// 2.2. Se não encontrado diretamente no disco, resolve via banco de dados
-	if resolvedPath == "" {
-		if resolvedPG != "" && (*pgURL != "" || (cfg != nil && cfg.Storage.Engine == "postgres")) {
-			if pgStore, err := store.NewPostgresStore(resolvedPG); err == nil {
-				defer pgStore.Close()
-				if canonical, err := pgStore.ResolveNodeCanonicalID(ctx, resolvedRepo, targetNode); err == nil && canonical != "" {
-					resolvedPath = canonical
+		// 2.2. Se não encontrado diretamente no disco, resolve via banco de dados
+		if resolvedPath == "" {
+			if resolvedPG != "" && (*pgURL != "" || (cfg != nil && cfg.Storage.Engine == "postgres")) {
+				if pgStore, err := store.NewPostgresStore(resolvedPG); err == nil {
+					defer pgStore.Close()
+					if canonical, err := pgStore.ResolveNodeCanonicalID(ctx, resolvedRepo, targetNode); err == nil && canonical != "" {
+						resolvedPath = canonical
+					}
 				}
-			}
-		} else {
-			if database, err := db.InitDB(resolvedDB); err == nil {
-				defer database.Close()
-				if canonical, err := db.ResolveNodeCanonicalID(ctx, database, targetNode); err == nil && canonical != "" {
-					resolvedPath = canonical
+			} else {
+				if database, err := db.InitDB(resolvedDB); err == nil {
+					defer database.Close()
+					if canonical, err := db.ResolveNodeCanonicalID(ctx, database, targetNode); err == nil && canonical != "" {
+						resolvedPath = canonical
+					}
 				}
 			}
 		}
-	}
 
-	// 2.3. Fallback: se parece com caminho .md ou wikilink mas não achou no índice
-	if resolvedPath == "" {
-		clean := strings.TrimPrefix(targetNode, "[[")
-		clean = strings.TrimSuffix(clean, "]]")
-		if strings.HasSuffix(clean, ".md") || strings.Contains(clean, "/") || strings.Contains(clean, "\\") {
-			resolvedPath = clean
+		// 2.3. Fallback: se parece com caminho .md ou wikilink mas não achou no índice
+		if resolvedPath == "" {
+			clean := strings.TrimPrefix(targetNode, "[[")
+			clean = strings.TrimSuffix(clean, "]]")
+			if strings.HasSuffix(clean, ".md") || strings.Contains(clean, "/") || strings.Contains(clean, "\\") {
+				resolvedPath = clean
+			} else {
+				return fmt.Errorf("nó ou arquivo '%s' não encontrado no grafo de memória nem no sistema de arquivos", targetNode)
+			}
+		}
+
+		vaultName = cfg.ResolveObsidianVault(repoRoot)
+		if rel, err := filepath.Rel(repoRoot, resolvedPath); err == nil && !strings.HasPrefix(rel, "..") {
+			relFile = filepath.ToSlash(rel)
 		} else {
-			return fmt.Errorf("nó ou arquivo '%s' não encontrado no grafo de memória nem no sistema de arquivos", targetNode)
+			relFile = filepath.ToSlash(resolvedPath)
 		}
 	}
 
 	// 3. Resolução de preferências do editor e vault
-	vaultName := cfg.ResolveObsidianVault(repoRoot)
 	selectedApp := strings.TrimSpace(*appFlag)
 	if selectedApp == "" {
 		selectedApp = cfg.ResolveDefaultApp()
@@ -145,13 +174,18 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 	// 6. Tratamento de saída JSON
 	if *jsonOutput {
 		outObj := OpenOutput{
-			Node:      targetNode,
-			Path:      resolvedPath,
-			App:       selectedApp,
-			Line:      *lineFlag,
-			Links:     links,
-			TargetURI: targetURI,
-			Opened:    opened,
+			Node:        targetNode,
+			Path:        resolvedPath,
+			App:         selectedApp,
+			Line:        *lineFlag,
+			Links:       links,
+			TargetURI:   targetURI,
+			Opened:      opened,
+			URI:         targetNode,
+			Vault:       vaultName,
+			File:        relFile,
+			DeepLink:    targetURI,
+			IsFederated: isFederated,
 		}
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
@@ -163,6 +197,10 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 		cmdName, cmdArgs := deeplink.BuildOSCommand(targetURI)
 		fmt.Fprintf(out, "🔎 [dry-run] Simulação de abertura:\n")
 		fmt.Fprintf(out, "   Nó/Arquivo: %s\n", resolvedPath)
+		if isFederated {
+			fmt.Fprintf(out, "   Cofre:      %s\n", vaultName)
+			fmt.Fprintf(out, "   URI Mem:    %s\n", targetNode)
+		}
 		fmt.Fprintf(out, "   App:        %s\n", selectedApp)
 		if *lineFlag > 0 {
 			fmt.Fprintf(out, "   Linha:      %d\n", *lineFlag)
@@ -174,6 +212,10 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 
 	fmt.Fprintf(out, "🚀 Abrindo no %s...\n", selectedApp)
 	fmt.Fprintf(out, "   Arquivo: %s\n", resolvedPath)
+	if isFederated {
+		fmt.Fprintf(out, "   Cofre:   %s\n", vaultName)
+		fmt.Fprintf(out, "   URI Mem: %s\n", targetNode)
+	}
 	fmt.Fprintf(out, "   URI:     %s\n", targetURI)
 	return nil
 }

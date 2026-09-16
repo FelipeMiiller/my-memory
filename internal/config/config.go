@@ -22,9 +22,10 @@ const (
 
 // CentralVaultConfig define os parâmetros de vinculação ao cofre central de conhecimento
 type CentralVaultConfig struct {
-	Path     string   `yaml:"path,omitempty" json:"path,omitempty"`           // Caminho do cofre central (ex: "~/Google Drive/Vault" ou "${CENTRAL_VAULT}")
-	ReadOnly bool     `yaml:"read_only,omitempty" json:"read_only,omitempty"` // Se true, o cofre central é tratado como somente-leitura
-	Include  []string `yaml:"include,omitempty" json:"include,omitempty"`     // Padrões glob específicos a indexar do cofre central
+	Path      string   `yaml:"path,omitempty" json:"path,omitempty"`           // Caminho do cofre central (ex: "~/Google Drive/Vault" ou "${CENTRAL_VAULT}")
+	VaultName string   `yaml:"vault_name,omitempty" json:"vault_name,omitempty"` // Nome customizado do vault para Obsidian (opcional)
+	ReadOnly  bool     `yaml:"read_only,omitempty" json:"read_only,omitempty"` // Se true, o cofre central é tratado como somente-leitura
+	Include   []string `yaml:"include,omitempty" json:"include,omitempty"`     // Padrões glob específicos a indexar do cofre central
 }
 
 // MCPConfig define preferências para o servidor Model Context Protocol (MCP)
@@ -34,10 +35,11 @@ type MCPConfig struct {
 
 // RepositoryCatalogEntry registra um repositório satélite conhecido no catálogo global
 type RepositoryCatalogEntry struct {
-	ID      string         `yaml:"id" json:"id"`                               // Identificador imutável repo_<12-hex-chars>
-	Path    string         `yaml:"path" json:"path"`                           // Caminho absoluto para a raiz do repositório no host
-	Name    string         `yaml:"name,omitempty" json:"name,omitempty"`       // Nome amigável ou slug (ex: "owner/repo")
-	Storage *StorageConfig `yaml:"storage,omitempty" json:"storage,omitempty"` // Configurações de persistência específicas deste repositório
+	ID        string         `yaml:"id" json:"id"`                                     // Identificador imutável repo_<12-hex-chars>
+	Path      string         `yaml:"path" json:"path"`                                 // Caminho absoluto para a raiz do repositório no host
+	Name      string         `yaml:"name,omitempty" json:"name,omitempty"`             // Nome amigável ou slug (ex: "owner/repo")
+	VaultName string         `yaml:"vault_name,omitempty" json:"vault_name,omitempty"` // Nome customizado do vault para Obsidian
+	Storage   *StorageConfig `yaml:"storage,omitempty" json:"storage,omitempty"`       // Configurações de persistência específicas deste repositório
 }
 
 // GlobalConfig define o formato de configuração global do usuário (~/.memory/config.yaml)

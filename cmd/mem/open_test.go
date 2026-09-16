@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 )
 
@@ -209,3 +211,136 @@ func TestRunOpenCommand_NonExistentNode(t *testing.T) {
 		t.Errorf("esperava erro para nó inexistente no grafo e disco")
 	}
 }
+
+func TestRunOpenCommand_FederatedCentral(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	centralDir := filepath.Join(tmpDir, "central_vault")
+	if err := os.MkdirAll(filepath.Join(centralDir, "standards"), 0755); err != nil {
+		t.Fatalf("erro criando pasta central: %v", err)
+	}
+	notePath := filepath.Join(centralDir, "standards", "oauth2.md")
+	if err := os.WriteFile(notePath, []byte("# OAuth2 Standards"), 0644); err != nil {
+		t.Fatalf("erro criando nota central: %v", err)
+	}
+
+	globalDir := filepath.Join(tmpDir, "global_memory")
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		t.Fatalf("erro criando pasta global: %v", err)
+	}
+	t.Setenv(config.GlobalConfigDirEnv, globalDir)
+
+	globalYAML := fmt.Sprintf(`
+central_vault:
+  path: "%s"
+  vault_name: "CentralVault"
+`, filepath.ToSlash(centralDir))
+
+	if err := os.WriteFile(filepath.Join(globalDir, "config.yaml"), []byte(globalYAML), 0644); err != nil {
+		t.Fatalf("erro escrevendo config global: %v", err)
+	}
+
+	mock := &mockOpenLauncher{}
+
+	// 1. Teste Dry-Run
+	var dryBuf bytes.Buffer
+	err := runOpenCommand(ctx, "repo", []string{"memory://central/standards/oauth2", "--dry-run", "--app", "obsidian"}, &dryBuf, mock)
+	if err != nil {
+		t.Fatalf("erro no dry-run federado: %v", err)
+	}
+	outStr := dryBuf.String()
+	if !strings.Contains(outStr, "[dry-run]") {
+		t.Errorf("esperava [dry-run], obteve:\n%s", outStr)
+	}
+	if !strings.Contains(outStr, "Cofre:      CentralVault") {
+		t.Errorf("esperava Cofre: CentralVault, obteve:\n%s", outStr)
+	}
+	if !strings.Contains(outStr, "URI Mem:    memory://central/standards/oauth2") {
+		t.Errorf("esperava URI Mem no dry-run, obteve:\n%s", outStr)
+	}
+	if !strings.Contains(outStr, "obsidian://open?vault=CentralVault") {
+		t.Errorf("esperava URI do obsidian no dry-run, obteve:\n%s", outStr)
+	}
+
+	// 2. Teste JSON
+	var jsonBuf bytes.Buffer
+	err = runOpenCommand(ctx, "repo", []string{"memory://central/standards/oauth2", "--json", "--dry-run", "--app", "vscode"}, &jsonBuf, mock)
+	if err != nil {
+		t.Fatalf("erro no json federado: %v", err)
+	}
+
+	var jsonRes OpenOutput
+	if err := json.Unmarshal(jsonBuf.Bytes(), &jsonRes); err != nil {
+		t.Fatalf("saída JSON inválida: %v", err)
+	}
+	if !jsonRes.IsFederated {
+		t.Errorf("esperava IsFederated=true")
+	}
+	if jsonRes.Vault != "CentralVault" {
+		t.Errorf("esperava Vault=CentralVault, obteve %s", jsonRes.Vault)
+	}
+	if jsonRes.File != "standards/oauth2.md" {
+		t.Errorf("esperava File=standards/oauth2.md, obteve %s", jsonRes.File)
+	}
+	if jsonRes.URI != "memory://central/standards/oauth2" {
+		t.Errorf("esperava URI=memory://central/standards/oauth2, obteve %s", jsonRes.URI)
+	}
+	if !strings.HasPrefix(jsonRes.DeepLink, "vscode://file/") {
+		t.Errorf("esperava DeepLink com vscode://file/, obteve %s", jsonRes.DeepLink)
+	}
+}
+
+func TestRunOpenCommand_FederatedSatellite(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	satDir := filepath.Join(tmpDir, "satellite_repo")
+	if err := os.MkdirAll(filepath.Join(satDir, "docs"), 0755); err != nil {
+		t.Fatalf("erro criando pasta satélite: %v", err)
+	}
+	notePath := filepath.Join(satDir, "docs", "api.md")
+	if err := os.WriteFile(notePath, []byte("# API Contracts"), 0644); err != nil {
+		t.Fatalf("erro criando nota satélite: %v", err)
+	}
+
+	globalDir := filepath.Join(tmpDir, "global_memory")
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		t.Fatalf("erro criando pasta global: %v", err)
+	}
+	t.Setenv(config.GlobalConfigDirEnv, globalDir)
+
+	globalYAML := fmt.Sprintf(`
+repositories:
+  - id: "repo_sat123456"
+    name: "payments-service"
+    path: "%s"
+`, filepath.ToSlash(satDir))
+
+	if err := os.WriteFile(filepath.Join(globalDir, "config.yaml"), []byte(globalYAML), 0644); err != nil {
+		t.Fatalf("erro escrevendo config global: %v", err)
+	}
+
+	mock := &mockOpenLauncher{}
+
+	var jsonBuf bytes.Buffer
+	err := runOpenCommand(ctx, "repo", []string{"memory://payments-service/docs/api", "--json", "--dry-run", "--app", "vscode"}, &jsonBuf, mock)
+	if err != nil {
+		t.Fatalf("erro no open do nó satélite: %v", err)
+	}
+
+	var jsonRes OpenOutput
+	if err := json.Unmarshal(jsonBuf.Bytes(), &jsonRes); err != nil {
+		t.Fatalf("JSON inválido: %v", err)
+	}
+	if !jsonRes.IsFederated {
+		t.Errorf("esperava IsFederated=true")
+	}
+	if jsonRes.File != "docs/api.md" {
+		t.Errorf("esperava File=docs/api.md, obteve %s", jsonRes.File)
+	}
+	if !strings.HasSuffix(filepath.ToSlash(jsonRes.Path), "satellite_repo/docs/api.md") {
+		t.Errorf("esperava caminho do satélite, obteve %s", jsonRes.Path)
+	}
+}
+
