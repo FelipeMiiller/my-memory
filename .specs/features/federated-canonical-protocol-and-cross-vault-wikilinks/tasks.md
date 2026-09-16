@@ -5,7 +5,7 @@
 | Task | Requirement | Unit / Integration Test | Target File |
 | :--- | :--- | :--- | :--- |
 | T1 [x] | FEDLINK-01, FEDLINK-02 | `internal/parser/parser_test.go` | `internal/parser/wikilinks.go` |
-| T2 | FEDLINK-01, FEDLINK-03 | `internal/federation/resolver_test.go` | `internal/federation/resolver.go` |
+| T2 [x] | FEDLINK-01, FEDLINK-03 | `internal/federation/resolver_test.go` | `internal/federation/resolver.go` |
 | T3 | FEDLINK-03, FEDLINK-04 | `cmd/mem/open_test.go` | `cmd/mem/open.go` |
 | T4 | FEDLINK-01, FEDLINK-05 | `internal/mcp/mcp_test.go` | `internal/mcp/handlers.go` |
 | T5 | FEDLINK-01..05 | Verificador independente e relatório TLC | `.specs/features/federated-canonical-protocol-and-cross-vault-wikilinks/validation.md` |
@@ -64,7 +64,7 @@ Details:
 
 ### Phase 2: Federation Resolver Engine
 
-#### T2: Implementar motor de resolução federada em disco
+#### T2: Implementar motor de resolução federada em disco [x]
 Where: internal/federation/resolver.go
 Depends on: T1
 Tests: internal/federation/resolver_test.go
