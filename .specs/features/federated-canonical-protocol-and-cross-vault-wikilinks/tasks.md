@@ -106,7 +106,7 @@ Details:
 
 ### Phase 5: Verification & Governance
 
-#### T5: Verificação TLC e Snapshot de Estado
+#### T5: Verificação TLC e Snapshot de Estado [x]
 Where: .specs/features/federated-canonical-protocol-and-cross-vault-wikilinks/validation.md
 Depends on: T4
 Tests: scripts/test_install.py

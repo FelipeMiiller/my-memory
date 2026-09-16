@@ -87,8 +87,8 @@ Para que eu consiga consultar o padrão corporativo no cofre central de forma tr
 
 | Requirement ID | Description | Status |
 | :--- | :--- | :--- |
-| FEDLINK-01 | Sintaxe Canônica e Dissecação de URIs `memory://` | in tasks |
-| FEDLINK-02 | Blindagem do Analisador de Wikilinks | in tasks |
-| FEDLINK-03 | Motor de Resolução Federada em Disco | in tasks |
-| FEDLINK-04 | Navegação em Editores e Deep Linking (`mem open`) | in tasks |
-| FEDLINK-05 | Integração com Servidor MCP | in tasks |
+| FEDLINK-01 | Sintaxe Canônica e Dissecação de URIs `memory://` | verified |
+| FEDLINK-02 | Blindagem do Analisador de Wikilinks | verified |
+| FEDLINK-03 | Motor de Resolução Federada em Disco | verified |
+| FEDLINK-04 | Navegação em Editores e Deep Linking (`mem open`) | verified |
+| FEDLINK-05 | Integração com Servidor MCP | verified |

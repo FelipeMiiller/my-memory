@@ -34,11 +34,11 @@
 ## Handoff
 
 - **Feature**: federated-canonical-protocol-and-cross-vault-wikilinks (.specs/features/federated-canonical-protocol-and-cross-vault-wikilinks)
-- **Phase / Task**: In-progress: T1 (Implementar suporte a URIs memory:// no parser de wikilinks)
-- **Completed**: ADR-034 registrado, especificação formal validada com 0 erros/avisos (EARS notation, FEDLINK-01..05), plano de tarefas detalhado com matriz de cobertura e gates determinísticos.
-- **Completed Features**: federated-central-vault-and-repo-identity (ADR-033), universal-binary-installer (ADR-032), semantic-drift-detection (ADR-031), deep-linking-and-editor-navigation (ADR-030), context-packager-and-subgraph-bundle (ADR-029), staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: T1 (Implementar suporte a URIs memory:// no parser de wikilinks)
-- **Next step**: Implementar T1 em `internal/parser/wikilinks.go`
+- **Phase / Task**: Phase 5 (Verification & Governance) - Completed (T1..T5 [x])
+- **Completed**: ADR-034 registrado, especificação formal com 100% dos requisitos verificados (FEDLINK-01..05), motor de parsing de wikilinks federados blindado, resolvedor em disco de vaults centrais e repositórios satélites, integração no comando CLI `mem open` e ferramentas MCP (`memory_open_node`, `memory_get_neighbors`, `memory_inspect_node`), relatório `validation.md` gerado.
+- **Completed Features**: federated-canonical-protocol-and-cross-vault-wikilinks (ADR-034), federated-central-vault-and-repo-identity (ADR-033), universal-binary-installer (ADR-032), semantic-drift-detection (ADR-031), deep-linking-and-editor-navigation (ADR-030), context-packager-and-subgraph-bundle (ADR-029), staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: none (feature pronta para release e push)
+- **Next step**: Recompilar binário (`go build`), reindexar (`mem index`), validar integridade (`mem status`, `mem drift`) e realizar push para `origin/develop`.
 - **Blockers**: none
 - **Branch**: develop
 
