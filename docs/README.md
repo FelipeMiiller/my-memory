@@ -9,6 +9,7 @@ Este documento é o **mapa central de conhecimento** do projeto **My-Memory**. E
 | Documento | Foco | Descrição |
 | :--- | :--- | :--- |
 | **[`docs/ARCHITECTURE.md`](ARCHITECTURE.md)** | Arquitetura | Diagrama de fluxo de dados, DDL do SQLite, índices FTS5, vetores e consultas recursivas em grafo. |
+| **[`docs/CENTRAL_VAULT.md`](CENTRAL_VAULT.md)** | Cofre Central & Federação | Arquitetura do **Global Brain**, setup do `mem setup --central`, URIs `memory://`, fallback FTS quando Ollama está offline e ciclo de promoção do conhecimento. |
 | **[`docs/TURBOQUANT.md`](TURBOQUANT.md)** | Matemática & Algoritmo | Teoria da quantização vetorial de 4-bit (Google DeepMind, ICLR 2026), rotações de Householder e produto escalar não-viesado. |
 | **[`docs/BENCHMARKS.md`](BENCHMARKS.md)** | Performance & Métricas | Relatório empírico de micro-benchmarks (TurboQuant 4-bit, RRF, hashing SHA-256 e parsing). |
 | **[`docs/CLI_GUIDE.md`](CLI_GUIDE.md)** | Operação | Manual prático de comandos da CLI (`mem index`, `mem search`, `mem bench`, `mem insights`). |

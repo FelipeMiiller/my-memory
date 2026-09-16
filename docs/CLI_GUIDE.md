@@ -726,6 +726,18 @@ Parâmetros suportados:
 * `--dry-run`: Simula a abertura e exibe comando de SO e URI gerada sem iniciar o editor.
 * `--json`: Retorna objeto JSON com campos `uri`, `vault`, `file`, `path`, `deep_link` e `is_federated: true`.
 
+### 4. Modo de Embedding: Online vs Fallback FTS
+
+O `mem index` e o `mem search --mode hybrid` tentam gerar embeddings via Ollama (`http://localhost:11434`). Se Ollama estiver offline ou a URL configurada em `.memory/config.yaml` for inalcançável:
+
+* **Indexação continua funcionando** — cada chunk é armazenado com vetor zero (`make([]float32, 768)`); FTS5 indexa normalmente e TurboQuant comprime perfeitamente (vetor zero comprime sem perda).
+* **Aviso emitido em cada chunk**: `Ollama indisponível (<chunkID>); indexando em modo léxico FTS`.
+* **Search híbrido cai automaticamente em FTS-only** — você verá `Executando fallback para busca textual FTS` na saída.
+* **Resultados ainda funcionam**: FTS5 + RRF + expansão de grafo retornam resultados relevantes, só perdem o ranqueamento semântico.
+* Para voltar ao modo semântico completo: suba `ollama serve`, confirme `nomic-embed-text` disponível e reindexe o vault.
+
+Comportamento garantido pelo commit [`33feb1d`](../../commit/33feb1d) (`fix(index): fallback to FTS chunk indexing when embedding generation is offline`). Documentação completa em [`docs/CENTRAL_VAULT.md` — Seção 4](CENTRAL_VAULT.md#4-modos-de-embedding-online-vs-fallback).
+
 
 
 
