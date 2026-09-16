@@ -28,14 +28,15 @@
 - **AD-030**: Deep Linking e Integração de Navegação com Editores (`docs/adr/030-deep-linking-e-navegacao-de-editores.md`)
 - **AD-031**: Semantic Drift e Detecção de Desvio Código-Memória (`docs/adr/031-semantic-drift-e-deteccao-de-desvio-codigo-memoria.md`)
 - **AD-032**: Instalador Universal One-Liner para Windows, Linux e macOS (`docs/adr/032-instalador-universal-one-liner.md`)
+- **AD-033**: Arquitetura Federada com Cofre Central e Identidade Imutável de Repositório (`docs/adr/033-federated-central-vault-and-repo-identity.md`)
 
 ## Handoff
 
-- **Feature**: universal-binary-installer (.specs/features/universal-binary-installer)
+- **Feature**: federated-central-vault-and-repo-identity (.specs/features/federated-central-vault-and-repo-identity)
 - **Phase / Task**: 100% Concluída, Testada e Integrada (T1 a T5 finalizadas)
-- **Completed**: Scripts universais de instalação oficial de 1 linha para Windows (`scripts/install.ps1`) e Linux/macOS (`scripts/install.sh`), com detecção de plataforma, resolução automática de versão da release no GitHub, verificação estrita de hash SHA-256 contra `checksums.txt`, diretório isolado de usuário (`$HOME/.mem/bin` e `~/.local/bin`), configuração de PATH, fallback para `go install`, suite de testes automatizados (`scripts/test_install.ps1` e `scripts/test_install.py`), ADR-032 registrado e documentação nos guias.
-- **Completed Features**: universal-binary-installer (ADR-032), semantic-drift-detection (ADR-031), deep-linking-and-editor-navigation (ADR-030), context-packager-and-subgraph-bundle (ADR-029), staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
-- **In-progress**: nenhuma (ADR-032 finalizado com sucesso)
+- **Completed**: Identidade criptográfica imutável (`repo_id: repo_<12-hex-chars>`), Zero-Credentials no Git com herança soberana em `~/.memory/config.yaml`, auto-bootstrap do Cofre Central virgem com 11 pastas canônicas e templates Obsidian em Google Drive/OneDrive, persistência unificada (banco único no PostgreSQL e isolamento em `.memory/storage/memory.db` no SQLite), busca híbrida federada com Reciprocal Rank Fusion (RRF) e fallback resiliente, comandos CLI (`mem setup`, `mem central status|bootstrap`, `mem repos`), integração MCP transparente com proveniência de notas e documentação completa nos guias.
+- **Completed Features**: federated-central-vault-and-repo-identity (ADR-033), universal-binary-installer (ADR-032), semantic-drift-detection (ADR-031), deep-linking-and-editor-navigation (ADR-030), context-packager-and-subgraph-bundle (ADR-029), staleness-detection-and-banners (ADR-028), graph-path-discovery (ADR-027), ai-tool-auto-wiring (ADR-026), progressive-context-loading (ADR-025), triptych-node-inspector (ADR-024), blast-radius-impact-analysis (ADR-023), graph-community-detection (ADR-022), mcp-http-sse-server (ADR-021), interactive-html-graph-visualizer (ADR-020)
+- **In-progress**: nenhuma (ADR-033 finalizado com sucesso)
 - **Next step**: Validação com usuário e seleção do próximo item de backlog
 - **Blockers**: none
 - **Branch**: develop
