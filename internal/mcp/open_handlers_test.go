@@ -186,4 +186,3 @@ central_vault:
 		t.Errorf("esperava 1 chamada no launcher, obteve %d", mock.calls)
 	}
 }
-

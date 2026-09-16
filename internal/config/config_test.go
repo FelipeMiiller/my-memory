@@ -598,4 +598,3 @@ func TestRegisterRepositoryInGlobalConfig_PreservesStorage(t *testing.T) {
 		t.Errorf("esperava nome atualizado, obteve '%s'", saved.Name)
 	}
 }
-

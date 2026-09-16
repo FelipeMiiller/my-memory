@@ -481,4 +481,3 @@ Também se conecta ao [[ServicoLocal]] e [[memory://repo_998877665544/docs/contr
 		t.Errorf("Esperava aresta implements para memory://central/standards/user-service, arestas: %+v", conn.Edges)
 	}
 }
-

@@ -12,15 +12,15 @@ import (
 
 // ResolvedNode representa uma nota federada resolvida com sucesso no sistema de arquivos
 type ResolvedNode struct {
-	URI          string `json:"uri"`                     // URI canônica completa (ex: "memory://central/standards/oauth2#JWT")
-	RepoID       string `json:"repo_id"`                 // Identificador do repositório (ex: "repo_central" ou "repo_xxx")
-	RepoName     string `json:"repo_name"`               // Nome amigável do repositório
-	VaultName    string `json:"vault_name"`              // Nome do vault para o Obsidian
-	VaultPath    string `json:"vault_path"`              // Caminho raiz do vault
-	AbsolutePath string `json:"absolute_path"`           // Caminho absoluto para o arquivo físico no disco
-	RelativePath string `json:"relative_path"`           // Caminho relativo dentro do vault (ex: "standards/oauth2.md")
-	Anchor       string `json:"anchor,omitempty"`        // Âncora / seção / bloco opcional
-	IsCentral    bool   `json:"is_central"`              // True se pertence ao Cofre Central
+	URI          string `json:"uri"`              // URI canônica completa (ex: "memory://central/standards/oauth2#JWT")
+	RepoID       string `json:"repo_id"`          // Identificador do repositório (ex: "repo_central" ou "repo_xxx")
+	RepoName     string `json:"repo_name"`        // Nome amigável do repositório
+	VaultName    string `json:"vault_name"`       // Nome do vault para o Obsidian
+	VaultPath    string `json:"vault_path"`       // Caminho raiz do vault
+	AbsolutePath string `json:"absolute_path"`    // Caminho absoluto para o arquivo físico no disco
+	RelativePath string `json:"relative_path"`    // Caminho relativo dentro do vault (ex: "standards/oauth2.md")
+	Anchor       string `json:"anchor,omitempty"` // Âncora / seção / bloco opcional
+	IsCentral    bool   `json:"is_central"`       // True se pertence ao Cofre Central
 }
 
 // ParseFederatedURI disseca uma URI federada canônica em seus componentes estruturais

@@ -343,4 +343,3 @@ repositories:
 		t.Errorf("esperava caminho do satélite, obteve %s", jsonRes.Path)
 	}
 }
-

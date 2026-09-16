@@ -199,4 +199,3 @@ func TestFormatFederatedURI(t *testing.T) {
 		}
 	}
 }
-

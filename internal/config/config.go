@@ -22,10 +22,10 @@ const (
 
 // CentralVaultConfig define os parâmetros de vinculação ao cofre central de conhecimento
 type CentralVaultConfig struct {
-	Path      string   `yaml:"path,omitempty" json:"path,omitempty"`           // Caminho do cofre central (ex: "~/Google Drive/Vault" ou "${CENTRAL_VAULT}")
+	Path      string   `yaml:"path,omitempty" json:"path,omitempty"`             // Caminho do cofre central (ex: "~/Google Drive/Vault" ou "${CENTRAL_VAULT}")
 	VaultName string   `yaml:"vault_name,omitempty" json:"vault_name,omitempty"` // Nome customizado do vault para Obsidian (opcional)
-	ReadOnly  bool     `yaml:"read_only,omitempty" json:"read_only,omitempty"` // Se true, o cofre central é tratado como somente-leitura
-	Include   []string `yaml:"include,omitempty" json:"include,omitempty"`     // Padrões glob específicos a indexar do cofre central
+	ReadOnly  bool     `yaml:"read_only,omitempty" json:"read_only,omitempty"`   // Se true, o cofre central é tratado como somente-leitura
+	Include   []string `yaml:"include,omitempty" json:"include,omitempty"`       // Padrões glob específicos a indexar do cofre central
 }
 
 // MCPConfig define preferências para o servidor Model Context Protocol (MCP)

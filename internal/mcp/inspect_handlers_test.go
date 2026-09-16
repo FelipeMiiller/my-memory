@@ -257,4 +257,3 @@ func TestMemoryInspectNodeHandler_FederatedOutbound(t *testing.T) {
 		t.Errorf("esperava targetID federado, obteve:\n%s", text)
 	}
 }
-
