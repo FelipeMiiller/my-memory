@@ -144,3 +144,10 @@ Ao inicializar, o servidor MCP:
 ## Negative Consequences
 
 - **Dependência de Montagem para SQLite**: No modo SQLite, a pasta do Google Drive/OneDrive precisa estar montada na máquina para que a busca federada acesse o cofre central (com fallback transparente e não-bloqueante para o cofre local caso a pasta esteja ausente).
+
+## Implementation References
+
+- `internal/federation/bootstrap.go`: Motor de auto-bootstrap estruturado do cofre central com 11 pastas canônicas e templates Obsidian.
+- `internal/federation/search.go`: Motor de busca federada híbrida unindo fontes locais e centrais via Reciprocal Rank Fusion (RRF).
+- `internal/config/config.go`: Identidade `repo_id`, herança em cascata (`LoadCascadingConfig`) e catálogo global de repositórios.
+- `cmd/mem/setup.go`: Assistente interativo `mem setup`, comandos `mem central` e `mem repos`.
