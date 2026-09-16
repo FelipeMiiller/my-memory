@@ -60,6 +60,7 @@ O **My-Memory** resolve isso unificando **busca vetorial**, **grafo de conhecime
 2. **🔬 TurboQuant (Google DeepMind, ICLR 2026):** Implementação pioneira em Go da quantização de 4-bits com 32 reflexões ortogonais de Householder ($R^T R = I$). Reduz o consumo vetorial em **~88%** (de 3.072 para 388 bytes por chunk) mantendo fidelidade $> 99\%$.
 3. **🕸 Grafo Estilo Obsidian via SQL Recursivo:** Extrai conexões explícitas de notas (`[[links]]` e `#tags`), permitindo travessias relacionais, detecção de comunidades (LPA) e análise de raio de impacto em microssegundos.
 4. **🔌 Model Context Protocol (MCP) Nativo:** Conecta-se diretamente aos assistentes de codificação de IA via `stdio` (JSON-RPC 2.0) ou rede HTTP/SSE, expondo ferramentas de busca e expansão de contexto.
+5. **🏛️ Federação e Cofre Central de Conhecimento:** Vincula um Cofre Central de padrões corporativos (Google Drive / OneDrive para Obsidian) a repositórios satélites com `repo_id` criptográfico imutável, catálogo global (`~/.memory/config.yaml`), zero-credentials no Git e busca híbrida federada via RRF.
 
 ---
 
@@ -103,34 +104,27 @@ Na pasta raiz do seu repositório de código ou vault de notas:
 ```bash
 mem init
 ```
-*(ou `./bin/mem.exe init` caso esteja compilando localmente)*.
+*(Gera a pasta `.memory/` com `repo_id`, escopo de pastas, `.gitignore` seguro e registra no catálogo global)*.
 
-### 2. Auto-Configurar Clientes de IA
+### 2. Configurar Cofre Central e Preferências Globais (Opcional)
+```bash
+mem setup
+```
+*(Assistente interativo que conecta seu Google Drive/OneDrive e grava em `~/.memory/config.yaml`)*.
+
+### 3. Auto-Configurar Clientes de IA
 ```bash
 mem install
 ```
-*(Configura automaticamente Claude Desktop, Cursor, VS Code e Windsurf para se conectarem ao seu vault)*.
+*(Configura automaticamente Claude Desktop, Cursor, VS Code e Windsurf para se conectarem ao seu vault via MCP)*.
 
-### 3. Compilar do Código-Fonte (Opcional)
-```bash
-git clone https://github.com/FelipeMiiller/my-memory.git
-cd my-memory
-go build -o bin/mem.exe ./cmd/mem
-```
-
-### 2. Inicializar o Vault
-```bash
-./bin/mem.exe init
-```
-*(Gera a pasta `.memory/` com escopo de pastas, `.gitignore`, `.env.example` e `AGENTS.md`)*.
-
-### 3. Indexar e Buscar
+### 4. Indexar e Buscar
 ```bash
 # Indexar notas com cache incremental SHA-256
-./bin/mem.exe index
+mem index
 
-# Busca híbrida unificada (BM25 + Vetores + Grafo)
-./bin/mem.exe search "como funciona o cache incremental?"
+# Busca híbrida federada (Local + Central via RRF)
+mem search "como funciona o cache incremental?"
 ```
 
 ---

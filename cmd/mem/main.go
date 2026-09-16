@@ -24,6 +24,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/deeplink"
 	"github.com/FelipeMiiller/my-memory/internal/drift"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
+	"github.com/FelipeMiiller/my-memory/internal/federation"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/graphview"
 	"github.com/FelipeMiiller/my-memory/internal/mcp"
@@ -668,7 +669,25 @@ func main() {
 			os.Exit(1)
 		}
 
-	case "install", "setup":
+	case "setup":
+		if err := runSetupCLI(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "central":
+		if err := runCentralCLI(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "repos":
+		if err := runReposCLI(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "install":
 		if err := runInstallCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
 			os.Exit(1)
@@ -735,7 +754,13 @@ func printHelp() {
 	fmt.Println("  mem mcp [--port <porta>] [--host <ip>] [--http <addr>] [--cors] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Inicia servidor Model Context Protocol via stdio (padrão) ou via HTTP/SSE na porta indicada")
 	fmt.Println("  mem install [--target <ferramenta>] [--dry-run] [--workspace] [--global] [--force]")
-	fmt.Println("      Auto-wiring zero-touch: registra o servidor MCP em Claude Desktop, Cursor, VS Code e Windsurf (alias: mem setup)")
+	fmt.Println("      Auto-wiring zero-touch: registra o servidor MCP em Claude Desktop, Cursor, VS Code e Windsurf")
+	fmt.Println("  mem setup [--central <pasta>] [--engine sqlite|postgres] [--postgres-url <url>] [--mcp-port <porta>] [--yes]")
+	fmt.Println("      Assistente interativo de configuração global (~/.memory/config.yaml) e vinculação de cofre central")
+	fmt.Println("  mem central <status|bootstrap> [opções]")
+	fmt.Println("      Gerencia e audita o Cofre Central de Conhecimento (Global Brain no Google Drive / OneDrive)")
+	fmt.Println("  mem repos")
+	fmt.Println("      Lista todos os repositórios federados registrados no catálogo global")
 	fmt.Println("  mem version [--json]")
 	fmt.Println("      Exibe metadados de versão, commit, data de compilação e arquitetura (ou via -v, --version)")
 	fmt.Println()
@@ -766,12 +791,24 @@ func runInit(targetDir, repoSlug, dbPath string, force bool, vscode, copilot, cu
 			dbPath = "memory.db"
 		}
 
+		// Preserva repo_id caso já exista no config.yaml anterior
+		repoID := ""
+		if existing, err := config.LoadConfig(cfgPath); err == nil && existing.RepoID != "" {
+			repoID = existing.RepoID
+		}
+		if repoID == "" {
+			repoID = config.GenerateRepoID()
+		}
+
 		template := fmt.Sprintf(`# ==============================================================================
 # My-Memory Vault Configuration
 # Documentação: docs/REPOSITORY_BRAIN.md e docs/CLI_GUIDE.md
 # ==============================================================================
 
 version: 1
+
+# Identificador criptográfico imutável do repositório no catálogo global
+repo_id: %q
 
 # Identificador / slug do repositório ou vault para escopo multi-tenant
 repository: %q
@@ -796,12 +833,6 @@ exclude:
   - ".trash/**"
   - ".memory/**"
 
-# Configurações do motor de persistência
-storage:
-  engine: "sqlite"          # "sqlite" ou "postgres" (se houver .memory/.env com MY_MEMORY_PG_URL, conecta no PostgreSQL automaticamente)
-  sqlite_path: %q     # Caminho do banco SQLite local
-  postgres_url: "postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable" # Conexão PostgreSQL (pgvector)
-
 # Configurações do modelo de embeddings
 embedding:
   provider: "ollama"
@@ -823,10 +854,20 @@ search:
 watcher:
   debounce_ms: 500          # Janela de debounce para agrupar rajadas de gravação
   interval_ms: 1000         # Intervalo de polling periódico
-`, repoSlug, dbPath)
+`, repoID, repoSlug)
 
 		if err := os.WriteFile(cfgPath, []byte(template), 0644); err != nil {
 			return fmt.Errorf("erro ao salvar arquivo de configuração: %w", err)
+		}
+
+		// Registra o repositório no catálogo global (~/.memory/config.yaml)
+		absTarget, err := filepath.Abs(targetDir)
+		if err == nil {
+			_ = config.RegisterRepositoryInGlobalConfig(config.RepositoryCatalogEntry{
+				ID:   repoID,
+				Path: absTarget,
+				Name: repoSlug,
+			})
 		}
 
 		// Criação padrão de .memory/.gitignore para proteger segredos e bancos locais
@@ -942,8 +983,9 @@ mem mcp
 		}
 		configCreated = true
 		fmt.Printf("✅ Configuração inicializada com sucesso em %s\n", cfgPath)
+		fmt.Printf("   Repo ID: %s\n", repoID)
 		fmt.Printf("   Repositório: %s\n", repoSlug)
-		fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
+		fmt.Printf("   Catálogo Global: Registrado em ~/.memory/config.yaml\n")
 		fmt.Printf("   Modelos: %s, %s e %s gerados por padrão\n", gitIgnorePath, envExamplePath, agentsTemplatePath)
 	}
 
@@ -1127,11 +1169,8 @@ func runWatch(
 
 func resolveConfig() *config.Config {
 	_, _ = config.FindAndLoadDotEnv(".")
-	cfgPath, err := config.FindConfigFile(".")
-	if err == nil {
-		if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
-			return loaded
-		}
+	if loaded, _, err := config.LoadCascadingConfig("."); err == nil && loaded != nil {
+		return loaded
 	}
 	def := config.DefaultConfig()
 	if stat, err := os.Stat(".memory"); err == nil && stat.IsDir() {
@@ -1801,6 +1840,86 @@ func rearrangeSearchArgs(args []string) []string {
 	return append(flags, nonFlags...)
 }
 
+func buildSQLiteSearchFunc(database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer) func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+	return func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+		limit := params.Limit
+		if limit <= 0 {
+			limit = 5
+		}
+		k := params.K
+		if k <= 0 {
+			k = 60
+		}
+
+		searchOpts := store.SearchOptions{
+			Level:    params.DetailLevel,
+			Category: params.Category,
+		}
+		if searchOpts.Level == "" {
+			searchOpts.Level = "l1"
+		}
+
+		var dbResults []db.SearchResult
+		var err error
+
+		switch params.Mode {
+		case "fts":
+			dbResults, err = db.SearchFTSWithOptions(ctx, database, params.Query, limit, searchOpts)
+		case "vector":
+			queryVec, embErr := emb.GenerateEmbedding(params.Query)
+			if embErr != nil {
+				return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
+			}
+			if !db.HasSqliteVec {
+				dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
+			} else {
+				dbResults, err = db.SearchKNNWithOptions(ctx, database, queryVec, limit, searchOpts)
+				if err != nil {
+					dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
+				}
+			}
+		default: // hybrid
+			var queryVec []float32
+			vec, embErr := emb.GenerateEmbedding(params.Query)
+			if embErr == nil {
+				queryVec = vec
+			}
+			decayOpts := store.DefaultDecayOptions()
+			if params.Decay {
+				decayOpts.Enabled = true
+				if params.HalfLife > 0 {
+					decayOpts.HalfLife = params.HalfLife
+				}
+				if params.DecayWeight >= 0 {
+					decayOpts.Weight = params.DecayWeight
+				}
+			}
+			dbResults, err = db.SearchHybridRRFWithOptions(ctx, database, tq, params.Query, queryVec, limit, k, false, decayOpts, searchOpts)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		mcpResults := make([]mcp.SearchResult, len(dbResults))
+		for i, r := range dbResults {
+			mcpResults[i] = mcp.SearchResult{
+				ChunkID:    r.ChunkID,
+				DocumentID: r.DocumentID,
+				Content:    r.Content,
+				Distance:   r.Distance,
+				Score:      r.Score,
+				Sources:    r.Sources,
+				Neighbors:  r.Neighbors,
+				UpdatedAt:  r.UpdatedAt,
+				Abstract:   r.Abstract,
+				Category:   r.Category,
+			}
+		}
+		return mcpResults, nil
+	}
+}
+
 func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool, cfg ...*config.Config) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
 
@@ -1898,9 +2017,22 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return mcpResults, nil
 		}
-		srv.SetAdvancedSearchHandler(pgSearchFunc)
+
+		var effectiveSearchFunc mcp.AdvancedSearchFunc = pgSearchFunc
+		if mcpCfg != nil && mcpCfg.CentralVault.Path != "" {
+			expandedCentral := config.ExpandPath(mcpCfg.CentralVault.Path)
+			centralSearchFunc := func(cctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+				cp := params
+				cp.Repo = "repo_central"
+				return pgSearchFunc(cctx, cp)
+			}
+			fedSearcher := federation.NewFederatedSearcher(pgSearchFunc, centralSearchFunc, expandedCentral, mcpCfg.CentralVault.ReadOnly)
+			effectiveSearchFunc = fedSearcher.Search
+		}
+
+		srv.SetAdvancedSearchHandler(effectiveSearchFunc)
 		syncEngine := compiler.NewSyncEngine(nil, pgStore, emb, nil, defaultRepo)
-		srv.SetCompilerEngine(syncEngine, pgSearchFunc, ".")
+		srv.SetCompilerEngine(syncEngine, effectiveSearchFunc, ".")
 
 		srv.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
 			if repo == "" {
@@ -2063,86 +2195,26 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 		if tq == nil {
 			tq = turboquant.NewQuantizer(EmbeddingDim)
 		}
-		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
-			limit := params.Limit
-			if limit <= 0 {
-				limit = 5
-			}
-			k := params.K
-			if k <= 0 {
-				k = 60
-			}
+		dbSearchFunc := buildSQLiteSearchFunc(database, emb, tq)
+		var effectiveSearchFunc mcp.AdvancedSearchFunc = dbSearchFunc
 
-			searchOpts := store.SearchOptions{
-				Level:    params.DetailLevel,
-				Category: params.Category,
-			}
-			if searchOpts.Level == "" {
-				searchOpts.Level = "l1"
-			}
-
-			var dbResults []db.SearchResult
-			var err error
-
-			switch params.Mode {
-			case "fts":
-				dbResults, err = db.SearchFTSWithOptions(ctx, database, params.Query, limit, searchOpts)
-			case "vector":
-				queryVec, embErr := emb.GenerateEmbedding(params.Query)
-				if embErr != nil {
-					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
-				}
-				if !db.HasSqliteVec {
-					dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
-				} else {
-					dbResults, err = db.SearchKNNWithOptions(ctx, database, queryVec, limit, searchOpts)
-					if err != nil {
-						dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
-					}
-				}
-			default: // hybrid
-				var queryVec []float32
-				vec, embErr := emb.GenerateEmbedding(params.Query)
-				if embErr == nil {
-					queryVec = vec
-				}
-				decayOpts := store.DefaultDecayOptions()
-				if params.Decay {
-					decayOpts.Enabled = true
-					if params.HalfLife > 0 {
-						decayOpts.HalfLife = params.HalfLife
-					}
-					if params.DecayWeight >= 0 {
-						decayOpts.Weight = params.DecayWeight
-					}
-				}
-				dbResults, err = db.SearchHybridRRFWithOptions(ctx, database, tq, params.Query, queryVec, limit, k, false, decayOpts, searchOpts)
-			}
-
-			if err != nil {
-				return nil, err
-			}
-
-			mcpResults := make([]mcp.SearchResult, len(dbResults))
-			for i, r := range dbResults {
-				mcpResults[i] = mcp.SearchResult{
-					ChunkID:    r.ChunkID,
-					DocumentID: r.DocumentID,
-					Content:    r.Content,
-					Distance:   r.Distance,
-					Score:      r.Score,
-					Sources:    r.Sources,
-					Neighbors:  r.Neighbors,
-					UpdatedAt:  r.UpdatedAt,
-					Abstract:   r.Abstract,
-					Category:   r.Category,
+		if mcpCfg != nil && mcpCfg.CentralVault.Path != "" {
+			expandedCentral := config.ExpandPath(mcpCfg.CentralVault.Path)
+			centralDBPath := federation.ResolveCentralSQLitePath(expandedCentral)
+			var centralSearchFunc federation.SearchFunc
+			if _, statErr := os.Stat(centralDBPath); statErr == nil {
+				if centralDB, dbErr := db.InitDB(centralDBPath); dbErr == nil {
+					defer centralDB.Close()
+					centralSearchFunc = buildSQLiteSearchFunc(centralDB, emb, tq)
 				}
 			}
-			return mcpResults, nil
+			fedSearcher := federation.NewFederatedSearcher(dbSearchFunc, centralSearchFunc, expandedCentral, mcpCfg.CentralVault.ReadOnly)
+			effectiveSearchFunc = fedSearcher.Search
 		}
-		srv.SetAdvancedSearchHandler(dbSearchFunc)
+
+		srv.SetAdvancedSearchHandler(effectiveSearchFunc)
 		syncEngine := compiler.NewSyncEngine(database, nil, emb, tq, defaultRepo)
-		srv.SetCompilerEngine(syncEngine, dbSearchFunc, ".")
+		srv.SetCompilerEngine(syncEngine, effectiveSearchFunc, ".")
 
 		srv.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
 			return db.GetNodeNeighbors(ctx, database, nodeID, maxDepth)

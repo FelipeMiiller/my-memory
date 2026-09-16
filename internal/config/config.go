@@ -203,10 +203,24 @@ func FindConfigFile(startDir string) (string, error) {
 		return "", err
 	}
 
+	realHome, _ := os.UserHomeDir()
+	realHomeGlobalCfg := ""
+	if realHome != "" {
+		realHomeGlobalCfg = filepath.Join(realHome, ".memory", "config.yaml")
+	}
+	globalCfgPath, _ := GlobalConfigPath()
+
 	curr := absDir
 	for {
 		for _, candidate := range CandidateConfigFileNames {
 			p := filepath.Join(curr, candidate)
+			// Nunca confunde o arquivo de configuração global do usuário (~/.memory/config.yaml) com cofre local de projeto
+			if globalCfgPath != "" && filepath.Clean(p) == filepath.Clean(globalCfgPath) {
+				continue
+			}
+			if realHomeGlobalCfg != "" && filepath.Clean(p) == filepath.Clean(realHomeGlobalCfg) {
+				continue
+			}
 			if stat, err := os.Stat(p); err == nil && !stat.IsDir() {
 				return p, nil
 			}

@@ -640,8 +640,62 @@ watcher:
 
 ### 🏆 Ordem de Precedência (Prioridade):
 1. **Flags de Terminal**: (`--mode`, `--limit`, `--decay`, `--repo`, `--db`, etc.)
-2. **Variáveis de Ambiente**: (`MY_MEMORY_PG_URL`, `MY_MEMORY_REPO`)
-3. **Arquivo de Configuração**: (`.memory/config.yaml` ou `.mem.yaml`)
-4. **Defaults de Código**: (`DefaultConfig()`)
+2. **Variáveis de Ambiente**: (`MY_MEMORY_PG_URL`, `MY_MEMORY_REPO`, `MY_MEMORY_CENTRAL_VAULT`)
+3. **Configuração Local do Repositório**: (`.memory/config.yaml`)
+4. **Configuração Global do Usuário**: (`~/.memory/config.yaml`)
+5. **Defaults de Código**: (`DefaultConfig()`)
+
+---
+
+## 🏛️ Federação e Cofre Central de Conhecimento (`mem setup`, `mem central`, `mem repos`)
+
+O My-Memory implementa uma arquitetura federada corporativa conectando um **Cofre Central de Conhecimento** (Global Brain sincronizado no Google Drive, OneDrive ou nuvem) e **Cofres de Projeto** (satélites de código local):
+
+### 1. Assistente Interativo Global (`mem setup`)
+Executa o assistente guiado para configurar suas preferências em `~/.memory/config.yaml` (fonte soberana de verdade herdada por todos os seus projetos locais):
+
+```bash
+# Modo interativo com prompts amigáveis:
+mem setup
+
+# Modo não-interativo via linha de comando:
+mem setup --central "~/Google Drive/Meu Drive/KnowledgeVault" --engine sqlite --yes
+```
+
+Parâmetros suportados:
+* `--central <pasta>`: Caminho da pasta do Cofre Central no host.
+* `--engine <sqlite|postgres>`: Motor de banco de dados unificado ("ou tudo PostgreSQL, ou tudo SQLite").
+* `--postgres-url <url>`: URL de conexão unificada com pgvector.
+* `--mcp-port <porta>`: Porta padrão do servidor MCP HTTP/SSE (padrão: 8080).
+* `--yes`: Executa em modo silencioso sem confirmação interativa.
+
+### 2. Gestão do Cofre Central (`mem central`)
+Audita e inicializa o Cofre Central virgem com estrutura canônica completa e templates para Obsidian:
+
+```bash
+# Verificar status de conexão e saúde do cofre central:
+mem central status
+
+# Inicializar estrutura canônica em cofre central virgem:
+mem central bootstrap
+```
+
+O comando de bootstrap cria automaticamente:
+* **11 Pastas Canônicas**: `standards/`, `architecture/`, `security/`, `infrastructure/`, `operations/`, `data/`, `ai-agents/`, `domain/`, `guides/`, `templates/` e `staging/`.
+* **Templates Prontos**: Modelos de ADR (MADR), RFC, Runbook de Operações e Especificação EARS em `templates/`.
+* **MOC Inicial (`README.md`)**: Mapa de conteúdo com `[[wikilinks]]` prontos para navegação no Obsidian Desktop/Mobile.
+* **Isolamento de Dados**: Banco SQLite armazenado em `.memory/storage/memory.db` para não poluir as notas visíveis.
+
+### 3. Catálogo Global de Repositórios (`mem repos`)
+Exibe todos os projetos locais registrados e rastreados pelo My-Memory:
+
+```bash
+mem repos
+```
+
+### 4. Zero-Credentials no Git & Identidade Imutável (`repo_id`)
+* Cada repositório recebe um identificador criptográfico imutável (`repo_id: repo_<12-hex-chars>`) gerado automaticamente no `mem init`.
+* O `.memory/config.yaml` local **nunca** armazena senhas, URLs de banco ou caminhos absolutos do host, garantindo que o versionamento via Git seja 100% limpo e seguro para commits públicos ou equipes corporativas.
+
 
 

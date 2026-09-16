@@ -297,21 +297,57 @@ mem mcp --port 38400
 
 ---
 
-## 11. Tabela de Referência Rápida de Comandos
+## 9. Passo 9: Federação Multirrepositório e Cofre Central
+
+Para conectar o conhecimento corporativo transversal (armazenado no Google Drive ou OneDrive) com o código deste repositório:
+
+### 1. Configuração Global Única (`mem setup`)
+```bash
+# Executa o assistente guiado que grava em ~/.memory/config.yaml:
+mem setup
+```
+Ele define de uma só vez:
+- O caminho do seu Cofre Central (ex: `~/Google Drive/Meu Drive/KnowledgeVault`).
+- O motor de banco de dados (`sqlite` ou `postgres`).
+- A porta padrão do MCP HTTP/SSE.
+
+### 2. Auto-Bootstrap do Cofre Central (`mem central`)
+```bash
+# Audita o cofre central:
+mem central status
+
+# Se o cofre estiver vazio, inicializa 11 pastas canônicas, templates e o README MOC:
+mem central bootstrap
+```
+
+### 3. Listar Projetos Registrados (`mem repos`)
+```bash
+mem repos
+```
+
+### 4. Busca Federada Transparente
+Ao executar `mem search` ou consultar a IA via MCP (`memory_search`), o My-Memory consulta o repositório local e o cofre central de forma simultânea e combina os resultados via Reciprocal Rank Fusion (RRF), anotando a proveniência de cada nota (`[local]` ou `[central]`).
+
+---
+
+## 10. Tabela de Referência Rápida de Comandos
 
 | Comando | Descrição |
 | :--- | :--- |
-| `mem init [--all]` | Inicializa `.memory/` com `config.yaml`, `.gitignore`, `.env.example` e `AGENTS.md`. |
+| `mem init [--all]` | Inicializa `.memory/` com `repo_id`, `config.yaml`, `.gitignore` e `AGENTS.md` (zero-credentials). |
+| `mem setup` | Assistente interativo global que grava em `~/.memory/config.yaml`. |
+| `mem central <status\|bootstrap>` | Audita e inicializa o Cofre Central de Conhecimento (Global Brain no Google Drive / OneDrive). |
+| `mem repos` | Lista todos os repositórios federados registrados no catálogo global. |
 | `mem install [--tools]` | Auto-configura MCP em ferramentas de IA instaladas (Cursor, VS Code, Claude Desktop). |
 | `mem index [--force]` | Indexa arquivos Markdown com cache SHA-256 e pruning de deletados. |
-| `mem search "<pergunta>"` | Busca híbrida com RRF, vetores, BM25 e decaimento temporal opcional. |
+| `mem search "<pergunta>"` | Busca híbrida federada com RRF, vetores, BM25 e decaimento temporal opcional. |
 | `mem path <de> <para>` | Encontra o caminho mais curto entre dois conceitos no grafo de conhecimento. |
 | `mem inspect <nota>` | Visão cirúrgica em 3 colunas (in-links, nota central e out-links). |
 | `mem impact <nota>` | Calcula o raio de destruição e dependentes reversos com score de risco. |
 | `mem hubs` | Lista os nós centrais via conexões (degree) ou autoridade (PageRank). |
 | `mem clusters` | Detecta módulos conceituais e clusters temáticos via LPA. |
 | `mem doctor [--fix]` | Audita e limpa dead links, notas órfãs e calcula o Health Score. |
-| `mem status` | Verifica a saúde do repositório e identifica notas desatualizadas (*staleness*). |
+| `mem status` | Verifica a saúde do repositório, repo_id, central vault e notas desatualizadas (*staleness*). |
 | `mem drift [--since] [--strict]` | Audita divergência semântica entre código e documentação (evita drift de memória). |
 | `mem insights` | Descobre conexões surpreendentes entre notas sem links diretos. |
 | `mem pack <nota>` | Empacota subgrafo e contexto para prompt de IA respeitando orçamento de tokens. |
@@ -322,7 +358,7 @@ mem mcp --port 38400
 | `mem compile --topic <termo>` | Sintetiza fontes em uma nota consolidada (*Compile-not-Retrieve*). |
 | `mem watch` | File watcher com debounce para indexação automática contínua. |
 | `mem hook <install\|uninstall>` | Configura Git pre-commit hook para indexação automática. |
-| `mem mcp [--port <num>]` | Inicia o servidor MCP via stdio ou HTTP/SSE. |
+| `mem mcp [--port <num>]` | Inicia o servidor MCP via stdio ou HTTP/SSE (com federação RRF). |
 | `mem bench` | Executa benchmarks de TurboQuant, RRF, SHA-256 e parsing. |
 | `mem version` | Exibe versão, commit Git e arquitetura compilada. |
 

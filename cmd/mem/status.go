@@ -49,9 +49,9 @@ func runStatusCommand(ctx context.Context, defaultRepo string, args []string, ou
 	cfgPath, err := config.FindConfigFile(searchDir)
 	if err == nil {
 		_, _ = config.FindAndLoadDotEnv(searchDir)
-		if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
+		if loaded, _, loadErr := config.LoadCascadingConfig(searchDir); loadErr == nil {
 			cfg = loaded
-			if targetDir == "" {
+			if targetDir == "" && cfgPath != "" {
 				dirOfCfg := filepath.Dir(cfgPath)
 				if filepath.Base(dirOfCfg) == ".memory" {
 					targetDir = filepath.Dir(dirOfCfg)
@@ -103,8 +103,19 @@ func runStatusCommand(ctx context.Context, defaultRepo string, args []string, ou
 	absDir, _ := filepath.Abs(targetDir)
 	fmt.Fprintf(out, "\n=== Status de Integridade e Sincronização do Vault ===\n")
 	fmt.Fprintf(out, "Diretório do Vault: %s\n", absDir)
+	if cfg != nil && cfg.RepoID != "" {
+		fmt.Fprintf(out, "Repo ID:            %s\n", cfg.RepoID)
+	}
 	if resolvedRepo != "" {
 		fmt.Fprintf(out, "Repositório:        %s\n", resolvedRepo)
+	}
+	if cfg != nil && cfg.CentralVault.Path != "" {
+		centralPath := config.ExpandPath(cfg.CentralVault.Path)
+		centralStatus := "✅ Conectado"
+		if _, err := os.Stat(centralPath); err != nil {
+			centralStatus = "⚠️ Inacessível"
+		}
+		fmt.Fprintf(out, "Cofre Central:      %s (%s)\n", centralPath, centralStatus)
 	}
 	fmt.Fprintf(out, "Arquivos no Disco:  %d\n", report.DiskCount)
 	fmt.Fprintf(out, "Arquivos Indexados: %d\n", report.IndexedCount)

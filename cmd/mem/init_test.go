@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/FelipeMiiller/my-memory/internal/config"
@@ -46,8 +47,8 @@ func TestRunInit(t *testing.T) {
 	if cfg.Repository != "test-owner/test-vault" {
 		t.Errorf("esperava repository 'test-owner/test-vault', obteve '%s'", cfg.Repository)
 	}
-	if cfg.Storage.SQLitePath != "custom.db" {
-		t.Errorf("esperava sqlite_path 'custom.db', obteve '%s'", cfg.Storage.SQLitePath)
+	if cfg.RepoID == "" || !strings.HasPrefix(cfg.RepoID, "repo_") {
+		t.Errorf("esperava repo_id válido no formato repo_<hex>, obteve '%s'", cfg.RepoID)
 	}
 	if cfg.Search.Mode != "hybrid" {
 		t.Errorf("esperava mode 'hybrid', obteve '%s'", cfg.Search.Mode)
@@ -69,7 +70,7 @@ func TestRunInit(t *testing.T) {
 		t.Errorf("configuração não deveria ter sido sobrescrita sem --force")
 	}
 
-	// 4. Executar com force=true deve sobrescrever
+	// 4. Executar com force=true deve sobrescrever o slug mas preservar o repo_id imutável
 	err = runInit(tmpDir, "novo-repo", "novo.db", true, false, false, false)
 	if err != nil {
 		t.Fatalf("runInit com force deveria funcionar: %v", err)
@@ -78,8 +79,8 @@ func TestRunInit(t *testing.T) {
 	if cfgOverwritten.Repository != "novo-repo" {
 		t.Errorf("esperava novo repository 'novo-repo', obteve '%s'", cfgOverwritten.Repository)
 	}
-	if cfgOverwritten.Storage.SQLitePath != "novo.db" {
-		t.Errorf("esperava novo sqlite_path 'novo.db', obteve '%s'", cfgOverwritten.Storage.SQLitePath)
+	if cfgOverwritten.RepoID != cfg.RepoID {
+		t.Errorf("repo_id imutável deveria ser preservado mesmo com --force, obteve '%s' vs '%s'", cfgOverwritten.RepoID, cfg.RepoID)
 	}
 }
 
