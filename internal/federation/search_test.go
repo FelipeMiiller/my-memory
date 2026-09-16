@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/FelipeMiiller/my-memory/internal/mcp"
 )
 
 func TestFederatedSearcher_BothSuccess(t *testing.T) {
@@ -19,8 +17,8 @@ func TestFederatedSearcher_BothSuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	localFn := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
-		return []mcp.SearchResult{
+	localFn := func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		return []SearchResult{
 			{
 				ChunkID:    "chunk_loc_1",
 				DocumentID: "docs/architecture.md",
@@ -34,8 +32,8 @@ func TestFederatedSearcher_BothSuccess(t *testing.T) {
 		}, nil
 	}
 
-	centralFn := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
-		return []mcp.SearchResult{
+	centralFn := func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		return []SearchResult{
 			{
 				ChunkID:    "chunk_cen_1",
 				DocumentID: "standards/api-standards.md",
@@ -50,7 +48,7 @@ func TestFederatedSearcher_BothSuccess(t *testing.T) {
 	}
 
 	fs := NewFederatedSearcher(localFn, centralFn, centralDir, true)
-	results, err := fs.Search(ctx, mcp.SearchParams{
+	results, err := fs.Search(ctx, SearchParams{
 		Query: "arquitetura e api",
 		Limit: 10,
 		K:     60,
@@ -93,8 +91,8 @@ func TestFederatedSearcher_CentralFailsFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	localFn := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
-		return []mcp.SearchResult{
+	localFn := func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		return []SearchResult{
 			{
 				ChunkID:    "loc_1",
 				DocumentID: "local_doc.md",
@@ -103,7 +101,7 @@ func TestFederatedSearcher_CentralFailsFallback(t *testing.T) {
 		}, nil
 	}
 
-	centralFn := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+	centralFn := func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
 		return nil, errors.New("Google Drive unmounted / connection timeout")
 	}
 
@@ -113,7 +111,7 @@ func TestFederatedSearcher_CentralFailsFallback(t *testing.T) {
 		loggedMsg = format
 	})
 
-	results, err := fs.Search(ctx, mcp.SearchParams{
+	results, err := fs.Search(ctx, SearchParams{
 		Query: "teste",
 	})
 	if err != nil {
@@ -136,12 +134,12 @@ func TestFederatedSearcher_LocalFailsReturnsCentral(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	localFn := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+	localFn := func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
 		return nil, errors.New("fora de repositório git")
 	}
 
-	centralFn := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
-		return []mcp.SearchResult{
+	centralFn := func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		return []SearchResult{
 			{
 				ChunkID:    "cen_1",
 				DocumentID: "standards/overview.md",
@@ -151,7 +149,7 @@ func TestFederatedSearcher_LocalFailsReturnsCentral(t *testing.T) {
 	}
 
 	fs := NewFederatedSearcher(localFn, centralFn, centralDir, true)
-	results, err := fs.Search(ctx, mcp.SearchParams{
+	results, err := fs.Search(ctx, SearchParams{
 		Query: "normas",
 	})
 	if err != nil {
@@ -167,7 +165,7 @@ func TestFederatedSearcher_LocalFailsReturnsCentral(t *testing.T) {
 }
 
 func TestMergeFederatedResults_RankingAndDeduplication(t *testing.T) {
-	local := []mcp.SearchResult{
+	local := []SearchResult{
 		{
 			ChunkID:    "shared_chunk",
 			DocumentID: "docs/readme.md",
@@ -180,7 +178,7 @@ func TestMergeFederatedResults_RankingAndDeduplication(t *testing.T) {
 		},
 	}
 
-	central := []mcp.SearchResult{
+	central := []SearchResult{
 		{
 			ChunkID:    "shared_chunk",
 			DocumentID: "standards/readme.md",

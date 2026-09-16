@@ -219,6 +219,64 @@ func TestServer_ToolsCall_MemoryGetNeighbors_MissingNodeID(t *testing.T) {
 	}
 }
 
+func TestServer_ToolsCall_MemoryGetNeighbors_Federated(t *testing.T) {
+	// 1. Teste formato texto padrão
+	inText := `{"jsonrpc": "2.0", "id": 25, "method": "tools/call", "params": {"name": "memory_get_neighbors", "arguments": {"node_id": "docs/architecture.md"}}}` + "\n"
+	var outText bytes.Buffer
+
+	srvText := NewServer("test-server", "1.0.0", strings.NewReader(inText), &outText, nil)
+	srvText.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
+		return []string{"docs/local.md", "memory://central/standards/oauth2"}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srvText.Run(ctx)
+
+	var respText Response
+	_ = json.Unmarshal(outText.Bytes(), &respText)
+	resBytes, _ := json.Marshal(respText.Result)
+	var callResultText CallToolResult
+	_ = json.Unmarshal(resBytes, &callResultText)
+
+	text := callResultText.Content[0].Text
+	if !strings.Contains(text, "is_federated: true") {
+		t.Errorf("esperava flag is_federated: true no texto, obteve:\n%s", text)
+	}
+	if !strings.Contains(text, "canonical_uri: memory://central/standards/oauth2") {
+		t.Errorf("esperava canonical_uri no texto, obteve:\n%s", text)
+	}
+
+	// 2. Teste formato JSON
+	inJSON := `{"jsonrpc": "2.0", "id": 26, "method": "tools/call", "params": {"name": "memory_get_neighbors", "arguments": {"node_id": "docs/architecture.md", "format": "json"}}}` + "\n"
+	var outJSON bytes.Buffer
+
+	srvJSON := NewServer("test-server", "1.0.0", strings.NewReader(inJSON), &outJSON, nil)
+	srvJSON.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
+		return []string{"docs/local.md", "memory://central/standards/oauth2"}, nil
+	})
+
+	ctxJSON, cancelJSON := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancelJSON()
+
+	_ = srvJSON.Run(ctxJSON)
+
+	var respJSON Response
+	_ = json.Unmarshal(outJSON.Bytes(), &respJSON)
+	resBytesJSON, _ := json.Marshal(respJSON.Result)
+	var callResultJSON CallToolResult
+	_ = json.Unmarshal(resBytesJSON, &callResultJSON)
+
+	jsonStr := callResultJSON.Content[0].Text
+	if !strings.Contains(jsonStr, `"is_federated": true`) {
+		t.Errorf("esperava is_federated: true no JSON, obteve:\n%s", jsonStr)
+	}
+	if !strings.Contains(jsonStr, `"canonical_uri": "memory://central/standards/oauth2"`) {
+		t.Errorf("esperava canonical_uri no JSON, obteve:\n%s", jsonStr)
+	}
+}
+
 func TestServer_ToolsCall_UnknownTool(t *testing.T) {
 	in := `{"jsonrpc": "2.0", "id": 25, "method": "tools/call", "params": {"name": "unknown_tool", "arguments": {}}}` + "\n"
 	var out bytes.Buffer

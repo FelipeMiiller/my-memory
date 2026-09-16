@@ -8,12 +8,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/FelipeMiiller/my-memory/internal/mcp"
 )
 
 // SearchFunc define a assinatura de uma função de busca compatível com MCP
-type SearchFunc func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error)
+type SearchFunc func(ctx context.Context, params SearchParams) ([]SearchResult, error)
 
 // FederatedSearcher coordena a busca híbrida unificada entre o repositório local e o cofre central
 type FederatedSearcher struct {
@@ -40,7 +38,7 @@ func (fs *FederatedSearcher) SetLogger(l func(format string, args ...any)) {
 }
 
 // Search executa a busca federada unificada com Reciprocal Rank Fusion (RRF)
-func (fs *FederatedSearcher) Search(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+func (fs *FederatedSearcher) Search(ctx context.Context, params SearchParams) ([]SearchResult, error) {
 	// Se não houver função local nem central
 	if fs.localFn == nil && fs.centralFn == nil {
 		return nil, fmt.Errorf("nenhum backend de busca (local ou central) configurado")
@@ -66,7 +64,7 @@ func (fs *FederatedSearcher) Search(ctx context.Context, params mcp.SearchParams
 	}
 
 	type searchOutcome struct {
-		results []mcp.SearchResult
+		results []SearchResult
 		err     error
 		origin  string
 	}
@@ -125,9 +123,9 @@ func (fs *FederatedSearcher) Search(ctx context.Context, params mcp.SearchParams
 }
 
 // AnnotateProvenance anota a proveniência de cada resultado ([local] ou [central])
-func AnnotateProvenance(results []mcp.SearchResult, origin string) []mcp.SearchResult {
+func AnnotateProvenance(results []SearchResult, origin string) []SearchResult {
 	prefix := "[" + origin + "] "
-	annotated := make([]mcp.SearchResult, len(results))
+	annotated := make([]SearchResult, len(results))
 	for i, r := range results {
 		res := r
 		if !strings.HasPrefix(res.DocumentID, prefix) {
@@ -146,13 +144,13 @@ func AnnotateProvenance(results []mcp.SearchResult, origin string) []mcp.SearchR
 }
 
 // MergeFederatedResults combina os resultados locais e centrais utilizando Reciprocal Rank Fusion (RRF)
-func MergeFederatedResults(localResults, centralResults []mcp.SearchResult, k int, limit int) []mcp.SearchResult {
+func MergeFederatedResults(localResults, centralResults []SearchResult, k int, limit int) []SearchResult {
 	if k <= 0 {
 		k = 60
 	}
 
 	type fusedItem struct {
-		result mcp.SearchResult
+		result SearchResult
 		score  float64
 	}
 
@@ -237,7 +235,7 @@ func MergeFederatedResults(localResults, centralResults []mcp.SearchResult, k in
 		items = items[:limit]
 	}
 
-	merged := make([]mcp.SearchResult, len(items))
+	merged := make([]SearchResult, len(items))
 	for i, item := range items {
 		merged[i] = item.result
 	}

@@ -94,7 +94,7 @@ Details:
 
 ### Phase 4: MCP Server Integration
 
-#### T4: Integração de navegação e arestas federadas no Servidor MCP
+#### T4: Integração de navegação e arestas federadas no Servidor MCP [x]
 Where: internal/mcp/handlers.go
 Depends on: T3
 Tests: internal/mcp/mcp_test.go

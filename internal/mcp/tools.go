@@ -84,6 +84,11 @@ var (
 					"type":        "string",
 					"description": "Slug ou nome do repositório para contextualizar a travessia de vizinhos (opcional).",
 				},
+				"format": map[string]any{
+					"type":        "string",
+					"enum":        []string{"text", "json"},
+					"description": "Formato de saída: 'text' (padrão) ou 'json' estruturado com sinalização federada (opcional)",
+				},
 			},
 			"required": []string{"node_id"},
 		},

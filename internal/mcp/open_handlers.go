@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/deeplink"
+	"github.com/FelipeMiiller/my-memory/internal/federation"
 )
 
 // OpenNodeFunc assinatura para resolução do caminho de um nó a partir do nodeID
@@ -14,15 +16,17 @@ type OpenNodeFunc func(ctx context.Context, repo string, nodeID string) (resolve
 
 // OpenNodeResult define a estrutura de resposta para a ferramenta memory_open_node
 type OpenNodeResult struct {
-	NodeID    string             `json:"node_id"`
-	Path      string             `json:"path"`
-	App       string             `json:"app"`
-	Line      int                `json:"line,omitempty"`
-	Links     deeplink.DeepLinks `json:"links"`
-	TargetURI string             `json:"target_uri"`
-	Action    string             `json:"action"`
-	Success   bool               `json:"success"`
-	Message   string             `json:"message"`
+	NodeID      string             `json:"node_id"`
+	Path        string             `json:"path"`
+	App         string             `json:"app"`
+	Line        int                `json:"line,omitempty"`
+	Links       deeplink.DeepLinks `json:"links"`
+	TargetURI   string             `json:"target_uri"`
+	Action      string             `json:"action"`
+	Success     bool               `json:"success"`
+	Message     string             `json:"message"`
+	IsFederated bool               `json:"is_federated,omitempty"`
+	Vault       string             `json:"vault,omitempty"`
 }
 
 // NewMemoryOpenNodeHandler cria o executor para a ferramenta MCP memory_open_node
@@ -78,14 +82,32 @@ func NewMemoryOpenNodeHandler(resolveFn OpenNodeFunc, repoRoot string, vaultName
 
 		// 1. Resolução do caminho do nó
 		resolvedPath := nodeID
-		if resolveFn != nil {
+		effectiveRepoRoot := repoRoot
+		effectiveVaultName := vaultName
+		isFederated := false
+
+		if strings.HasPrefix(nodeID, "memory://") {
+			isFederated = true
+			gcfg, _ := config.LoadGlobalConfig()
+			var lcfg *config.Config
+			if repoRoot != "" {
+				lcfg, _, _ = config.LoadCascadingConfig(repoRoot)
+			}
+			resolved, err := federation.ResolveFederatedURI(nodeID, gcfg, lcfg)
+			if err != nil {
+				return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao resolver URI federada '%s': %v", nodeID, err), nil)
+			}
+			resolvedPath = resolved.AbsolutePath
+			effectiveRepoRoot = resolved.VaultPath
+			effectiveVaultName = resolved.VaultName
+		} else if resolveFn != nil {
 			if p, err := resolveFn(ctx, repo, nodeID); err == nil && p != "" {
 				resolvedPath = p
 			}
 		}
 
 		// 2. Geração dos links
-		links := deeplink.GenerateLinks(repoRoot, vaultName, resolvedPath, line)
+		links := deeplink.GenerateLinks(effectiveRepoRoot, effectiveVaultName, resolvedPath, line)
 
 		var targetURI string
 		switch strings.ToLower(app) {
@@ -104,7 +126,7 @@ func NewMemoryOpenNodeHandler(resolveFn OpenNodeFunc, repoRoot string, vaultName
 
 		// 3. Execução se solicitado modo 'open'
 		if action == "open" {
-			openedURI, err := deeplink.Open(resolvedPath, app, line, repoRoot, vaultName, launcher)
+			openedURI, err := deeplink.Open(resolvedPath, app, line, effectiveRepoRoot, effectiveVaultName, launcher)
 			if err != nil {
 				success = false
 				statusMsg = fmt.Sprintf("⚠️ Falha ao abrir no aplicativo '%s': %v", app, err)
@@ -119,6 +141,10 @@ func NewMemoryOpenNodeHandler(resolveFn OpenNodeFunc, repoRoot string, vaultName
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("### 🔗 Navegação e Deep Links: `%s`\n\n", nodeID))
 		sb.WriteString(fmt.Sprintf("- **Caminho Resolvido**: `%s`\n", resolvedPath))
+		if isFederated {
+			sb.WriteString(fmt.Sprintf("- **Cofre Alvo**: `%s`\n", effectiveVaultName))
+			sb.WriteString("- **Tipo**: `Federado (cross-vault)`\n")
+		}
 		sb.WriteString(fmt.Sprintf("- **Aplicativo Alvo**: `%s`\n", app))
 		if line > 0 {
 			sb.WriteString(fmt.Sprintf("- **Linha**: `%d`\n", line))
