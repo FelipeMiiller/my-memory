@@ -56,6 +56,7 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-031`](adr/031-semantic-drift-e-deteccao-de-desvio-codigo-memoria.md)** — Semantic Drift e Detecção de Desvio Código-Memória (`mem drift` e `memory_get_drift`)
 * **[`ADR-032`](adr/032-instalador-universal-one-liner.md)** — Instalador Universal One-Liner para Windows, Linux e macOS
 * **[`ADR-033`](adr/033-federated-central-vault-and-repo-identity.md)** — Arquitetura Federada de Vault Central e Identidade Imutável de Repositório (`repo_id`)
+* **[`ADR-034`](adr/034-protocolo-canonico-federado-e-wikilinks-cross-vault.md)** — Protocolo Canônico Federado e Wikilinks Cross-Vault (`memory://`)
 
 
 
