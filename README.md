@@ -22,7 +22,7 @@ O **My-Memory** resolve isso unificando **busca vetorial**, **grafo de conhecime
 
 ---
 
-## ⚡ Arquitetura em 4 Pilares
+## ⚡ Arquitetura em 5 Pilares
 
 ```
                                 [ Arquivos Markdown / Notas ]
@@ -60,7 +60,7 @@ O **My-Memory** resolve isso unificando **busca vetorial**, **grafo de conhecime
 2. **🔬 TurboQuant (Google DeepMind, ICLR 2026):** Implementação pioneira em Go da quantização de 4-bits com 32 reflexões ortogonais de Householder ($R^T R = I$). Reduz o consumo vetorial em **~88%** (de 3.072 para 388 bytes por chunk) mantendo fidelidade $> 99\%$.
 3. **🕸 Grafo Estilo Obsidian via SQL Recursivo:** Extrai conexões explícitas de notas (`[[links]]` e `#tags`), permitindo travessias relacionais, detecção de comunidades (LPA) e análise de raio de impacto em microssegundos.
 4. **🔌 Model Context Protocol (MCP) Nativo:** Conecta-se diretamente aos assistentes de codificação de IA via `stdio` (JSON-RPC 2.0) ou rede HTTP/SSE, expondo ferramentas de busca e expansão de contexto.
-5. **🏛️ Federação e Cofre Central de Conhecimento:** Vincula um Cofre Central de padrões corporativos (Google Drive / OneDrive para Obsidian) a repositórios satélites com `repo_id` criptográfico imutável, catálogo global (`~/.memory/config.yaml`), zero-credentials no Git e busca híbrida federada via RRF.
+5. **🏛️ Federação, Cofre Central e Wikilinks Cross-Vault:** Vincula um Cofre Central de padrões corporativos (Google Drive / OneDrive para Obsidian) a repositórios satélites com `repo_id` criptográfico imutável, catálogo global (`~/.memory/config.yaml`), zero-credentials no Git, busca híbrida federada via RRF e protocolo canônico universal `memory://<repo>/<path>` para resolução transparente de wikilinks cross-vault em editores e MCP.
 
 ---
 
@@ -170,7 +170,7 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 | 📖 [**`COMO_USAR.md`**](COMO_USAR.md) | **Desenvolvedores** | Manual prático de comandos CLI, exemplos de busca, configuração de PostgreSQL/SQLite e monitoramento em tempo real. |
 | 🔍 [**`COMO_FUNCIONA.md`**](COMO_FUNCIONA.md) | **Engenheiros & Arquitetos** | Explicação profunda da arquitetura, matemática do TurboQuant, algoritmo RRF, CTEs recursivas e ciclo de vida do cache. |
 | 🤖 [**`AGENT_INTEGRATION_GUIDE.md`**](docs/AGENT_INTEGRATION_GUIDE.md) | **Agentes de IA & Integrações** | Como integrar o My-Memory com Cursor, Claude Code, Copilot e Antigravity via MCP e regras `AGENTS.md`. |
-| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 31 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
+| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 34 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
 
 ---
 
@@ -179,13 +179,13 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 17 ferramentas para o ecossistema de IA:
 
 - `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional.
-- `memory_get_neighbors`: Expansão recursiva de nós e dependências conectadas via SQL recursivo (CTEs).
+- `memory_get_neighbors`: Expansão recursiva de nós e dependências conectadas via SQL recursivo (CTEs) com marcação `is_federated: true`.
 - `memory_find_path`: Descoberta do caminho mais curto entre duas notas via BFS bidirecional com pesos epistêmicos.
 - `memory_get_impact`: Análise de raio de destruição (*Blast Radius*) e dependentes reversos com risk scoring.
 - `memory_get_clusters`: Detecção de comunidades e módulos temáticos via LPA ponderado e modularidade Q.
 - `memory_get_hubs`: Identificação de God Nodes e nós líderes por grau ou PageRank ponderado.
 - `memory_get_insights`: Métricas globais da topologia da base de conhecimento (densidade, componentes, isolados).
-- `memory_inspect_node`: Inspeção cirúrgica de nós (in-links, out-links, chunks quantizados e status).
+- `memory_inspect_node`: Inspeção cirúrgica de nós (in-links, out-links com sinalização cross-vault, chunks quantizados e status).
 - `memory_doctor`: Auditoria de integridade do grafo com detecção de dead links e notas órfãs.
 - `memory_get_drift`: Auditoria de desvio semântico e divergência entre código e documentação.
 - `memory_write_note`: Criação de notas atômicas estruturadas com sincronização e indexação instantâneas.
@@ -194,7 +194,7 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 17 fer
 - `memory_pack_context`: Empacotamento de orçamento de contexto de tokens (Tier L0/L1/L2) com subgrafos Mermaid.
 - `memory_visualize_graph`: Exportação de visualizador interativo em HTML/SVG standalone com física de forças.
 - `memory_export_canvas`: Exportação bidirecional para o padrão Obsidian JSON Canvas 1.0 (.canvas).
-- `memory_open_node`: Abertura cirúrgica de arquivos no editor do desenvolvedor via deep links de IDE.
+- `memory_open_node`: Abertura cirúrgica de notas locais e canônicas federadas (`memory://`) no editor via deep links de IDE.
 
 ---
 
@@ -212,6 +212,7 @@ my-memory/
 │   ├── deeplink/       # Integração e deep linking com editores (VS Code, Cursor, Obsidian)
 │   ├── drift/          # Análise de divergência semântica e staleness entre git e documentação
 │   ├── embedder/       # Cliente Ollama e resolução dinâmica de modelos de embedding
+│   ├── federation/     # Federação multirrepositório, RRF e resolução de URIs canônicas memory://
 │   ├── graph/          # Algoritmos de grafo (LPA, modularidade Q, PageRank, Blast Radius, Inspector)
 │   ├── graphview/      # Visualizador interativo HTML/SVG standalone com física de forças
 │   ├── mcp/            # Servidor Model Context Protocol com 17 tools (stdio + HTTP/SSE)

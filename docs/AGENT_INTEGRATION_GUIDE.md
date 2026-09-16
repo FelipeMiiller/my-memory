@@ -202,7 +202,7 @@ embedding:
 | `mem watch` | Monitora continuamente o sistema de arquivos e reindexa notas em tempo real. | `mem watch --debounce 500` |
 | `mem hook install` | Instala Git pre-commit hook para indexação automática prévia ao commit. | `mem hook install` |
 | `mem pack` | Empacota subgrafo conexo centrado em nota raiz com controle rígido de tokens. | `mem pack "docs/auth.md" --max-tokens 3000` |
-| `mem open` | Abre nota diretamente no Obsidian ou VS Code com cursor opcional na linha. | `mem open "docs/auth.md" --app vscode --line 42` |
+| `mem open` | Abre nota local ou federada (`memory://`) diretamente no Obsidian ou VS Code com cursor opcional na linha. | `mem open "memory://central/standards/oauth2" --app obsidian` |
 | `mem drift` | Diagnostica desvio entre commits de código e documentação (Semantic Drift). | `mem drift --since HEAD~5 --strict` |
 | `mem mcp` | Inicia o servidor MCP via stdio (para IDEs) ou HTTP/SSE com federação RRF. | `mem mcp --port 38400` |
 
@@ -215,7 +215,7 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | Ferramenta MCP | Quando o Agente deve chamar | Parâmetros Principais |
 | :--- | :--- | :--- |
 | `memory_search` | Sempre que precisar recuperar contexto semântico, arquitetural ou regras (retorna proveniência `[local]` e `[central]`). | `query` (string), `limit` (int), `mode` ("hybrid" \| "vector" \| "fts") |
-| `memory_get_neighbors` | Para inspecionar dependências e conexões diretas de um arquivo ou conceito. | `node_id` (string), `depth` (int) |
+| `memory_get_neighbors` | Para inspecionar dependências e conexões diretas de um arquivo ou conceito (com flag `is_federated: true` em conexões cross-vault). | `node_id` (string), `max_depth` (int), `format` ("text" \| "json") |
 | `memory_get_impact` | Antes de refatorar, excluir ou renomear nós para avaliar o raio de destruição. | `node_id` (string), `depth` (int) |
 | `memory_get_clusters` | Para entender a divisão macro de módulos e domínios do repositório. | `min_size` (int) |
 | `memory_get_hubs` | Para identificar as notas e arquivos mais centrais e influentes do sistema. | `top` (int), `algorithm` ("pagerank" \| "degree") |
@@ -226,10 +226,10 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | `memory_compile_note` | Para consolidar tópicos dispersos em uma síntese única com fontes. | `topic`, `out_path`, `limit` |
 | `memory_visualize_graph`| Para renderizar o grafo de conhecimento em HTML standalone interativo. | `root_node`, `depth` |
 | `memory_export_canvas` | Para exportar subgrafo para o formato visual Obsidian JSON Canvas 1.0. | `root_node` (string), `out_path` (string), `depth` (int) |
-| `memory_inspect_node` | Para inspeção cirúrgica em 3 colunas (in-links, nó e out-links) com zero file reads. | `node_id` (string), `max_content_length` (int) |
+| `memory_inspect_node` | Para inspeção cirúrgica em 3 colunas (in-links, nó e out-links com sinalização cross-vault) com zero file reads. | `node_id` (string), `max_content_length` (int) |
 | `memory_find_path` | Para rastrear a cadeia de dependências ou menor caminho epistêmico entre dois nós. | `source` (string), `target` (string), `max_depth` (int), `directed` (bool), `mode` ("epistemic" \| "hops") |
 | `memory_pack_context` | Para extrair e empacotar um subgrafo conexo com limite rígido de tokens em prompt único. | `root_node` (string), `max_depth` (int), `max_tokens` (int), `direction` ("both" \| "outbound" \| "inbound") |
-| `memory_open_node` | Para gerar links acionáveis (`obsidian://`, `vscode://`) ou solicitar abertura de nota no editor. | `node_id` (string), `app` ("obsidian" \| "vscode" \| "system"), `line` (int), `action` ("links_only" \| "open") |
+| `memory_open_node` | Para gerar links acionáveis (`obsidian://`, `vscode://`) ou solicitar abertura de nota local ou federada (`memory://`) no editor. | `node_id` (string), `app` ("obsidian" \| "vscode" \| "system"), `line` (int), `action` ("links_only" \| "open") |
 | `memory_get_drift` | Para identificar desvios entre código recente e notas, além de código órfão sem decisões. | `since` (string), `threshold` (float), `include_uncovered` (bool) |
 
 ---

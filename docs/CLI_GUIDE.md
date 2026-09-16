@@ -697,5 +697,35 @@ mem repos
 * Cada repositório recebe um identificador criptográfico imutável (`repo_id: repo_<12-hex-chars>`) gerado automaticamente no `mem init`.
 * O `.memory/config.yaml` local **nunca** armazena senhas, URLs de banco ou caminhos absolutos do host, garantindo que o versionamento via Git seja 100% limpo e seguro para commits públicos ou equipes corporativas.
 
+### 5. Navegação em Editores e Wikilinks Federados (`mem open`)
+Abre notas locais ou notas federadas cross-vault no editor de preferência do usuário (Obsidian, VS Code ou aplicativo padrão do sistema operacional):
+
+```bash
+# Abrir nota local no aplicativo padrão ou configurado:
+mem open "docs/architecture.md"
+
+# Abrir nota em linha específica no VS Code:
+mem open "docs/spec.md" --app vscode --line 42
+
+# Abrir nota canônica do Cofre Central no Obsidian:
+mem open "memory://central/standards/oauth2" --app obsidian
+
+# Abrir nota em repositório satélite registrado no catálogo global:
+mem open "memory://payments-service/docs/api" --app vscode
+
+# Simular comando de abertura sem executar processo (dry-run):
+mem open "memory://central/architecture/pgvector" --dry-run
+
+# Obter links canônicos e metadados de resolução em JSON estruturado:
+mem open "memory://central/standards/oauth2" --json
+```
+
+Parâmetros suportados:
+* `--app <obsidian|vscode|system>`: Define o aplicativo alvo da abertura (padrão: `obsidian`).
+* `--line <número>`: Posiciona o cursor na linha indicada (suportado no VS Code).
+* `--dry-run`: Simula a abertura e exibe comando de SO e URI gerada sem iniciar o editor.
+* `--json`: Retorna objeto JSON com campos `uri`, `vault`, `file`, `path`, `deep_link` e `is_federated: true`.
+
+
 
 
