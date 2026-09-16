@@ -4,7 +4,7 @@
 
 | Task | Requirement | Unit / Integration Test | Target File |
 | :--- | :--- | :--- | :--- |
-| T1 | FEDLINK-01, FEDLINK-02 | `internal/parser/wikilinks_test.go` | `internal/parser/wikilinks.go` |
+| T1 [x] | FEDLINK-01, FEDLINK-02 | `internal/parser/parser_test.go` | `internal/parser/wikilinks.go` |
 | T2 | FEDLINK-01, FEDLINK-03 | `internal/federation/resolver_test.go` | `internal/federation/resolver.go` |
 | T3 | FEDLINK-03, FEDLINK-04 | `cmd/mem/open_test.go` | `cmd/mem/open.go` |
 | T4 | FEDLINK-01, FEDLINK-05 | `internal/mcp/mcp_test.go` | `internal/mcp/handlers.go` |
@@ -49,10 +49,10 @@ graph TD
 
 ### Phase 1: Canonical Syntax & Wikilink Parser
 
-#### T1: Implementar suporte a URIs memory:// no parser de wikilinks
+#### T1: Implementar suporte a URIs memory:// no parser de wikilinks [x]
 Where: internal/parser/wikilinks.go
 Depends on: none
-Tests: internal/parser/wikilinks_test.go
+Tests: internal/parser/parser_test.go
 Gate: go test -v ./internal/parser/...
 Details:
 - Adicionar campos `IsFederated bool`, `FederatedRepo string`, `FederatedPath string` na struct `LinkTarget`.
