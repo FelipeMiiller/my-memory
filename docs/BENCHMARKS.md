@@ -1,5 +1,8 @@
 # Relatório de Benchmarks de Performance: My-Memory
 
+> **Última aferição**: 2026-09-16 — `go test -bench=. -benchmem -benchtime=2s` em `internal/turboquant`, `internal/store`, `internal/parser`.
+> **CPU**: Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz (28 threads lógicas), Windows amd64, Go 1.24+.
+
 Este documento consolida as medições empíricas da suíte de micro-benchmarks do **My-Memory**, aferindo throughput, latência por operação e alocação de memória para os componentes centrais da arquitetura: **TurboQuant 4-bit**, **Reciprocal Rank Fusion (RRF)**, **Hashing SHA-256** e **Parsing/Chunking de Markdown**.
 
 ---
@@ -15,7 +18,7 @@ Este documento consolida as medições empíricas da suíte de micro-benchmarks 
 
 ### 1.2. Protocolo de Medição
 As medições foram executadas através de duas abordagens complementares e reproduzíveis:
-1. **Suíte Padrão Go (`testing.B`)**: `go test -bench="." -benchmem ./internal/...`
+1. **Suíte Padrão Go (`testing.B`)**: `go test -bench=. -benchmem ./internal/turboquant/... ./internal/store/... ./internal/parser/...`
 2. **CLI Integrado Programático**: `mem bench` (medições de ciclo com aquecimento, isolamento de `runtime.GC` e amostragem estatística)
 
 ---
@@ -26,15 +29,16 @@ As medições foram executadas através de duas abordagens complementares e repr
 
 | Operação | Dimensão | Latência | Throughput Estimado | Memória / Op | Alocs / Op | Compressão |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Quantização 4-bit** (`Quantize`) | 768 floats | **56.6 µs/op** | ~17.600 vetores/s | 3.504 B/op | 3 allocs/op | **8x menor** |
-| **Desquantização 4-bit** (`Dequantize`) | 768 floats | **52.6 µs/op** | ~19.000 vetores/s | 6.144 B/op | 2 allocs/op | - |
-| **Produto Escalar 4-bit** (`DotProduct`) | 768 floats | **1.12 µs/op** | **~890.000 ops/s** | **0 B/op** | **0 allocs/op** | **Zero allocs** |
-| **Produto Escalar Float32** (`Exact`) | 768 floats | **301.8 ns/op** | ~3.310.000 ops/s | **0 B/op** | **0 allocs/op** | Linha de base |
+| **Quantização 4-bit** (`Quantize`) | 768 floats | **55.74 µs/op** | ~17.940 vetores/s | 3.504 B/op | 3 allocs/op | **8x menor** |
+| **Desquantização 4-bit** (`Dequantize`) | 768 floats | **52.11 µs/op** | ~19.190 vetores/s | 6.144 B/op | 2 allocs/op | - |
+| **Produto Escalar 4-bit** (`DotProduct`) | 768 floats | **1.09 µs/op** | **~917.000 ops/s** | **0 B/op** | **0 allocs/op** | **Zero allocs** |
+| **Produto Escalar Float32** (`Exact`) | 768 floats | **297.8 ns/op** | ~3.360.000 ops/s | **0 B/op** | **0 allocs/op** | Linha de base |
 
 #### Destaques de Eficiência:
 - **Redução de Memória:** Vetores de 768 floats32 ocupam **3.072 bytes**; após quantização 4-bit ocupam apenas **384 bytes**, gerando **87,5% de economia de espaço em disco e RAM**.
 - **Fidelidade Algorítmica:** Erro Médio Absoluto (MAE) no produto escalar de apenas **0.00338** (distribuição normalizada unitária), comprovando a conservação de distância pelas rotações ortogonais de Householder.
 - **Zero Alocações na Busca:** Tanto o produto escalar 4-bit quanto o float32 rodam com **0 bytes e 0 alocações por operação**, permitindo saturação máxima de cache L1/L2 de CPU.
+- **Custo do 4-bit vs Float32:** O produto escalar quantizado é ~3.66× mais lento que o float32 (1.09 µs vs 297.8 ns), mas oferece 8× de compressão — troca favorável para workloads onde memória é gargalo.
 
 ---
 
@@ -44,8 +48,8 @@ O algoritmo RRF unifica múltiplos fluxos ranqueados (léxico FTS5/tsvector, sem
 
 | Cenário de Entrada | Itens Candidatos | Latência | Memória / Op | Alocs / Op | Throughput |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **RRF Médio** | 100 itens (2 fontes) | **153.6 µs/op** | 87.308 B/op | 1.219 allocs/op | **~6.500 queries/s** |
-| **RRF Pesado** | 1.000 itens (2 fontes) | **1.87 ms/op** | 926.081 B/op | 14.270 allocs/op | **~530 queries/s** |
+| **RRF Médio** | 100 itens (2 fontes) | **155.5 µs/op** | 92.613 B/op | 1.213 allocs/op | **~6.430 queries/s** |
+| **RRF Pesado** | 1.000 itens (2 fontes) | **1.89 ms/op** | 988.199 B/op | 14.261 allocs/op | **~528 queries/s** |
 
 #### Conclusão:
 A fusão RRF em Go atende com folga o teto de latência interativa (< 5 ms) mesmo em bases com 1.000 itens candidatos por consulta, operando de forma 100% determinística e agnóstica de modelo de embeddings.
@@ -58,12 +62,12 @@ O sistema de cache incremental do `my-memory` calcula hashes SHA-256 do conteúd
 
 | Tamanho do Payload | Latência | Throughput | Memória / Op | Alocs / Op |
 | :--- | :--- | :--- | :--- | :--- |
-| **1 KB** (Nota curta) | **3.67 µs/op** | **292.90 MB/s** | 128 B/op | 2 allocs/op |
-| **64 KB** (Nota média / longa) | **230.4 µs/op** | **298.60 MB/s** | 128 B/op | 2 allocs/op |
-| **1 MB** (Documento consolidado) | **3.41 ms/op** | **314.45 MB/s** | 128 B/op | 2 allocs/op |
+| **1 KB** (Nota curta) | **3.61 µs/op** | **297.87 MB/s** | 128 B/op | 2 allocs/op |
+| **64 KB** (Nota média / longa) | **214.1 µs/op** | **321.30 MB/s** | 128 B/op | 2 allocs/op |
+| **1 MB** (Documento consolidado) | **3.31 ms/op** | **324.69 MB/s** | 128 B/op | 2 allocs/op |
 
 #### Conclusão:
-O throughput consistente acima de **290 MB/s** garante que repositórios com centenas de notas sejam verificados em milissegundos, evitando re-geração redundante de embeddings e chamadas caras a LLMs/Ollama.
+O throughput consistente acima de **295 MB/s** garante que repositórios com centenas de notas sejam verificados em milissegundos, evitando re-geração redundante de embeddings e chamadas caras a LLMs/Ollama.
 
 ---
 
@@ -71,8 +75,8 @@ O throughput consistente acima de **290 MB/s** garante que repositórios com cen
 
 | Tarefa | Entrada | Latência | Throughput | Memória / Op | Alocs / Op |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Extração de Conexões** (`[[links]]`, `#tags`, relações tipadas) | Documento Markdown complexo | **785.1 µs/op** | **5.46 MB/s** | 45.541 B/op | 286 allocs/op |
-| **Chunking de Texto** (janela de 200 palavras, 30 overlap) | Documento Markdown complexo | **111.5 µs/op** | **76.80 MB/s** | 78.849 B/op | 16 allocs/op |
+| **Extração de Conexões** (`[[links]]`, `#tags`, relações tipadas) | Documento Markdown complexo | **597.4 µs/op** | **7.17 MB/s** | 66.980 B/op | 292 allocs/op |
+| **Chunking de Texto** (janela de 200 palavras, 30 overlap) | Documento Markdown complexo | **111.6 µs/op** | **76.80 MB/s** | 78.848 B/op | 16 allocs/op |
 
 ---
 
@@ -82,13 +86,13 @@ O throughput consistente acima de **290 MB/s** garante que repositórios com cen
 Para executar a suíte formal de benchmarks com relatórios detalhados de memória:
 ```bash
 # Executa todos os micro-benchmarks do repositório
-go test -bench="." -benchmem ./internal/turboquant ./internal/store ./internal/parser
+go test -bench=. -benchmem ./internal/turboquant/... ./internal/store/... ./internal/parser/...
 
 # Apenas quantização TurboQuant
-go test -bench="BenchmarkQuantize" -benchmem ./internal/turboquant
+go test -bench=BenchmarkQuantize -benchmem ./internal/turboquant/...
 
 # Apenas produto escalar 4-bit vs float32
-go test -bench="BenchmarkDotProduct" -benchmem ./internal/turboquant
+go test -bench=BenchmarkDotProduct -benchmem ./internal/turboquant/...
 ```
 
 ### Via CLI Integrada

@@ -192,4 +192,3 @@ func TestTruncateContent_UTF8Multibyte(t *testing.T) {
 		t.Fatalf("esperado prefixo '%s', obtido '%s'", expectedPrefix, truncated)
 	}
 }
-

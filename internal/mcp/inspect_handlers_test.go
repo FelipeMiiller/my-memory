@@ -209,3 +209,51 @@ func TestMemoryInspectNodeHandler_NilFuncFallback(t *testing.T) {
 	}
 }
 
+func TestMemoryInspectNodeHandler_FederatedOutbound(t *testing.T) {
+	ctx := context.Background()
+
+	mockFunc := func(ctx context.Context, repo, nodeID string, maxContentLen int) (*graph.TriptychView, error) {
+		return &graph.TriptychView{
+			Target: graph.NodeSummary{
+				ID:    "service-impl",
+				Title: "Service Implementation",
+				Type:  "note",
+			},
+			Inbound: []graph.InboundLink{},
+			Outbound: []graph.OutboundLink{
+				{
+					TargetID:     "memory://central/standards/oauth2",
+					Title:        "memory://central/standards/oauth2",
+					Type:         "note",
+					Relation:     "implements",
+					IsFederated:  true,
+					CanonicalURI: "memory://central/standards/oauth2",
+					Exists:       true,
+				},
+			},
+			TotalInbound:  0,
+			TotalOutbound: 1,
+			GeneratedAt:   time.Now(),
+		}, nil
+	}
+
+	handler := NewMemoryInspectNodeHandler(mockFunc)
+	args := json.RawMessage(`{"node_id": "service-impl"}`)
+	res, err := handler(ctx, args)
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+
+	callRes, ok := res.(CallToolResult)
+	if !ok || len(callRes.Content) == 0 {
+		t.Fatalf("resultado inválido: %+v", res)
+	}
+
+	text := callRes.Content[0].Text
+	if !strings.Contains(text, "Federado (is_federated: true)") {
+		t.Errorf("esperava indicador 'Federado (is_federated: true)' no outbound, obteve:\n%s", text)
+	}
+	if !strings.Contains(text, "memory://central/standards/oauth2") {
+		t.Errorf("esperava targetID federado, obteve:\n%s", text)
+	}
+}

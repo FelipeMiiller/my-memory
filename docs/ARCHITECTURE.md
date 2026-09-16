@@ -14,6 +14,7 @@ O **My-Memory** é uma engine de memória semântica e relacional local desenvol
 4. **CodeGraph**: Monitoramento contínuo em tempo real com file watcher reativo, contexto cirúrgico para agentes e análise de impacto.
 5. **TurboQuant (Google DeepMind, ICLR 2026)**: Compressão vetorial extrema em 4-bits com estimador de produto escalar não-viesado.
 6. **OpenViking (ByteDance/Volcengine)**: Carregamento progressivo em 3 camadas (L0 Micro-Abstract, L1 Overview estrutural, L2 Detalhes) e Taxonomia Tripartida (`resource`, `memory`, `skill`).
+7. **Atlas (EPAM/Open Knowledge Format - OKF v0.2)**: Arquitetura federada de cofre central (*Global Brain*) vs repositórios satélites (*Project Brains*), governança determinística de schemas e ciclo de vida staging.
 
 ---
 
@@ -158,6 +159,40 @@ O pacote `internal/graphview` compila a topologia do grafo em um artefato HTML/S
 
 * **Indexação Contínua (`mem watch`):** Monitoramento reativo em segundo plano com debouncing de 500ms, reindexação cirúrgica e remoção instantânea de arquivos deletados.
 * **Linter de Grafo (`mem doctor`):** Diagnóstico automático de links quebrados (*dead links*), notas órfãs, loops reflexivos (*self-loops*) e cálculo de Health Score (0-100), com reparo automático (`--fix`).
+
+---
+
+## 🏛️ Arquitetura Federada e Cofre Central de Conhecimento (ADR-033)
+
+Para conectar o conhecimento corporativo transversal (padrões de engenharia, RFCs, diretrizes de segurança) ao código local de múltiplos repositórios:
+
+```
+                      [ ~/.memory/config.yaml ]
+                   (Configuração Global Soberana)
+                                 │
+           ┌─────────────────────┴─────────────────────┐
+           ▼                                           ▼
+ [ Central Vault (Google Drive/OneDrive) ]   [ Repositório Local (Git) ]
+ ├── standards/, architecture/, ...          ├── .memory/config.yaml (repo_id)
+ ├── templates/ (ADR, RFC, Runbook, Spec)    ├── docs/adr/, .specs/, src/
+ └── .memory/storage/memory.db (SQLite)      └── .memory/memory.db (SQLite)
+           │                                           │
+           └─────────────────────┬─────────────────────┘
+                                 ▼
+                     [ FederatedSearcher (RRF) ]
+                     - Consultas Concorrentes
+                     - Proveniência [local] vs [central]
+                     - Fallback Não-Bloqueante
+                                 │
+                                 ▼
+                     [ Servidor MCP / CLI Search ]
+```
+
+1. **Identidade Criptográfica Imutável (`repo_id`)**: Formato `repo_<12-hex-chars>` gerado no `mem init` e persistido em `.memory/config.yaml`.
+2. **Zero-Credentials no Git**: A configuração local do repositório nunca armazena senhas de banco ou URLs. Toda a infraestrutura herda com segurança de `~/.memory/config.yaml`.
+3. **Persistência Estável no PostgreSQL**: Um único banco estável atende todos os repositórios, com separação determinística por `repo_id` (e `repo_central`).
+4. **Auto-Bootstrap de Cofre Virgem**: Cria automaticamente 11 pastas canônicas, templates Obsidian e o MOC `README.md` raiz.
+5. **Busca Federada com RRF**: Unifica resultados locais e centrais com marcação de proveniência (`[local]` e `[central]`) e tolerância a desconexão de nuvem.
 
 ---
 

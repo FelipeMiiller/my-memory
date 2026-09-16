@@ -356,4 +356,51 @@ func TestSQLite_InsertDocumentWithMeta(t *testing.T) {
 	}
 }
 
+func TestSQLite_GetDocumentsMetadata(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "staleness_meta_test.db")
+	database, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
 
+	ctx := context.Background()
+
+	// Initial empty
+	meta, err := GetDocumentsMetadata(ctx, database)
+	if err != nil {
+		t.Fatalf("GetDocumentsMetadata em banco vazio falhou: %v", err)
+	}
+	if len(meta) != 0 {
+		t.Errorf("Esperava 0 documentos, obteve %d", len(meta))
+	}
+
+	// Insert docs
+	now := time.Now().Unix()
+	p1 := filepath.Clean("notes/doc1.md")
+	p2 := filepath.Clean("notes/doc2.md")
+	if err := InsertDocument(ctx, database, "doc-1", p1, "Doc 1", now, "hash1"); err != nil {
+		t.Fatalf("InsertDocument falhou: %v", err)
+	}
+	if err := InsertDocument(ctx, database, "doc-2", p2, "Doc 2", now+10, "hash2"); err != nil {
+		t.Fatalf("InsertDocument falhou: %v", err)
+	}
+
+	meta, err = GetDocumentsMetadata(ctx, database)
+	if err != nil {
+		t.Fatalf("GetDocumentsMetadata falhou: %v", err)
+	}
+	if len(meta) != 2 {
+		t.Fatalf("Esperava 2 documentos, obteve %d", len(meta))
+	}
+
+	m1, ok1 := meta[p1]
+	if !ok1 || m1.ID != "doc-1" || m1.UpdatedAt != now || m1.ContentHash != "hash1" {
+		t.Errorf("Documento 1 inconsistente: %+v", m1)
+	}
+
+	m2, ok2 := meta[p2]
+	if !ok2 || m2.ID != "doc-2" || m2.UpdatedAt != now+10 || m2.ContentHash != "hash2" {
+		t.Errorf("Documento 2 inconsistente: %+v", m2)
+	}
+}

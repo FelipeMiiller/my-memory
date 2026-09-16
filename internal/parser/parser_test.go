@@ -337,4 +337,147 @@ func TestExtractMicroAbstract_Fallback(t *testing.T) {
 	}
 }
 
+func TestParseWikilink_Federated(t *testing.T) {
+	tests := []struct {
+		name         string
+		raw          string
+		isEmbed      bool
+		wantTarget   string
+		wantRepo     string
+		wantPath     string
+		wantAnchor   string
+		wantAlias    string
+		wantRelation string
+		wantFed      bool
+	}{
+		{
+			name:         "simple central link",
+			raw:          "memory://central/standards/oauth2",
+			wantTarget:   "memory://central/standards/oauth2",
+			wantRepo:     "central",
+			wantPath:     "standards/oauth2",
+			wantRelation: "links_to",
+			wantFed:      true,
+		},
+		{
+			name:         "central link with alias",
+			raw:          "memory://central/standards/oauth2|Diretriz de Auth",
+			wantTarget:   "memory://central/standards/oauth2",
+			wantRepo:     "central",
+			wantPath:     "standards/oauth2",
+			wantAlias:    "Diretriz de Auth",
+			wantRelation: "links_to",
+			wantFed:      true,
+		},
+		{
+			name:         "central link with anchor",
+			raw:          "memory://repo_central/architecture/database#Postgres",
+			wantTarget:   "memory://repo_central/architecture/database",
+			wantRepo:     "repo_central",
+			wantPath:     "architecture/database",
+			wantAnchor:   "Postgres",
+			wantRelation: "links_to",
+			wantFed:      true,
+		},
+		{
+			name:         "typed epistemic relation prefix",
+			raw:          "implements:memory://central/standards/microservices",
+			wantTarget:   "memory://central/standards/microservices",
+			wantRepo:     "central",
+			wantPath:     "standards/microservices",
+			wantRelation: "implements",
+			wantFed:      true,
+		},
+		{
+			name:         "satellite repo by id with block",
+			raw:          "memory://repo_a1b2c3d4e5f6/docs/api#^sec1|Contrato",
+			wantTarget:   "memory://repo_a1b2c3d4e5f6/docs/api",
+			wantRepo:     "repo_a1b2c3d4e5f6",
+			wantPath:     "docs/api",
+			wantAlias:    "Contrato",
+			wantRelation: "links_to",
+			wantFed:      true,
+		},
+		{
+			name:         "traditional local link not federated",
+			raw:          "implements:Arquitetura#Visao|Nova Arquitetura",
+			wantTarget:   "Arquitetura",
+			wantAnchor:   "Visao",
+			wantAlias:    "Nova Arquitetura",
+			wantRelation: "implements",
+			wantFed:      false,
+		},
+	}
 
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ParseWikilink(tt.raw, tt.isEmbed)
+			if got.IsFederated != tt.wantFed {
+				t.Errorf("IsFederated = %v, want %v", got.IsFederated, tt.wantFed)
+			}
+			if got.Target != tt.wantTarget {
+				t.Errorf("Target = %q, want %q", got.Target, tt.wantTarget)
+			}
+			if got.FederatedRepo != tt.wantRepo {
+				t.Errorf("FederatedRepo = %q, want %q", got.FederatedRepo, tt.wantRepo)
+			}
+			if got.FederatedPath != tt.wantPath {
+				t.Errorf("FederatedPath = %q, want %q", got.FederatedPath, tt.wantPath)
+			}
+			if got.Anchor != tt.wantAnchor {
+				t.Errorf("Anchor = %q, want %q", got.Anchor, tt.wantAnchor)
+			}
+			if got.Alias != tt.wantAlias {
+				t.Errorf("Alias = %q, want %q", got.Alias, tt.wantAlias)
+			}
+			if got.Relation != tt.wantRelation {
+				t.Errorf("Relation = %q, want %q", got.Relation, tt.wantRelation)
+			}
+		})
+	}
+}
+
+func TestExtractConnections_Federated(t *testing.T) {
+	md := `
+# Serviço de Usuários
+
+Este serviço [[implements:memory://central/standards/user-service]] e segue as diretrizes em [[memory://central/security/jwt#Tokens|Diretriz de Tokens]].
+Também se conecta ao [[ServicoLocal]] e [[memory://repo_998877665544/docs/contract]].
+`
+	conn := ExtractConnections(md)
+
+	if len(conn.Links) != 4 {
+		t.Fatalf("Esperava 4 links, obteve %d", len(conn.Links))
+	}
+
+	// Verifica se OutgoingLinks contém as URIs canônicas
+	hasCentral := false
+	hasLocal := false
+	hasSatellite := false
+	for _, out := range conn.OutgoingLinks {
+		if out == "memory://central/standards/user-service" {
+			hasCentral = true
+		}
+		if out == "ServicoLocal" {
+			hasLocal = true
+		}
+		if out == "memory://repo_998877665544/docs/contract" {
+			hasSatellite = true
+		}
+	}
+	if !hasCentral || !hasLocal || !hasSatellite {
+		t.Errorf("OutgoingLinks não conteve todos os destinos esperados: %v", conn.OutgoingLinks)
+	}
+
+	// Verifica se a aresta tipada foi criada com relation implements
+	hasImplementsEdge := false
+	for _, edge := range conn.Edges {
+		if edge.Target == "memory://central/standards/user-service" && edge.Relation == "implements" {
+			hasImplementsEdge = true
+			break
+		}
+	}
+	if !hasImplementsEdge {
+		t.Errorf("Esperava aresta implements para memory://central/standards/user-service, arestas: %+v", conn.Edges)
+	}
+}

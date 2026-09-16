@@ -35,14 +35,17 @@ type EdgeConnection struct {
 
 // LinkTarget representa a dissecação completa de um link estilo Obsidian
 type LinkTarget struct {
-	Raw       string `json:"raw"`
-	Target    string `json:"target"`             // Nome da nota de destino normalizado (ex: "Arquitetura")
-	Relation  string `json:"relation,omitempty"` // Tipo da relação ("implements", "depends_on", "links_to", etc)
-	Anchor    string `json:"anchor,omitempty"`   // Cabeçalho / seção (ex: "Visão Geral")
-	BlockID   string `json:"block_id,omitempty"` // Identificador de bloco (ex: "^c182")
-	Alias     string `json:"alias,omitempty"`    // Rótulo ou texto de exibição (ex: "Visão")
-	IsEmbed   bool   `json:"is_embed"`           // Verdadeiro se for ![[...]]
-	IsSameDoc bool   `json:"is_same_doc"`        // Verdadeiro se for link interno [[#Secao]]
+	Raw           string `json:"raw"`
+	Target        string `json:"target"`                   // Nome da nota de destino normalizado (ex: "Arquitetura" ou "memory://central/standards/auth")
+	Relation      string `json:"relation,omitempty"`       // Tipo da relação ("implements", "depends_on", "links_to", etc)
+	Anchor        string `json:"anchor,omitempty"`         // Cabeçalho / seção (ex: "Visão Geral")
+	BlockID       string `json:"block_id,omitempty"`       // Identificador de bloco (ex: "^c182")
+	Alias         string `json:"alias,omitempty"`          // Rótulo ou texto de exibição (ex: "Visão")
+	IsEmbed       bool   `json:"is_embed"`                 // Verdadeiro se for ![[...]]
+	IsSameDoc     bool   `json:"is_same_doc"`              // Verdadeiro se for link interno [[#Secao]]
+	IsFederated   bool   `json:"is_federated,omitempty"`   // Verdadeiro se for link federado cross-vault (memory://)
+	FederatedRepo string `json:"federated_repo,omitempty"` // Identificador do vault alvo (ex: "central", "repo_central", "repo_xxx")
+	FederatedPath string `json:"federated_path,omitempty"` // Caminho relativo do documento no vault alvo (ex: "standards/oauth2")
 }
 
 // ExtractedConnections consolida conexões extraídas do Markdown e frontmatter
@@ -107,6 +110,7 @@ func ParseWikilink(raw string, isEmbed bool) LinkTarget {
 	}
 
 	// 3. Extrai relação por prefixo: [[relation:Target]] ou [[rel:relation:Target]]
+	// Cuidado: esquemas de URI como memory:// não devem ser confundidos com relações!
 	colonIdx := strings.IndexByte(targetNote, ':')
 	if colonIdx != -1 {
 		prefix := strings.ToLower(strings.TrimSpace(targetNote[:colonIdx]))
@@ -114,12 +118,15 @@ func ParseWikilink(raw string, isEmbed bool) LinkTarget {
 		if prefix == "rel" {
 			c2 := strings.IndexByte(rest, ':')
 			if c2 != -1 {
-				lt.Relation = strings.ToLower(strings.TrimSpace(rest[:c2]))
-				targetNote = strings.TrimSpace(rest[c2+1:])
+				relCandidate := strings.ToLower(strings.TrimSpace(rest[:c2]))
+				if relCandidate != "memory" {
+					lt.Relation = relCandidate
+					targetNote = strings.TrimSpace(rest[c2+1:])
+				}
 			} else {
 				lt.Relation = strings.ToLower(rest)
 			}
-		} else if IsKnownRelation(prefix) {
+		} else if prefix != "memory" && IsKnownRelation(prefix) {
 			lt.Relation = prefix
 			targetNote = rest
 		}
@@ -135,10 +142,30 @@ func ParseWikilink(raw string, isEmbed bool) LinkTarget {
 		}
 	}
 
-	lt.Target = strings.Trim(targetNote, " \\/\r\n\t")
-	if lt.Target == "..." || lt.Target == "." {
-		lt.Target = ""
+	// 5. Detecta e decompõe URIs canônicas federadas memory://<repo>/<path>
+	if strings.HasPrefix(targetNote, "memory://") {
+		lt.IsFederated = true
+		uriRest := strings.TrimPrefix(targetNote, "memory://")
+		slashIdx := strings.IndexByte(uriRest, '/')
+		if slashIdx != -1 {
+			lt.FederatedRepo = strings.TrimSpace(uriRest[:slashIdx])
+			lt.FederatedPath = strings.Trim(uriRest[slashIdx+1:], " \\/\r\n\t")
+		} else {
+			lt.FederatedRepo = strings.TrimSpace(uriRest)
+			lt.FederatedPath = ""
+		}
+		if lt.FederatedPath != "" {
+			lt.Target = "memory://" + lt.FederatedRepo + "/" + lt.FederatedPath
+		} else {
+			lt.Target = "memory://" + lt.FederatedRepo
+		}
+	} else {
+		lt.Target = strings.Trim(targetNote, " \\/\r\n\t")
+		if lt.Target == "..." || lt.Target == "." {
+			lt.Target = ""
+		}
 	}
+
 	return lt
 }
 

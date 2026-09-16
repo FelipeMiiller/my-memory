@@ -2,9 +2,9 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
 
 permissions:
   contents: read
@@ -99,13 +99,25 @@ jobs:
       - name: Run Watcher Tests
         run: go test -v -cover ./internal/watcher/...
 
+      - name: Run Auto-Wiring Tests
+        run: go test -v -cover ./internal/autowire/...
+
+      - name: Run Deep Link Tests
+        run: go test -v -cover ./internal/deeplink/...
+
+      - name: Run Staleness Tests
+        run: go test -v -cover ./internal/staleness/...
+
+      - name: Run Semantic Drift Tests
+        run: go test -v -cover ./internal/drift/...
+
       - name: Run CLI Tests
         run: go test -v -cover ./cmd/mem/...
 
       - name: Run All Pure Tests with Coverage Report (Ubuntu)
         if: runner.os == 'Linux'
         run: |
-          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/... ./internal/store/... ./internal/canvas/... ./internal/repo/... ./internal/graph/... ./internal/graphview/... ./internal/embedder/... ./internal/compiler/... ./internal/config/... ./internal/watcher/... ./cmd/mem/...
+          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/... ./internal/store/... ./internal/canvas/... ./internal/repo/... ./internal/graph/... ./internal/graphview/... ./internal/embedder/... ./internal/compiler/... ./internal/config/... ./internal/watcher/... ./internal/autowire/... ./internal/deeplink/... ./internal/staleness/... ./internal/drift/... ./cmd/mem/...
 
       - name: Upload Coverage Artifact (Ubuntu)
         if: runner.os == 'Linux'

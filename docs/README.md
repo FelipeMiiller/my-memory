@@ -14,7 +14,7 @@ Este documento é o **mapa central de conhecimento** do projeto **My-Memory**. E
 | **[`docs/CLI_GUIDE.md`](CLI_GUIDE.md)** | Operação | Manual prático de comandos da CLI (`mem index`, `mem search`, `mem bench`, `mem insights`). |
 | **[`docs/REPOSITORY_BRAIN.md`](REPOSITORY_BRAIN.md)** | Integração com IA | Como utilizar o `my-memory` como memória de contexto dentro de projetos via **Model Context Protocol (MCP)**. |
 | **[`docs/AGENT_INTEGRATION_GUIDE.md`](AGENT_INTEGRATION_GUIDE.md)** | Guia para Agentes | Manual completo de integração, comandos CLI, servidor MCP e instruções para `AGENTS.md`. |
-| **[`docs/REFERENCES.md`](REFERENCES.md)** | Arte Prévia & Referências | Referências técnicas e ecossistemas que inspiram e refinam o projeto (`graphify`, `ai-memory`, `obsidian-skills`, `codegraph`). |
+| **[`docs/REFERENCES.md`](REFERENCES.md)** | Arte Prévia & Referências | Referências técnicas e ecossistemas que inspiram e refinam o projeto (`graphify`, `ai-memory`, `obsidian-skills`, `codegraph`, `openviking`, `atlas`). |
 
 ---
 
@@ -48,6 +48,16 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-023`](adr/023-analise-de-impacto-e-raio-de-destruicao-blast-radius.md)** — Análise de Impacto e Raio de Destruição (Blast Radius Analysis)
 * **[`ADR-024`](adr/024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md)** — Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector)
 * **[`ADR-025`](adr/025-progressive-context-loading-e-taxonomia-de-memoria.md)** — Carregamento Progressivo de Contexto e Taxonomia de Memória
+* **[`ADR-026`](adr/026-auto-wiring-e-instalacao-zero-touch-de-ferramentas-de-ia.md)** — Auto-Wiring e Instalação Zero-Touch de Ferramentas de IA (`mem install` / `mem setup`)
+* **[`ADR-027`](adr/027-descoberta-de-rotas-e-caminho-minimo-no-grafo.md)** — Descoberta de Rotas e Caminho Mínimo no Grafo de Conhecimento (`mem path` / `memory_find_path`)
+* **[`ADR-028`](adr/028-staleness-banners-e-deteccao-de-desatualizacao.md)** — Staleness Banners e Detecção de Desatualização de Conhecimento (`mem status`)
+* **[`ADR-029`](adr/029-context-packager-e-subgraph-bundle.md)** — Context Packager e Subgraph Bundle com Orçamento de Tokens (`mem pack` / `memory_pack_context`)
+* **[`ADR-030`](adr/030-deep-linking-e-navegacao-de-editores.md)** — Deep Linking e Integração de Navegação com Editores (`mem open` e URIs `obsidian://` / `vscode://`)
+* **[`ADR-031`](adr/031-semantic-drift-e-deteccao-de-desvio-codigo-memoria.md)** — Semantic Drift e Detecção de Desvio Código-Memória (`mem drift` e `memory_get_drift`)
+* **[`ADR-032`](adr/032-instalador-universal-one-liner.md)** — Instalador Universal One-Liner para Windows, Linux e macOS
+* **[`ADR-033`](adr/033-federated-central-vault-and-repo-identity.md)** — Arquitetura Federada de Vault Central e Identidade Imutável de Repositório (`repo_id`)
+* **[`ADR-034`](adr/034-protocolo-canonico-federado-e-wikilinks-cross-vault.md)** — Protocolo Canônico Federado e Wikilinks Cross-Vault (`memory://`)
+
 
 
 ---

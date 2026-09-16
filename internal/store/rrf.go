@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-
 // DefaultRRFK define a constante padrão de suavização para RRF (k = 60).
 const DefaultRRFK = 60
 

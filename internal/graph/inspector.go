@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/FelipeMiiller/my-memory/internal/deeplink"
 )
 
 // InboundLink representa uma aresta de entrada (quem aponta para o nó inspecionado)
@@ -16,6 +18,8 @@ type InboundLink struct {
 	Severity     ImpactSeverity `json:"severity"`
 	Weight       float64        `json:"weight"`
 	PageRank     float64        `json:"pagerank,omitempty"`
+	IsFederated  bool           `json:"is_federated,omitempty"`
+	CanonicalURI string         `json:"canonical_uri,omitempty"`
 	CommunityID  int            `json:"community_id,omitempty"`
 	CommunityTag string         `json:"community_tag,omitempty"`
 }
@@ -29,25 +33,28 @@ type OutboundLink struct {
 	Weight       float64 `json:"weight"`
 	PageRank     float64 `json:"pagerank,omitempty"`
 	Exists       bool    `json:"exists"` // true se o nó de destino está registrado na base
+	IsFederated  bool    `json:"is_federated,omitempty"`
+	CanonicalURI string  `json:"canonical_uri,omitempty"`
 	CommunityID  int     `json:"community_id,omitempty"`
 	CommunityTag string  `json:"community_tag,omitempty"`
 }
 
 // NodeSummary sintetiza os atributos canônicos e métricas centrais do nó alvo
 type NodeSummary struct {
-	ID             string    `json:"id"`
-	Title          string    `json:"title"`
-	Path           string    `json:"path,omitempty"`
-	Type           string    `json:"type"` // "decision", "concept", "guide", etc.
-	Tags           []string  `json:"tags,omitempty"`
-	PageRank       float64   `json:"pagerank"`
-	CommunityID    int       `json:"community_id,omitempty"`
-	CommunityLabel string    `json:"community_label,omitempty"`
-	RiskScore      float64   `json:"risk_score"`
-	RiskLevel      string    `json:"risk_level"`
-	ContentPreview string    `json:"content_preview,omitempty"`
-	ContentLength  int       `json:"content_length"`
-	UpdatedAt      time.Time `json:"updated_at,omitempty"`
+	ID             string              `json:"id"`
+	Title          string              `json:"title"`
+	Path           string              `json:"path,omitempty"`
+	Type           string              `json:"type"` // "decision", "concept", "guide", etc.
+	Tags           []string            `json:"tags,omitempty"`
+	PageRank       float64             `json:"pagerank"`
+	CommunityID    int                 `json:"community_id,omitempty"`
+	CommunityLabel string              `json:"community_label,omitempty"`
+	RiskScore      float64             `json:"risk_score"`
+	RiskLevel      string              `json:"risk_level"`
+	ContentPreview string              `json:"content_preview,omitempty"`
+	ContentLength  int                 `json:"content_length"`
+	UpdatedAt      time.Time           `json:"updated_at,omitempty"`
+	Links          *deeplink.DeepLinks `json:"links,omitempty"`
 }
 
 // TriptychView organiza a visualização cirúrgica em 3 colunas espaciais
@@ -71,6 +78,8 @@ type InspectorOptions struct {
 	Titles           map[string]string  `json:"titles,omitempty"`
 	ExistingNodes    map[string]bool    `json:"existing_nodes,omitempty"`
 	RiskResult       *ImpactResult      `json:"risk_result,omitempty"`
+	RepoRoot         string             `json:"repo_root,omitempty"`
+	VaultName        string             `json:"vault_name,omitempty"`
 }
 
 // DefaultInspectorOptions retorna configurações padrões de inspeção
@@ -141,6 +150,17 @@ func BuildTriptychView(target NodeSummary, edges []WeightedEdge, opts InspectorO
 		target.ContentPreview = TruncateContent(target.ContentPreview, opts.MaxContentLength)
 	}
 
+	if target.Links == nil {
+		pathForLinks := target.Path
+		if pathForLinks == "" {
+			pathForLinks = target.ID
+		}
+		if pathForLinks != "" {
+			l := deeplink.GenerateLinks(opts.RepoRoot, opts.VaultName, pathForLinks, 0)
+			target.Links = &l
+		}
+	}
+
 	var inbound []InboundLink
 	var outbound []OutboundLink
 	criticalCount := 0
@@ -182,6 +202,12 @@ func BuildTriptychView(target NodeSummary, edges []WeightedEdge, opts InspectorO
 				criticalCount++
 			}
 
+			inIsFed := strings.HasPrefix(e.Source, "memory://")
+			inCanonURI := ""
+			if inIsFed {
+				inCanonURI = e.Source
+			}
+
 			inbound = append(inbound, InboundLink{
 				SourceID:     e.Source,
 				Title:        srcTitle,
@@ -190,6 +216,8 @@ func BuildTriptychView(target NodeSummary, edges []WeightedEdge, opts InspectorO
 				Severity:     sev,
 				Weight:       e.Weight,
 				PageRank:     pr,
+				IsFederated:  inIsFed,
+				CanonicalURI: inCanonURI,
 				CommunityID:  commID,
 				CommunityTag: commTag,
 			})
@@ -231,6 +259,12 @@ func BuildTriptychView(target NodeSummary, edges []WeightedEdge, opts InspectorO
 				}
 			}
 
+			outIsFed := strings.HasPrefix(e.Target, "memory://")
+			outCanonURI := ""
+			if outIsFed {
+				outCanonURI = e.Target
+			}
+
 			outbound = append(outbound, OutboundLink{
 				TargetID:     e.Target,
 				Title:        tgtTitle,
@@ -239,6 +273,8 @@ func BuildTriptychView(target NodeSummary, edges []WeightedEdge, opts InspectorO
 				Weight:       e.Weight,
 				PageRank:     pr,
 				Exists:       exists,
+				IsFederated:  outIsFed,
+				CanonicalURI: outCanonURI,
 				CommunityID:  commID,
 				CommunityTag: commTag,
 			})

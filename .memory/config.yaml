@@ -6,6 +6,9 @@
 
 version: 1
 
+# Identificador criptográfico imutável do repositório no catálogo global
+repo_id: "repo_e4c8f3b1a2d5"
+
 # Identificador / slug do repositório ou vault para escopo multi-tenant
 repository: "FelipeMiiller/my-memory"
 

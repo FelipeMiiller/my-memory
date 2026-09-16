@@ -11,9 +11,41 @@ O executável `mem` fornece uma interface direta para indexação e consulta sem
 
 ---
 
-## 🛠 Compilação
+## ⚡ Instalação e Compilação
 
-Para compilar o binário em Go:
+### 1. Instalador Automático One-Liner (Recomendado)
+
+O My-Memory fornece scripts de instalação automática que detectam o sistema operacional e a arquitetura, baixam o binário pré-compilado das Releases oficiais do GitHub, validam a integridade criptográfica **SHA-256** e adicionam o comando ao `PATH` do usuário sem exigir privilégios de administrador:
+
+#### Windows (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/FelipeMiiller/my-memory/main/scripts/install.ps1 | iex
+```
+
+Parâmetros suportados no Windows:
+* `-Version <vX.Y.Z>`: Instala uma versão específica da release (ex: `-Version v1.2.0`).
+* `-InstallDir <caminho>`: Define o diretório de destino (padrão: `$env:USERPROFILE\.mem\bin`).
+* `-NoPath`: Não altera o PATH do registro nem da sessão.
+* `-Force`: Sobrescreve o binário existente.
+
+#### Linux e macOS (POSIX Shell)
+```bash
+curl -fsSL https://raw.githubusercontent.com/FelipeMiiller/my-memory/main/scripts/install.sh | sh
+```
+
+Parâmetros suportados no Linux/macOS:
+* `--version <vX.Y.Z>` / `-v`: Instala uma versão específica da release.
+* `--dir <caminho>` / `-d`: Define o diretório de destino (padrão: `~/.local/bin` ou `/usr/local/bin` se root).
+* `--no-path`: Não sugere inclusão no PATH.
+* `--force` / `-f`: Sobrescreve o binário existente.
+
+### 2. Instalação via Go Toolchain
+```bash
+go install github.com/FelipeMiiller/my-memory/cmd/mem@latest
+```
+
+### 3. Compilação do Código-Fonte
+Para compilar o binário em Go localmente:
 
 ```bash
 # Na raiz do projeto:
@@ -363,6 +395,198 @@ Analisa preventivamente o **raio de destruição (*blast radius*)** e o fechamen
 
 ---
 
+### 18. `mem inspect <node_id> [--full] [--json] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Inspeciona cirurgicamente qualquer nó da base de conhecimento e do grafo no padrão **Tríptico Cirúrgico em 3 Colunas** (*Zero File Reads*):
+* **Coluna 1 (Conexões de Entrada):** Precedentes estruturais, dependentes reversos e callers diretos (`[[wikilinks]]` e referências que apontam para este nó).
+* **Coluna 2 (Foco Central):** Metadados primários, autoridade topológica (**PageRank** normalizado), cluster temático (ADR-022) e corpo textual (resumo cirúrgico ou `--full` para conteúdo integral).
+* **Coluna 3 (Conexões de Saída):** Relações downstream, contratos de dependência e links epistêmicos derivados.
+* `--full`: Exibe o corpo completo do documento sem truncamento.
+* `--json`: Emite o tríptico em formato JSON estruturado para consumo de agentes autônomos.
+
+**Exemplos:**
+```bash
+# Inspecionar nó por caminho relativo ou título:
+./bin/mem.exe inspect "concepts/auth.md"
+
+# Inspecionar nó com corpo textual completo:
+./bin/mem.exe inspect "internal/graph/impact.go" --full
+
+# Exportar tríptico em formato JSON:
+./bin/mem.exe inspect "decisions/adr-001.md" --json
+```
+
+---
+
+### 19. `mem install` ou `mem setup` `[--target <cliente>] [--dry-run] [--workspace] [--global] [--force] [--db <caminho>] [--repo <slug>]`
+Configuração e **Auto-Wiring Zero-Touch** das ferramentas de IA e clientes MCP suportados (**Claude Desktop**, **Cursor IDE**, **VS Code / GitHub Copilot**, **Windsurf**):
+* **Detecção Automática:** Escaneia o sistema operacional (Windows, macOS, Linux) e o diretório de trabalho atual identificando clientes instalados e arquivos de configuração existentes.
+* **Injeção Não-Destrutiva:** Preserva integralmente outros servidores MCP já configurados sob a chave `mcpServers` e gera backups automáticos com extensão `.bak` antes de qualquer alteração.
+* **Auto-Scoping de Vault:** Detecta `.memory/config.yaml` no diretório atual e auto-injeta os argumentos `--db` e `--repo` correspondentes.
+* `--dry-run`: Simula a detecção e exibe os fragmentos JSON de payload sem modificar arquivos em disco.
+* `--target <cliente>`: Restringe a instalação a um cliente específico (`claude-desktop`, `cursor`, `vscode`, `windsurf` ou `all`).
+* `--workspace`: Limita a configuração exclusivamente ao escopo de workspace local (`.cursor/mcp.json`, `.vscode/mcp.json`, etc.).
+* `--global`: Limita a configuração aos diretórios globais do usuário/sistema.
+* `--force`: Permite sobrescrever configurações existentes sem confirmação interativa.
+
+**Exemplos:**
+```bash
+# Auto-detectar todas as ferramentas instaladas e configurar automaticamente:
+./bin/mem.exe install
+
+# Simular a configuração sem modificar o disco:
+./bin/mem.exe install --dry-run
+
+# Configurar exclusivamente o Cursor IDE:
+./bin/mem.exe install --target cursor
+
+# Configurar apenas o workspace atual:
+./bin/mem.exe install --workspace
+
+# Alias idêntico de setup:
+./bin/mem.exe setup --dry-run
+```
+
+---
+
+### 20. `mem path <origem> <destino> [--undirected] [--max-depth 6] [--mode epistemic|hops] [--json] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+Encontra a menor rota e calcula a cadeia de conexões entre dois nós arbitrários no grafo de conhecimento:
+* **Ponderação Epistêmica (`--mode epistemic`, padrão):** Pondera arestas inversamente à certeza semântica: conexões explícitas intencionais (`EXTRACTED`, custo $1.0$) têm menor custo do que suposições semânticas (`INFERRED`, custo $1.67$) ou tags (`TAG`, custo $3.33$).
+* **Menor Contagem de Saltos (`--mode hops`):** Aplica custo unitário ($1.0$) por aresta, encontrando a rota com o menor número absoluto de nós intermediários.
+* **Direcionamento Flexível:** Opera por padrão de forma estritamente causal/direcionada ($A \to B$). A flag `--undirected` ativa a exploração bidirecional ($A \leftrightarrow B$) para descobrir conexões conceituais amplas.
+* **Limite de Profundidade:** Restringe a exploração até a profundidade máxima desejada (`--max-depth`, padrão: 6 saltos).
+* **Diagrama de Rota ASCII:** Exibe no terminal a sequência de nós, tipos de relação, status e sentido de travessia (`──>` forward ou `<──` reverse).
+* **Exportação JSON:** Com a flag `--json`, emite o payload estruturado contendo nós, arestas, saltos e custo acumulado.
+
+**Exemplos:**
+```bash
+# Descobrir rota epistêmica entre o módulo de autenticação e o redis:
+./bin/mem.exe path "concepts/auth.md" "infra/redis.md"
+
+# Encontrar menor caminho bidirecional entre duas notas:
+./bin/mem.exe path "ARCHITECTURE" "COMO_FUNCIONA" --undirected --mode hops
+
+# Consultar rota profunda com saída em JSON:
+./bin/mem.exe path "decisions/adr-001.md" "decisions/adr-027.md" --max-depth 8 --json
+```
+
+---
+
+### 21. `mem pack <nota_raiz> [--depth 2] [--max-tokens 4000] [--direction both] [--out <arquivo>] [--json]`
+Empacota um subgrafo de contexto completo e auto-contido centrado em uma nota raiz, consolidando o conteúdo com controle rígido de orçamento de tokens:
+* **Orçamento de Tokens (`--max-tokens`, padrão: 4000):** Limita o tamanho total do bundle Markdown gerado, prevenindo estouro de janela de contexto em prompts de IA.
+* **Degradação Graciosa em 3 Tiers:**
+  - **TierCore (L2):** Nós centrais próximos recebem texto integral.
+  - **TierFringe (L0/L1):** Nós periféricos que estourariam o orçamento são resumidos automaticamente através de seus micro-abstracts L0/L1.
+  - **TierOmitted:** Nós secundários que não couberem são listados como omitidos, mantendo a rastreabilidade estrutural.
+* **Topologia Mermaid:** Incorpora um diagrama visual Mermaid (`graph TD`) representando as relações entre todos os nós incluídos.
+* **Gravação em Arquivo (`--out`):** Salva o bundle diretamente no disco, ideal para injeção em prompts ou sub-agentes.
+* **Saída JSON (`--json`):** Emite a estrutura de nós, métricas e texto serializados em JSON.
+
+**Exemplos:**
+```bash
+# Empacotar subgrafo de autenticação com limite de 3000 tokens:
+./bin/mem.exe pack "concepts/auth.md" --depth 2 --max-tokens 3000
+
+# Salvar bundle diretamente em arquivo para alimentar um agente:
+./bin/mem.exe pack "ARCHITECTURE" --out context_bundle.md
+
+# Obter o subgrafo em formato JSON estruturado:
+./bin/mem.exe pack "ARCHITECTURE" --json
+```
+
+---
+
+### 22. `mem open <nota_ou_caminho> [--app obsidian|vscode|system] [--line <n>] [--dry-run] [--json]`
+Abre diretamente qualquer nota, ADR ou arquivo no editor configurado ou exibe deep links acionáveis:
+* **Resolução Flexível de Nó:** Aceita caminho direto no disco, título da nota, identificador canônico no grafo ou wikilink (`[[Nota]]`).
+* **Seleção de Aplicativo (`--app`, padrão: definido em `.memory/config.yaml` ou `obsidian`):**
+  - `obsidian`: Dispara a URI `obsidian://open?vault=<vault>&file=<rel_path>`.
+  - `vscode`: Dispara a URI `vscode://file/<abs_path>[:line]`.
+  - `system`: Abre no visualizador padrão do sistema operacional.
+* **Foco em Linha (`--line <n>`):** Posiciona o cursor do editor na linha exata indicada.
+* **Modo Simulação (`--dry-run`):** Exibe a URI calculada e comando nativo sem disparar processos.
+* **Saída Estruturada (`--json`):** Retorna payload com URIs canônicas prontas para scripts.
+
+**Exemplos:**
+```bash
+# Abrir nota no Obsidian (padrão):
+./bin/mem.exe open docs/adr/001-uso-de-sqlite-como-camada-unificada-de-dados.md
+
+# Abrir no VS Code com cursor posicionado na linha 42:
+./bin/mem.exe open "Arquitetura Limpa" --app vscode --line 42
+
+# Simulação dry-run para validar o comando a ser executado:
+./bin/mem.exe open 001-login --dry-run
+
+# Obter deep links estruturados em JSON:
+./bin/mem.exe open 001-login --json
+```
+
+---
+
+### 23. `mem drift [--since <faixa>] [--threshold <0.0-1.0>] [--uncovered] [--strict] [--json]`
+Analisa o desvio semântico e estrutural entre alterações recentes no histórico do Git e as notas da base de memória:
+* **Cruzamento Código-Memória:** Mapeia arquivos de código modificados (`*.go`, `*.py`, `*.ts`, etc.) contra notas e ADRs que os mencionam ou pertencem ao mesmo componente.
+* **Cálculo de Drift Score (0 a 100):** Pondera a quantidade de commits posteriores ao `updated_at` da nota, volume de linhas modificadas (+adições/-deleções) e PageRank.
+* **Badges de Severidade:** Classifica em `[CRITICAL]` ($\ge 65$), `[HIGH]`, `[MEDIUM]` e `[LOW]`.
+* **Detecção de Código Órfão:** Identifica novos módulos ou arquivos de código alterados que não possuem nenhuma nota ou decisão associada no grafo.
+* **Flag `--strict` para CI/CD:** Interrompe a execução com código de saída `1` se houver qualquer desvio em nível `CRITICAL`, ideal para GitHub Actions e pré-commits.
+* **Saída Estruturada (`--json`):** Exporta métricas, notas defasadas e arquivos órfãos em JSON.
+
+**Exemplos:**
+```bash
+# Analisar desvio nos últimos 5 commits (padrão):
+./bin/mem.exe drift
+
+# Analisar faixa Git customizada e filtrar por threshold mínimo:
+./bin/mem.exe drift --since "HEAD~10..HEAD" --threshold 0.30
+
+# Gate rigoroso para pipelines de CI:
+./bin/mem.exe drift --strict
+
+# Exportar relatório completo em JSON:
+./bin/mem.exe drift --json
+```
+
+---
+
+
+## 🔍 Status e Detecção de Desatualização (`mem status`)
+
+O comando `mem status` realiza uma auditoria instantânea entre os arquivos físicos no disco e os documentos indexados no banco (SQLite ou PostgreSQL), identificando discrepâncias temporais e drift de contexto:
+
+```bash
+# Verificar status de sincronização do vault atual:
+./bin/mem.exe status
+
+# Exportar status estruturado em JSON para automações ou scripts:
+./bin/mem.exe status --json
+
+# Verificar um vault específico ou banco customizado:
+./bin/mem.exe status --dir ./notas --db .memory/memory.db
+```
+
+### Exemplo de Saída:
+```text
+=== Status de Integridade e Sincronização do Vault ===
+Diretório do Vault: C:\repository\my-memory
+Repositório:        FelipeMiiller/my-memory
+Arquivos no Disco:  41
+Arquivos Indexados: 38
+Status:             ⚠️  Desatualizado (Stale Data)
+Diferenças:         8 modificado(s)/novo(s), 0 removido(s)
+
+Arquivos Modificados ou Não-Indexados (8):
+  • README.md
+  • docs/AGENT_INTEGRATION_GUIDE.md
+  • docs/CLI_GUIDE.md
+  • docs/adr/028-staleness-banners-e-deteccao-de-desatualizacao.md
+
+💡 Recomendação: Execute 'mem index' para sincronizar o grafo e embeddings.
+```
+
+---
+
 ## ⚙️ Configuração Declarativa do Vault (`.memory/config.yaml`)
 
 O My-Memory suporta configuração declarativa por projeto ou vault de notas. Ao executar qualquer comando, o binário procura recursivamente de baixo para cima por `.memory/config.yaml`, `.mem.yaml` ou `.mem.json`.
@@ -416,8 +640,92 @@ watcher:
 
 ### 🏆 Ordem de Precedência (Prioridade):
 1. **Flags de Terminal**: (`--mode`, `--limit`, `--decay`, `--repo`, `--db`, etc.)
-2. **Variáveis de Ambiente**: (`MY_MEMORY_PG_URL`, `MY_MEMORY_REPO`)
-3. **Arquivo de Configuração**: (`.memory/config.yaml` ou `.mem.yaml`)
-4. **Defaults de Código**: (`DefaultConfig()`)
+2. **Variáveis de Ambiente**: (`MY_MEMORY_PG_URL`, `MY_MEMORY_REPO`, `MY_MEMORY_CENTRAL_VAULT`)
+3. **Configuração Local do Repositório**: (`.memory/config.yaml`)
+4. **Configuração Global do Usuário**: (`~/.memory/config.yaml`)
+5. **Defaults de Código**: (`DefaultConfig()`)
+
+---
+
+## 🏛️ Federação e Cofre Central de Conhecimento (`mem setup`, `mem central`, `mem repos`)
+
+O My-Memory implementa uma arquitetura federada corporativa conectando um **Cofre Central de Conhecimento** (Global Brain sincronizado no Google Drive, OneDrive ou nuvem) e **Cofres de Projeto** (satélites de código local):
+
+### 1. Assistente Interativo Global (`mem setup`)
+Executa o assistente guiado para configurar suas preferências em `~/.memory/config.yaml` (fonte soberana de verdade herdada por todos os seus projetos locais):
+
+```bash
+# Modo interativo com prompts amigáveis:
+mem setup
+
+# Modo não-interativo via linha de comando:
+mem setup --central "~/Google Drive/Meu Drive/KnowledgeVault" --engine sqlite --yes
+```
+
+Parâmetros suportados:
+* `--central <pasta>`: Caminho da pasta do Cofre Central no host.
+* `--engine <sqlite|postgres>`: Motor de banco de dados unificado ("ou tudo PostgreSQL, ou tudo SQLite").
+* `--postgres-url <url>`: URL de conexão unificada com pgvector.
+* `--mcp-port <porta>`: Porta padrão do servidor MCP HTTP/SSE (padrão: 8080).
+* `--yes`: Executa em modo silencioso sem confirmação interativa.
+
+### 2. Gestão do Cofre Central (`mem central`)
+Audita e inicializa o Cofre Central virgem com estrutura canônica completa e templates para Obsidian:
+
+```bash
+# Verificar status de conexão e saúde do cofre central:
+mem central status
+
+# Inicializar estrutura canônica em cofre central virgem:
+mem central bootstrap
+```
+
+O comando de bootstrap cria automaticamente:
+* **11 Pastas Canônicas**: `standards/`, `architecture/`, `security/`, `infrastructure/`, `operations/`, `data/`, `ai-agents/`, `domain/`, `guides/`, `templates/` e `staging/`.
+* **Templates Prontos**: Modelos de ADR (MADR), RFC, Runbook de Operações e Especificação EARS em `templates/`.
+* **MOC Inicial (`README.md`)**: Mapa de conteúdo com `[[wikilinks]]` prontos para navegação no Obsidian Desktop/Mobile.
+* **Isolamento de Dados**: Banco SQLite armazenado em `.memory/storage/memory.db` para não poluir as notas visíveis.
+
+### 3. Catálogo Global de Repositórios (`mem repos`)
+Exibe todos os projetos locais registrados e rastreados pelo My-Memory:
+
+```bash
+mem repos
+```
+
+### 4. Zero-Credentials no Git & Identidade Imutável (`repo_id`)
+* Cada repositório recebe um identificador criptográfico imutável (`repo_id: repo_<12-hex-chars>`) gerado automaticamente no `mem init`.
+* O `.memory/config.yaml` local **nunca** armazena senhas, URLs de banco ou caminhos absolutos do host, garantindo que o versionamento via Git seja 100% limpo e seguro para commits públicos ou equipes corporativas.
+
+### 5. Navegação em Editores e Wikilinks Federados (`mem open`)
+Abre notas locais ou notas federadas cross-vault no editor de preferência do usuário (Obsidian, VS Code ou aplicativo padrão do sistema operacional):
+
+```bash
+# Abrir nota local no aplicativo padrão ou configurado:
+mem open "docs/architecture.md"
+
+# Abrir nota em linha específica no VS Code:
+mem open "docs/spec.md" --app vscode --line 42
+
+# Abrir nota canônica do Cofre Central no Obsidian:
+mem open "memory://central/standards/oauth2" --app obsidian
+
+# Abrir nota em repositório satélite registrado no catálogo global:
+mem open "memory://payments-service/docs/api" --app vscode
+
+# Simular comando de abertura sem executar processo (dry-run):
+mem open "memory://central/architecture/pgvector" --dry-run
+
+# Obter links canônicos e metadados de resolução em JSON estruturado:
+mem open "memory://central/standards/oauth2" --json
+```
+
+Parâmetros suportados:
+* `--app <obsidian|vscode|system>`: Define o aplicativo alvo da abertura (padrão: `obsidian`).
+* `--line <número>`: Posiciona o cursor na linha indicada (suportado no VS Code).
+* `--dry-run`: Simula a abertura e exibe comando de SO e URI gerada sem iniciar o editor.
+* `--json`: Retorna objeto JSON com campos `uri`, `vault`, `file`, `path`, `deep_link` e `is_federated: true`.
+
+
 
 

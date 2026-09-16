@@ -41,10 +41,8 @@ func runInspectCommand(ctx context.Context, defaultRepo string, args []string, o
 	}
 	targetNode := remaining[0]
 
-	resolvedRepo := *targetRepo
-	if resolvedRepo == "" {
-		resolvedRepo = defaultRepo
-	}
+	cfg := resolveConfig()
+	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
 
 	previewLength := *maxLen
 	if *fullContent {
@@ -56,8 +54,8 @@ func runInspectCommand(ctx context.Context, defaultRepo string, args []string, o
 	var view *graph.TriptychView
 	var inspectErr error
 
-	if *pgURL != "" {
-		pgStore, err := store.NewPostgresStore(*pgURL)
+	if resolvedPG != "" && (*pgURL != "" || (cfg != nil && cfg.Storage.Engine == "postgres")) {
+		pgStore, err := store.NewPostgresStore(resolvedPG)
 		if err != nil {
 			return fmt.Errorf("falha ao conectar no PostgreSQL: %w", err)
 		}
@@ -65,11 +63,6 @@ func runInspectCommand(ctx context.Context, defaultRepo string, args []string, o
 
 		view, inspectErr = pgStore.InspectNode(ctx, resolvedRepo, targetNode, previewLength)
 	} else {
-		resolvedDB := *dbPath
-		if resolvedDB == "" {
-			resolvedDB = "memory.db"
-		}
-
 		database, err := db.InitDB(resolvedDB)
 		if err != nil {
 			return fmt.Errorf("falha ao abrir banco SQLite '%s': %w", resolvedDB, err)
@@ -130,6 +123,19 @@ func runInspectCommand(ctx context.Context, defaultRepo string, args []string, o
 			fmt.Fprintf(out, "  │ %s\n", l)
 		}
 		fmt.Fprintf(out, "  -----------------------------------------\n")
+	}
+
+	if view.Target.Links != nil {
+		fmt.Fprintf(out, "\n  --- 🔗 Links Rápidos / Deep Links ---\n")
+		if view.Target.Links.Obsidian != "" {
+			fmt.Fprintf(out, "  Obsidian: %s\n", view.Target.Links.Obsidian)
+		}
+		if view.Target.Links.VSCode != "" {
+			fmt.Fprintf(out, "  VS Code:  %s\n", view.Target.Links.VSCode)
+		}
+		if view.Target.Links.File != "" {
+			fmt.Fprintf(out, "  Arquivo:  %s\n", view.Target.Links.File)
+		}
 	}
 
 	// 2. Coluna da Esquerda: Inbound Links / Chamadores
@@ -202,4 +208,3 @@ func rearrangeInspectArgs(args []string) []string {
 	}
 	return append(flags, nonFlags...)
 }
-

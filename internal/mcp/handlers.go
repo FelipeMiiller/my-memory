@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/canvas"
+	"github.com/FelipeMiiller/my-memory/internal/federation"
+	"github.com/FelipeMiiller/my-memory/internal/staleness"
 )
 
 // CallToolParams define os parâmetros recebidos em uma requisição tools/call
@@ -29,7 +31,7 @@ type CallToolResult struct {
 	IsError bool          `json:"isError,omitempty"`
 }
 
-// NewTextResult cria um CallToolResult com conteúdo textual
+// NewTextResult constrói uma resposta textual compatível com CallToolResult
 func NewTextResult(text string) CallToolResult {
 	return CallToolResult{
 		Content: []ToolContent{
@@ -42,37 +44,13 @@ func NewTextResult(text string) CallToolResult {
 }
 
 // SearchResult representa um trecho relevante recuperado na busca semântica
-type SearchResult struct {
-	ChunkID    string   `json:"chunk_id"`
-	DocumentID string   `json:"document_id"`
-	Repository string   `json:"repository,omitempty"`
-	Content    string   `json:"content"`
-	Distance   float64  `json:"distance,omitempty"`
-	Score      float64  `json:"score,omitempty"`
-	Sources    []string `json:"sources,omitempty"`
-	Neighbors  []string `json:"neighbors,omitempty"`
-	UpdatedAt  int64    `json:"updated_at,omitempty"`
-	Abstract   string   `json:"abstract,omitempty"`
-	Category   string   `json:"category,omitempty"`
-}
+type SearchResult = federation.SearchResult
 
 // SearchFunc assinatura da função que executa a busca vetorial legada
 type SearchFunc func(ctx context.Context, repo string, query string, limit int) ([]SearchResult, error)
 
 // SearchParams agrupa os parâmetros da busca para flexibilidade de múltiplos modos
-type SearchParams struct {
-	Repo        string
-	Query       string
-	Mode        string // "hybrid" (default), "vector", "fts"
-	Limit       int
-	K           int     // constante RRF, default 60
-	Decay       bool    // ativa decaimento temporal exponencial
-	HalfLife    float64 // meia-vida em dias (padrão: 30.0)
-	DecayWeight float64 // peso do decaimento temporal w in [0.0, 1.0] (padrão: 0.3)
-	DetailLevel string  // "l0", "l1", "l2" (default: "l1")
-	Category    string  // "resource", "memory", "skill" ou ""
-}
-
+type SearchParams = federation.SearchParams
 
 // AdvancedSearchFunc assinatura da função que executa busca avançada suportando modo híbrido e RRF
 type AdvancedSearchFunc func(ctx context.Context, params SearchParams) ([]SearchResult, error)
@@ -256,7 +234,11 @@ func FormatNeighbors(nodeID string, neighbors []string) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Vizinhos conectados a '%s':\n", nodeID)
 	for _, n := range neighbors {
-		fmt.Fprintf(&sb, "- %s\n", n)
+		if strings.HasPrefix(n, "memory://") {
+			fmt.Fprintf(&sb, "- %s (is_federated: true, canonical_uri: %s)\n", n, n)
+		} else {
+			fmt.Fprintf(&sb, "- %s\n", n)
+		}
 	}
 	return strings.TrimSpace(sb.String())
 }
@@ -396,7 +378,6 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 	}
 }
 
-
 // NewMemoryNeighborsHandler cria o handler para a ferramenta memory_get_neighbors
 func NewMemoryNeighborsHandler(neighborsFn NeighborsFunc) ToolHandlerFunc {
 	return func(ctx context.Context, args json.RawMessage) (any, error) {
@@ -443,6 +424,32 @@ func NewMemoryNeighborsHandler(neighborsFn NeighborsFunc) ToolHandlerFunc {
 		neighbors, err := neighborsFn(ctx, repo, nodeID, maxDepth)
 		if err != nil {
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro na travessia de vizinhos: %v", err), nil)
+		}
+
+		var format string
+		if rawFmt, hasFmt := rawMap["format"]; hasFmt {
+			_ = json.Unmarshal(rawFmt, &format)
+		}
+
+		if strings.ToLower(strings.TrimSpace(format)) == "json" {
+			type NeighborEdge struct {
+				TargetID     string `json:"target_id"`
+				IsFederated  bool   `json:"is_federated"`
+				CanonicalURI string `json:"canonical_uri,omitempty"`
+			}
+			items := make([]NeighborEdge, len(neighbors))
+			for i, n := range neighbors {
+				isFed := strings.HasPrefix(n, "memory://")
+				items[i] = NeighborEdge{
+					TargetID:    n,
+					IsFederated: isFed,
+				}
+				if isFed {
+					items[i].CanonicalURI = n
+				}
+			}
+			jsonBytes, _ := json.MarshalIndent(items, "", "  ")
+			return NewTextResult(string(jsonBytes)), nil
 		}
 
 		return NewTextResult(FormatNeighbors(nodeID, neighbors)), nil
@@ -888,10 +895,63 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (a
 		return nil, err
 	}
 
+	// Invalidação reativa do detector quando novas notas ou seções forem escritas
+	if callParams.Name == ToolMemoryWriteNote.Name || callParams.Name == ToolMemoryAppendSection.Name {
+		s.mu.RLock()
+		det := s.stalenessDetector
+		s.mu.RUnlock()
+		if det != nil {
+			det.ResetCache()
+		}
+	}
+
+	// Injeção não-bloqueante de Staleness Banner em ferramentas de leitura/consulta
+	isQueryTool := func(name string) bool {
+		switch name {
+		case ToolMemorySearch.Name,
+			ToolMemoryGetNeighbors.Name,
+			ToolMemoryExportCanvas.Name,
+			ToolMemoryGetHubs.Name,
+			ToolMemoryGetInsights.Name,
+			ToolMemoryDoctor.Name,
+			ToolMemoryVisualizeGraph.Name,
+			ToolMemoryGetClusters.Name,
+			ToolMemoryGetImpact.Name,
+			ToolMemoryInspectNode.Name,
+			ToolMemoryFindPath.Name,
+			ToolMemoryPackContext.Name,
+			ToolMemoryOpenNode.Name:
+			return true
+
+		default:
+			return false
+		}
+	}
+
+	var banner string
+	s.mu.RLock()
+	det := s.stalenessDetector
+	s.mu.RUnlock()
+	if det != nil && isQueryTool(callParams.Name) {
+		if rep, checkErr := det.CheckStaleness(ctx); checkErr == nil && rep != nil && rep.IsStale {
+			banner = staleness.FormatMarkdownBanner(rep)
+		}
+	}
+
 	switch v := res.(type) {
 	case CallToolResult:
+		if banner != "" {
+			if len(v.Content) > 0 && v.Content[0].Type == "text" {
+				v.Content[0].Text = banner + v.Content[0].Text
+			} else {
+				v.Content = append([]ToolContent{{Type: "text", Text: banner}}, v.Content...)
+			}
+		}
 		return v, nil
 	case string:
+		if banner != "" {
+			return NewTextResult(banner + v), nil
+		}
 		return NewTextResult(v), nil
 	default:
 		return res, nil

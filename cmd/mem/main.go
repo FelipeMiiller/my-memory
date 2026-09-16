@@ -21,12 +21,16 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/compiler"
 	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
+	"github.com/FelipeMiiller/my-memory/internal/deeplink"
+	"github.com/FelipeMiiller/my-memory/internal/drift"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
+	"github.com/FelipeMiiller/my-memory/internal/federation"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/graphview"
 	"github.com/FelipeMiiller/my-memory/internal/mcp"
 	"github.com/FelipeMiiller/my-memory/internal/parser"
 	"github.com/FelipeMiiller/my-memory/internal/repo"
+	"github.com/FelipeMiiller/my-memory/internal/staleness"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 	"github.com/FelipeMiiller/my-memory/internal/watcher"
@@ -89,25 +93,19 @@ func main() {
 			target = indexCmd.Arg(0)
 		}
 
-		// Descoberta e resolução automática de configuração do vault
+		// Descoberta e resolução automática de configuração do vault em cascata
 		searchDir := target
 		if searchDir == "" {
 			searchDir = "."
 		}
-		var cfg *config.Config
-		cfgPath, err := config.FindConfigFile(searchDir)
-		if err == nil {
-			_, _ = config.FindAndLoadDotEnv(searchDir)
-			if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
-				cfg = loaded
-				if target == "" {
-					dirOfCfg := filepath.Dir(cfgPath)
-					if filepath.Base(dirOfCfg) == ".memory" {
-						target = filepath.Dir(dirOfCfg)
-					} else {
-						target = dirOfCfg
-					}
-				}
+		_, _ = config.FindAndLoadDotEnv(searchDir)
+		cfg, cfgPath, _ := config.LoadCascadingConfig(searchDir)
+		if cfgPath != "" && target == "" {
+			dirOfCfg := filepath.Dir(cfgPath)
+			if filepath.Base(dirOfCfg) == ".memory" {
+				target = filepath.Dir(dirOfCfg)
+			} else {
+				target = dirOfCfg
 			}
 		}
 
@@ -158,24 +156,19 @@ func main() {
 			target = watchCmd.Arg(0)
 		}
 
+		// Descoberta e resolução automática de configuração do vault em cascata
 		searchDir := target
 		if searchDir == "" {
 			searchDir = "."
 		}
-
-		var cfg *config.Config
-		cfgPath, err := config.FindConfigFile(searchDir)
-		if err == nil {
-			if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
-				cfg = loaded
-				if target == "" {
-					dirOfCfg := filepath.Dir(cfgPath)
-					if filepath.Base(dirOfCfg) == ".memory" {
-						target = filepath.Dir(dirOfCfg)
-					} else {
-						target = dirOfCfg
-					}
-				}
+		_, _ = config.FindAndLoadDotEnv(searchDir)
+		cfg, cfgPath, _ := config.LoadCascadingConfig(searchDir)
+		if cfgPath != "" && target == "" {
+			dirOfCfg := filepath.Dir(cfgPath)
+			if filepath.Base(dirOfCfg) == ".memory" {
+				target = filepath.Dir(dirOfCfg)
+			} else {
+				target = dirOfCfg
 			}
 		}
 
@@ -260,11 +253,12 @@ func main() {
 		dbPath := searchCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := searchCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		targetRepo := searchCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
+		showLinks := searchCmd.Bool("links", false, "Exibe deep links (Obsidian e VS Code) abaixo de cada resultado")
 		searchCmd.Parse(rearrangeSearchArgs(os.Args[2:]))
 
 		query := strings.Join(searchCmd.Args(), " ")
 		if query == "" {
-			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
+			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--links] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
 			return
 		}
 
@@ -306,8 +300,9 @@ func main() {
 		resolvedCategory = strings.ToLower(strings.TrimSpace(resolvedCategory))
 
 		searchOpts := store.SearchOptions{
-			Level:    resolvedLevel,
-			Category: resolvedCategory,
+			Level:     resolvedLevel,
+			Category:  resolvedCategory,
+			ShowLinks: *showLinks,
 		}
 
 		resolvedLimit := *limit
@@ -381,7 +376,6 @@ func main() {
 			runSearchSQLite(ctx, database, emb, tq, query, resolvedMode, resolvedUseTurbo, resolvedLimit, resolvedK, decayOpts, searchOpts)
 		}
 
-
 	case "mcp":
 		mcpCmd := flag.NewFlagSet("mcp", flag.ExitOnError)
 		dbPath := mcpCmd.String("db", "", "Caminho do arquivo SQLite")
@@ -427,7 +421,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[mcp] Conectado ao SQLite: %s\n", resolvedDB)
 		}
 
-		runMCPServer(ctx, pgStore, database, emb, tq, resolvedRepo, targetHTTP, *cors)
+		runMCPServer(ctx, pgStore, database, emb, tq, resolvedRepo, targetHTTP, *cors, cfg)
 
 	case "export":
 		exportCmd := flag.NewFlagSet("export", flag.ExitOnError)
@@ -634,6 +628,60 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "path":
+		if err := runPathCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "pack":
+		if err := runPackCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "open":
+		if err := runOpenCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "drift":
+		if err := runDriftCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "status":
+		if err := runStatusCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "setup":
+		if err := runSetupCLI(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "central":
+		if err := runCentralCLI(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "repos":
+		if err := runReposCLI(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "install":
+		if err := runInstallCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		if err := runVersionCLI(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -652,6 +700,8 @@ func printHelp() {
 	fmt.Println("      Inicializa novo vault (.memory/config.yaml) e opcionalmente gera integrações para VS Code Copilot e Cursor")
 	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
+	fmt.Println("  mem status [--json] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
+	fmt.Println("      Exibe o status de sincronização e detecção de desatualização do vault em tempo real")
 	fmt.Println("  mem watch [--debounce <ms>] [--interval <ms>] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Monitora continuamente o vault em segundo plano e reindexa notas em tempo real")
 	fmt.Println("  mem hook <install|uninstall> [--force] [<pasta>]")
@@ -669,6 +719,15 @@ func printHelp() {
 	fmt.Println("      Analisa o raio de destruição (Blast Radius) e dependentes reversos com score de risco")
 	fmt.Println("  mem inspect <nota_ou_id> [--json] [--full] [--max-len 500] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Visualização cirúrgica em 3 colunas (in-links, nó central e out-links) com risco e preview")
+	fmt.Println("  mem path <origem> <destino> [--undirected] [--max-depth 6] [--mode epistemic|hops] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Descoberta de rotas e menor caminho ponderado por custos epistêmicos entre dois nós do grafo")
+	fmt.Println("  mem pack <nota_ou_id> [--depth 2] [--max-tokens 4000] [--direction both] [--out <bundle.md>] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Empacota um subgrafo de contexto coerente centrado em uma nota raiz com controle rígido de tokens")
+	fmt.Println("  mem open <nota_ou_caminho> [--app obsidian|vscode|system] [--line <n>] [--dry-run] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Abre diretamente a nota ou nó no editor configurado (Obsidian, VS Code) ou exibe deep links acionáveis")
+	fmt.Println("  mem drift [--since <faixa>] [--threshold <0.0-1.0>] [--uncovered] [--strict] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Analisa desvio entre commits de código e notas de memória (Semantic Drift) e detecta código órfão")
+
 	fmt.Println("  mem insights [--limit 10] [--min-similarity 0.70] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Descobre conexões conceituais inesperadas (Surprising Connections) sem links diretos no grafo")
 	fmt.Println("  mem graph [view|export] [--root <nota>] [--depth 2] [--out <saida.html>] [--open] [--db <arq>] [--postgres <url>] [--repo <slug>]")
@@ -683,6 +742,14 @@ func printHelp() {
 	fmt.Println("      Compila e sintetiza fragmentos de busca em uma nota atômica com backlinks (Compile-not-Retrieve)")
 	fmt.Println("  mem mcp [--port <porta>] [--host <ip>] [--http <addr>] [--cors] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Inicia servidor Model Context Protocol via stdio (padrão) ou via HTTP/SSE na porta indicada")
+	fmt.Println("  mem install [--target <ferramenta>] [--dry-run] [--workspace] [--global] [--force]")
+	fmt.Println("      Auto-wiring zero-touch: registra o servidor MCP em Claude Desktop, Cursor, VS Code e Windsurf")
+	fmt.Println("  mem setup [--central <pasta>] [--engine sqlite|postgres] [--postgres-url <url>] [--mcp-port <porta>] [--yes]")
+	fmt.Println("      Assistente interativo de configuração global (~/.memory/config.yaml) e vinculação de cofre central")
+	fmt.Println("  mem central <status|bootstrap> [opções]")
+	fmt.Println("      Gerencia e audita o Cofre Central de Conhecimento (Global Brain no Google Drive / OneDrive)")
+	fmt.Println("  mem repos")
+	fmt.Println("      Lista todos os repositórios federados registrados no catálogo global")
 	fmt.Println("  mem version [--json]")
 	fmt.Println("      Exibe metadados de versão, commit, data de compilação e arquitetura (ou via -v, --version)")
 	fmt.Println()
@@ -713,12 +780,24 @@ func runInit(targetDir, repoSlug, dbPath string, force bool, vscode, copilot, cu
 			dbPath = "memory.db"
 		}
 
+		// Preserva repo_id caso já exista no config.yaml anterior
+		repoID := ""
+		if existing, err := config.LoadConfig(cfgPath); err == nil && existing.RepoID != "" {
+			repoID = existing.RepoID
+		}
+		if repoID == "" {
+			repoID = config.GenerateRepoID()
+		}
+
 		template := fmt.Sprintf(`# ==============================================================================
 # My-Memory Vault Configuration
 # Documentação: docs/REPOSITORY_BRAIN.md e docs/CLI_GUIDE.md
 # ==============================================================================
 
 version: 1
+
+# Identificador criptográfico imutável do repositório no catálogo global
+repo_id: %q
 
 # Identificador / slug do repositório ou vault para escopo multi-tenant
 repository: %q
@@ -743,12 +822,6 @@ exclude:
   - ".trash/**"
   - ".memory/**"
 
-# Configurações do motor de persistência
-storage:
-  engine: "sqlite"          # "sqlite" ou "postgres" (se houver .memory/.env com MY_MEMORY_PG_URL, conecta no PostgreSQL automaticamente)
-  sqlite_path: %q     # Caminho do banco SQLite local
-  postgres_url: "postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable" # Conexão PostgreSQL (pgvector)
-
 # Configurações do modelo de embeddings
 embedding:
   provider: "ollama"
@@ -770,10 +843,20 @@ search:
 watcher:
   debounce_ms: 500          # Janela de debounce para agrupar rajadas de gravação
   interval_ms: 1000         # Intervalo de polling periódico
-`, repoSlug, dbPath)
+`, repoID, repoSlug)
 
 		if err := os.WriteFile(cfgPath, []byte(template), 0644); err != nil {
 			return fmt.Errorf("erro ao salvar arquivo de configuração: %w", err)
+		}
+
+		// Registra o repositório no catálogo global (~/.memory/config.yaml)
+		absTarget, err := filepath.Abs(targetDir)
+		if err == nil {
+			_ = config.RegisterRepositoryInGlobalConfig(config.RepositoryCatalogEntry{
+				ID:   repoID,
+				Path: absTarget,
+				Name: repoSlug,
+			})
 		}
 
 		// Criação padrão de .memory/.gitignore para proteger segredos e bancos locais
@@ -889,8 +972,9 @@ mem mcp
 		}
 		configCreated = true
 		fmt.Printf("✅ Configuração inicializada com sucesso em %s\n", cfgPath)
+		fmt.Printf("   Repo ID: %s\n", repoID)
 		fmt.Printf("   Repositório: %s\n", repoSlug)
-		fmt.Printf("   Storage: SQLite (%s)\n", dbPath)
+		fmt.Printf("   Catálogo Global: Registrado em ~/.memory/config.yaml\n")
 		fmt.Printf("   Modelos: %s, %s e %s gerados por padrão\n", gitIgnorePath, envExamplePath, agentsTemplatePath)
 	}
 
@@ -1074,11 +1158,8 @@ func runWatch(
 
 func resolveConfig() *config.Config {
 	_, _ = config.FindAndLoadDotEnv(".")
-	cfgPath, err := config.FindConfigFile(".")
-	if err == nil {
-		if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
-			return loaded
-		}
+	if loaded, _, err := config.LoadCascadingConfig("."); err == nil && loaded != nil {
+		return loaded
 	}
 	def := config.DefaultConfig()
 	if stat, err := os.Stat(".memory"); err == nil && stat.IsDir() {
@@ -1095,7 +1176,9 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 
 	repo = targetRepo
 	if repo == "" {
-		if cfg.Repository != "" {
+		if cfg.RepoID != "" {
+			repo = cfg.RepoID
+		} else if cfg.Repository != "" {
 			repo = cfg.Repository
 		} else if envRepo := os.Getenv("MY_MEMORY_REPO"); envRepo != "" {
 			repo = envRepo
@@ -1108,8 +1191,16 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 	if db == "" {
 		if cfg.Storage.SQLitePath != "" {
 			db = cfg.Storage.SQLitePath
+		} else if stat, err := os.Stat(".memory/memory.db"); err == nil && !stat.IsDir() {
+			db = ".memory/memory.db"
 		} else {
 			db = "memory.db"
+		}
+	} else if db == "memory.db" {
+		if _, err := os.Stat("memory.db"); os.IsNotExist(err) {
+			if stat, err := os.Stat(".memory/memory.db"); err == nil && !stat.IsDir() {
+				db = ".memory/memory.db"
+			}
 		}
 	}
 
@@ -1523,6 +1614,11 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 			if len(res.Neighbors) > 0 {
 				fmt.Printf("    🕸  Vizinhos: [%s]\n", strings.Join(res.Neighbors, ", "))
 			}
+			if searchOpts.ShowLinks {
+				links := deeplink.GenerateLinks("", "", res.DocumentID, 0)
+				fmt.Printf("    🔗 Obsidian: %s\n", links.Obsidian)
+				fmt.Printf("    🔗 VS Code:  %s\n", links.VSCode)
+			}
 			fmt.Println()
 		}
 		return
@@ -1561,6 +1657,11 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 		}
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
+		}
+		if searchOpts.ShowLinks {
+			links := deeplink.GenerateLinks("", "", res.DocumentID, 0)
+			fmt.Printf("🔗 Obsidian: %s\n", links.Obsidian)
+			fmt.Printf("🔗 VS Code:  %s\n", links.VSCode)
 		}
 		fmt.Println()
 	}
@@ -1650,6 +1751,11 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 			if len(res.Neighbors) > 0 {
 				fmt.Printf("    🕸  Vizinhos: [%s]\n", strings.Join(res.Neighbors, ", "))
 			}
+			if searchOpts.ShowLinks {
+				links := deeplink.GenerateLinks("", "", res.DocumentID, 0)
+				fmt.Printf("    🔗 Obsidian: %s\n", links.Obsidian)
+				fmt.Printf("    🔗 VS Code:  %s\n", links.VSCode)
+			}
 			fmt.Println()
 		}
 		return
@@ -1686,6 +1792,11 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.Ollama
 		if len(res.Neighbors) > 0 {
 			fmt.Printf("🕸 Conexões no Grafo: %s\n", strings.Join(res.Neighbors, ", "))
 		}
+		if searchOpts.ShowLinks {
+			links := deeplink.GenerateLinks("", "", res.DocumentID, 0)
+			fmt.Printf("🔗 Obsidian: %s\n", links.Obsidian)
+			fmt.Printf("🔗 VS Code:  %s\n", links.VSCode)
+		}
 		fmt.Println()
 	}
 }
@@ -1720,10 +1831,106 @@ func rearrangeSearchArgs(args []string) []string {
 	return append(flags, nonFlags...)
 }
 
+func buildSQLiteSearchFunc(database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer) func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+	return func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+		limit := params.Limit
+		if limit <= 0 {
+			limit = 5
+		}
+		k := params.K
+		if k <= 0 {
+			k = 60
+		}
 
+		searchOpts := store.SearchOptions{
+			Level:    params.DetailLevel,
+			Category: params.Category,
+		}
+		if searchOpts.Level == "" {
+			searchOpts.Level = "l1"
+		}
 
-func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool) {
+		var dbResults []db.SearchResult
+		var err error
+
+		switch params.Mode {
+		case "fts":
+			dbResults, err = db.SearchFTSWithOptions(ctx, database, params.Query, limit, searchOpts)
+		case "vector":
+			queryVec, embErr := emb.GenerateEmbedding(params.Query)
+			if embErr != nil {
+				return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
+			}
+			if !db.HasSqliteVec {
+				dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
+			} else {
+				dbResults, err = db.SearchKNNWithOptions(ctx, database, queryVec, limit, searchOpts)
+				if err != nil {
+					dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
+				}
+			}
+		default: // hybrid
+			var queryVec []float32
+			vec, embErr := emb.GenerateEmbedding(params.Query)
+			if embErr == nil {
+				queryVec = vec
+			}
+			decayOpts := store.DefaultDecayOptions()
+			if params.Decay {
+				decayOpts.Enabled = true
+				if params.HalfLife > 0 {
+					decayOpts.HalfLife = params.HalfLife
+				}
+				if params.DecayWeight >= 0 {
+					decayOpts.Weight = params.DecayWeight
+				}
+			}
+			dbResults, err = db.SearchHybridRRFWithOptions(ctx, database, tq, params.Query, queryVec, limit, k, false, decayOpts, searchOpts)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		mcpResults := make([]mcp.SearchResult, len(dbResults))
+		for i, r := range dbResults {
+			mcpResults[i] = mcp.SearchResult{
+				ChunkID:    r.ChunkID,
+				DocumentID: r.DocumentID,
+				Content:    r.Content,
+				Distance:   r.Distance,
+				Score:      r.Score,
+				Sources:    r.Sources,
+				Neighbors:  r.Neighbors,
+				UpdatedAt:  r.UpdatedAt,
+				Abstract:   r.Abstract,
+				Category:   r.Category,
+			}
+		}
+		return mcpResults, nil
+	}
+}
+
+func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool, cfg ...*config.Config) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
+
+	var mcpCfg *config.Config
+	if len(cfg) > 0 && cfg[0] != nil {
+		mcpCfg = cfg[0]
+	} else {
+		mcpCfg = resolveConfig()
+	}
+	vaultRoot := "."
+	if cfgPath, err := config.FindConfigFile("."); err == nil {
+		dirOfCfg := filepath.Dir(cfgPath)
+		if filepath.Base(dirOfCfg) == ".memory" {
+			vaultRoot = filepath.Dir(dirOfCfg)
+		} else {
+			vaultRoot = dirOfCfg
+		}
+	}
+	stalenessDetector := staleness.NewDetector(vaultRoot, mcpCfg, database, pgStore, defaultRepo)
+	srv.SetStalenessDetector(stalenessDetector)
 
 	if pgStore != nil {
 		pgSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
@@ -1801,9 +2008,22 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return mcpResults, nil
 		}
-		srv.SetAdvancedSearchHandler(pgSearchFunc)
+
+		var effectiveSearchFunc mcp.AdvancedSearchFunc = pgSearchFunc
+		if mcpCfg != nil && mcpCfg.CentralVault.Path != "" {
+			expandedCentral := config.ExpandPath(mcpCfg.CentralVault.Path)
+			centralSearchFunc := func(cctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+				cp := params
+				cp.Repo = "repo_central"
+				return pgSearchFunc(cctx, cp)
+			}
+			fedSearcher := federation.NewFederatedSearcher(pgSearchFunc, centralSearchFunc, expandedCentral, mcpCfg.CentralVault.ReadOnly)
+			effectiveSearchFunc = fedSearcher.Search
+		}
+
+		srv.SetAdvancedSearchHandler(effectiveSearchFunc)
 		syncEngine := compiler.NewSyncEngine(nil, pgStore, emb, nil, defaultRepo)
-		srv.SetCompilerEngine(syncEngine, pgSearchFunc, ".")
+		srv.SetCompilerEngine(syncEngine, effectiveSearchFunc, ".")
 
 		srv.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
 			if repo == "" {
@@ -1933,90 +2153,59 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			}
 			return pgStore.InspectNode(ctx, repo, nodeID, maxContentLen)
 		})
+
+		srv.SetPathHandler(func(ctx context.Context, repo, source, target string, opts graph.PathOptions) (*graph.PathResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.FindPath(ctx, repo, source, target, opts)
+		})
+
+		srv.SetPackHandler(func(ctx context.Context, repo, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.PackContext(ctx, repo, rootQuery, opts)
+		})
+
+		cwd, _ := os.Getwd()
+		srv.SetOpenHandler(func(ctx context.Context, repo, nodeID string) (string, error) {
+			if repo == "" {
+				repo = defaultRepo
+			}
+			return pgStore.ResolveNodeCanonicalID(ctx, repo, nodeID)
+		}, cwd, mcpCfg.ResolveObsidianVault(cwd), deeplink.DefaultLauncher)
+
+		srv.SetDriftHandler(func(ctx context.Context, rangeStr string, threshold float64, includeUncovered bool, repoSlug string) (*drift.DriftReport, error) {
+			repoRoot, _ := os.Getwd()
+			vaultName := mcpCfg.ResolveObsidianVault(repoRoot)
+			return drift.AnalyzeDrift(ctx, drift.NewOSGitRunner(), pgStore.DB(), repoRoot, vaultName, rangeStr, threshold, includeUncovered)
+		})
 	} else if database != nil {
+
 		if tq == nil {
 			tq = turboquant.NewQuantizer(EmbeddingDim)
 		}
-		dbSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
-			limit := params.Limit
-			if limit <= 0 {
-				limit = 5
-			}
-			k := params.K
-			if k <= 0 {
-				k = 60
-			}
+		dbSearchFunc := buildSQLiteSearchFunc(database, emb, tq)
+		var effectiveSearchFunc mcp.AdvancedSearchFunc = dbSearchFunc
 
-			searchOpts := store.SearchOptions{
-				Level:    params.DetailLevel,
-				Category: params.Category,
-			}
-			if searchOpts.Level == "" {
-				searchOpts.Level = "l1"
-			}
-
-			var dbResults []db.SearchResult
-			var err error
-
-			switch params.Mode {
-			case "fts":
-				dbResults, err = db.SearchFTSWithOptions(ctx, database, params.Query, limit, searchOpts)
-			case "vector":
-				queryVec, embErr := emb.GenerateEmbedding(params.Query)
-				if embErr != nil {
-					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
-				}
-				if !db.HasSqliteVec {
-					dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
-				} else {
-					dbResults, err = db.SearchKNNWithOptions(ctx, database, queryVec, limit, searchOpts)
-					if err != nil {
-						dbResults, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
-					}
-				}
-			default: // hybrid
-				var queryVec []float32
-				vec, embErr := emb.GenerateEmbedding(params.Query)
-				if embErr == nil {
-					queryVec = vec
-				}
-				decayOpts := store.DefaultDecayOptions()
-				if params.Decay {
-					decayOpts.Enabled = true
-					if params.HalfLife > 0 {
-						decayOpts.HalfLife = params.HalfLife
-					}
-					if params.DecayWeight >= 0 {
-						decayOpts.Weight = params.DecayWeight
-					}
-				}
-				dbResults, err = db.SearchHybridRRFWithOptions(ctx, database, tq, params.Query, queryVec, limit, k, false, decayOpts, searchOpts)
-			}
-
-			if err != nil {
-				return nil, err
-			}
-
-			mcpResults := make([]mcp.SearchResult, len(dbResults))
-			for i, r := range dbResults {
-				mcpResults[i] = mcp.SearchResult{
-					ChunkID:    r.ChunkID,
-					DocumentID: r.DocumentID,
-					Content:    r.Content,
-					Distance:   r.Distance,
-					Score:      r.Score,
-					Sources:    r.Sources,
-					Neighbors:  r.Neighbors,
-					UpdatedAt:  r.UpdatedAt,
-					Abstract:   r.Abstract,
-					Category:   r.Category,
+		if mcpCfg != nil && mcpCfg.CentralVault.Path != "" {
+			expandedCentral := config.ExpandPath(mcpCfg.CentralVault.Path)
+			centralDBPath := federation.ResolveCentralSQLitePath(expandedCentral)
+			var centralSearchFunc federation.SearchFunc
+			if _, statErr := os.Stat(centralDBPath); statErr == nil {
+				if centralDB, dbErr := db.InitDB(centralDBPath); dbErr == nil {
+					defer centralDB.Close()
+					centralSearchFunc = buildSQLiteSearchFunc(centralDB, emb, tq)
 				}
 			}
-			return mcpResults, nil
+			fedSearcher := federation.NewFederatedSearcher(dbSearchFunc, centralSearchFunc, expandedCentral, mcpCfg.CentralVault.ReadOnly)
+			effectiveSearchFunc = fedSearcher.Search
 		}
-		srv.SetAdvancedSearchHandler(dbSearchFunc)
+
+		srv.SetAdvancedSearchHandler(effectiveSearchFunc)
 		syncEngine := compiler.NewSyncEngine(database, nil, emb, tq, defaultRepo)
-		srv.SetCompilerEngine(syncEngine, dbSearchFunc, ".")
+		srv.SetCompilerEngine(syncEngine, effectiveSearchFunc, ".")
 
 		srv.SetNeighborsHandler(func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
 			return db.GetNodeNeighbors(ctx, database, nodeID, maxDepth)
@@ -2122,9 +2311,29 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 		srv.SetInspectHandler(func(ctx context.Context, repo, nodeID string, maxContentLen int) (*graph.TriptychView, error) {
 			return db.InspectNode(ctx, database, nodeID, maxContentLen)
 		})
+
+		srv.SetPathHandler(func(ctx context.Context, repo, source, target string, opts graph.PathOptions) (*graph.PathResult, error) {
+			return db.FindPath(ctx, database, source, target, opts)
+		})
+
+		srv.SetPackHandler(func(ctx context.Context, repo, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
+			return db.PackContext(ctx, database, rootQuery, opts)
+		})
+
+		cwd, _ := os.Getwd()
+		srv.SetOpenHandler(func(ctx context.Context, repo, nodeID string) (string, error) {
+			return db.ResolveNodeCanonicalID(ctx, database, nodeID)
+		}, cwd, mcpCfg.ResolveObsidianVault(cwd), deeplink.DefaultLauncher)
+
+		srv.SetDriftHandler(func(ctx context.Context, rangeStr string, threshold float64, includeUncovered bool, repoSlug string) (*drift.DriftReport, error) {
+			repoRoot, _ := os.Getwd()
+			vaultName := mcpCfg.ResolveObsidianVault(repoRoot)
+			return drift.AnalyzeDrift(ctx, drift.NewOSGitRunner(), database, repoRoot, vaultName, rangeStr, threshold, includeUncovered)
+		})
 	}
 
 	if httpAddr != "" {
+
 		httpSrv := mcp.NewHTTPServer(srv, mcp.HTTPServerOptions{
 			Addr:        httpAddr,
 			CORSEnabled: corsEnabled,

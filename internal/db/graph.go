@@ -8,22 +8,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/FelipeMiiller/my-memory/internal/deeplink"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 )
 
 type SearchResult struct {
-	ChunkID    string   `json:"chunk_id"`
-	DocumentID string   `json:"document_id"`
-	Content    string   `json:"content"`
-	Distance   float64  `json:"distance,omitempty"`
-	Score      float64  `json:"score,omitempty"`
-	Sources    []string `json:"sources,omitempty"`
-	Neighbors  []string `json:"neighbors,omitempty"` // Conexões descobertas no grafo
-	UpdatedAt  int64    `json:"updated_at,omitempty"`
-	Abstract   string   `json:"abstract,omitempty"`
-	Category   string   `json:"category,omitempty"`
+	ChunkID    string              `json:"chunk_id"`
+	DocumentID string              `json:"document_id"`
+	Content    string              `json:"content"`
+	Distance   float64             `json:"distance,omitempty"`
+	Score      float64             `json:"score,omitempty"`
+	Sources    []string            `json:"sources,omitempty"`
+	Neighbors  []string            `json:"neighbors,omitempty"` // Conexões descobertas no grafo
+	UpdatedAt  int64               `json:"updated_at,omitempty"`
+	Abstract   string              `json:"abstract,omitempty"`
+	Category   string              `json:"category,omitempty"`
+	Links      *deeplink.DeepLinks `json:"links,omitempty"`
 }
 
 // SearchKNN busca os pedaços mais próximos usando sqlite-vec nativo
@@ -170,7 +172,6 @@ func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.
 
 	return results, nil
 }
-
 
 // GetNodeNeighbors realiza travessia de grafo em SQL usando Recursive CTE
 func GetNodeNeighbors(ctx context.Context, db *sql.DB, nodeID string, maxDepth int) ([]string, error) {
@@ -707,3 +708,187 @@ func InspectNode(ctx context.Context, db *sql.DB, targetQuery string, maxContent
 	return graph.BuildTriptychView(targetSummary, edges, opts)
 }
 
+// FindPath resolve os nós de origem e destino e calcula o menor caminho entre eles no SQLite
+func FindPath(ctx context.Context, db *sql.DB, sourceQuery, targetQuery string, opts graph.PathOptions) (*graph.PathResult, error) {
+	canonicalSource, err := ResolveNodeCanonicalID(ctx, db, sourceQuery)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao resolver nó de origem: %w", err)
+	}
+
+	canonicalTarget, err := ResolveNodeCanonicalID(ctx, db, targetQuery)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao resolver nó de destino: %w", err)
+	}
+
+	// 1. Carregar todos os nós
+	nodesSet := make(map[string]bool)
+	docRows, err := db.QueryContext(ctx, "SELECT id FROM documents")
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id string
+			if err := docRows.Scan(&id); err == nil {
+				nodesSet[id] = true
+			}
+		}
+	}
+
+	nodeRows, err := db.QueryContext(ctx, "SELECT id FROM graph_nodes")
+	if err == nil {
+		defer nodeRows.Close()
+		for nodeRows.Next() {
+			var id string
+			if err := nodeRows.Scan(&id); err == nil {
+				nodesSet[id] = true
+			}
+		}
+	}
+
+	// 2. Carregar arestas
+	edgeRows, err := db.QueryContext(ctx, "SELECT source_id, target_id, COALESCE(relation, 'links_to'), COALESCE(weight, 1.0), COALESCE(epistemic_status, 'EXTRACTED') FROM graph_edges")
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para busca de caminho: %w", err)
+	}
+	defer edgeRows.Close()
+
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, rel, epStatus string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &rel, &weight, &epStatus); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		edges = append(edges, graph.WeightedEdge{
+			Source:          src,
+			Target:          tgt,
+			Type:            rel,
+			Weight:          weight,
+			EpistemicStatus: epStatus,
+		})
+	}
+
+	allNodes := make([]string, 0, len(nodesSet))
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+
+	return graph.FindPath(allNodes, edges, canonicalSource, canonicalTarget, opts)
+}
+
+// PackContext resolve o nó raiz e constrói o pacote consolidado de subgrafo no SQLite
+func PackContext(ctx context.Context, db *sql.DB, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
+	canonicalRoot, err := ResolveNodeCanonicalID(ctx, db, rootQuery)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao resolver nó raiz: %w", err)
+	}
+
+	// 1. Carregar arestas
+	edgeRows, err := db.QueryContext(ctx, "SELECT source_id, target_id, COALESCE(relation, 'links_to'), COALESCE(weight, 1.0), COALESCE(epistemic_status, 'EXTRACTED') FROM graph_edges")
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar arestas para empacotamento: %w", err)
+	}
+	defer edgeRows.Close()
+
+	nodesSet := make(map[string]bool)
+	var edges []graph.WeightedEdge
+	for edgeRows.Next() {
+		var src, tgt, rel, epStatus string
+		var weight float64
+		if err := edgeRows.Scan(&src, &tgt, &rel, &weight, &epStatus); err != nil {
+			return nil, err
+		}
+		nodesSet[src] = true
+		nodesSet[tgt] = true
+		edges = append(edges, graph.WeightedEdge{
+			Source:          src,
+			Target:          tgt,
+			Type:            rel,
+			Weight:          weight,
+			EpistemicStatus: epStatus,
+		})
+	}
+
+	// 2. Carregar metadados dos documentos
+	docMap := make(map[string]graph.PackGraphNode)
+	docRows, err := db.QueryContext(ctx, "SELECT id, path, COALESCE(title, id), updated_at, COALESCE(abstract, ''), COALESCE(category, 'resource') FROM documents")
+	if err == nil {
+		defer docRows.Close()
+		for docRows.Next() {
+			var id, path, title, abstract, category string
+			var updatedAt int64
+			if err := docRows.Scan(&id, &path, &title, &updatedAt, &abstract, &category); err == nil {
+				nodesSet[id] = true
+				docMap[id] = graph.PackGraphNode{
+					ID:        id,
+					Title:     title,
+					Path:      path,
+					Abstract:  abstract,
+					Category:  category,
+					UpdatedAt: updatedAt,
+				}
+			}
+		}
+	}
+
+	// 3. Nós adicionais em graph_nodes
+	gnRows, err := db.QueryContext(ctx, "SELECT id, COALESCE(name, id) FROM graph_nodes")
+	if err == nil {
+		defer gnRows.Close()
+		for gnRows.Next() {
+			var id, name string
+			if err := gnRows.Scan(&id, &name); err == nil {
+				nodesSet[id] = true
+				if _, exists := docMap[id]; !exists {
+					docMap[id] = graph.PackGraphNode{
+						ID:    id,
+						Title: name,
+					}
+				}
+			}
+		}
+	}
+
+	// 4. Carregar chunks e agregar conteúdo por documento
+	chunkRows, err := db.QueryContext(ctx, "SELECT document_id, content FROM chunks ORDER BY document_id, chunk_index ASC")
+	if err == nil {
+		defer chunkRows.Close()
+		contentBuilders := make(map[string]*strings.Builder)
+		for chunkRows.Next() {
+			var docID, chunkContent string
+			if err := chunkRows.Scan(&docID, &chunkContent); err == nil {
+				b, ok := contentBuilders[docID]
+				if !ok {
+					b = &strings.Builder{}
+					contentBuilders[docID] = b
+				} else {
+					b.WriteString("\n\n")
+				}
+				b.WriteString(chunkContent)
+			}
+		}
+		for docID, b := range contentBuilders {
+			if node, ok := docMap[docID]; ok {
+				node.Content = b.String()
+				docMap[docID] = node
+			}
+		}
+	}
+
+	// 5. Calcular PageRank para priorização
+	allNodes := make([]string, 0, len(nodesSet))
+	for n := range nodesSet {
+		allNodes = append(allNodes, n)
+	}
+	prScores := graph.ComputePageRank(allNodes, edges, graph.DefaultPageRankOptions())
+	opts.PageRanks = prScores
+
+	// 6. Preparar lista de PackGraphNodes
+	packNodes := make([]graph.PackGraphNode, 0, len(docMap))
+	for _, node := range docMap {
+		packNodes = append(packNodes, node)
+	}
+
+	return graph.PackContext(packNodes, edges, canonicalRoot, opts)
+}

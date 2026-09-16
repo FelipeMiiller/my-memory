@@ -31,7 +31,7 @@ func runImpactCommand(ctx context.Context, defaultRepo string, args []string, ou
 	pgURL := impactCmd.String("postgres", "", "URL de conexão PostgreSQL")
 	targetRepo := impactCmd.String("repo", "", "Slug ou identificador do repositório")
 
-	if err := impactCmd.Parse(args); err != nil {
+	if err := impactCmd.Parse(rearrangeImpactArgs(args)); err != nil {
 		return err
 	}
 
@@ -46,16 +46,14 @@ func runImpactCommand(ctx context.Context, defaultRepo string, args []string, ou
 		resolvedDepth = 2
 	}
 
-	resolvedRepo := *targetRepo
-	if resolvedRepo == "" {
-		resolvedRepo = defaultRepo
-	}
+	cfg := resolveConfig()
+	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
 
 	var impactResult *graph.ImpactResult
 	var impactErr error
 
-	if *pgURL != "" {
-		pgStore, err := store.NewPostgresStore(*pgURL)
+	if resolvedPG != "" && (*pgURL != "" || (cfg != nil && cfg.Storage.Engine == "postgres")) {
+		pgStore, err := store.NewPostgresStore(resolvedPG)
 		if err != nil {
 			return fmt.Errorf("falha ao conectar no PostgreSQL: %w", err)
 		}
@@ -63,11 +61,6 @@ func runImpactCommand(ctx context.Context, defaultRepo string, args []string, ou
 
 		impactResult, impactErr = pgStore.CalculateImpact(ctx, resolvedRepo, targetNode, resolvedDepth)
 	} else {
-		resolvedDB := *dbPath
-		if resolvedDB == "" {
-			resolvedDB = "memory.db"
-		}
-
 		database, err := db.InitDB(resolvedDB)
 		if err != nil {
 			return fmt.Errorf("falha ao abrir banco SQLite '%s': %w", resolvedDB, err)
@@ -138,4 +131,26 @@ func runImpactCommand(ctx context.Context, defaultRepo string, args []string, ou
 	fmt.Fprintln(out)
 
 	return nil
+}
+
+func rearrangeImpactArgs(args []string) []string {
+	var flags []string
+	var nonFlags []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "-") {
+			flags = append(flags, arg)
+			if !strings.Contains(arg, "=") && (arg == "--depth" || arg == "-depth" ||
+				arg == "--db" || arg == "-db" || arg == "--postgres" || arg == "-postgres" ||
+				arg == "--repo" || arg == "-repo") {
+				if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+					flags = append(flags, args[i+1])
+					i++
+				}
+			}
+		} else {
+			nonFlags = append(nonFlags, arg)
+		}
+	}
+	return append(flags, nonFlags...)
 }

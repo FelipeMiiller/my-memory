@@ -178,4 +178,3 @@ func ChunkText(content string, chunkSize int, overlap int) []string {
 
 	return chunks
 }
-

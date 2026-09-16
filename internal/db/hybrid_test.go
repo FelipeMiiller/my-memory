@@ -316,4 +316,3 @@ func TestSearch_LevelL0Projection(t *testing.T) {
 		}
 	}
 }
-

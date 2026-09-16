@@ -199,4 +199,3 @@ func fromStoreResults(items []store.SearchResult) []SearchResult {
 	}
 	return res
 }
-

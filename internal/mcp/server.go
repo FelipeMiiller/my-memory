@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"sync"
+
+	"github.com/FelipeMiiller/my-memory/internal/staleness"
 )
 
 // ProtocolVersion versÃ£o do protocolo MCP suportada
@@ -56,16 +58,17 @@ type InitializeResult struct {
 
 // Server gerencia o loop de mensagens e ciclo de vida do servidor MCP
 type Server struct {
-	name         string
-	version      string
-	reader       *MessageReader
-	writer       *MessageWriter
-	logger       *log.Logger
-	handlers     map[string]HandlerFunc
-	tools        []Tool
-	toolHandlers map[string]ToolHandlerFunc
-	mu           sync.RWMutex
-	initialized  bool
+	name              string
+	version           string
+	reader            *MessageReader
+	writer            *MessageWriter
+	logger            *log.Logger
+	handlers          map[string]HandlerFunc
+	tools             []Tool
+	toolHandlers      map[string]ToolHandlerFunc
+	stalenessDetector *staleness.Detector
+	mu                sync.RWMutex
+	initialized       bool
 }
 
 // NewServer cria um servidor MCP configurado
@@ -104,8 +107,26 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryGetClusters, NewMemoryGetClustersHandler(nil))
 	s.RegisterTool(ToolMemoryGetImpact, NewMemoryGetImpactHandler(nil))
 	s.RegisterTool(ToolMemoryInspectNode, NewMemoryInspectNodeHandler(nil))
+	s.RegisterTool(ToolMemoryFindPath, NewMemoryFindPathHandler(nil))
+	s.RegisterTool(ToolMemoryPackContext, NewMemoryPackContextHandler(nil))
+	s.RegisterTool(ToolMemoryOpenNode, NewMemoryOpenNodeHandler(nil, "", "", nil))
+	s.RegisterTool(ToolMemoryGetDrift, NewMemoryGetDriftHandler(nil))
 
 	return s
+}
+
+// SetStalenessDetector configura o detector de integridade e staleness do vault
+func (s *Server) SetStalenessDetector(d *staleness.Detector) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stalenessDetector = d
+}
+
+// StalenessDetector retorna o detector configurado (se houver)
+func (s *Server) StalenessDetector() *staleness.Detector {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.stalenessDetector
 }
 
 // RegisterHandler registra um método JSON-RPC customizado

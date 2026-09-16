@@ -66,7 +66,6 @@ var (
 		},
 	}
 
-
 	ToolMemoryGetNeighbors = Tool{
 		Name:        "memory_get_neighbors",
 		Description: "Retorna nós e notas vizinhas no grafo relacional a partir de um node_id via CTE recursivo",
@@ -84,6 +83,11 @@ var (
 				"repository": map[string]any{
 					"type":        "string",
 					"description": "Slug ou nome do repositório para contextualizar a travessia de vizinhos (opcional).",
+				},
+				"format": map[string]any{
+					"type":        "string",
+					"enum":        []string{"text", "json"},
+					"description": "Formato de saída: 'text' (padrão) ou 'json' estruturado com sinalização federada (opcional)",
 				},
 			},
 			"required": []string{"node_id"},
@@ -412,6 +416,133 @@ var (
 				},
 			},
 			"required": []string{"node_id"},
+		},
+	}
+
+	ToolMemoryFindPath = Tool{
+		Name:        "memory_find_path",
+		Description: "Encontra o menor caminho e traça a rota ponderada entre dois nós no grafo de conhecimento, considerando certeza epistêmica (EXTRACTED vs INFERRED vs TAG) ou número de saltos",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"source": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho de arquivo do nó de origem",
+				},
+				"target": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho de arquivo do nó de destino",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Profundidade máxima de saltos a explorar (padrão: 6)",
+				},
+				"directed": map[string]any{
+					"type":        "boolean",
+					"description": "Se verdadeiro, navega apenas no sentido direcionado das arestas (A -> B). Se falso, navega bidirecionalmente (padrão: true)",
+				},
+				"mode": map[string]any{
+					"type":        "string",
+					"enum":        []string{"epistemic", "hops"},
+					"description": "Modo de custo: 'epistemic' (padrão, prioriza arestas com maior certeza documental) ou 'hops' (menor quantidade de arestas)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"source", "target"},
+		},
+	}
+
+	ToolMemoryPackContext = Tool{
+		Name:        "memory_pack_context",
+		Description: "Extrai e consolida um subgrafo conexo centrado em uma nota raiz, empacotando documentos centrais (L2), resumos periféricos (L0/L1) e diagrama Mermaid em um bundle coerente com limite de tokens",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"root_node": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho da nota raiz a partir da qual o subgrafo será explorado",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Profundidade máxima de saltos de exploração no grafo (padrão: 2)",
+				},
+				"max_tokens": map[string]any{
+					"type":        "integer",
+					"description": "Orçamento máximo de tokens para o pacote gerado (padrão: 4000)",
+				},
+				"direction": map[string]any{
+					"type":        "string",
+					"enum":        []string{"both", "outbound", "inbound"},
+					"description": "Direção da navegação pelas arestas ('both', 'outbound', 'inbound', padrão: 'both')",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+			},
+			"required": []string{"root_node"},
+		},
+	}
+
+	ToolMemoryOpenNode = Tool{
+		Name:        "memory_open_node",
+		Description: "Gera deep links canônicos (Obsidian, VS Code, File) e opcionalmente abre o documento no editor indicado",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"node_id": map[string]any{
+					"type":        "string",
+					"description": "Identificador, título ou caminho do arquivo da nota a ser aberta ou linkada",
+				},
+				"app": map[string]any{
+					"type":        "string",
+					"enum":        []string{"obsidian", "vscode", "system"},
+					"description": "Aplicativo alvo para navegação: 'obsidian' (padrão), 'vscode' ou 'system'",
+				},
+				"line": map[string]any{
+					"type":        "integer",
+					"description": "Número de linha para focar no editor (opcional)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório (opcional)",
+				},
+				"action": map[string]any{
+					"type":        "string",
+					"enum":        []string{"links_only", "open"},
+					"description": "Modo de execução: 'links_only' (retorna apenas as URIs acionáveis, padrão seguro) ou 'open' (dispara a abertura do processo no SO)",
+				},
+			},
+			"required": []string{"node_id"},
+		},
+	}
+
+	ToolMemoryGetDrift = Tool{
+		Name:        "memory_get_drift",
+		Description: "Analisa o desvio semântico entre alterações recentes de código-fonte no Git e as notas/ADRs da base de memória, identificando documentação defasada e código órfão sem decisões arquiteturais vinculadas",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"since": map[string]any{
+					"type":        "string",
+					"description": "Faixa de commits do Git para análise (ex: 'HEAD~5..HEAD', 'commit..HEAD' ou 'HEAD~10'). Se omitido, analisa os últimos 5 commits.",
+				},
+				"threshold": map[string]any{
+					"type":        "number",
+					"description": "Limite mínimo de score de drift normalizado (0.0 a 1.0) para incluir notas no relatório (padrão: 0.20)",
+				},
+				"include_uncovered": map[string]any{
+					"type":        "boolean",
+					"description": "Indica se deve incluir arquivos de código modificados que não possuem notas associadas (padrão: true)",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório para contextualizar a análise (opcional)",
+				},
+			},
 		},
 	}
 )

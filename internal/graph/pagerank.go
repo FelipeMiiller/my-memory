@@ -17,10 +17,11 @@ const (
 
 // WeightedEdge representa uma aresta direcionada ponderada entre dois nós do grafo
 type WeightedEdge struct {
-	Source string
-	Target string
-	Weight float64
-	Type   string
+	Source          string
+	Target          string
+	Weight          float64
+	Type            string
+	EpistemicStatus string
 }
 
 // PageRankOptions define os hiperparâmetros de execução do algoritmo PageRank

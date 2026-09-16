@@ -142,7 +142,9 @@ func NewMemoryInspectNodeHandler(inspectFn InspectFunc) ToolHandlerFunc {
 			sb.WriteString("|---|---|---|---|---|\n")
 			for _, out := range res.Outbound {
 				status := "✓ Válido"
-				if !out.Exists {
+				if out.IsFederated || strings.HasPrefix(out.TargetID, "memory://") {
+					status = "🌐 Federado (is_federated: true)"
+				} else if !out.Exists {
 					status = "⚠️ DEAD LINK"
 				}
 				sb.WriteString(fmt.Sprintf("| %s | `%s` | `%s` | `%.4f` | `%s` (%s) |\n",
