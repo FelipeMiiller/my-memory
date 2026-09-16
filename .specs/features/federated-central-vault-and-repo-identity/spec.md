@@ -54,8 +54,9 @@ Open questions: none (todas as decisões foram alinhadas e acordadas com o usuá
 - **WHERE**: Where `repo_id` is already defined in `.memory/config.yaml`, the system SHALL preserve it without alteration across all subsequent CLI and MCP invocations.
 - **UBIQUITOUS**: The system SHALL designate `repo_central` as the reserved identity for the central knowledge base.
 
-### FED-02: Configuração Declarativa de Central Vault Vinculado
-- **UBIQUITOUS**: The system SHALL support declaring `central_vault.path` in `.memory/config.yaml` with automatic expansion of environment variables (`${VAR}` and `$VAR`).
+### FED-02: Convenção Definitiva `.memory/` e Zero Credentials no Git
+- **UBIQUITOUS**: The system SHALL establish `.memory/` in the repository root as the definitive, immutable control directory without requiring external path configuration.
+- **UBIQUITOUS**: The system SHALL exclude database credentials, connection URLs, and host storage paths from the local repository `.memory/config.yaml` to ensure zero secrets leak to version control.
 - **WHERE**: Where `central_vault.read_only` is true or omitted, the system SHALL enforce read-only semantics for the central knowledge base from the local repository context.
 - **WHERE**: Where the declared central vault path does not exist on the host filesystem, the system SHALL issue a non-blocking warning and gracefully restrict queries to local repository context.
 
@@ -64,16 +65,16 @@ Open questions: none (todas as decisões foram alinhadas e acordadas com o usuá
 - **UBIQUITOUS**: The system SHALL generate standardized template notes in `templates/` (ADR, RFC, Runbook, Spec) and an entrypoint `README.md` Map of Content (MOC) with clickable Obsidian `[[wikilinks]]`.
 - **UBIQUITOUS**: The system SHALL initialize the central storage metadata in `<central_path>/.memory/config.yaml` with identity `repo_central`.
 
-### FED-04: Isolamento Limpo de Persistência (SQLite e PostgreSQL)
-- **UBIQUITOUS**: The system SHALL treat the global configuration `~/.memory/config.yaml` as the authoritative source of truth for the storage engine choice ("all PostgreSQL or all SQLite") across all federated vaults unless explicitly overridden.
-- **WHERE**: Where the storage engine is SQLite, the system SHALL store the central database strictly in `<central_path>/.memory/storage/memory.db`.
-- **WHERE**: Where the storage engine is PostgreSQL, the system SHALL isolate records into dedicated databases named `my_memory_<repo_id>` for satellite repositories and `my_memory_central` for the central knowledge base.
+### FED-04: Persistência Unificada (Banco Único no Postgres e Isolamento no SQLite)
+- **UBIQUITOUS**: The system SHALL treat the global configuration `~/.memory/config.yaml` as the authoritative source of truth for the storage engine choice ("all PostgreSQL or all SQLite") across all federated vaults.
+- **WHERE**: Where the storage engine is PostgreSQL, the system SHALL connect to the unified database using a single connection pool and strictly isolate records using the repository identifier `repo_id` (and `repo_central` for the central knowledge base).
+- **WHERE**: Where the storage engine is SQLite, the system SHALL store the local database in `.memory/memory.db` and the central database strictly in `<central_path>/.memory/storage/memory.db`.
 
 ### FED-05: Busca Híbrida Federada (Local + Central)
 - **WHEN**: When a search is performed via `mem search` or MCP tool `memory_search` in a repository with a linked central vault, the system SHALL query both the local project database and the central vault database.
 - **UBIQUITOUS**: The system SHALL merge results across databases using Reciprocal Rank Fusion (RRF) and label each match with its provenance origin (`[local]` vs `[central]`).
 
-### FED-06: Configuração Global em Cascata (`~/.memory/config.yaml`) e Assistente `mem setup`
+### FED-06: Configuração Global Soberana (`~/.memory/config.yaml`) e Assistente `mem setup`
 - **UBIQUITOUS**: The system SHALL support reading a user-level global configuration file at `~/.memory/config.yaml` to define the central vault path and storage credentials once.
 - **WHERE**: Where local repository configuration omits storage or central vault settings, the system SHALL inherit defaults from the global configuration file.
 - **WHEN**: When `mem setup` is executed, the system SHALL provide an interactive command to record central vault and database preferences into `~/.memory/config.yaml`.

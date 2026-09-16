@@ -65,12 +65,28 @@ graph TD
     MCPServer -->|"Consulta Central"| CV_DB
 ```
 
-### 1. Identidade Criptográfica Imutável (`repo_id`)
-Na primeira execução de `mem init`, o sistema gera deterministicamente `repo_id` no formato `repo_<12-hex-chars>` (ex: `repo_a1b2c3d4e5f6`), persistido em `.memory/config.yaml`. Esse identificador é permanente e imutável. O cofre central assume o ID canônico reservado `repo_central`.
+### 1. Identidade Criptográfica Imutável e Zero Credentials no Git
+Na primeira execução de `mem init`, o sistema gera deterministicamente `repo_id` no formato `repo_<12-hex-chars>` (ex: `repo_a1b2c3d4e5f6`), persistido em `.memory/config.yaml`.
+A pasta `.memory/` na raiz do projeto é a **convenção fixa e definitiva**.
+Para garantir segurança absoluta e portabilidade no Git, o `.memory/config.yaml` local **NUNCA** contém configurações de banco de dados (`storage`), credenciais ou URLs de conexão:
+```yaml
+# .memory/config.yaml (no repositório de código - 100% limpo e seguro para commit)
+version: 1
+repo_id: "repo_a1b2c3d4e5f6"       # Identidade imutável gerada na inicialização
+repository: "FelipeMiiller/my-memory"
+vault_name: "My Memory Vault"
 
-### 2. Configuração Global Única (`~/.memory/config.yaml`)
+include:
+  - "**/*.md"
+exclude:
+  - ".git/**"
+  - ".memory/**"
+```
+Nenhuma senha, URL de PostgreSQL ou caminho pessoal do host vaza para o repositório remoto.
+
+### 2. Configuração Global Soberana (`~/.memory/config.yaml`)
 Localizada em `$HOME/.memory/config.yaml` (Linux/macOS) ou `%USERPROFILE%\.memory\config.yaml` (Windows).
-Elimina duplicação e unifica a topologia de banco de dados:
+É a **fonte única da verdade de infraestrutura** para toda a máquina:
 ```yaml
 version: 1
 
@@ -87,20 +103,20 @@ storage:
 mcp:
   port: 8080
 
-# Catálogo dinâmico de repositórios registrados na máquina
+# Catálogo dinâmico de repositórios conhecidos na máquina
 repositories:
   - id: "repo_a1b2c3d4e5f6"
-    path: "C:/repository/api-pagamentos"
-    name: "empresa/api-pagamentos"
+    path: "C:/repository/my-memory"
+    name: "FelipeMiiller/my-memory"
 ```
 
 ### 3. Topologia e Isolamento Físico de Banco de Dados
-- **Modo PostgreSQL ("PostgreSQL em tudo")**:
-  - Cada repositório satélite conecta em seu próprio banco dedicado: `my_memory_<repo_id>` (ex: `my_memory_repo_a1b2c3d4e5f6`).
-  - O cofre central opera no banco dedicado: `my_memory_central`.
-  - Isola fisicamente os dados de cada repositório sem misturar tabelas ou vetores.
+- **Modo PostgreSQL ("PostgreSQL em tudo - Conexão Estável")**:
+  - Para evitar dezenas de pools de conexão e conexões aleatórias no servidor PostgreSQL, o My-Memory utiliza o **mesmo banco de dados estável** (ex: `my_memory`).
+  - O isolamento completo entre projetos e o cofre central é garantido deterministicamente pela coluna `repo_id` (com o valor reservado `repo_central` para o cofre central).
+  - Um único pool de conexões de alto desempenho atende o MCP e as buscas federadas, eliminando overhead de rede.
 - **Modo SQLite ("SQLite em tudo")**:
-  - Repositório local: banco isolado em `<repo_path>/.memory/memory.db`.
+  - Repositório local: banco isolado na pasta padrão `.memory/memory.db`.
   - Cofre central: banco isolado exclusivamente na subpasta `<central_path>/.memory/storage/memory.db`, blindando a raiz do vault contra arquivos binários `.db`.
 
 ### 4. Auto-Bootstrap Estruturado do Cofre Central
@@ -119,9 +135,9 @@ Ao inicializar, o servidor MCP:
 
 ## Positive Consequences
 
-- **Repositórios Limpos**: Zero poluição de submódulos ou arquivos binários no Git dos projetos.
-- **Configuração Centralizada**: Definir o banco (Postgres/SQLite) uma única vez no home do usuário governa todos os projetos sem redundância.
-- **Isolamento Físico no PostgreSQL**: Cada repositório possui seu próprio banco com o nome do seu `repo_id`.
+- **Repositórios 100% Limpos e Seguros**: Zero credenciais de banco e zero submódulos no Git dos projetos.
+- **Configuração Centralizada**: Infraestrutura definida uma única vez no home do usuário governa todos os projetos sem redundância.
+- **Conexão Estável no PostgreSQL**: Um único banco estável sem proliferação de conexões ou pools aleatórios, com separação segura por `repo_id`.
 - **Experiência Perfeita no Obsidian**: O cofre central no Google Drive/OneDrive mantém apenas Markdown puro visível, com banco isolado em `.memory/storage/`.
 - **Descoberta Instantânea no MCP**: Qualquer agente de IA (Cursor, Claude, Copilot, Antigravity) tem acesso imediato à memória global e local.
 
