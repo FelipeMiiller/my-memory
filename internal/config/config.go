@@ -34,9 +34,10 @@ type MCPConfig struct {
 
 // RepositoryCatalogEntry registra um repositório satélite conhecido no catálogo global
 type RepositoryCatalogEntry struct {
-	ID   string `yaml:"id" json:"id"`                         // Identificador imutável repo_<12-hex-chars>
-	Path string `yaml:"path" json:"path"`                     // Caminho absoluto para a raiz do repositório no host
-	Name string `yaml:"name,omitempty" json:"name,omitempty"` // Nome amigável ou slug (ex: "owner/repo")
+	ID      string         `yaml:"id" json:"id"`                               // Identificador imutável repo_<12-hex-chars>
+	Path    string         `yaml:"path" json:"path"`                           // Caminho absoluto para a raiz do repositório no host
+	Name    string         `yaml:"name,omitempty" json:"name,omitempty"`       // Nome amigável ou slug (ex: "owner/repo")
+	Storage *StorageConfig `yaml:"storage,omitempty" json:"storage,omitempty"` // Configurações de persistência específicas deste repositório
 }
 
 // GlobalConfig define o formato de configuração global do usuário (~/.memory/config.yaml)
@@ -499,6 +500,9 @@ func RegisterRepositoryInGlobalConfig(entry RepositoryCatalogEntry) error {
 	}
 
 	if foundIndex >= 0 {
+		if entry.Storage == nil && gcfg.Repositories[foundIndex].Storage != nil {
+			entry.Storage = gcfg.Repositories[foundIndex].Storage
+		}
 		gcfg.Repositories[foundIndex] = entry
 	} else {
 		gcfg.Repositories = append(gcfg.Repositories, entry)
@@ -537,6 +541,7 @@ func LoadCascadingConfig(repoDir string) (*Config, string, error) {
 
 	// Camada 3: Configuração Local (.memory/config.yaml)
 	cfgPath, err := FindConfigFile(repoDir)
+	var localRepoID string
 	if err == nil {
 		data, readErr := os.ReadFile(cfgPath)
 		if readErr != nil {
@@ -544,6 +549,7 @@ func LoadCascadingConfig(repoDir string) (*Config, string, error) {
 		}
 
 		type rawStorageCheck struct {
+			RepoID  string `yaml:"repo_id" json:"repo_id"`
 			Storage *struct {
 				Engine string `yaml:"engine" json:"engine"`
 			} `yaml:"storage" json:"storage"`
@@ -561,6 +567,7 @@ func LoadCascadingConfig(repoDir string) (*Config, string, error) {
 				return nil, cfgPath, fmt.Errorf("erro ao decodificar YAML de '%s': %w", cfgPath, unmarshalErr)
 			}
 		}
+		localRepoID = check.RepoID
 
 		// Se o repositório local declarar explicitamente storage: sqlite, limpa postgres_url herdado
 		if check.Storage != nil && check.Storage.Engine == "sqlite" {
@@ -569,6 +576,30 @@ func LoadCascadingConfig(repoDir string) (*Config, string, error) {
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, "", err
+	}
+
+	// Camada 2.5: Verificação de overrides específicos no catálogo global de repositórios
+	if globalCfg != nil && len(globalCfg.Repositories) > 0 {
+		absDir, _ := filepath.Abs(repoDir)
+		for _, repoEntry := range globalCfg.Repositories {
+			entryAbs, _ := filepath.Abs(ExpandPath(repoEntry.Path))
+			matchesID := localRepoID != "" && repoEntry.ID == localRepoID
+			matchesPath := absDir != "" && entryAbs == absDir
+			if matchesID || matchesPath {
+				if repoEntry.Storage != nil {
+					if repoEntry.Storage.Engine != "" {
+						cfg.Storage.Engine = repoEntry.Storage.Engine
+					}
+					if repoEntry.Storage.PostgresURL != "" {
+						cfg.Storage.PostgresURL = repoEntry.Storage.PostgresURL
+					}
+					if repoEntry.Storage.SQLitePath != "" {
+						cfg.Storage.SQLitePath = repoEntry.Storage.SQLitePath
+					}
+				}
+				break
+			}
+		}
 	}
 
 	// Expansão final de caminhos e envs

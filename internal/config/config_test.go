@@ -499,3 +499,103 @@ func TestRegisterRepositoryInGlobalConfig(t *testing.T) {
 		t.Errorf("esperava erro ao registrar repo sem Path")
 	}
 }
+
+func TestLoadCascadingConfig_RepositoryCatalogStorageOverride(t *testing.T) {
+	globalDir := t.TempDir()
+	t.Setenv(GlobalConfigDirEnv, globalDir)
+
+	repoDir := t.TempDir()
+	localMemDir := filepath.Join(repoDir, ".memory")
+	if err := os.MkdirAll(localMemDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	localYaml := `
+version: 1
+repo_id: "repo_catalog_target"
+repository: "test/catalog-repo"
+`
+	if err := os.WriteFile(filepath.Join(localMemDir, "config.yaml"), []byte(localYaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Configuração global com storage padrão postgres e override para repo_catalog_target
+	globalCfg := GlobalConfig{
+		Version: 1,
+		Storage: StorageConfig{
+			Engine:      "postgres",
+			PostgresURL: "postgres://global_default_db",
+		},
+		Repositories: []RepositoryCatalogEntry{
+			{
+				ID:   "repo_catalog_target",
+				Path: repoDir,
+				Name: "test/catalog-repo",
+				Storage: &StorageConfig{
+					Engine:      "postgres",
+					PostgresURL: "postgres://isolated_repo_db",
+				},
+			},
+		},
+	}
+	if err := SaveGlobalConfig(&globalCfg); err != nil {
+		t.Fatalf("erro ao salvar global config: %v", err)
+	}
+
+	loaded, _, err := LoadCascadingConfig(repoDir)
+	if err != nil {
+		t.Fatalf("erro ao carregar cascading config: %v", err)
+	}
+
+	if loaded.RepoID != "repo_catalog_target" {
+		t.Errorf("esperava repo_id 'repo_catalog_target', obteve '%s'", loaded.RepoID)
+	}
+	if loaded.Storage.PostgresURL != "postgres://isolated_repo_db" {
+		t.Errorf("esperava postgres_url do catálogo 'postgres://isolated_repo_db', obteve '%s'", loaded.Storage.PostgresURL)
+	}
+}
+
+func TestRegisterRepositoryInGlobalConfig_PreservesStorage(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv(GlobalConfigDirEnv, tmpDir)
+
+	repoPath := filepath.Join(tmpDir, "my-repo")
+	entryWithStorage := RepositoryCatalogEntry{
+		ID:   "repo_storage_test",
+		Path: repoPath,
+		Name: "test/storage-repo",
+		Storage: &StorageConfig{
+			Engine:      "postgres",
+			PostgresURL: "postgres://my_isolated_db",
+		},
+	}
+	if err := RegisterRepositoryInGlobalConfig(entryWithStorage); err != nil {
+		t.Fatalf("erro ao registrar: %v", err)
+	}
+
+	// Re-registra sem storage (ex: mem init padrão)
+	entryWithoutStorage := RepositoryCatalogEntry{
+		ID:   "repo_storage_test",
+		Path: repoPath,
+		Name: "test/storage-repo-renamed",
+	}
+	if err := RegisterRepositoryInGlobalConfig(entryWithoutStorage); err != nil {
+		t.Fatalf("erro ao re-registrar: %v", err)
+	}
+
+	gcfg, err := LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("erro ao carregar global config: %v", err)
+	}
+	if len(gcfg.Repositories) != 1 {
+		t.Fatalf("esperava 1 repositório, obteve %d", len(gcfg.Repositories))
+	}
+	saved := gcfg.Repositories[0]
+	if saved.Storage == nil || saved.Storage.PostgresURL != "postgres://my_isolated_db" {
+		t.Errorf("esperava preservar storage customizado, obteve %+v", saved.Storage)
+	}
+	if saved.Name != "test/storage-repo-renamed" {
+		t.Errorf("esperava nome atualizado, obteve '%s'", saved.Name)
+	}
+}
+

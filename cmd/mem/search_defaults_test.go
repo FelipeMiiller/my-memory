@@ -57,6 +57,17 @@ func TestResolveStorageAndRepo(t *testing.T) {
 	if dDef != "memory.db" {
 		t.Errorf("esperava 'memory.db', obteve '%s'", dDef)
 	}
+
+	// Cenário 5: RepoID tem prioridade sobre Repository slug quando flag está vazia
+	cfgWithRepoID := &config.Config{
+		Version:    1,
+		RepoID:     "repo_abcdef123456",
+		Repository: "acme/repo",
+	}
+	repoIDResolved, _, _ := resolveStorageAndRepo(cfgWithRepoID, "", "", "", "default")
+	if repoIDResolved != "repo_abcdef123456" {
+		t.Errorf("esperava repo_id 'repo_abcdef123456', obteve '%s'", repoIDResolved)
+	}
 }
 
 func TestSearchDefaultsFromConfig(t *testing.T) {

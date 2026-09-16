@@ -93,25 +93,19 @@ func main() {
 			target = indexCmd.Arg(0)
 		}
 
-		// Descoberta e resolução automática de configuração do vault
+		// Descoberta e resolução automática de configuração do vault em cascata
 		searchDir := target
 		if searchDir == "" {
 			searchDir = "."
 		}
-		var cfg *config.Config
-		cfgPath, err := config.FindConfigFile(searchDir)
-		if err == nil {
-			_, _ = config.FindAndLoadDotEnv(searchDir)
-			if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
-				cfg = loaded
-				if target == "" {
-					dirOfCfg := filepath.Dir(cfgPath)
-					if filepath.Base(dirOfCfg) == ".memory" {
-						target = filepath.Dir(dirOfCfg)
-					} else {
-						target = dirOfCfg
-					}
-				}
+		_, _ = config.FindAndLoadDotEnv(searchDir)
+		cfg, cfgPath, _ := config.LoadCascadingConfig(searchDir)
+		if cfgPath != "" && target == "" {
+			dirOfCfg := filepath.Dir(cfgPath)
+			if filepath.Base(dirOfCfg) == ".memory" {
+				target = filepath.Dir(dirOfCfg)
+			} else {
+				target = dirOfCfg
 			}
 		}
 
@@ -162,24 +156,19 @@ func main() {
 			target = watchCmd.Arg(0)
 		}
 
+		// Descoberta e resolução automática de configuração do vault em cascata
 		searchDir := target
 		if searchDir == "" {
 			searchDir = "."
 		}
-
-		var cfg *config.Config
-		cfgPath, err := config.FindConfigFile(searchDir)
-		if err == nil {
-			if loaded, loadErr := config.LoadConfig(cfgPath); loadErr == nil {
-				cfg = loaded
-				if target == "" {
-					dirOfCfg := filepath.Dir(cfgPath)
-					if filepath.Base(dirOfCfg) == ".memory" {
-						target = filepath.Dir(dirOfCfg)
-					} else {
-						target = dirOfCfg
-					}
-				}
+		_, _ = config.FindAndLoadDotEnv(searchDir)
+		cfg, cfgPath, _ := config.LoadCascadingConfig(searchDir)
+		if cfgPath != "" && target == "" {
+			dirOfCfg := filepath.Dir(cfgPath)
+			if filepath.Base(dirOfCfg) == ".memory" {
+				target = filepath.Dir(dirOfCfg)
+			} else {
+				target = dirOfCfg
 			}
 		}
 
@@ -1187,7 +1176,9 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 
 	repo = targetRepo
 	if repo == "" {
-		if cfg.Repository != "" {
+		if cfg.RepoID != "" {
+			repo = cfg.RepoID
+		} else if cfg.Repository != "" {
 			repo = cfg.Repository
 		} else if envRepo := os.Getenv("MY_MEMORY_REPO"); envRepo != "" {
 			repo = envRepo
