@@ -1,6 +1,5 @@
 # ==============================================================================
 # My-Memory Vault Configuration
-# Configuração declarativa de escopo, persistência e modelos
 # Documentação: docs/REPOSITORY_BRAIN.md e docs/CLI_GUIDE.md
 # ==============================================================================
 
@@ -13,17 +12,15 @@ repo_id: "repo_e4c8f3b1a2d5"
 repository: "FelipeMiiller/my-memory"
 
 # Nome amigável do vault de conhecimento
-vault_name: "My-Memory Knowledge Base"
+vault_name: "Knowledge Vault"
 
-# Padrões glob de arquivos e pastas a serem indexados
+# Padrões glob de arquivos a serem indexados
 # Exemplos: pastas específicas (docs, specs), extensões ou arquivos únicos
 include:
-  - "docs/**/*.md"      # Documentações técnicas e ADRs na pasta docs/
-  - "README.md"         # Visão geral e apresentação do projeto
-  - "COMO_USAR.md"      # Guia prático de comandos e ferramentas
-  - "COMO_FUNCIONA.md"  # Arquitetura, fórmulas e funcionamento interno
-  - "AGENTS.md"         # Diretrizes para agentes autônomos
-  # - "specs/**/*.md"   # Exemplo: Especificações funcionais adicionais
+  - "docs/**/*.md"      # Exemplo: Documentações em docs/
+  - "specs/**/*.md"     # Exemplo: Especificações em specs/
+  - ".specs/**/*.md"    # Exemplo: Especificações técnicas em .specs/
+  - "**/*.md"           # Padrão: Todos os arquivos Markdown
 
 # Padrões glob e diretórios ignorados durante a varredura
 exclude:
@@ -32,15 +29,7 @@ exclude:
   - "vendor/**"
   - ".obsidian/**"
   - ".trash/**"
-  - ".memory/**"        # Ignora arquivos internos de índice/banco
-  - ".specs/**"         # Ignora tarefas e validações internas de sprints
-  - ".agents/**"        # Ignora skills e prompts de agentes
-
-# Configurações do motor de persistência
-storage:
-  engine: "sqlite"                 # "sqlite" ou "postgres" (se houver .memory/.env com MY_MEMORY_PG_URL, conecta no PostgreSQL automaticamente)
-  sqlite_path: ".memory/memory.db" # Banco SQLite isolado dentro da pasta .memory
-  postgres_url: "postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable" # Conexão PostgreSQL (pgvector)
+  - ".memory/**"
 
 # Configurações do modelo de embeddings
 embedding:
@@ -51,15 +40,15 @@ embedding:
 
 # Preferências padrão de busca e recuperação
 search:
-  mode: "hybrid"                   # "hybrid", "vector" ou "fts"
-  limit: 5                         # Número padrão de resultados
-  k: 60                            # Constante RRF (Reciprocal Rank Fusion)
-  decay: false                     # Priorizar notas mais recentes por data
-  half_life: 30.0                  # Meia-vida em dias para decaimento temporal
-  decay_weight: 0.3                # Peso do decaimento temporal (0.0 a 1.0)
-  use_turbo: false                 # Busca quantizada 4-bit TurboQuant no SQLite
+  mode: "hybrid"            # "hybrid", "vector" ou "fts"
+  limit: 5                  # Número padrão de resultados
+  k: 60                     # Constante RRF (Reciprocal Rank Fusion)
+  decay: false              # Priorizar notas mais recentes por data
+  half_life: 30.0           # Meia-vida em dias para decaimento temporal
+  decay_weight: 0.3         # Peso do decaimento temporal (0.0 a 1.0)
+  use_turbo: false          # Busca quantizada 4-bit TurboQuant no SQLite
 
 # Configurações do monitoramento contínuo em tempo real (mem watch)
 watcher:
-  debounce_ms: 500                 # Janela de debounce (ms) para agrupar rajadas de gravação
-  interval_ms: 1000                # Intervalo de polling (ms)
+  debounce_ms: 500          # Janela de debounce para agrupar rajadas de gravação
+  interval_ms: 1000         # Intervalo de polling periódico
