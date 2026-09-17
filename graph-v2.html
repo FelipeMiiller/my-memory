@@ -48,6 +48,25 @@
     .cy-tooltip .tt-path { font-family: ui-monospace, monospace; font-size: 10px; word-break: break-all; opacity: 0.7; margin-top: 6px; }
     .cy-tooltip .tt-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: rgba(56,189,248,0.15); color: var(--accent); font-size: 10px; margin-right: 4px; }
     html:not(.dark) .cy-tooltip { background: rgba(255,255,255,0.96); color: #0f172a; }
+    .type-chip {
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      background: rgba(30, 41, 59, 0.5);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .type-chip:hover { color: var(--text); border-color: var(--accent); }
+    .type-chip.active {
+      background: var(--accent);
+      color: #0c1220;
+      border-color: var(--accent);
+    }
   </style>
 </head>
 <body class="dark">
@@ -66,6 +85,7 @@
       <span>Density: <strong id="stat-density" style="color:var(--text)">—</strong></span>
       <span>Modularity: <strong id="stat-modularity" style="color:var(--text)">—</strong></span>
     </div>
+    <div id="type-chips" class="type-chips" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;"></div>
     <div style="display:flex;gap:8px;">
       <input type="text" id="search-input" class="input" placeholder="Filtrar nós por título ou tag...">
       <select id="layout-select" class="btn">
@@ -124,6 +144,14 @@
           <pre class="card" style="font-family:ui-monospace,monospace;font-size:11px;overflow:auto;padding:12px;max-height:60vh" id="config-local"></pre>
           <button class="btn" style="margin-top:8px;font-size:11px" onclick="ConfigModal.copy('config-local')">📋 Copiar</button>
         </div>
+      </div>
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:600;color:var(--muted)">📂 Repositórios Registrados</div>
+          <button class="btn" style="font-size:11px" onclick="ConfigModal.refreshRepos()">↻ Atualizar</button>
+        </div>
+        <div id="repos-list" class="card" style="font-size:12px;padding:12px;font-family:ui-monospace,monospace"></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;font-style:italic">Status: ✓ configured (registrado em ~/.memory/config.yaml). Edição/save requer backend HTTP — ver ADR-036 B2.</div>
       </div>
     </div>
   </div>
@@ -195,6 +223,46 @@
     tabEl.dataset.repo = DATA.repository || 'default';
     tabEl.textContent = DATA.repository || 'default';
     tabsEl.appendChild(tabEl);
+
+    // Popula chips de tipo a partir dos nodes (B1 do ADR-036)
+    var types = Array.from(new Set(DATA.nodes.map(function(n) { return n.type || 'other'; }))).sort();
+    var typeColors = { concept: '#3b82f6', decision: '#f43f5e', guide: '#10b981', synthesis: '#ec4899', reference: '#a855f7', other: '#64748b' };
+    var typeLabels = { concept: 'Conceitos', decision: 'Decisões', guide: 'Guias', synthesis: 'Sínteses', reference: 'Referências', other: 'Outros' };
+    var chipsEl = document.getElementById('type-chips');
+    var allChip = document.createElement('span');
+    allChip.className = 'type-chip active';
+    allChip.dataset.type = 'all';
+    allChip.textContent = 'Todos';
+    chipsEl.appendChild(allChip);
+    types.forEach(function(t) {
+      var chip = document.createElement('span');
+      chip.className = 'type-chip';
+      chip.dataset.type = t;
+      var color = typeColors[t] || '#64748b';
+      chip.style.borderColor = color;
+      chip.textContent = typeLabels[t] || t;
+      chipsEl.appendChild(chip);
+    });
+    chipsEl.addEventListener('click', function(e) {
+      var t = e.target.closest('.type-chip');
+      if (!t) return;
+      chipsEl.querySelectorAll('.type-chip').forEach(function(c) { c.classList.remove('active'); });
+      t.classList.add('active');
+      var selected = t.dataset.type;
+      if (!GraphRenderer.cy) return;
+      if (selected === 'all') {
+        GraphRenderer.cy.nodes().show();
+      } else {
+        GraphRenderer.cy.nodes().forEach(function(n) {
+          if (n.data('type') === selected) n.show(); else n.hide();
+        });
+      }
+      GraphRenderer.cy.edges().forEach(function(e) {
+        var s = e.source().data('type'); var tt = e.target().data('type');
+        var vis = (selected === 'all') || (s === selected) || (tt === selected);
+        if (vis) e.show(); else e.hide();
+      });
+    });
     try {
       ThemeManager.init();
       TabsManager.init();
@@ -638,9 +706,59 @@
   };
 
   const ConfigModal = {
-    open() { document.getElementById('config-modal').classList.add('open'); },
+    open() { document.getElementById('config-modal').classList.add('open'); this.refreshRepos(); },
     close() { document.getElementById('config-modal').classList.remove('open'); },
-    copy(id) { navigator.clipboard.writeText(document.getElementById(id).textContent); }
+    copy(id) { navigator.clipboard.writeText(document.getElementById(id).textContent); },
+    refreshRepos() {
+      var el = document.getElementById('repos-list');
+      el.textContent = 'Carregando…';
+      fetch('config-global.txt').then(function(r) { return r.text(); }).then(function(yaml) {
+        var repos = ConfigModal.parseRepos(yaml);
+        if (!repos.length) { el.textContent = '(nenhum repositório em repositories[])'; return; }
+        var html = '';
+        repos.forEach(function(r) {
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);gap:8px;">'
+                + '  <div style="flex:1;min-width:0;">'
+                + '    <div style="font-weight:600;color:var(--text);font-family:ui-sans-serif,system-ui,sans-serif">' + r.name + '</div>'
+                + '    <div style="color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + r.path + '</div>'
+                + '    <div style="color:var(--muted);font-size:10px;opacity:0.7">' + r.id + '</div>'
+                + '  </div>'
+                + '  <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">'
+                + '    <span style="padding:2px 8px;border-radius:9999px;background:rgba(34,197,94,0.15);color:#4ade80;font-size:10px;font-weight:600">✓ configured</span>'
+                + '  </div>'
+                + '</div>';
+        });
+        el.innerHTML = html;
+      }).catch(function(err) {
+        el.textContent = '(falha ao carregar config-global.txt: ' + err.message + ')';
+      });
+    },
+    parseRepos(yaml) {
+      // Parser YAML ultra-simples só pro bloco repositories:[]
+      var repos = [];
+      var lines = yaml.split(/\r?\n/);
+      var inRepos = false, current = null, baseIndent = -1;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (!inRepos && /^\s*repositories\s*:\s*$/.test(line)) { inRepos = true; continue; }
+        if (inRepos && /^\s*\w/.test(line) && !/^\s{2,}/.test(line)) { break; }
+        if (!inRepos) continue;
+        var dash = /^\s*-\s*(.*)$/.exec(line);
+        if (dash) {
+          if (current) repos.push(current);
+          current = {};
+          baseIndent = line.search(/\S/);
+          var inline = dash[1].trim();
+          var kv = /^(\w+)\s*:\s*(.*)$/.exec(inline);
+          if (kv) { current[kv[1]] = kv[2].trim(); }
+          continue;
+        }
+        var sub = /^\s+(\w+)\s*:\s*(.*)$/.exec(line);
+        if (sub && current) { current[sub[1]] = sub[2].trim(); }
+      }
+      if (current) repos.push(current);
+      return repos;
+    }
   };
 
   const SearchManager = {
