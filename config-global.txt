@@ -1,0 +1,15 @@
+# Configuração Global do My-Memory (~/.memory/config.yaml)
+# Compartilhada entre todos os repositórios locais e central vault
+
+version: 1
+central_vault:
+    path: G:\My Drive\central-memory
+storage:
+    engine: sqlite
+    sqlite_path: memory.db
+mcp:
+    port: 8080
+repositories:
+    - id: repo_e4c8f3b1a2d5
+      path: C:\repository\my-memory
+      name: FelipeMiiller/my-memory

@@ -147,6 +147,10 @@ type Store interface {
 	// InsertEdgeWithProps adiciona uma aresta tipada com status epistêmico e peso no grafo
 	InsertEdgeWithProps(ctx context.Context, repo, sourceID, targetID, relation, epistemicStatus string, weight float64) error
 
+	// ListDocumentTitles retorna os títulos (ou IDs) de todos os documentos de um repo.
+	// Usado pelo fuzzy resolve de tags para apontar edges `tagged_as` para notas existentes.
+	ListDocumentTitles(ctx context.Context, repo string) ([]string, error)
+
 	// GetGodNodes retorna os nós centrais com maior centralidade de conexões
 	GetGodNodes(ctx context.Context, repo string, limit int) ([]GodNode, error)
 

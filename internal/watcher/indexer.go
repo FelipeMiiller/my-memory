@@ -87,6 +87,14 @@ func IndexSingleFileSQLite(
 
 	// 3. Extrai e salva conexões do grafo
 	connections := parser.ExtractConnections(content)
+
+	// 3.1 Fuzzy resolve de tags: edges `tagged_as` apontando para tags como
+	// `sqlite` são reescritas para o doc correspondente (ex: ADR-001) quando
+	// possível, evitando dead links e aumentando a densidade do grafo.
+	if titles, err := db.ListDocumentTitles(ctx, database, ""); err == nil {
+		parser.ResolveTagConnections(&connections, titles)
+	}
+
 	for _, edge := range connections.Edges {
 		_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 	}
@@ -200,6 +208,12 @@ func IndexSingleFilePostgres(
 		return nil, fmt.Errorf("erro ao inserir documento Postgres: %w", err)
 	}
 	connections := parser.ExtractConnections(content)
+
+	// Fuzzy resolve de tags: ver IndexSingleFileSQLite para detalhes.
+	if titles, err := s.ListDocumentTitles(ctx, targetRepo); err == nil {
+		parser.ResolveTagConnections(&connections, titles)
+	}
+
 	for _, edge := range connections.Edges {
 		_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 	}

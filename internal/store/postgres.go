@@ -315,6 +315,32 @@ func (s *PostgresStore) InsertEdge(ctx context.Context, repo, sourceID, targetID
 	return s.InsertEdgeWithProps(ctx, repo, sourceID, targetID, relation, "EXTRACTED", 1.0)
 }
 
+func (s *PostgresStore) ListDocumentTitles(ctx context.Context, repo string) ([]string, error) {
+	if repo == "" {
+		repo = "default"
+	}
+	rows, err := s.db.QueryContext(ctx, "SELECT COALESCE(title, id) FROM documents WHERE ($1 = '' OR repository = $1)", repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar títulos de documentos: %w", err)
+	}
+	defer rows.Close()
+
+	var titles []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, fmt.Errorf("erro ao escanear título: %w", err)
+		}
+		if t != "" {
+			titles = append(titles, t)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("erro ao iterar títulos: %w", err)
+	}
+	return titles, nil
+}
+
 func (s *PostgresStore) GetGodNodes(ctx context.Context, repo string, limit int) ([]GodNode, error) {
 	if limit <= 0 {
 		limit = 10

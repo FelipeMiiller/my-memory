@@ -748,3 +748,29 @@ func GetDocumentsMetadata(ctx context.Context, db *sql.DB) (map[string]store.Doc
 
 	return metaMap, nil
 }
+
+// ListDocumentTitles retorna os títulos (fallback para IDs) de todos os documentos
+// indexados num repositório. Usado pelo fuzzy resolve de tags no indexer para apontar
+// edges `tagged_as` para notas existentes quando o título da tag bate com basename/slug.
+func ListDocumentTitles(ctx context.Context, db *sql.DB, repo string) ([]string, error) {
+	rows, err := db.QueryContext(ctx, "SELECT COALESCE(title, id) FROM documents")
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar títulos de documentos: %w", err)
+	}
+	defer rows.Close()
+
+	var titles []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, fmt.Errorf("erro ao escanear título: %w", err)
+		}
+		if t != "" {
+			titles = append(titles, t)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("erro ao iterar títulos: %w", err)
+	}
+	return titles, nil
+}

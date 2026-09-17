@@ -1278,6 +1278,9 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 	cachedCount := 0
 	var activeDocIDs []string
 
+	// Pré-carrega títulos dos docs já indexados para o fuzzy resolve de tags.
+	availableTitles, _ := s.ListDocumentTitles(ctx, targetRepo)
+
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -1359,6 +1362,7 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 
 		// 2. Extrai e salva conexões do grafo ([[wikilinks]], tags e relações tipadas)
 		connections := parser.ExtractConnections(content)
+		parser.ResolveTagConnections(&connections, availableTitles)
 		for _, edge := range connections.Edges {
 			_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 		}
@@ -1417,6 +1421,10 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 	indexedCount := 0
 	cachedCount := 0
 	var activeDocIDs []string
+
+	// Pré-carrega títulos dos docs já indexados para o fuzzy resolve de tags.
+	// Evita dead links como `tagged_as: sqlite` quando ADR-001 cobre o conceito.
+	availableTitles, _ := db.ListDocumentTitles(ctx, database, "")
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -1499,6 +1507,7 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 
 		// 2. Extrai e salva conexões do grafo ([[wikilinks]], tags e relações tipadas)
 		connections := parser.ExtractConnections(content)
+		parser.ResolveTagConnections(&connections, availableTitles)
 		for _, edge := range connections.Edges {
 			_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 		}
