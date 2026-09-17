@@ -1267,6 +1267,68 @@ func resolveEmbedder(cfg *config.Config) (*embedder.OllamaClient, *turboquant.Qu
 	return emb, tq, dim
 }
 
+// preCollectDocTitles faz um walk rápido do rootDir e retorna os títulos
+// (do frontmatter `title:` se presente, senão basename) de todos os arquivos
+// .md, exceto os em dirs excluídos por padrão. Esse é o mesmo critério usado
+// por db.ListDocumentTitles (que retorna COALESCE(frontmatter.title, id)),
+// então a lista fica consistente com o que está no banco.
+func preCollectDocTitles(rootDir string) []string {
+	var titles []string
+	seen := make(map[string]bool)
+	skippedDirs := 0
+	_ = filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			base := d.Name()
+			for _, defEx := range config.DefaultExcludedDirs {
+				if base == defEx {
+					skippedDirs++
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		}
+		if !strings.HasSuffix(strings.ToLower(d.Name()), ".md") {
+			return nil
+		}
+		// Extrai o title do frontmatter (mesmo critério que ListDocumentTitles usa).
+		title := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+		if content, err := os.ReadFile(path); err == nil {
+			if fm, _ := parser.ExtractFrontmatter(string(content)); fm != nil && fm.Title != "" {
+				title = fm.Title
+			}
+		}
+		if !seen[title] {
+			seen[title] = true
+			titles = append(titles, title)
+		}
+		return nil
+	})
+	return titles
+}
+
+// mergeStringLists combina duas listas removendo duplicatas, preservando
+// ordem da primeira (dbTitles tem precedência).
+func mergeStringLists(a, b []string) []string {
+	out := make([]string, 0, len(a)+len(b))
+	seen := make(map[string]bool, len(a)+len(b))
+	for _, s := range a {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	for _, s := range b {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
 	if cfg == nil {
 		def := config.DefaultConfig()
@@ -1278,8 +1340,10 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 	cachedCount := 0
 	var activeDocIDs []string
 
-	// Pré-carrega títulos dos docs já indexados para o fuzzy resolve de tags.
-	availableTitles, _ := s.ListDocumentTitles(ctx, targetRepo)
+	// Pré-coleta títulos: banco + filesystem. Ver runIndexSQLite para rationale.
+	dbTitles, _ := s.ListDocumentTitles(ctx, targetRepo)
+	fsTitles := preCollectDocTitles(rootDir)
+	availableTitles := mergeStringLists(dbTitles, fsTitles)
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -1422,9 +1486,13 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 	cachedCount := 0
 	var activeDocIDs []string
 
-	// Pré-carrega títulos dos docs já indexados para o fuzzy resolve de tags.
-	// Evita dead links como `tagged_as: sqlite` quando ADR-001 cobre o conceito.
-	availableTitles, _ := db.ListDocumentTitles(ctx, database, "")
+	// Pré-coleta títulos dos arquivos .md a serem indexados para o fuzzy resolve.
+	// Combinado com ListDocumentTitles do banco, forma a lista completa antes
+	// do walk — evita race onde um doc referencia outro que será indexado depois
+	// (ex: AGENTS.md menciona [[Wikilinks]] antes do ADR-005 ser processado).
+	dbTitles, _ := db.ListDocumentTitles(ctx, database, "")
+	fsTitles := preCollectDocTitles(rootDir)
+	availableTitles := mergeStringLists(dbTitles, fsTitles)
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

@@ -68,6 +68,52 @@ func TestResolveTagConnections(t *testing.T) {
 			t.Errorf("tagged edge was not resolved: got %q", conn.Edges[1].Target)
 		}
 	})
+
+	t.Run("wikilinks_to also resolved (case Wikilinks)", func(t *testing.T) {
+		wikilinksAvailable := []string{
+			"005-markdown-com-wikilinks-como-fonte-de-verdade",
+			"010-cache-incremental-de-indexacao-com-sha256",
+		}
+		conn := &ExtractedConnections{
+			Edges: []EdgeConnection{
+				{Target: "Wikilinks", Relation: "links_to"},
+			},
+		}
+		ResolveTagConnections(conn, wikilinksAvailable)
+		if conn.Edges[0].Target == "Wikilinks" {
+			t.Errorf("wikilink 'Wikilinks' should be resolved by substring match; got original")
+		}
+		if conn.Edges[0].Target != "005-markdown-com-wikilinks-como-fonte-de-verdade" &&
+			conn.Edges[0].Target != "010-cache-incremental-de-indexacao-com-sha256" {
+			t.Errorf("wikilink should resolve to a doc with 'wikilinks' in name; got %q", conn.Edges[0].Target)
+		}
+	})
+
+	t.Run("typed relation (implements) untouched", func(t *testing.T) {
+		conn := &ExtractedConnections{
+			Edges: []EdgeConnection{
+				{Target: "sqlite", Relation: "implements"},
+			},
+		}
+		ResolveTagConnections(conn, available)
+		if conn.Edges[0].Target != "sqlite" {
+			t.Errorf("typed relation 'implements' was modified; got %q (want 'sqlite')", conn.Edges[0].Target)
+		}
+	})
+
+	t.Run("token match: progressive-loading finds ADR-025", func(t *testing.T) {
+		conn := mkTaggedConn([]string{"progressive-loading"})
+		ResolveTagConnections(conn, []string{
+			"025-progressive-context-loading-e-taxonomia-de-memoria",
+		})
+		assertEdges(t, conn, []string{"025-progressive-context-loading-e-taxonomia-de-memoria"})
+	})
+
+	t.Run("token match: cli finds CLI_GUIDE", func(t *testing.T) {
+		conn := mkTaggedConn([]string{"cli"})
+		ResolveTagConnections(conn, []string{"CLI_GUIDE", "AGENTS"})
+		assertEdges(t, conn, []string{"CLI_GUIDE"})
+	})
 }
 
 // TestNormalizeForFuzzy valida a normalização.
