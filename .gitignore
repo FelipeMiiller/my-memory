@@ -47,5 +47,8 @@ screenshot-*.png
 smoke-*.html
 graph-smoke-*.html
 graph-test-*.html
+graph-central.html
+config-global.txt
+config-local.txt
 debug-*.cjs
 test-*.cjs
