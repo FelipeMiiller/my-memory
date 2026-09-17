@@ -20,11 +20,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
           cache: true
-
-      - name: Install Dependencies
-        run: go mod download
 
       - name: Check Formatting (gofmt)
         run: |
@@ -62,7 +59,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
           cache: true
 
       - name: Download Go Dependencies
@@ -152,7 +149,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
           cache: true
 
       - name: Install CGO dependencies (SQLite & GCC)
@@ -193,7 +190,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
           cache: true
 
       - name: Install CGO dependencies (SQLite & GCC)
