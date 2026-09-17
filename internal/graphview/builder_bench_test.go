@@ -10,10 +10,10 @@ func generateDocs(n int) []RawDoc {
 	docs := make([]RawDoc, n)
 	for i := 0; i < n; i++ {
 		docs[i] = RawDoc{
-		ID:        fmt.Sprintf("doc-%d.md", i),
-		Title:     fmt.Sprintf("Document %d", i),
-		UpdatedAt: 1700000000 + int64(i),
-	}
+			ID:        fmt.Sprintf("doc-%d.md", i),
+			Title:     fmt.Sprintf("Document %d", i),
+			UpdatedAt: 1700000000 + int64(i),
+		}
 	}
 	return docs
 }
@@ -24,9 +24,9 @@ func generateEdges(n int) []RawEdge {
 	for i := 0; i < n; i++ {
 		for j := 0; j < 3 && i+j+1 < n; j++ {
 			edges = append(edges, RawEdge{
-			Source:   fmt.Sprintf("doc-%d.md", i),
-			Target:   fmt.Sprintf("doc-%d.md", i+j+1),
-			Relation: "links_to",
+				Source:   fmt.Sprintf("doc-%d.md", i),
+				Target:   fmt.Sprintf("doc-%d.md", i+j+1),
+				Relation: "links_to",
 			})
 		}
 	}
@@ -71,15 +71,15 @@ func BenchmarkRenderHTML(b *testing.B) {
 	}
 	for i := 0; i < 50; i++ {
 		gv.Nodes = append(gv.Nodes, Node{
-		ID:    fmt.Sprintf("n-%d", i),
-		Title: fmt.Sprintf("Nó %d — acentuação: ação, opção, fenômeno", i),
-		Type:  "guide",
+			ID:    fmt.Sprintf("n-%d", i),
+			Title: fmt.Sprintf("Nó %d — acentuação: ação, opção, fenômeno", i),
+			Type:  "guide",
 		})
 	}
 	for i := 0; i < 100; i++ {
 		gv.Edges = append(gv.Edges, Edge{
-		Source: fmt.Sprintf("n-%d", i%50),
-		Target: fmt.Sprintf("n-%d", (i+1)%50),
+			Source: fmt.Sprintf("n-%d", i%50),
+			Target: fmt.Sprintf("n-%d", (i+1)%50),
 		})
 	}
 	b.ResetTimer()

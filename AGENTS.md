@@ -52,6 +52,19 @@ No início de qualquer sessão ou tarefa no repositório, o Agente de IA **DEVE*
 
 ---
 
+## 📌 Decisões Arquiteturais Vigentes (`docs/adr/`)
+Consulte estes registros antes de sugerir mudanças estruturais:
+* **ADR-001**: Uso de SQLite como Camada Unificada de Dados.
+* **ADR-002**: Adoção de Go como Linguagem Principal de Implementação.
+* **ADR-003**: Compressão Vetorial de 4-bit via TurboQuant.
+* **ADR-004**: Modelagem e Travessia de Grafo com SQL Recursivo (CTEs).
+* **ADR-005**: Markdown com [[Wikilinks]] como Entrada e Grafo Humano.
+* **ADR-006**: Integração com Agentes de IA via Model Context Protocol (MCP).
+* **ADR-016**: Configuração Declarativa e Auto-Scoping de Vault (`.memory/config.yaml`).
+* **ADR-035**: Embedder Embutido com Fallback ONNX MiniLM (Proposed).
+* **ADR-036**: Consolidação Pós-Release v1.3.0 e Roadmap v1.4.0.
+* **ADR-037**: Rewrite do Viewer com Vite + Vanilla TypeScript (deferred).
+
 ## 🤖 Habilidades de IA Disponíveis (`.agents/skills/`)
 
 Antes de realizar ações complexas, consulte e siga as skills instaladas:

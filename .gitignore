@@ -36,3 +36,16 @@ vault_test/
 .DS_Store
 __pycache__/
 *.pyc
+
+# Node.js (Playwright instalado via npm install --no-save em sessões de validação visual)
+node_modules/
+package.json
+package-lock.json
+
+# Artefatos de smoke test / Playwright CLI (output de `mem graph` e screenshots)
+screenshot-*.png
+smoke-*.html
+graph-smoke-*.html
+graph-test-*.html
+debug-*.cjs
+test-*.cjs
