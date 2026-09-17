@@ -73,13 +73,46 @@
 
 ---
 
-## ISSUE-005 — Drift em 64.4/100 com 54 críticos após recentes commits
-- **Severidade:** 🟡 medium (54 specs/ADRs desatualizados pelos commits recentes)
-- **Status:** 🔵 open
-- **Achado em:** `mem drift --since HEAD~5..HEAD` (sessão 2026-09-17)
-- **Contexto:** os 5 commits recentes (`aff45ca`, `53da40b`, `74804c4`, `b86a4ce`, `ae8547b`) modificaram parser, store e tests mas os ADRs/specs antigos ficaram desatualizados segundo o algoritmo de drift.
-- **Lista top 3 críticos:** `validation.md` (blast-radius), `ADR-034-protocolo-canonico-federado`, `AGENTS.md`.
-- **Possível correção:** atualizar essas docs pra refletir o novo fuzzy resolve e o EARS bugfix. Trabalho contínuo (~1-2h).
+## ISSUE-005 — Drift em 70.8/100 com 111 críticos (bloqueada por ISSUE-008)
+- **Severidade:** 🟡 medium (sintoma — problema real é ISSUE-008)
+- **Status:** 🔵 open (bloqueada — aguardando fix de calibração do detector)
+- **Achado em:** MCP `memory_get_drift` em sessão 2026-09-17 (`C:/repository/my-memory/.memory/logs/drift-full.json`)
+- **Contexto:** drift reportado em `HEAD~5..HEAD`: 5 commits, 9 arquivos, **score 70.8/100**, **111 críticos, 0 high, 0 medium, 0 low** — distribuição degenerada que sugere bug no threshold/calibração.
+- **Investigação:** amostrei 8 docs (incluindo `README.md`, `docs/CLI_GUIDE.md`, `docs/REPOSITORY_BRAIN.md`, `docs/adr/031-semantic-drift-...` — o próprio ADR que define o algoritmo) — **0 mencionam** os 3 arquivos alterados (`cmd/mem/main.go`, `internal/parser/fuzzy.go`, `internal/parser/fuzzy_test.go`). Os 111 críticos são **falso positivo em massa**.
+- **Bloqueio:** atualizar 5 docs seria trabalho desperdiçado (não reduz o problema real). Antes precisa resolver ISSUE-008 (calibração do PageRank).
+- **Lista top 3 originalmente proposta (`64.4/100`):** `validation.md` (blast-radius), `ADR-034-protocolo-canonico-federado`, `AGENTS.md`. **Substituída por ISSUE-008.**
+
+---
+
+## ISSUE-008 — Detector de drift super-reporta CRITICAL por calibração do PageRank
+- **Severidade:** 🟠 high (invalida métrica central do CI — `--strict` bloquearia PRs por falso positivo)
+- **Status:** 🔵 open (decisão arquitetural pendente)
+- **Achado em:** investigação de ISSUE-005 (sessão 2026-09-17)
+- **Contexto:** fórmula do `internal/drift` (ADR-031):
+  ```
+  Score = min(100, (Δcommits × 12) + (PageRank × 250) + (ln(1+LinesChanged) × 6))
+  ```
+  Com `Δcommits=5, LinesChanged=183, ln(184)≈5.22`:
+  ```
+  Score = min(100, 60 + 250×PR + 31.3) = min(100, 91.3 + 250×PR)
+  ```
+  Qualquer nota com **PageRank > 0.035** satura em 100. Como a maioria das notas linkadas tem PR ≥ 0.5, **TUDO vira CRITICAL** quando há 5+ commits. Resultado: 111 críticos sem correlação semântica real.
+
+**Possíveis correções (decisão arquitetural):**
+
+1. **Reduzir peso do PageRank** — `× 250` → `× 25` ou `× 50`. Mantém a fórmula, só calibra. Risco: precisa de novo coeficiente empírico baseado em ground truth.
+2. **Aplicar `min` por arquivo, não global** — calcular score por par (nota, arquivo alterado) e agregar depois. Mais correto semanticamente.
+3. **Filtro de correlação semântica** — só nota que cita o arquivo alterado no texto entra no cálculo. Mais robusto mas exige FTS/embedding.
+4. **Threshold mínimo de menções** — exigir ≥ N ocorrências da string `path/to/file` no markdown da nota. Heurística simples, similar ao fuzzy.
+
+**Recomendação:** opção 1 (reduzir peso) + opção 4 (filtro mínimo) combinadas. Cobre o sintoma (saturação) e a causa (falta de correlação semântica).
+
+**Trabalho associado:**
+- Criar ADR-039 com nova fórmula e ground truth (pegar 5 commits recentes, marcar manualmente docs que realmente precisariam de update, ajustar coeficientes pra que essas virem críticas e as outras não).
+- Implementar em `internal/drift/analyze.go`.
+- Re-rodar `mem drift` e validar: distribuição saudável (não degenerada), correlação semântica real.
+
+**Referência:** ISSUE-005 (sintoma), ADR-031 (definição original).
 
 ---
 
@@ -109,9 +142,10 @@
 | ISSUE-002 | 🟠 high | ✅ resolved (ae8547b) | 2026-09-17 |
 | ISSUE-003 | 🟠 high | ✅ resolved (aff45ca) | 2026-09-17 |
 | ISSUE-004 | 🟡 medium | ⏸️ deferred | 2026-09-17 |
-| ISSUE-005 | 🟡 medium | 🔵 open | 2026-09-17 |
+| ISSUE-005 | 🟡 medium | 🔵 open (bloqueada) | 2026-09-17 |
 | ISSUE-006 | 🟡 medium | 🔵 open | 2026-09-17 |
 | ISSUE-007 | 🟢 low | ⏸️ deferred | 2026-09-17 |
+| **ISSUE-008** | **🟠 high** | **🔵 open** | **2026-09-17** |
 
 ---
 
