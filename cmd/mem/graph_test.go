@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -133,6 +134,19 @@ func TestResolveStorageAndRepo_DerivesRepoFromDBPath(t *testing.T) {
 		Repository: "FelipeMiiller/my-memory",
 	}
 
+	// Cross-platform absolute DB path: filepath.IsAbs returns true on each OS
+	// only for paths that look absolute to that OS. Windows needs a drive letter
+	// (or UNC), Linux/macOS need a leading '/'. We pick the matching literal here
+	// so the test exercises the absolute-path branch on every runner.
+	var absDBPath, wantAbsDB string
+	if runtime.GOOS == "windows" {
+		absDBPath = `G:\My Drive\central-memory\memory.db`
+		wantAbsDB = `G:\My Drive\central-memory\memory.db`
+	} else {
+		absDBPath = "/tmp/central-memory/memory.db"
+		wantAbsDB = "/tmp/central-memory/memory.db"
+	}
+
 	tests := []struct {
 		name        string
 		targetRepo  string
@@ -144,10 +158,10 @@ func TestResolveStorageAndRepo_DerivesRepoFromDBPath(t *testing.T) {
 		{
 			name:        "db absoluto, sem --repo: deriva slug do path do DB",
 			targetRepo:  "",
-			dbPath:      `G:\My Drive\central-memory\memory.db`,
+			dbPath:      absDBPath,
 			defaultRepo: "fallback-repo",
 			wantRepo:    "central-memory",
-			wantDB:      `G:\My Drive\central-memory\memory.db`,
+			wantDB:      wantAbsDB,
 		},
 		{
 			name:        "db relativo, sem --repo: usa config.RepoID (caminho do config)",
@@ -160,10 +174,10 @@ func TestResolveStorageAndRepo_DerivesRepoFromDBPath(t *testing.T) {
 		{
 			name:        "db absoluto + --repo explícito: --repo vence",
 			targetRepo:  "central-memory",
-			dbPath:      `G:\My Drive\central-memory\memory.db`,
+			dbPath:      absDBPath,
 			defaultRepo: "fallback-repo",
 			wantRepo:    "central-memory",
-			wantDB:      `G:\My Drive\central-memory\memory.db`,
+			wantDB:      wantAbsDB,
 		},
 		{
 			name:        "sem --db, sem --repo: usa config.RepoID; db cai para default 'memory.db'",
