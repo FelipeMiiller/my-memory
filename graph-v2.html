@@ -8,6 +8,9 @@
   <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
   <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
   <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <script src="https://unpkg.com/layout-base/layout-base.js"></script>
+  <script src="https://unpkg.com/cose-base/cose-base.js"></script>
+  <script src="https://unpkg.com/cytoscape-fcose@2.2.0/cytoscape-fcose.js"></script>
   <style>
     :root { --bg: #090d16; --surface: #0f172a; --border: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --accent-glow: rgba(56, 189, 248, 0.25); }
     html.dark body { background: #090d16; color: var(--text); }
@@ -86,7 +89,7 @@
       <span>Modularity: <strong id="stat-modularity" style="color:var(--text)">—</strong></span>
     </div>
     <div id="type-chips" class="type-chips" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;"></div>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;align-items:center;">
       <input type="text" id="search-input" class="input" placeholder="Filtrar nós por título ou tag...">
       <select id="layout-select" class="btn">
         <option value="spread">Spread (graph)</option>
@@ -97,6 +100,10 @@
         <option value="circle">Circle</option>
         <option value="breadthfirst">Hierarchical</option>
       </select>
+      <label class="btn" title="Esconder tag-nodes isolados (in_degree=0 E out_degree≤1) para reduzir poluição visual" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;padding:6px 10px;">
+        <input type="checkbox" id="hide-tags" checked style="margin:0;">
+        <span>Esconder tags</span>
+      </label>
       <button class="btn" id="btn-fit" title="Reset zoom">⤢</button>
       <button class="btn" id="btn-export" title="Exportar PNG">↓</button>
     </div>
@@ -199,7 +206,10 @@
 
   <script>
   let DATA = null;
-  const SRC_PARAM = new URLSearchParams(location.search).get('src') || 'data-my-memory.json';
+  // Dataset único: data-central.json (o "índice" do cofre central).
+  // Para trocar, regenerar via `mem graph --db <outro> --out <arquivo>.html`
+  // e extrair o JSON inline via PowerShell (ver helper docs/adr/036).
+  const SRC_PARAM = 'data-central.json';
   async function bootstrap() {
     try {
       const r = await fetch(SRC_PARAM);
@@ -269,6 +279,11 @@
       GraphRenderer.init();
       SearchManager.init();
       document.getElementById('layout-select').addEventListener('change', function(e) { GraphRenderer.applyLayout(e.target.value); });
+      document.getElementById('hide-tags').addEventListener('change', function(e) {
+        GraphRenderer.toggleTagNodes(e.target.checked);
+      });
+      // Aplica estado inicial do checkbox (default: checked → esconde tags)
+      setTimeout(function() { GraphRenderer.toggleTagNodes(true); }, 1500);
       document.getElementById('btn-fit').addEventListener('click', function() { GraphRenderer.fit(); });
       document.getElementById('btn-export').addEventListener('click', function() { GraphRenderer.exportPNG(); });
       document.getElementById('btn-zoom-in').addEventListener('click', function() { GraphRenderer.zoom(1.3); });
@@ -323,7 +338,7 @@
     cy: null,
     init() {
       const elements = [
-        ...DATA.nodes.map(n => ({ group: 'nodes', data: { id: n.id, label: n.title, type: n.type, pagerank: n.pagerank || 0, community: n.community_id || 0, isHub: !!n.is_hub } })),
+        ...DATA.nodes.map(n => ({ group: 'nodes', data: { id: n.id, label: n.title, type: n.type, pagerank: n.pagerank || 0, in_degree: n.in_degree || 0, out_degree: n.out_degree || 0, community: n.community_id || 0, isHub: !!n.is_hub } })),
         ...DATA.edges.map(e => ({ group: 'edges', data: { id: e.source + '->' + e.target, source: e.source, target: e.target, relation: e.relation || 'links_to' } }))
       ];
       console.log('GraphRenderer.init: ' + elements.length + ' elements');
@@ -340,13 +355,19 @@
               var c = n.data('community') || 0;
               return palette[c % palette.length];
             },
-            'label': 'data(label)',
+            'label': function(n) { return n.data('isHub') ? n.data('label') : ''; },
             'color': '#f8fafc',
-            'font-size': '12px',
+            'font-size': '11px',
+            'font-weight': 600,
             'text-valign': 'bottom',
+            'text-halign': 'center',
             'text-margin-y': 6,
             'text-max-width': '110px',
             'text-wrap': 'ellipsis',
+            'text-background-color': '#0f172a',
+            'text-background-opacity': function(n) { return n.data('isHub') ? 0.92 : 0; },
+            'text-background-padding': '3px',
+            'text-background-shape': 'roundrectangle',
             'width': function(n) { return 14 + Math.min(30, (n.data('pagerank') || 0) * 300); },
             'height': function(n) { return 14 + Math.min(30, (n.data('pagerank') || 0) * 300); },
             'border-width': function(n) { return n.data('isHub') ? 3 : 1.5; },
@@ -380,16 +401,18 @@
           { selector: 'node.search-match', style: { 'background-color': '#f97316', 'border-color': '#fb923c', 'border-width': 4 }}
         ],
         layout: {
-          name: 'cose',
+          name: 'fcose',
           animate: true,
           randomize: true,
-          nodeRepulsion: function() { return 250000; },
-          nodeOverlap: 60,
-          idealEdgeLength: function() { return 140; },
-          edgeElasticity: function() { return 100; },
-          gravity: 0.01,
-          numIter: 8000,
-          padding: 60,
+          nodeRepulsion: 4800,
+          nodeOverlap: 80,
+          idealEdgeLength: 180,
+          edgeElasticity: 0.45,
+          gravity: 0.25,
+          gravityRangeCompound: 1.5,
+          numIter: 2500,
+          tile: true,
+          padding: 80,
           fit: true,
           componentSpacing: 140,
           animationDuration: 1000
@@ -438,6 +461,22 @@
       this.cy.on('mouseout', function() { tt.classList.remove('visible'); });
       this.cy.on('mouseout', 'edge', function(evt) { evt.target.removeClass('show-label'); });
 
+      // Hover: mostra label do nó (mesmo não-hub)
+      this.cy.on('mouseover', 'node', function(evt) {
+        var n = evt.target;
+        if (!n.data('isHub')) {
+          n.style('label', n.data('label'));
+          n.style('text-background-opacity', 0.92);
+        }
+      });
+      this.cy.on('mouseout', 'node', function(evt) {
+        var n = evt.target;
+        if (!n.data('isHub')) {
+          n.style('label', '');
+          n.style('text-background-opacity', 0);
+        }
+      });
+
       console.log('GraphRenderer: cy has ' + this.cy.nodes().length + ' nodes, ' + this.cy.edges().length + ' edges');
 
       // Apply community grid layout immediately (preset, no animation)
@@ -453,7 +492,7 @@
     applyLayout(name) {
       var self = this;
       var layouts = {
-        spread: { name: 'cose', animate: true, randomize: true, nodeRepulsion: function() { return 250000; }, nodeOverlap: 60, idealEdgeLength: function() { return 140; }, edgeElasticity: function() { return 100; }, gravity: 0.01, numIter: 8000, padding: 60, fit: true, componentSpacing: 140, animationDuration: 1000 },
+        spread: { name: 'fcose', animate: true, randomize: true, nodeRepulsion: 4800, nodeOverlap: 80, idealEdgeLength: 180, edgeElasticity: 0.45, gravity: 0.25, numIter: 2500, tile: true, padding: 80, fit: true, componentSpacing: 180, animationDuration: 1500 },
         'grid-community': { name: 'preset', positions: undefined, animate: true, fit: true, padding: 60 },
         cose: { name: 'cose', animate: true, randomize: true, nodeRepulsion: function() { return 80000; }, nodeOverlap: 40, idealEdgeLength: function() { return 110; }, edgeElasticity: function() { return 100; }, gravity: 0.05, numIter: 5000, padding: 80, fit: true, componentSpacing: 120, animationDuration: 800 },
         coseRefine: { name: 'cose', animate: true, randomize: false, nodeRepulsion: function() { return 200000; }, nodeOverlap: 30, idealEdgeLength: function() { return 80; }, edgeElasticity: function() { return 50; }, gravity: 0.005, numIter: 3000, padding: 60, fit: true, componentSpacing: 80, animationDuration: 600 },
@@ -472,6 +511,22 @@
     exportPNG() {
       var png = this.cy.png({ full: true, scale: 2, bg: ThemeManager.isDark() ? '#090d16' : '#f8fafc' });
       var link = document.createElement('a'); link.href = png; link.download = 'graph.png'; link.click();
+    },
+    toggleTagNodes(hide) {
+      if (!this.cy) return;
+      var hidden = 0;
+      this.cy.nodes().forEach(function(n) {
+        var d = n.data();
+        // tag-only = in_degree=0 (sem ninguém aponta pra ele) E out_degree≤1 (só conecta de volta a um README)
+        if ((d.in_degree || 0) === 0 && (d.out_degree || 0) <= 1) {
+          if (hide) { n.hide(); hidden++; } else { n.show(); }
+        }
+      });
+      console.log('toggleTagNodes: ' + (hide ? 'escondeu ' + hidden : 'mostrou todos'));
+      this.cy.edges().forEach(function(e) {
+        if (e.source().visible() && e.target().visible()) e.show(); else e.hide();
+      });
+      this.fit();
     },
     _applyCommunityGridLayout() {
       var self = this;
@@ -775,26 +830,7 @@
     }
   };
 
-  // Init
-  try {
-    ThemeManager.init();
-    TabsManager.init();
-    GraphRenderer.init();
-    SearchManager.init();
-    document.getElementById('layout-select').addEventListener('change', function(e) { GraphRenderer.applyLayout(e.target.value); });
-    document.getElementById('btn-fit').addEventListener('click', function() { GraphRenderer.fit(); });
-    document.getElementById('btn-export').addEventListener('click', function() { GraphRenderer.exportPNG(); });
-    document.getElementById('btn-zoom-in').addEventListener('click', function() { GraphRenderer.zoom(1.3); });
-    document.getElementById('btn-zoom-out').addEventListener('click', function() { GraphRenderer.zoom(0.77); });
-    document.getElementById('btn-path').addEventListener('click', function() { PathHighlight.start(); });
-    document.getElementById('btn-config').addEventListener('click', function() { ConfigModal.open(); });
-    GraphRenderer.cy.on('tap', 'node', function(evt) { if (PathHighlight.startNode) PathHighlight.pick(evt.target); });
-    fetch('config-global.txt').then(function(r) { return r.text(); }).then(function(t) { document.getElementById('config-global').textContent = t; }).catch(function() { document.getElementById('config-global').textContent = '(não carregado)'; });
-    fetch('config-local.txt').then(function(r) { return r.text(); }).then(function(t) { document.getElementById('config-local').textContent = t; }).catch(function() { document.getElementById('config-local').textContent = '(não carregado)'; });
-  } catch (err) {
-    console.error('Init error:', err);
-    document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;top:80px;left:20px;background:#7f1d1d;color:#fff;padding:12px;border-radius:8px;z-index:9999;font-family:monospace;font-size:11px;max-width:800px">JS Error: ' + (err.message || err) + '</div>');
-  }
+  // Init foi movido pra dentro de bootstrap() (linhas acima) que carrega DATA primeiro.
   </script>
 </body>
 </html>
