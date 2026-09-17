@@ -14,15 +14,32 @@ var (
 	// tagRegex captura #tag e #hierarquia/subtag (iniciando com letra)
 	tagRegex = regexp.MustCompile(`(?:^|[\s\(\[\{,;:])#([a-zA-Z][a-zA-Z0-9_\-\/]*)`)
 
-	// Regexes para ignorar blocos de código (evita extrair wikilinks de exemplos)
-	fencedCodeRegex = regexp.MustCompile("(?s)```.*?```")
-	inlineCodeRegex = regexp.MustCompile("`[^`\r\n]+`")
+	// Regexes para ignorar contextos onde wikilinks devem ser tratados como texto
+	// literal, não como edges reais. Usado em stripCodeBlocks para defesa em
+	// profundidade contra falsos positivos em EARS notation, exemplos e placeholders.
+	fencedCodeRegex  = regexp.MustCompile("(?s)```.*?```")
+	inlineCodeRegex  = regexp.MustCompile("`[^`\r\n]+`")
+	htmlCommentRegex = regexp.MustCompile("(?s)<!--.*?-->")
+	tableRowRegex    = regexp.MustCompile(`(?m)^\s*\|.*$`)
 )
 
-// stripCodeBlocks remove blocos de código fenced e inline do texto
+// stripCodeBlocks remove contextos onde wikilinks devem ser tratados como
+// texto literal (não como edges reais) do texto:
+//
+//   - Blocos de código fenced (```)
+//   - Código inline (`...`)
+//   - Comentários HTML (<!-- ... -->)
+//   - Linhas de tabela Markdown (começam com `|`)
+//
+// Os placeholders de documentação (ex: `[[Target]]`, `[[rel:target]]`) em
+// EARS notation normalmente aparecem em uma dessas três formas. Strippá-los
+// evita que virem edges fantasma que aparecem como dead links no `mem doctor`.
 func stripCodeBlocks(text string) string {
 	cleaned := fencedCodeRegex.ReplaceAllString(text, " ")
-	return inlineCodeRegex.ReplaceAllString(cleaned, " ")
+	cleaned = inlineCodeRegex.ReplaceAllString(cleaned, " ")
+	cleaned = htmlCommentRegex.ReplaceAllString(cleaned, " ")
+	cleaned = tableRowRegex.ReplaceAllString(cleaned, " ")
+	return cleaned
 }
 
 // EdgeConnection representa uma aresta dirigida tipada com semântica epistêmica

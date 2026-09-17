@@ -38,7 +38,7 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Gate**: go test -v ./internal/parser/...
 **Done when**:
 - [x] Definir EdgeConnection e adicionar Edges à ExtractedConnections
-- [x] Suportar prefixos de relação [[relation:Target]] e aliases [[Target|rel:relation]]
+- [x] Suportar prefixos de relação `[[relation:Target]]` e aliases `[[Target|rel:relation]]`
 - [x] Mapear tags como arestas tagged_as
 - [x] Garantir 100% de retrocompatibilidade com OutgoingLinks
 

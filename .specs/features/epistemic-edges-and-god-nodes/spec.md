@@ -20,7 +20,7 @@ No grafo de conhecimento atual do My-Memory, todas as conexões entre notas são
 
 | Assumption / decision | Chosen default | Rationale | Confirmed? |
 | --------------------- | -------------- | --------- | ---------- |
-| Sintaxe de Relações Tipadas | [[rel:target]] e [[target\|rel:tipo]] | Intuitivo para usuários de Obsidian e totalmente retrocompatível com links comuns | y |
+| Sintaxe de Relações Tipadas | `[[rel:target]]` e `[[target\|rel:tipo]]` | Intuitivo para usuários de Obsidian e totalmente retrocompatível com links comuns | y |
 | Status Epistêmico Padrão | EXTRACTED | Arestas extraídas diretamente do conteúdo escrito possuem validade comprovada pelo autor | y |
 | Métrica de God Nodes | Degree Centrality (in-degree + out-degree) | Mede diretamente a densidade de conexões conceituais com complexidade SQL O(E) | y |
 | Relação de Tags | tagged_as | Transforma tags em nós conceituais conectando documentos com interesses comuns | y |
@@ -38,9 +38,9 @@ No grafo de conhecimento atual do My-Memory, todas as conexões entre notas são
 **Why P1**: É a base que extrai a riqueza das notas antes de qualquer persistência.
 
 **Acceptance Criteria**:
-1. The system SHALL parse typed wikilinks with prefix syntax [[relation:Target]] into EdgeConnection with target Target and relation relation.
-2. The system SHALL parse typed wikilinks with alias syntax [[Target|rel:relation]] into EdgeConnection with target Target and relation relation.
-3. WHEN a standard wikilink [[Target]] is parsed THEN the system SHALL default its relation to links_to and epistemic_status to EXTRACTED.
+1. The system SHALL parse typed wikilinks with prefix syntax `[[relation:Target]]` into EdgeConnection with target Target and relation relation.
+2. The system SHALL parse typed wikilinks with alias syntax `[[Target|rel:relation]]` into EdgeConnection with target Target and relation relation.
+3. WHEN a standard wikilink `[[Target]]` is parsed THEN the system SHALL default its relation to links_to and epistemic_status to EXTRACTED.
 4. WHEN tags are present in frontmatter or body THEN the system SHALL extract edges with relation tagged_as and epistemic_status EXTRACTED.
 5. The system SHALL maintain backward compatibility for OutgoingLinks containing all unique external link targets.
 

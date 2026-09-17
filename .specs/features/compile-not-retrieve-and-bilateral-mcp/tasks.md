@@ -43,7 +43,7 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6
 **Done when**:
 - [x] Implementar SafeResolvePath garantindo isolamento dentro da raiz do vault contra path traversal
 - [x] Implementar WriteAtomicNote formatando frontmatter YAML limpo (title, type, tags, aliases)
-- [x] Suportar injeção de arestas epistêmicas tipadas no corpo do Markdown ([[rel:relation:Target]])
+- [x] Suportar injeção de arestas epistêmicas tipadas no corpo do Markdown (`[[rel:relation:Target]]`)
 - [x] Validar recusa de sobrescrita caso o arquivo já exista e overwrite seja falso
 - [x] Adicionar testes unitários em internal/compiler/note_test.go
 
