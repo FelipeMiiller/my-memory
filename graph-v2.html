@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="page-title">Grafo de Memória</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <style>
+    :root { --bg: #090d16; --surface: #0f172a; --border: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --accent-glow: rgba(56, 189, 248, 0.25); }
+    html.dark body { background: #090d16; color: var(--text); }
+    html:not(.dark) body { background: #f8fafc; color: #0f172a; }
+    body { font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; margin: 0; }
+    .cy-host { position: fixed; inset: 0; z-index: 1; }
+    .app-header { position: fixed; top: 0; left: 0; right: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(15, 23, 42, 0.92); border-bottom: 1px solid var(--border); padding: 12px 16px; }
+    html:not(.dark) .app-header { background: rgba(255, 255, 255, 0.92); }
+    .tabs-list { display: inline-flex; gap: 4px; padding: 4px; background: rgba(30, 41, 59, 0.5); border-radius: 8px; }
+    html:not(.dark) .tabs-list { background: rgba(241, 245, 249, 0.8); }
+    .tab-trigger { padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; background: transparent; color: var(--muted); cursor: pointer; transition: all 0.15s; border: none; }
+    .tab-trigger:hover { color: var(--text); }
+    .tab-trigger.active { background: var(--accent); color: #0c1220; font-weight: 600; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 500; background: rgba(56, 189, 248, 0.15); color: var(--accent); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; transition: all 0.15s; }
+    .btn:hover { background: rgba(56, 189, 248, 0.1); border-color: var(--accent); }
+    .btn-primary { background: var(--accent); color: #0c1220; border-color: var(--accent); }
+    .btn-icon { width: 32px; height: 32px; padding: 0; }
+    .btn-ghost { background: transparent; border-color: transparent; }
+    .input { flex: 1; padding: 6px 12px; border-radius: 6px; font-size: 13px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); color: var(--text); outline: none; transition: border-color 0.15s; }
+    .input:focus { border-color: var(--accent); }
+    html:not(.dark) .input { background: rgba(241, 245, 249, 0.8); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .sidebar { position: fixed; top: 0; right: 0; bottom: 0; width: 360px; z-index: 40; background: var(--surface); border-left: 1px solid var(--border); transform: translateX(100%); transition: transform 0.2s ease-out; overflow-y: auto; padding: 16px; }
+    .sidebar.open { transform: translateX(0); }
+    .modal { position: fixed; inset: 0; z-index: 50; background: rgba(3, 7, 18, 0.85); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; padding: 24px; }
+    .modal.open { display: flex; }
+    .modal-content { max-width: 1100px; width: 100%; max-height: 88vh; overflow: auto; }
+    .controls { position: fixed; bottom: 16px; right: 16px; z-index: 20; display: flex; flex-direction: column; gap: 8px; }
+    .minimap { position: fixed; bottom: 16px; left: 16px; z-index: 20; width: 200px; height: 140px; background: rgba(15, 23, 42, 0.92); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    html:not(.dark) .minimap { background: rgba(255, 255, 255, 0.92); }
+    .path-banner { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 9999px; background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); color: #fff; font-size: 13px; font-weight: 600; z-index: 35; display: none; align-items: center; gap: 10px; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.4); }
+    .path-banner.active { display: inline-flex; }
+    .cy-tooltip { position: absolute; pointer-events: none; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(8px); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--text); max-width: 320px; box-shadow: 0 12px 28px rgba(0,0,0,0.4); z-index: 60; opacity: 0; transition: opacity 0.12s; }
+    .cy-tooltip.visible { opacity: 1; }
+    .cy-tooltip .tt-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .cy-tooltip .tt-row { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+    .cy-tooltip .tt-path { font-family: ui-monospace, monospace; font-size: 10px; word-break: break-all; opacity: 0.7; margin-top: 6px; }
+    .cy-tooltip .tt-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; background: rgba(56,189,248,0.15); color: var(--accent); font-size: 10px; margin-right: 4px; }
+    html:not(.dark) .cy-tooltip { background: rgba(255,255,255,0.96); color: #0f172a; }
+  </style>
+</head>
+<body class="dark">
+  <header class="app-header">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+      <h1 id="header-title" style="font-size:18px;font-weight:700;letter-spacing:-0.01em;">Carregando…</h1>
+      <span class="badge" id="header-badge">…</span>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost btn-icon" id="btn-theme-toggle" title="Alternar tema">🌙</button>
+    </div>
+    <div class="tabs-list" id="tabs-list" style="margin-bottom:12px;"></div>
+    <div style="display:flex;gap:16px;font-size:12px;color:var(--muted);margin-bottom:12px;">
+      <span>Nodes: <strong id="stat-nodes" style="color:var(--text)">—</strong></span>
+      <span>Edges: <strong id="stat-edges" style="color:var(--text)">—</strong></span>
+      <span>Hubs: <strong id="stat-hubs" style="color:var(--text)">—</strong></span>
+      <span>Density: <strong id="stat-density" style="color:var(--text)">—</strong></span>
+      <span>Modularity: <strong id="stat-modularity" style="color:var(--text)">—</strong></span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="search-input" class="input" placeholder="Filtrar nós por título ou tag...">
+      <select id="layout-select" class="btn">
+        <option value="spread">Spread (graph)</option>
+        <option value="cose">Force-directed</option>
+        <option value="coseRefine">Force Refine</option>
+        <option value="grid-community">Community Grid</option>
+        <option value="concentric">Concentric</option>
+        <option value="circle">Circle</option>
+        <option value="breadthfirst">Hierarchical</option>
+      </select>
+      <button class="btn" id="btn-fit" title="Reset zoom">⤢</button>
+      <button class="btn" id="btn-export" title="Exportar PNG">↓</button>
+    </div>
+  </header>
+
+  <div class="cy-tooltip" id="cy-tooltip"></div>
+  <div class="path-banner" id="path-banner">
+    <span id="path-banner-text">Clique em um nó para iniciar</span>
+    <button onclick="PathHighlight.cancel()" class="btn btn-ghost" style="color:#fff;">Cancelar</button>
+  </div>
+
+  <div class="cy-host" id="cy"></div>
+
+  <div class="controls">
+    <button class="btn btn-icon" id="btn-zoom-in" title="Zoom +">+</button>
+    <button class="btn btn-icon" id="btn-zoom-out" title="Zoom −">−</button>
+    <button class="btn btn-icon" id="btn-path" title="Path entre 2 nós">⇄</button>
+    <button class="btn btn-icon" id="btn-config" title="Configurações">⚙</button>
+  </div>
+
+  <div class="minimap"><canvas id="minimap-canvas" width="200" height="140"></canvas></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h3 style="font-size:16px;font-weight:600;">Detalhes do nó</h3>
+      <button class="btn btn-icon btn-ghost" onclick="Sidebar.close()">✕</button>
+    </div>
+    <div id="sb-content"></div>
+  </aside>
+
+  <div class="modal" id="config-modal">
+    <div class="modal-content card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h3 style="font-size:18px;font-weight:600;">Configurações</h3>
+        <button class="btn btn-icon btn-ghost" onclick="ConfigModal.close()">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--muted)">~/.memory/config.yaml (global)</div>
+          <pre class="card" style="font-family:ui-monospace,monospace;font-size:11px;overflow:auto;padding:12px;max-height:60vh" id="config-global"></pre>
+          <button class="btn" style="margin-top:8px;font-size:11px" onclick="ConfigModal.copy('config-global')">📋 Copiar</button>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--muted)">.memory/config.yaml (vault)</div>
+          <pre class="card" style="font-family:ui-monospace,monospace;font-size:11px;overflow:auto;padding:12px;max-height:60vh" id="config-local"></pre>
+          <button class="btn" style="margin-top:8px;font-size:11px" onclick="ConfigModal.copy('config-local')">📋 Copiar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="triptych-modal">
+    <div class="modal-content card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h3 style="font-size:18px;font-weight:600;">🔬 Triptych Inspector</h3>
+        <button class="btn btn-icon btn-ghost" onclick="Triptych.close()">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+        <div class="card">
+          <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--muted)">⬅ In-links</div>
+          <div id="tp-in-list" style="font-size:11px;max-height:60vh;overflow:auto"></div>
+        </div>
+        <div class="card">
+          <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--muted)">🎯 Nó</div>
+          <div id="tp-center" style="font-size:11px"></div>
+        </div>
+        <div class="card">
+          <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--muted)">➡ Out-links</div>
+          <div id="tp-out-list" style="font-size:11px;max-height:60vh;overflow:auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="openwith-modal">
+    <div class="modal-content card" style="max-width:520px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h3 style="font-size:18px;font-weight:600;">📂 Abrir com...</h3>
+        <button class="btn btn-icon btn-ghost" onclick="OpenWith.close()">✕</button>
+      </div>
+      <div id="ow-file-label" style="font-size:11px;color:var(--muted);margin-bottom:12px;word-break:break-all;font-family:ui-monospace,monospace;padding:8px;background:var(--bg);border-radius:6px;"></div>
+      <div id="ow-readers" style="display:grid;gap:8px;"></div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--muted)">Ações genéricas</div>
+        <div style="display:grid;gap:6px;">
+          <button class="btn" onclick="OpenWith.copyPath()" style="justify-content:flex-start;text-align:left">📋 Copiar path</button>
+          <button class="btn" onclick="OpenWith.showInFolder()" style="justify-content:flex-start;text-align:left">📁 Mostrar no Explorer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  let DATA = null;
+  const SRC_PARAM = new URLSearchParams(location.search).get('src') || 'data-my-memory.json';
+  async function bootstrap() {
+    try {
+      const r = await fetch(SRC_PARAM);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      DATA = await r.json();
+    } catch (err) {
+      document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;top:80px;left:20px;background:#7f1d1d;color:#fff;padding:12px;border-radius:8px;z-index:9999;font-family:monospace;font-size:11px">Falha ao carregar ' + SRC_PARAM + ': ' + (err.message || err) + '</div>');
+      return;
+    }
+    document.title = DATA.title || 'Grafo de Memória';
+    document.getElementById('header-title').textContent = DATA.title || 'Grafo de Memória';
+    document.getElementById('header-badge').textContent = DATA.repository || '';
+    document.getElementById('stat-nodes').textContent = (DATA.stats && DATA.stats.total_nodes != null) ? DATA.stats.total_nodes : DATA.nodes.length;
+    document.getElementById('stat-edges').textContent = (DATA.stats && DATA.stats.total_edges != null) ? DATA.stats.total_edges : DATA.edges.length;
+    document.getElementById('stat-hubs').textContent = (DATA.stats && DATA.stats.hub_count != null) ? DATA.stats.hub_count : 0;
+    document.getElementById('stat-density').textContent = (DATA.stats && DATA.stats.density != null) ? DATA.stats.density.toFixed(3) : '0.000';
+    document.getElementById('stat-modularity').textContent = (DATA.stats && DATA.stats.modularity != null) ? DATA.stats.modularity.toFixed(3) : '0.000';
+    var tabsEl = document.getElementById('tabs-list');
+    var tabEl = document.createElement('button');
+    tabEl.className = 'tab-trigger active';
+    tabEl.dataset.repo = DATA.repository || 'default';
+    tabEl.textContent = DATA.repository || 'default';
+    tabsEl.appendChild(tabEl);
+    try {
+      ThemeManager.init();
+      TabsManager.init();
+      GraphRenderer.init();
+      SearchManager.init();
+      document.getElementById('layout-select').addEventListener('change', function(e) { GraphRenderer.applyLayout(e.target.value); });
+      document.getElementById('btn-fit').addEventListener('click', function() { GraphRenderer.fit(); });
+      document.getElementById('btn-export').addEventListener('click', function() { GraphRenderer.exportPNG(); });
+      document.getElementById('btn-zoom-in').addEventListener('click', function() { GraphRenderer.zoom(1.3); });
+      document.getElementById('btn-zoom-out').addEventListener('click', function() { GraphRenderer.zoom(0.77); });
+      document.getElementById('btn-path').addEventListener('click', function() { PathHighlight.start(); });
+      document.getElementById('btn-config').addEventListener('click', function() { ConfigModal.open(); });
+      GraphRenderer.cy.on('tap', 'node', function(evt) { if (PathHighlight.startNode) PathHighlight.pick(evt.target); });
+      fetch('config-global.txt').then(function(r) { return r.text(); }).then(function(t) { document.getElementById('config-global').textContent = t; }).catch(function() { document.getElementById('config-global').textContent = '(não carregado)'; });
+      fetch('config-local.txt').then(function(r) { return r.text(); }).then(function(t) { document.getElementById('config-local').textContent = t; }).catch(function() { document.getElementById('config-local').textContent = '(não carregado)'; });
+    } catch (err) {
+      console.error('Init error:', err);
+      document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;top:80px;left:20px;background:#7f1d1d;color:#fff;padding:12px;border-radius:8px;z-index:9999;font-family:monospace;font-size:11px;max-width:800px">JS Error: ' + (err.message || err) + '</div>');
+    }
+  }
+  bootstrap();
+
+  const ThemeManager = {
+    init() {
+      const saved = localStorage.getItem('mm-theme');
+      if (saved === 'light') document.documentElement.classList.remove('dark');
+      else document.documentElement.classList.add('dark');
+      document.getElementById('btn-theme-toggle').addEventListener('click', () => this.toggle());
+      this.syncIcon();
+    },
+    toggle() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('mm-theme', isDark ? 'dark' : 'light');
+      this.syncIcon();
+      try { MiniMap.render(); } catch (e) {}
+      try { GraphRenderer.updateColors(); } catch (e) {}
+    },
+    syncIcon() {
+      const isDark = document.documentElement.classList.contains('dark');
+      document.getElementById('btn-theme-toggle').textContent = isDark ? '☀️' : '🌙';
+    },
+    isDark() { return document.documentElement.classList.contains('dark'); }
+  };
+
+  const TabsManager = {
+    init() {
+      document.querySelectorAll('.tab-trigger').forEach(tab => {
+        tab.addEventListener('click', () => this.activate(tab.dataset.repo, tab));
+      });
+    },
+    activate(repo, tab) {
+      document.querySelectorAll('.tab-trigger').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    }
+  };
+
+  const GraphRenderer = {
+    cy: null,
+    init() {
+      const elements = [
+        ...DATA.nodes.map(n => ({ group: 'nodes', data: { id: n.id, label: n.title, type: n.type, pagerank: n.pagerank || 0, community: n.community_id || 0, isHub: !!n.is_hub } })),
+        ...DATA.edges.map(e => ({ group: 'edges', data: { id: e.source + '->' + e.target, source: e.source, target: e.target, relation: e.relation || 'links_to' } }))
+      ];
+      console.log('GraphRenderer.init: ' + elements.length + ' elements');
+
+      const palette = ['#38bdf8', '#a78bfa', '#f472b6', '#fb923c', '#34d399', '#fb7185', '#60a5fa', '#c084fc'];
+
+      this.cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: elements,
+        style: [
+          { selector: 'node', style: {
+            'background-color': function(n) {
+              if (n.data('isHub')) return '#fbbf24';
+              var c = n.data('community') || 0;
+              return palette[c % palette.length];
+            },
+            'label': 'data(label)',
+            'color': '#f8fafc',
+            'font-size': '12px',
+            'text-valign': 'bottom',
+            'text-margin-y': 6,
+            'text-max-width': '110px',
+            'text-wrap': 'ellipsis',
+            'width': function(n) { return 14 + Math.min(30, (n.data('pagerank') || 0) * 300); },
+            'height': function(n) { return 14 + Math.min(30, (n.data('pagerank') || 0) * 300); },
+            'border-width': function(n) { return n.data('isHub') ? 3 : 1.5; },
+            'border-color': '#0c1220',
+            'opacity': 0.95
+          }},
+          { selector: 'edge', style: {
+            'width': 1.5,
+            'line-color': 'rgba(148, 163, 184, 0.6)',
+            'curve-style': 'bezier',
+            'target-arrow-shape': 'triangle',
+            'target-arrow-color': 'rgba(148, 163, 184, 0.6)',
+            'arrow-scale': 0.8,
+            'opacity': 0.5,
+            'font-size': '9px',
+            'color': '#94a3b8'
+          }},
+          { selector: 'edge.show-label', style: {
+            'label': 'data(relation)',
+            'opacity': 1,
+            'width': 2,
+            'z-index': 100,
+            'text-background-color': '#0f172a',
+            'text-background-opacity': 0.9,
+            'text-background-padding': '2px'
+          }},
+          { selector: 'node.path-highlighted', style: { 'background-color': '#f59e0b', 'border-color': '#fbbf24', 'border-width': 4 }},
+          { selector: 'edge.path-highlighted', style: { 'line-color': '#f59e0b', 'target-arrow-color': '#f59e0b', 'width': 4, 'opacity': 1 }},
+          { selector: 'node.dimmed', style: { 'opacity': 0.15 }},
+          { selector: 'edge.dimmed', style: { 'opacity': 0.05 }},
+          { selector: 'node.search-match', style: { 'background-color': '#f97316', 'border-color': '#fb923c', 'border-width': 4 }}
+        ],
+        layout: {
+          name: 'cose',
+          animate: true,
+          randomize: true,
+          nodeRepulsion: function() { return 250000; },
+          nodeOverlap: 60,
+          idealEdgeLength: function() { return 140; },
+          edgeElasticity: function() { return 100; },
+          gravity: 0.01,
+          numIter: 8000,
+          padding: 60,
+          fit: true,
+          componentSpacing: 140,
+          animationDuration: 1000
+        },
+        wheelSensitivity: 0.2,
+        minZoom: 0.15,
+        maxZoom: 4
+      });
+
+      this.cy.on('tap', 'node', function(evt) { Sidebar.show(evt.target); });
+      this.cy.on('tap', function(evt) { if (evt.target === GraphRenderer.cy) Sidebar.close(); });
+
+      // Tooltip + edge label
+      var tt = document.getElementById('cy-tooltip');
+      this.cy.on('mouseover', 'node', function(evt) {
+        var n = evt.target;
+        var d = n.data();
+        var nodeData = DATA.nodes.find(function(x) { return x.id === d.id; }) || {};
+        tt.innerHTML = '<div class="tt-title">' + d.label + '</div>' +
+          '<div style="margin-bottom:6px;">' +
+            '<span class="tt-tag">' + (d.type || 'other') + '</span>' +
+            (d.isHub ? '<span class="tt-tag" style="background:rgba(251,191,36,0.18);color:#fbbf24">hub</span>' : '') +
+            (nodeData.community_label ? '<span class="tt-tag" style="background:rgba(167,139,250,0.18);color:#a78bfa">' + nodeData.community_label + '</span>' : '') +
+          '</div>' +
+          '<div class="tt-row"><span>PageRank</span><span class="font-mono">' + (d.pagerank || 0).toFixed(4) + '</span></div>' +
+          '<div class="tt-row"><span>Community</span><span class="font-mono">#' + d.community + '</span></div>' +
+          '<div class="tt-path">' + d.id + '</div>';
+        tt.classList.add('visible');
+      });
+      this.cy.on('mouseover', 'edge', function(evt) {
+        var e = evt.target;
+        e.addClass('show-label');
+        tt.innerHTML = '<div class="tt-title">' + (e.data('relation') || 'links_to') + '</div>' +
+          '<div class="tt-row"><span>Origem</span><span style="font-family:monospace;font-size:10px">' + (e.source().data('label') || '').substring(0, 40) + '</span></div>' +
+          '<div class="tt-row"><span>Destino</span><span style="font-family:monospace;font-size:10px">' + (e.target().data('label') || '').substring(0, 40) + '</span></div>';
+        tt.classList.add('visible');
+      });
+      this.cy.on('mousemove', function(evt) {
+        var oe = evt.originalEvent || evt;
+        var rect = document.body.getBoundingClientRect();
+        var x = oe.clientX + 14;
+        var y = oe.clientY + 14;
+        tt.style.left = Math.min(x, rect.width - 340) + 'px';
+        tt.style.top = Math.min(y, rect.height - 160) + 'px';
+      });
+      this.cy.on('mouseout', function() { tt.classList.remove('visible'); });
+      this.cy.on('mouseout', 'edge', function(evt) { evt.target.removeClass('show-label'); });
+
+      console.log('GraphRenderer: cy has ' + this.cy.nodes().length + ' nodes, ' + this.cy.edges().length + ' edges');
+
+      // Apply community grid layout immediately (preset, no animation)
+      this._applyCommunityGridLayout();
+      this.cy.on('layoutstop', function() { try { MiniMap.render(); } catch(e) {} });
+      setTimeout(function() { try { MiniMap.render(); } catch(e) {} }, 800);
+    },
+    updateColors() {
+      this.cy.style().selector('node').style('color', '#f8fafc').update();
+    },
+    fit() { this.cy.fit(null, 60); },
+    zoom(delta) { var z = this.cy.zoom() * delta; this.cy.zoom({ level: z, renderedPosition: { x: this.cy.width()/2, y: this.cy.height()/2 } }); },
+    applyLayout(name) {
+      var self = this;
+      var layouts = {
+        spread: { name: 'cose', animate: true, randomize: true, nodeRepulsion: function() { return 250000; }, nodeOverlap: 60, idealEdgeLength: function() { return 140; }, edgeElasticity: function() { return 100; }, gravity: 0.01, numIter: 8000, padding: 60, fit: true, componentSpacing: 140, animationDuration: 1000 },
+        'grid-community': { name: 'preset', positions: undefined, animate: true, fit: true, padding: 60 },
+        cose: { name: 'cose', animate: true, randomize: true, nodeRepulsion: function() { return 80000; }, nodeOverlap: 40, idealEdgeLength: function() { return 110; }, edgeElasticity: function() { return 100; }, gravity: 0.05, numIter: 5000, padding: 80, fit: true, componentSpacing: 120, animationDuration: 800 },
+        coseRefine: { name: 'cose', animate: true, randomize: false, nodeRepulsion: function() { return 200000; }, nodeOverlap: 30, idealEdgeLength: function() { return 80; }, edgeElasticity: function() { return 50; }, gravity: 0.005, numIter: 3000, padding: 60, fit: true, componentSpacing: 80, animationDuration: 600 },
+        concentric: { name: 'concentric', concentric: function(n) { return n.data('pagerank') || 0; }, levelWidth: function() { return 1; }, padding: 60, spacingFactor: 1.4, fit: true },
+        circle: { name: 'circle', padding: 30, fit: true },
+        breadthfirst: { name: 'breadthfirst', directed: true, padding: 30, spacingFactor: 1.5, fit: true }
+      };
+
+      // Special handling for grid-community: pre-compute positions by community grid
+      if (name === 'grid-community') {
+        this._applyCommunityGridLayout();
+        return;
+      }
+      this.cy.layout(layouts[name] || layouts.spread).run();
+    },
+    exportPNG() {
+      var png = this.cy.png({ full: true, scale: 2, bg: ThemeManager.isDark() ? '#090d16' : '#f8fafc' });
+      var link = document.createElement('a'); link.href = png; link.download = 'graph.png'; link.click();
+    },
+    _applyCommunityGridLayout() {
+      var self = this;
+      var nodes = this.cy.nodes();
+      var groups = {};
+      nodes.forEach(function(n) {
+        var c = n.data('community');
+        if (c === undefined || c === null) c = 0;
+        if (!groups[c]) groups[c] = [];
+        groups[c].push(n);
+      });
+      var communityIds = Object.keys(groups).map(Number).sort(function(a,b){return a-b;});
+      var numComm = communityIds.length;
+      var cols = Math.ceil(Math.sqrt(numComm * 1.6));
+      var rows = Math.ceil(numComm / cols);
+      var cellW = 1100 / cols;
+      var cellH = 700 / rows;
+      var positions = {};
+      communityIds.forEach(function(cId, idx) {
+        var col = idx % cols;
+        var row = Math.floor(idx / cols);
+        var cellCx = -550 + cellW * (col + 0.5);
+        var cellCy = -350 + cellH * (row + 0.5);
+        var clusterNodes = groups[cId];
+        // Sub-layout: place in concentric within cell
+        var n = clusterNodes.length;
+        if (n === 1) {
+          positions[clusterNodes[0].id()] = { x: cellCx, y: cellCy };
+          return;
+        }
+        // Use pagerank to set concentric level
+        var sortedNodes = clusterNodes.slice().sort(function(a,b){
+          return (b.data('pagerank') || 0) - (a.data('pagerank') || 0);
+        });
+        var maxRadius = Math.min(cellW, cellH) * 0.38;
+        // Hub in center, others in concentric rings
+        positions[sortedNodes[0].id()] = { x: cellCx, y: cellCy };
+        var ringNodes = sortedNodes.slice(1);
+        var ringCount = ringNodes.length;
+        var rings = Math.min(3, Math.ceil(Math.sqrt(ringCount)));
+        var perRing = Math.ceil(ringCount / rings);
+        ringNodes.forEach(function(node, i) {
+          var ring = Math.floor(i / perRing);
+          var angle = (2 * Math.PI * (i % perRing)) / perRing + (ring * 0.3);
+          var r = maxRadius * (0.5 + 0.35 * ring);
+          positions[node.id()] = {
+            x: cellCx + r * Math.cos(angle),
+            y: cellCy + r * Math.sin(angle)
+          };
+        });
+      });
+      // Apply preset positions
+      this.cy.nodes().forEach(function(n) {
+        var p = positions[n.id()];
+        if (p) n.position(p);
+      });
+      this.cy.fit(null, 60);
+      // Trigger label re-render
+      setTimeout(function() { try { renderClusterLabels(); } catch(e) {} }, 400);
+    }
+  };
+
+  const Sidebar = {
+    show(node) {
+      var d = node.data();
+      var inE = GraphRenderer.cy.edges().filter(function(e) { return e.target().id() === d.id; });
+      var outE = GraphRenderer.cy.edges().filter(function(e) { return e.source().id() === d.id; });
+      var html = '<div style="font-size:16px;font-weight:600;margin-bottom:6px">' + d.label + '</div>' +
+        '<div class="badge" style="margin-bottom:12px">' + (d.type || 'other') + '</div>' +
+        '<div style="font-size:12px;display:grid;gap:4px">' +
+          '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">PageRank</span><span style="font-family:monospace">' + (d.pagerank||0).toFixed(4) + '</span></div>' +
+          '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Community</span><span style="font-family:monospace">#' + d.community + '</span></div>' +
+          '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Total</span><span>' + (inE.length + outE.length) + '</span></div>' +
+          '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">In</span><span>' + inE.length + '</span></div>' +
+          '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Out</span><span>' + outE.length + '</span></div>' +
+          '<div style="margin-top:8px;word-break:break-all"><span style="color:var(--muted)">Path:</span><br><span style="font-family:monospace;font-size:10px">' + d.id + '</span></div>' +
+        '</div>' +
+        '<div style="margin-top:12px;display:grid;gap:8px">' +
+          '<button class="btn btn-primary" style="width:100%" onclick="Triptych.open(\'' + d.id.replace(/'/g, "\\'") + '\')">🔬 Triptych</button>' +
+          '<button class="btn" style="width:100%" onclick="PathHighlight.start(\'' + d.id.replace(/'/g, "\\'") + '\')">⇄ Path daqui</button>' +
+          '<button class="btn" style="width:100%" onclick="OpenWith.open(\'' + d.id.replace(/'/g, "\\'") + '\')">📂 Abrir com...</button>' +
+        '</div>' +
+        '<div style="margin-top:16px">' +
+          '<div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--muted)">Out-links (' + outE.length + ')</div>' +
+          '<div style="display:grid;gap:4px">' +
+            outE.slice(0, 10).map(function(e) {
+              return '<div style="font-size:11px;padding:6px;border-radius:4px;cursor:pointer" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'transparent\'" onclick="Sidebar.show(GraphRenderer.cy.$id(\'' + e.target().id().replace(/'/g, "\\'") + '\'))">→ ' + e.target().data('label') + '</div>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+      document.getElementById('sb-content').innerHTML = html;
+      document.getElementById('sidebar').classList.add('open');
+    },
+    close() { document.getElementById('sidebar').classList.remove('open'); }
+  };
+
+  const MiniMap = {
+    render() {
+      var canvas = document.getElementById('minimap-canvas');
+      var ctx = canvas.getContext('2d');
+      var nodes = GraphRenderer.cy.nodes();
+      var w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      if (nodes.length === 0) { console.warn('MiniMap: 0 nodes'); return; }
+      var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      nodes.forEach(function(n) { var p = n.position(); minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+      var padding = 8;
+      var range = Math.max(maxX - minX, maxY - minY) || 1;
+      var scale = Math.min((w - padding*2) / range, (h - padding*2) / range);
+      nodes.forEach(function(n) {
+        var p = n.position();
+        var x = padding + (p.x - minX) * scale;
+        var y = padding + (p.y - minY) * scale;
+        ctx.fillStyle = n.data('isHub') ? '#fbbf24' : (ThemeManager.isDark() ? '#64748b' : '#94a3b8');
+        ctx.beginPath(); ctx.arc(x, y, n.data('isHub') ? 3 : 1.5, 0, Math.PI * 2); ctx.fill();
+      });
+    }
+  };
+
+  const PathHighlight = {
+    startNode: null,
+    start(arg) {
+      var sel;
+      if (arg) {
+        sel = GraphRenderer.cy.$id(arg);
+        if (sel.length === 0) sel = GraphRenderer.cy.$(':selected');
+      } else {
+        sel = GraphRenderer.cy.$(':selected');
+      }
+      if (sel.length === 1) {
+        this.startNode = sel[0];
+        document.getElementById('path-banner').classList.add('active');
+        document.getElementById('path-banner-text').textContent = 'Origem: ' + this.startNode.data('label') + ' — clique em outro nó';
+      } else {
+        alert('Selecione um nó primeiro.');
+      }
+    },
+    pick(node) {
+      if (!this.startNode) return false;
+      var bfs = GraphRenderer.cy.elements().bfs({ roots: [this.startNode], visit: function(v) { return v.id() === node.id(); } });
+      if (!bfs.found) { alert('Nenhum caminho encontrado.'); return false; }
+      var path = bfs.path;
+      GraphRenderer.cy.elements().removeClass('path-highlighted dimmed');
+      GraphRenderer.cy.elements().not(path).addClass('dimmed');
+      path.addClass('path-highlighted');
+      document.getElementById('path-banner-text').textContent = 'Caminho: ' + path.length + ' nós';
+      return true;
+    },
+    cancel() {
+      this.startNode = null;
+      document.getElementById('path-banner').classList.remove('active');
+      GraphRenderer.cy.elements().removeClass('path-highlighted dimmed');
+    }
+  };
+
+  const Triptych = {
+    open(nodeId) {
+      var node = GraphRenderer.cy.$id(nodeId);
+      if (node.length === 0) return;
+      var inE = GraphRenderer.cy.edges().filter(function(e) { return e.target().id() === nodeId; });
+      var outE = GraphRenderer.cy.edges().filter(function(e) { return e.source().id() === nodeId; });
+      document.getElementById('tp-in-list').innerHTML = inE.length ? inE.map(function(e) { return '<div style="padding:6px;border-radius:4px;cursor:pointer" onclick="Sidebar.show(GraphRenderer.cy.$id(\'' + e.source().id().replace(/'/g, "\\'") + '\'))">' + e.source().data('label') + ' <span style="color:var(--muted)">(' + e.data('relation') + ')</span></div>'; }).join('') : '<div style="color:var(--muted)">Nenhum</div>';
+      document.getElementById('tp-center').innerHTML = '<div style="font-size:16px;font-weight:600;margin-bottom:6px">' + node.data('label') + '</div><div class="badge" style="margin-bottom:8px">' + node.data('type') + '</div><div style="display:grid;gap:4px"><div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">PR</span><span style="font-family:monospace">' + (node.data('pagerank')||0).toFixed(4) + '</span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">In</span><span>' + inE.length + '</span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Out</span><span>' + outE.length + '</span></div></div>';
+      document.getElementById('tp-out-list').innerHTML = outE.length ? outE.map(function(e) { return '<div style="padding:6px;border-radius:4px;cursor:pointer" onclick="Sidebar.show(GraphRenderer.cy.$id(\'' + e.target().id().replace(/'/g, "\\'") + '\'))">' + e.target().data('label') + ' <span style="color:var(--muted)">(' + e.data('relation') + ')</span></div>'; }).join('') : '<div style="color:var(--muted)">Nenhum</div>';
+      document.getElementById('triptych-modal').classList.add('open');
+    },
+    close() { document.getElementById('triptych-modal').classList.remove('open'); }
+  };
+
+  const OpenWith = {
+    currentId: null,
+    // Common Markdown readers with their URI templates. {token} is replaced with URL-encoded file path.
+    readers: [
+      { name: 'Obsidian',     icon: '🟣', template: 'obsidian://open?path={path}' },
+      { name: 'VS Code',      icon: '🟦', template: 'vscode://file/{path}' },
+      { name: 'Typora',       icon: '⚪', template: 'typora:///{path}' },
+      { name: 'Mark Text',    icon: '🟢', template: 'mt://file/{path}' },
+      { name: 'Joplin',       icon: '🟠', template: 'joplin://x-callback-url/openNote?path={path}' },
+      { name: 'Zettlr',       icon: '🟡', template: 'zettlr://open?file={path}' },
+      { name: 'Sistema (file://)', icon: '🗂️', template: 'file:///{path}' }
+    ],
+    // Convert Windows path to URI-friendly forward-slash form, encoded
+    _toUriPath: function(p) {
+      if (!p) return '';
+      // Replace backslashes with forward slashes, encode each segment preserving slashes
+      var forward = p.replace(/\\/g, '/');
+      return forward.split('/').map(function(seg) { return encodeURIComponent(seg); }).join('/');
+    },
+    open: function(nodeId) {
+      this.currentId = nodeId;
+      var rawPath = nodeId || '';
+      var hasRealPath = /[\\/]/.test(rawPath) && /\.\w+$/.test(rawPath);
+      document.getElementById('ow-file-label').textContent = hasRealPath
+        ? rawPath
+        : rawPath + '  (sem path de arquivo — ações desabilitadas)';
+      var container = document.getElementById('ow-readers');
+      if (hasRealPath) {
+        var uriPath = this._toUriPath(rawPath);
+        container.innerHTML = this.readers.map(function(r) {
+          var uri = r.template.replace('{path}', uriPath);
+          return '<button class="btn" onclick="OpenWith.launch(\'' + uri.replace(/'/g, "\\'") + '\')" style="justify-content:flex-start;text-align:left;gap:10px"><span style="font-size:16px">' + r.icon + '</span><span>' + r.name + '</span></button>';
+        }).join('');
+      } else {
+        container.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px">Este nó não tem arquivo Markdown vinculado (id virtual / hub).</div>';
+      }
+      document.getElementById('openwith-modal').classList.add('open');
+    },
+    launch: function(uri) {
+      // Open via anchor click so browsers don't block custom schemes
+      var a = document.createElement('a');
+      a.href = uri;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function() { try { document.body.removeChild(a); } catch(e) {} }, 100);
+    },
+    copyPath: function() {
+      if (!this.currentId) return;
+      navigator.clipboard.writeText(this.currentId).then(function() {
+        var btn = event && event.target;
+        if (btn) { var old = btn.innerHTML; btn.innerHTML = '✓ Copiado'; setTimeout(function() { btn.innerHTML = old; }, 1200); }
+      });
+    },
+    showInFolder: function() {
+      if (!this.currentId) return;
+      // Try explorer.exe /select via a file:// anchor — most browsers block this but worth a shot.
+      // Fallback: open file:// URI to let OS choose handler
+      var uriPath = this._toUriPath(this.currentId);
+      this.launch('file:///' + uriPath);
+    },
+    close: function() { document.getElementById('openwith-modal').classList.remove('open'); }
+  };
+
+  const ConfigModal = {
+    open() { document.getElementById('config-modal').classList.add('open'); },
+    close() { document.getElementById('config-modal').classList.remove('open'); },
+    copy(id) { navigator.clipboard.writeText(document.getElementById(id).textContent); }
+  };
+
+  const SearchManager = {
+    init() {
+      document.getElementById('search-input').addEventListener('input', function(e) { SearchManager.search(e.target.value); });
+    },
+    search(q) {
+      q = (q || '').toLowerCase().trim();
+      GraphRenderer.cy.elements().removeClass('search-match dimmed');
+      if (!q) return;
+      var matches = GraphRenderer.cy.nodes().filter(function(n) { return (n.data('label') || '').toLowerCase().indexOf(q) >= 0 || (n.id() || '').toLowerCase().indexOf(q) >= 0; });
+      matches.addClass('search-match');
+      GraphRenderer.cy.elements().not(matches).addClass('dimmed');
+    }
+  };
+
+  // Init
+  try {
+    ThemeManager.init();
+    TabsManager.init();
+    GraphRenderer.init();
+    SearchManager.init();
+    document.getElementById('layout-select').addEventListener('change', function(e) { GraphRenderer.applyLayout(e.target.value); });
+    document.getElementById('btn-fit').addEventListener('click', function() { GraphRenderer.fit(); });
+    document.getElementById('btn-export').addEventListener('click', function() { GraphRenderer.exportPNG(); });
+    document.getElementById('btn-zoom-in').addEventListener('click', function() { GraphRenderer.zoom(1.3); });
+    document.getElementById('btn-zoom-out').addEventListener('click', function() { GraphRenderer.zoom(0.77); });
+    document.getElementById('btn-path').addEventListener('click', function() { PathHighlight.start(); });
+    document.getElementById('btn-config').addEventListener('click', function() { ConfigModal.open(); });
+    GraphRenderer.cy.on('tap', 'node', function(evt) { if (PathHighlight.startNode) PathHighlight.pick(evt.target); });
+    fetch('config-global.txt').then(function(r) { return r.text(); }).then(function(t) { document.getElementById('config-global').textContent = t; }).catch(function() { document.getElementById('config-global').textContent = '(não carregado)'; });
+    fetch('config-local.txt').then(function(r) { return r.text(); }).then(function(t) { document.getElementById('config-local').textContent = t; }).catch(function() { document.getElementById('config-local').textContent = '(não carregado)'; });
+  } catch (err) {
+    console.error('Init error:', err);
+    document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;top:80px;left:20px;background:#7f1d1d;color:#fff;padding:12px;border-radius:8px;z-index:9999;font-family:monospace;font-size:11px;max-width:800px">JS Error: ' + (err.message || err) + '</div>');
+  }
+  </script>
+</body>
+</html>
