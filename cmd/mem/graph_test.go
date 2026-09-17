@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/FelipeMiiller/my-memory/internal/config"
 )
 
 func TestRunGraphCLI_Export(t *testing.T) {
@@ -118,5 +120,70 @@ func TestRunGraphCLI_PostgresConnectionError(t *testing.T) {
 	err := runGraphCLI(ctx, "test-repo", args)
 	if err == nil {
 		t.Fatal("esperava erro de conexão com postgres inválido, obteve nil")
+	}
+}
+
+// TestResolveStorageAndRepo_DerivesRepoFromDBPath valida o fix do bug A2 do ADR-036:
+// quando --db aponta para path absoluto e --repo está vazio, o slug do repo
+// deve ser derivado do diretório-pai do DB (path-based fallback para cofres
+// não registrados no catálogo global, ex: central-memory).
+func TestResolveStorageAndRepo_DerivesRepoFromDBPath(t *testing.T) {
+	cfg := &config.Config{
+		RepoID:     "repo_e4c8f3b1a2d5",
+		Repository: "FelipeMiiller/my-memory",
+	}
+
+	tests := []struct {
+		name        string
+		targetRepo  string
+		dbPath      string
+		defaultRepo string
+		wantRepo    string
+		wantDB      string
+	}{
+		{
+			name:        "db absoluto, sem --repo: deriva slug do path do DB",
+			targetRepo:  "",
+			dbPath:      `G:\My Drive\central-memory\memory.db`,
+			defaultRepo: "fallback-repo",
+			wantRepo:    "central-memory",
+			wantDB:      `G:\My Drive\central-memory\memory.db`,
+		},
+		{
+			name:        "db relativo, sem --repo: usa config.RepoID (caminho do config)",
+			targetRepo:  "",
+			dbPath:      ".memory/memory.db",
+			defaultRepo: "fallback-repo",
+			wantRepo:    "repo_e4c8f3b1a2d5",
+			wantDB:      ".memory/memory.db",
+		},
+		{
+			name:        "db absoluto + --repo explícito: --repo vence",
+			targetRepo:  "central-memory",
+			dbPath:      `G:\My Drive\central-memory\memory.db`,
+			defaultRepo: "fallback-repo",
+			wantRepo:    "central-memory",
+			wantDB:      `G:\My Drive\central-memory\memory.db`,
+		},
+		{
+			name:        "sem --db, sem --repo: usa config.RepoID; db cai para default 'memory.db'",
+			targetRepo:  "",
+			dbPath:      "",
+			defaultRepo: "fallback-repo",
+			wantRepo:    "repo_e4c8f3b1a2d5",
+			wantDB:      "memory.db",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, db, _ := resolveStorageAndRepo(cfg, tc.targetRepo, tc.dbPath, "", tc.defaultRepo)
+			if repo != tc.wantRepo {
+				t.Errorf("repo: got %q, want %q", repo, tc.wantRepo)
+			}
+			if db != tc.wantDB {
+				t.Errorf("db: got %q, want %q", db, tc.wantDB)
+			}
+		})
 	}
 }

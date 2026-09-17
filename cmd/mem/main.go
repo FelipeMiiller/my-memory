@@ -1176,7 +1176,20 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 
 	repo = targetRepo
 	if repo == "" {
-		if cfg.RepoID != "" {
+		if dbPath != "" && filepath.IsAbs(dbPath) {
+			// Override explícito via --db com path absoluto: derivar slug do diretório do DB.
+			// Necessário para cofres não registrados no catálogo global (ex: central-memory).
+			derived := filepath.Base(filepath.Dir(dbPath))
+			if derived != "" && derived != "." && derived != string(filepath.Separator) {
+				repo = derived
+			} else if cfg.RepoID != "" {
+				repo = cfg.RepoID
+			} else if cfg.Repository != "" {
+				repo = cfg.Repository
+			} else {
+				repo = defaultRepo
+			}
+		} else if cfg.RepoID != "" {
 			repo = cfg.RepoID
 		} else if cfg.Repository != "" {
 			repo = cfg.Repository

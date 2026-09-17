@@ -113,3 +113,53 @@ func TestRenderHTML_EmptyGraph(t *testing.T) {
 		t.Errorf("deve conter título Grafo Vazio")
 	}
 }
+
+// TestRenderHTML_UTF8Encoding valida que caracteres acentuados (Memória, Síntese, Usuário)
+// sobrevivem intactos como bytes UTF-8 sem nenhum HTML-entity escaping indevido.
+// Reproduz o bug A1 do ADR-036 (encoding quebrado em `mem graph`).
+func TestRenderHTML_UTF8Encoding(t *testing.T) {
+	gv := &GraphView{
+		Title:      "Grafo de Memória — Síntese do Usuário",
+		Repository: "central-memory",
+		Nodes: []Node{
+			{ID: "x.md", Title: "Configuração", Type: "guide"},
+		},
+	}
+
+	htmlBytes, err := RenderHTML(gv)
+	if err != nil {
+		t.Fatalf("RenderHTML falhou: %v", err)
+	}
+
+	html := string(htmlBytes)
+
+	// Bytes UTF-8 devem sobreviver intactos (NÃO convertidos em entidades HTML).
+	if !strings.Contains(html, "Memória") {
+		t.Errorf("HTML deve conter 'Memória' como bytes UTF-8 literais; encoding quebrado")
+	}
+	if !strings.Contains(html, "Síntese") {
+		t.Errorf("HTML deve conter 'Síntese' como bytes UTF-8 literais; encoding quebrado")
+	}
+	if !strings.Contains(html, "Usuário") {
+		t.Errorf("HTML deve conter 'Usuário' como bytes UTF-8 literais; encoding quebrado")
+	}
+
+	// Garantir que NÃO há entidades numéricas para caracteres que devem estar em UTF-8.
+	// (Memória → &#243; seria HTML-entity escaping indevido)
+	if strings.Contains(html, "&#243;") || strings.Contains(html, "&#237;") || strings.Contains(html, "&#225;") {
+		t.Errorf("HTML contém entidades numéricas para caracteres acentuados; deveria ser UTF-8 direto")
+	}
+
+	// Verificar BOM ausente (BOM causa problemas com python -m http.server em algumas configs).
+	if len(htmlBytes) >= 3 && htmlBytes[0] == 0xEF && htmlBytes[1] == 0xBB && htmlBytes[2] == 0xBF {
+		t.Errorf("HTML não deve ter UTF-8 BOM; foi declarado charset UTF-8 no <head>")
+	}
+
+	// Verificar declarações de charset (dupla declaração para defesa contra proxies/legacy clients).
+	if !strings.Contains(html, `<meta charset="UTF-8">`) {
+		t.Errorf("HTML deve conter <meta charset=\"UTF-8\">")
+	}
+	if !strings.Contains(html, `charset=UTF-8`) {
+		t.Errorf("HTML deve conter declaração adicional de charset (defesa contra proxies)")
+	}
+}
