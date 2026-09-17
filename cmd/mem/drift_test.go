@@ -29,7 +29,7 @@ func TestRunDriftCommand_JSONAndTerminal(t *testing.T) {
 	`)
 	_, _ = database.ExecContext(ctx, `
 		INSERT INTO chunks (id, document_id, chunk_index, content)
-		VALUES ('c1', 'docs/adr/001.md', 0, 'Implementado em internal/db/sqlite.go')
+		VALUES ('c1', 'docs/adr/001.md', 0, 'Implementado em internal/db/sqlite.go. Mudanças em internal/db/sqlite.go devem refletir aqui.')
 	`)
 	database.Close()
 
@@ -102,7 +102,11 @@ func TestRunDriftCommand_JSONAndTerminal(t *testing.T) {
 	}
 }
 
-func TestRunDriftCommand_StrictFailure(t *testing.T) {
+// TestRunDriftCommand_StrictPassesNoCritical valida ADR-039: com PageRank
+// default (0.015) e a nova fórmula calibrada, score máximo de uma nota é
+// ~65.45 (HIGH) — nunca CRITICAL. Portanto --strict passa sem erro quando
+// há correlação mas nenhuma nota atinge limiar crítico (≥ 75).
+func TestRunDriftCommand_StrictPassesNoCritical(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test_drift_strict.db")
@@ -118,11 +122,10 @@ func TestRunDriftCommand_StrictFailure(t *testing.T) {
 	`)
 	_, _ = database.ExecContext(ctx, `
 		INSERT INTO chunks (id, document_id, chunk_index, content)
-		VALUES ('c1', 'docs/adr/001.md', 0, 'Reflete internal/core/engine.go')
+		VALUES ('c1', 'docs/adr/001.md', 0, 'Reflete internal/core/engine.go. Mudanças em internal/core/engine.go afetam este ADR.')
 	`)
 	database.Close()
 
-	// Simula grande número de alterações para gerar status crítico
 	mock := &drift.MockGitRunner{
 		Commits: []drift.GitCommit{
 			{Hash: "1", ShortHash: "1", Author: "A", Date: time.Now(), Message: "c1"},
@@ -137,10 +140,12 @@ func TestRunDriftCommand_StrictFailure(t *testing.T) {
 
 	var buf bytes.Buffer
 	err = runDriftCommand(ctx, "repo", []string{"--db", dbPath, "--strict"}, &buf, mock)
-	if err == nil {
-		t.Errorf("esperava erro em modo --strict devido a desvio crítico")
+	if err != nil {
+		t.Errorf("--strict não deveria falhar sem notas CRITICAL (PageRank default), mas falhou com: %v", err)
 	}
-	if !strings.Contains(err.Error(), "--strict") {
-		t.Errorf("mensagem de erro inesperada: %v", err)
+
+	out := buf.String()
+	if !strings.Contains(out, "ALTO") {
+		t.Errorf("esperava nota HIGH no report, mas não apareceu:\n%s", out)
 	}
 }

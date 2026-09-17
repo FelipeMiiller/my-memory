@@ -126,7 +126,6 @@ func AnalyzeDrift(
 			continue
 		}
 
-		baseName := filepath.Base(ch.Path)
 		dirName := filepath.ToSlash(filepath.Dir(ch.Path))
 		pkgName := filepath.Base(dirName)
 
@@ -135,14 +134,19 @@ func AnalyzeDrift(
 		for _, doc := range docMap {
 			contentLower := strings.ToLower(doc.Content)
 			pathLower := strings.ToLower(ch.Path)
-			baseLower := strings.ToLower(baseName)
-			pkgLower := strings.ToLower(pkgName)
 
-			// Verifica se a nota cita o caminho completo, nome do arquivo ou pacote
-			directMatch := strings.Contains(contentLower, pathLower) || strings.Contains(contentLower, baseLower)
-			pkgMatch := pkgLower != "." && pkgLower != "/" && strings.Contains(contentLower, "/"+pkgLower) || strings.Contains(contentLower, "package "+pkgLower)
+			// ADR-039: match estrito - só path completo (sem basename) evita
+			// falso positivo com palavras comuns (ex: 'main.go' em qualquer doc
+			// que fale de Go). MinMatchOccurrences (2): nota só entra se mencionar
+			// o path ≥ 2 vezes, eliminando listas genéricas (validation.md,
+			// tasks.md) que listam todos os arquivos do projeto sem correlação
+			// semântica real. Só conta directMatches para evitar double-counting
+			// entre path completo e substrings de package.
+			const MinMatchOccurrences = 2
+			directMatches := strings.Count(contentLower, pathLower)
+			hasMatch := directMatches >= MinMatchOccurrences
 
-			if directMatch || pkgMatch {
+			if hasMatch {
 				fileWasCovered = true
 				coveredFiles[ch.Path] = true
 
@@ -203,15 +207,18 @@ func AnalyzeDrift(
 		}
 		nd.CommitsBehind = commitsBehind
 
-		// Fórmula de Drift Score
-		// Score = min(100, (commits * 15) + (PR * 250) + (ln(1 + lines) * 6))
-		prFactor := nd.PageRank * 250.0
-		if prFactor > 30.0 {
-			prFactor = 30.0
+		// Fórmula de Drift Score (ADR-039 - calibração)
+		// Score = min(100, min(40, commits × 12) + min(15, PR × 30) + min(25, ln(1+lines) × 5))
+		// Antes: PR × 250 saturava em 100 para qualquer nota com PR > 0.12.
+		// Agora: peso do PageRank reduzido em 88%, com cap apropriado.
+		// Ground truth (sessão 2026-09-17): commits=5, PR=0.5, lines=183 → score 80 (CRITICAL).
+		prFactor := nd.PageRank * 30.0
+		if prFactor > 15.0 {
+			prFactor = 15.0
 		}
-		linesFactor := math.Log1p(float64(nd.LinesChanged)) * 6.0
-		if linesFactor > 30.0 {
-			linesFactor = 30.0
+		linesFactor := math.Log1p(float64(nd.LinesChanged)) * 5.0
+		if linesFactor > 25.0 {
+			linesFactor = 25.0
 		}
 		commitFactor := float64(nd.CommitsBehind) * 12.0
 		if commitFactor > 40.0 {
@@ -224,15 +231,17 @@ func AnalyzeDrift(
 		}
 		nd.DriftScore = math.Round(score*10) / 10
 
-		// Severidade
+		// Severidade (ADR-039 - limiares ajustados)
+		// CRITICAL ≥ 75 (era 65), HIGH ≥ 55 (era 45), MEDIUM ≥ 30 (era 25).
+		// Threshold mais alto evita que o gate --strict bloqueie PRs por falso positivo.
 		switch {
-		case nd.DriftScore >= 65.0:
+		case nd.DriftScore >= 75.0:
 			nd.Severity = SeverityCritical
 			report.CriticalCount++
-		case nd.DriftScore >= 45.0:
+		case nd.DriftScore >= 55.0:
 			nd.Severity = SeverityHigh
 			report.HighCount++
-		case nd.DriftScore >= 25.0:
+		case nd.DriftScore >= 30.0:
 			nd.Severity = SeverityMedium
 			report.MediumCount++
 		default:
