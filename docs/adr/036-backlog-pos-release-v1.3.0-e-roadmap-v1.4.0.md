@@ -37,23 +37,29 @@ Adota-se a **Opção 3**: criar este ADR-036 como inventário único e priorizad
 
 ```
 ADR-036 (consolidação)
-├── Trilha A — Bugs críticos (bloqueiam uso)
-│   ├── A1: Encoding UTF-8 quebrado no template antigo do `mem graph`
-│   ├── A2: `mem graph --db <outro>` ignora DB e usa repo do git
-│   └── A3: Cluster labels do v2 viewer sumiram (CSS ausente)
-├── Trilha B — Gaps funcionais do viewer
-│   ├── B1: Tag filter chips (chips de tipo) removidos na migração v2
-│   ├── B2: ConfigModal read-only — precisa ser editável com lista de repos
-│   ├── B3: Multi-repo viewer — flag `--all-repos` ainda não implementada
-│   ├── B4: `mem open` no CLI só suporta Obsidian
-│   └── B5: OpenWith modal no viewer (parcial — falta persistir reader escolhido)
+├── Trilha A — Bugs críticos (bloqueiam uso) ✅ 100% DONE (spec: post-release-v1.3.0-bugfixes)
+│   ├── A1: Encoding UTF-8 quebrado no template antigo do `mem graph`     [DONE f8d3bba]
+│   ├── A2: `mem graph --db <outro>` ignora DB e usa repo do git            [DONE f8d3bba]
+│   └── A3: Cluster labels do v2 viewer sumiram (CSS ausente)              [DONE a7fe4dd]
+├── Trilha B — Gaps funcionais do viewer ⚠ PARCIAL (1 revertido)
+│   ├── B1: Tag filter chips (chips de tipo) removidos na migração v2     [DONE dda9d1b]
+│   ├── B2: ConfigModal read-only — precisa ser editável com lista de repos [DONE PARCIAL dda9d1b — read-only]
+│   ├── B3: Multi-repo viewer — flag `--all-repos` ainda não implementada  [REVERTED em 2bf79bd → ADR-038]
+│   ├── B4: `mem open` no CLI só suporta Obsidian                          [DEFERRED → ADR-037]
+│   └── B5: OpenWith modal no viewer (parcial — falta persistir reader)   [DEFERRED → ADR-037]
 └── Trilha C — Itens diferidos do roadmap maior
-    ├── C1: ADR-035 — implementação do embedder embutido (ONNX MiniLM)
-    ├── C2: Backend --all-repos com datasets reais do catálogo global
-    ├── C3: Mini-mapa interativo (drag-to-navigate)
-    ├── C4: Animações de entrada dos nodes
-    └── C5: Edge labels no hover (já implementado mas precisa polish)
+    ├── C1: ADR-035 — implementação do embedder embutido (ONNX MiniLM)  [DEFERRED → tlc-spec-driven]
+    ├── C2: Backend --all-repos com datasets reais                        [CANCELLED — coberto por ADR-038]
+    ├── C3: Mini-mapa interativo (drag-to-navigate)                       [DEFERRED → ADR-037]
+    ├── C4: Animações de entrada dos nodes                                 [DEFERRED → ADR-037]
+    └── C5: Edge labels no hover (polish)                                 [DEFERRED → ADR-037]
 ```
+
+> **Mudanças pós-ADR-036**:
+> - **A1+A2+A3+B1+B2** entregues na sessão de 2026-09-17 (spec `.specs/features/post-release-v1.3.0-bugfixes/`).
+> - **B3 revertido** pelo feedback do Felipe ("só um site, sem multi-repo") → ver **ADR-038**.
+> - **C2 cancelado** porque ADR-038 eliminou a necessidade de backend multi-repo.
+> - **B4, B5, C3, C4, C5** movidos pro escopo do **ADR-037** (rewrite Vite + Vanilla TS).
 
 ## Detalhamento dos itens
 

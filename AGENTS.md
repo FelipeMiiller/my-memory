@@ -64,6 +64,7 @@ Consulte estes registros antes de sugerir mudanças estruturais:
 * **ADR-035**: Embedder Embutido com Fallback ONNX MiniLM (Proposed).
 * **ADR-036**: Consolidação Pós-Release v1.3.0 e Roadmap v1.4.0.
 * **ADR-037**: Rewrite do Viewer com Vite + Vanilla TypeScript (deferred).
+* **ADR-038**: Viewer com Site Único e Dataset Fixo (B3 do ADR-036 revertido).
 
 ## 🤖 Habilidades de IA Disponíveis (`.agents/skills/`)
 
