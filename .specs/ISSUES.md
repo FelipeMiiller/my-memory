@@ -159,7 +159,7 @@ Gate `--strict` liberado: 0 CRITICAL permite uso em CI sem bloqueios falsos.
 
 ## ISSUE-009 — Indexer gera dead links sistemicamente: tag values viram graph nodes
 - **Severidade:** 🟡 medium (cosmético mas recorrente — cada novo doc com tags genéricos adiciona dead links)
-- **Status:** 🔵 open
+- **Status:** ✅ resolved (ADR-041, commit `4c19393`)
 - **Achado em:** validação E2E pós-ADR-040 (sessão 2026-09-18, `mem doctor --db .memory/memory.db` mostrou 19 dead links antes do cleanup parcial, 2 restantes após)
 - **Contexto:** o parser trata QUALQUER valor de tag (frontmatter `tags: [...]` ou inline `#tag`) como nó do grafo e cria edge `tagged_as` do doc para esse nó. Se nenhum doc tem esse exato título, a edge vira dead link. ISSUE-001 limpou 8 tags específicas mas o problema é estrutural: cada novo doc com tags descritivas (ex: `architecture`, `storage`, `federation`) cria dead links potenciais.
 
@@ -205,7 +205,7 @@ Gate `--strict` liberado: 0 CRITICAL permite uso em CI sem bloqueios falsos.
 | ISSUE-006 | 🟡 medium | 🔵 open | 2026-09-17 |
 | ISSUE-007 | 🟢 low | ⏸️ deferred | 2026-09-17 |
 | ISSUE-008 | 🟠 high | ✅ resolved (bc70c5f + 0137779) | 2026-09-17 |
-| ISSUE-009 | 🟡 medium | 🔵 open | 2026-09-18 |
+| ISSUE-009 | 🟡 medium | ✅ resolved (ADR-041, 4c19393) | 2026-09-18 |
 
 ---
 
