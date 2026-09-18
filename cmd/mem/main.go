@@ -85,6 +85,7 @@ func main() {
 		noPrune := indexCmd.Bool("no-prune", false, "Desativa a exclusão de notas que foram removidas do disco")
 		dbPath := indexCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := indexCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := indexCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := indexCmd.String("repo", "", "Identificador/slug do repositório")
 		indexCmd.Parse(os.Args[2:])
 
@@ -121,6 +122,12 @@ func main() {
 		}
 
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			log.Println(errOverride)
+			os.Exit(1)
+		}
 		emb, tq, _ = resolveEmbedder(cfg)
 
 		if resolvedPG != "" {
@@ -148,6 +155,7 @@ func main() {
 		intervalMs := watchCmd.Int("interval", 1000, "Intervalo de polling em milissegundos (padrão: 1000)")
 		dbPath := watchCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := watchCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := watchCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := watchCmd.String("repo", "", "Identificador/slug do repositório")
 		watchCmd.Parse(os.Args[2:])
 
@@ -182,6 +190,12 @@ func main() {
 		}
 
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			log.Println(errOverride)
+			os.Exit(1)
+		}
 		emb, tq, _ = resolveEmbedder(cfg)
 
 		setFlags := make(map[string]bool)
@@ -252,6 +266,7 @@ func main() {
 		decayWeight := searchCmd.Float64("decay-weight", -1.0, "Peso do fator temporal entre 0.0 e 1.0 (padrão: 0.3)")
 		dbPath := searchCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := searchCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := searchCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := searchCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
 		showLinks := searchCmd.Bool("links", false, "Exibe deep links (Obsidian e VS Code) abaixo de cada resultado")
 		searchCmd.Parse(rearrangeSearchArgs(os.Args[2:]))
@@ -264,6 +279,12 @@ func main() {
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			log.Println(errOverride)
+			os.Exit(1)
+		}
 		emb, tq, _ = resolveEmbedder(cfg)
 
 		setFlags := make(map[string]bool)
@@ -380,6 +401,7 @@ func main() {
 		mcpCmd := flag.NewFlagSet("mcp", flag.ExitOnError)
 		dbPath := mcpCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := mcpCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := mcpCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := mcpCmd.String("repo", "", "Identificador padrão do repositório")
 		port := mcpCmd.Int("port", 0, "Porta para iniciar o servidor MCP via HTTP/SSE (ex: 38400)")
 		host := mcpCmd.String("host", "127.0.0.1", "Host/interface de rede para o servidor HTTP")
@@ -389,6 +411,12 @@ func main() {
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			log.Println(errOverride)
+			os.Exit(1)
+		}
 		emb, tq, _ := resolveEmbedder(cfg)
 
 		targetHTTP := *httpAddr
@@ -432,6 +460,7 @@ func main() {
 		openHTML := exportCmd.Bool("open", false, "Abre automaticamente o arquivo no navegador (apenas para exportação HTML)")
 		dbPath := exportCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := exportCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := exportCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := exportCmd.String("repo", "", "Identificador/slug do repositório")
 		exportCmd.Parse(os.Args[2:])
 
@@ -477,6 +506,12 @@ func main() {
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			log.Println(errOverride)
+			os.Exit(1)
+		}
 
 		if *outFile == "" {
 			safeName := strings.ReplaceAll(node, "/", "_")
@@ -501,11 +536,18 @@ func main() {
 		maxIter := hubsCmd.Int("iter", 30, "Número máximo de iterações para PageRank (padrão: 30)")
 		dbPath := hubsCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := hubsCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := hubsCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := hubsCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
 		hubsCmd.Parse(os.Args[2:])
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			log.Println(errOverride)
+			os.Exit(1)
+		}
 
 		if resolvedPG != "" {
 			pgStore, err := store.NewPostgresStore(resolvedPG)
@@ -539,11 +581,18 @@ func main() {
 		minSim := insightsCmd.Float64("min-similarity", 0.70, "Limiar mínimo de similaridade semântica (padrão: 0.70)")
 		dbPath := insightsCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := insightsCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := insightsCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := insightsCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
 		insightsCmd.Parse(os.Args[2:])
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			log.Println(errOverride)
+			os.Exit(1)
+		}
 		emb, tq, _ = resolveEmbedder(cfg)
 
 		if resolvedPG != "" {
@@ -574,11 +623,18 @@ func main() {
 		fix := docCmd.Bool("fix", false, "Repara automaticamente anomalias conhecidas (self-loops e dead links)")
 		dbPath := docCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := docCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := docCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := docCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
 		docCmd.Parse(os.Args[2:])
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			log.Println(errOverride)
+			os.Exit(1)
+		}
 
 		if resolvedPG != "" {
 			pgStore, err := store.NewPostgresStore(resolvedPG)
@@ -1229,6 +1285,17 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 			pg = envPG
 		} else if cfg.Storage.Engine == "postgres" && cfg.Storage.PostgresURL != "" {
 			pg = cfg.Storage.PostgresURL
+		}
+	}
+
+	// ADR-040 EARS-7: log anti-split-brain quando Postgres é detectado de fonte
+	// não-flag (env var ou config global) e SQLite local já existe em disco.
+	// Avisa o usuário que o vault remoto vai ser usado e ignora o SQLite local.
+	if pg != "" && pgURL == "" {
+		if db != "" {
+			if _, err := os.Stat(db); err == nil {
+				log.Printf("ℹ️  Postgres detectado no config/env. Central vault será usado.\nℹ️  SQLite local em %s será ignorado nesta sessão.\n", db)
+			}
 		}
 	}
 
