@@ -75,12 +75,21 @@
 ---
 
 ## ISSUE-004 — `mem index` (sem `--db`) não cria `memory.db` quando ausente
-- **Severidade:** 🟡 medium (UX confuso mas funcional com `--db` explícito)
-- **Status:** ⏸️ deferred
+- **Severidade:** 🟡 medium
+- **Status:** ✅ resolved (commit `ec1298b`)
 - **Achado em:** debug durante validação do fuzzy resolve (sessão 2026-09-17)
-- **Contexto:** ao deletar `.memory/memory.db`, `mem index` sem flag `--db` reporta "165 em cache" mas não cria o arquivo. Provavelmente o código assume que o DB existe e chama `GetDocumentHash` que retorna erro de tabela inexistente (não tratado). Com `--db .memory/memory.db` funciona.
-- **Possível correção:** detectar ausência do DB e fazer init automático, ou retornar erro explícito em vez de reportar cache fictício.
-- **Workaround atual:** sempre passar `--db .memory/memory.db` explicitamente.
+- **Contexto:** ao deletar `.memory/memory.db`, `mem index` sem flag `--db` criava `memory.db` no CWD (working directory) em vez de respeitar o vault canônico `.memory/memory.db`. Causa raiz tinha duas camadas:
+  1. `cmd/mem/main.go::resolveStorageAndRepo` — fallback de dbPath quando vazio caía em CWD `memory.db` se `.memory/memory.db` não existia.
+  2. `internal/config/config.go::LoadCascadingConfig` — `DefaultConfig()` setava `SQLitePath = "memory.db"` como default; quando YAML local não declarava `storage.sqlite_path`, esse default "vazava" e a heurística de `.memory/` em `resolveStorageAndRepo` nunca disparava.
+- **Resolução (ADR-016 Auto-Scoping, sem ADR novo — bug trivial):**
+  - `resolveStorageAndRepo`: se `dbPath == ""` e `.memory/` é diretório, usa `.memory/memory.db` (criado por `db.InitDB`); fallback CWD só se `.memory/` ausente.
+  - `LoadCascadingConfig`: ao final do cascade, se `SQLitePath` ficou no default CWD `memory.db` mas `<repoDir>/.memory/` existe, promove para `<repoDir>/.memory/memory.db`. Não toca em paths explícitos do usuário.
+- **Validação empírica (smoke test E2E):**
+  - Setup: removido `.memory/memory.db`, estado limpo.
+  - `bin/mem.exe index` (sem `--db`): DB criado em `.memory/memory.db` ✅, sem vazamento para CWD ✅.
+- **Commits:**
+  - `ec1298b` fix(cli): mem index (sem --db) cria DB em .memory/ quando vault existe
+- **Lição durável:** duas camadas de default (config global + storage resolver) precisam estar coerentes. ADR-040 (proposto em 2026-09-18) substitui essa heurística por centralização em `~/.memory/config.yaml` + SQLite opt-in via flag explícita — eliminando a necessidade desse fallback.
 
 ---
 
@@ -157,7 +166,7 @@ Gate `--strict` liberado: 0 CRITICAL permite uso em CI sem bloqueios falsos.
 | ISSUE-001 | 🟡 medium | ✅ resolved | 2026-09-18 |
 | ISSUE-002 | 🟠 high | ✅ resolved (ae8547b) | 2026-09-17 |
 | ISSUE-003 | 🟠 high | ✅ resolved (aff45ca) | 2026-09-17 |
-| ISSUE-004 | 🟡 medium | ⏸️ deferred | 2026-09-17 |
+| ISSUE-004 | 🟡 medium | ✅ resolved (ec1298b) | 2026-09-18 |
 | ISSUE-005 | 🟡 medium | ✅ resolved (bc70c5f + 0137779) | 2026-09-17 |
 | ISSUE-006 | 🟡 medium | 🔵 open | 2026-09-17 |
 | ISSUE-007 | 🟢 low | ⏸️ deferred | 2026-09-17 |
