@@ -44,6 +44,15 @@ func IndexSingleFileSQLite(
 
 	docID := filePath
 	title := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+	// ISSUE-010 (2026-09-18): usar frontmatter.title quando existir (alinhado com
+	// preCollectDocTitles e ListDocumentTitles). Sem isso, fuzzy substring match
+	// grava edges tagged_as com target longo (frontmatter.title) enquanto o DB
+	// armazena basename em documents.title — gerando dead links sistemicos.
+	if len(contentBytes) > 0 {
+		if fmProbe, _ := parser.ExtractFrontmatter(string(contentBytes)); fmProbe != nil && fmProbe.Title != "" {
+			title = fmProbe.Title
+		}
+	}
 	currentHash := store.CalculateContentHash(contentBytes)
 
 	// Verificação de cache incremental via SHA-256
@@ -170,6 +179,15 @@ func IndexSingleFilePostgres(
 
 	docID := filePath
 	title := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+	// ISSUE-010 (2026-09-18): usar frontmatter.title quando existir (alinhado com
+	// preCollectDocTitles e ListDocumentTitles). Sem isso, fuzzy substring match
+	// grava edges tagged_as com target longo (frontmatter.title) enquanto o DB
+	// armazena basename em documents.title — gerando dead links sistemicos.
+	if len(contentBytes) > 0 {
+		if fmProbe, _ := parser.ExtractFrontmatter(string(contentBytes)); fmProbe != nil && fmProbe.Title != "" {
+			title = fmProbe.Title
+		}
+	}
 	currentHash := store.CalculateContentHash(contentBytes)
 
 	if !force {

@@ -1454,6 +1454,17 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 		totalCount++
 		content := string(contentBytes)
 		title := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+		// ISSUE-010 (2026-09-18): usar frontmatter.title quando existir, alinhando
+		// com preCollectDocTitles e ListDocumentTitles. Caso contrário, o fuzzy
+		// substring match (ex: tag "spec" → "Spec 040: Implementação..." via
+		// availableTitles que JÁ contém frontmatter.title) grava edges tagged_as
+		// com target longo enquanto documents.title no DB é o basename. Resultado:
+		// mem doctor reporta dead links sistemicamente que só doctor --fix remove.
+		if content != "" {
+			if fmProbe, _ := parser.ExtractFrontmatter(content); fmProbe != nil && fmProbe.Title != "" {
+				title = fmProbe.Title
+			}
+		}
 		docID := path
 		currentHash := store.CalculateContentHash(contentBytes)
 
@@ -1603,6 +1614,17 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 		totalCount++
 		content := string(contentBytes)
 		title := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+		// ISSUE-010 (2026-09-18): usar frontmatter.title quando existir, alinhando
+		// com preCollectDocTitles e ListDocumentTitles. Caso contrário, o fuzzy
+		// substring match (ex: tag "spec" → "Spec 040: Implementação..." via
+		// availableTitles que JÁ contém frontmatter.title) grava edges tagged_as
+		// com target longo enquanto documents.title no DB é o basename. Resultado:
+		// mem doctor reporta dead links sistemicamente que só doctor --fix remove.
+		if content != "" {
+			if fmProbe, _ := parser.ExtractFrontmatter(content); fmProbe != nil && fmProbe.Title != "" {
+				title = fmProbe.Title
+			}
+		}
 		docID := path
 		currentHash := store.CalculateContentHash(contentBytes)
 

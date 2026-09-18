@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,5 +86,62 @@ func TestIndexAndPurgeSingleFileSQLite(t *testing.T) {
 	hash, _ := db.GetDocumentHash(ctx, database, notePath)
 	if hash != "" {
 		t.Errorf("esperava hash vazio após purga, obteve '%s'", hash)
+	}
+}
+
+// TestIndexSingleFileUsesFrontmatterTitle valida o fix ISSUE-010 (2026-09-18):
+// documents.title deve usar o title do frontmatter YAML quando existir, e não
+// apenas o basename. Caso contrário, o fuzzy substring match em
+// ResolveTagConnections gera edges tagged_as com target = frontmatter.title longo
+// enquanto o DB armazena basename curto — produzindo dead links sistemicos que
+// mem doctor --fix precisa limpar a cada indexação.
+func TestIndexSingleFileUsesFrontmatterTitle(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	database, err := db.InitDB(dbPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "binary was compiled without cgo") {
+			t.Skip("Pulando teste SQLite: ambiente sem CGO")
+		}
+		t.Fatalf("erro ao iniciar banco SQLite: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+
+	// 1. Criar nota Markdown COM frontmatter.title longo
+	notePath := filepath.Join(tmpDir, "spec.md") // basename = "spec"
+	const frontmatterTitle = "Spec 999: Implementação de teste — frontmatter title longo"
+	content := "---\n" +
+		"title: \"" + frontmatterTitle + "\"\n" +
+		"category: resource\n" +
+		"tags: [test, issue-010]\n" +
+		"---\n\n" +
+		"# Spec 999\n\nCorpo da nota de teste.\n"
+	if err := os.WriteFile(notePath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Indexar
+	res, err := IndexSingleFileSQLite(ctx, database, nil, nil, notePath, false)
+	if err != nil {
+		t.Fatalf("erro ao indexar nota: %v", err)
+	}
+	if res.Action != "indexed" {
+		t.Fatalf("esperava action 'indexed', obteve '%s'", res.Action)
+	}
+
+	// 3. Validar: documents.title deve ser o frontmatter.title, NÃO o basename "spec"
+	var storedTitle string
+	if err := database.QueryRowContext(ctx, "SELECT title FROM documents WHERE id = ?", notePath).Scan(&storedTitle); err != nil {
+		if err == sql.ErrNoRows {
+			t.Fatalf("documento não encontrado no DB após indexação: %s", notePath)
+		}
+		t.Fatalf("erro ao ler title do DB: %v", err)
+	}
+	if storedTitle != frontmatterTitle {
+		t.Errorf("documents.title incorreto: esperava %q (frontmatter.title), obteve %q (basename?)",
+			frontmatterTitle, storedTitle)
 	}
 }

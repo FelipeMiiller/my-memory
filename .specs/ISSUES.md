@@ -193,6 +193,65 @@ Gate `--strict` liberado: 0 CRITICAL permite uso em CI sem bloqueios falsos.
 
 ---
 
+## ISSUE-010 — `documents.title` usa basename mas `availableTitles` usa frontmatter.title (inconsistência)
+
+- **Severidade:** 🟠 high (causa dead links sistemicos a cada `--force`; só `mem doctor --fix` resolve como paliativo)
+- **Status:** ✅ resolved (commit `<TBD>`, sessão 2026-09-18)
+- **Achado em:** validação E2E do T1 da Spec 041 (`mem doctor --db .memory/memory.db` mostrou 4 dead links pós-fix do ISSUE-009, com auto-referências via `tagged_as`)
+- **Contexto:** após ADR-041 remover tags órfãs, 4 dead links persistiram em `.specs/040/spec.md`, `.specs/041/spec.md`, `docs/adr/041-...md` com target = `[[Spec 040: Implementação ADR-040 — Config global única + SQLite auto-scope + Postgres opt-in]]` (= frontmatter.title longo do próprio source).
+
+**Root cause (3 lugares com mesmo bug):**
+
+| Lugar | Linha | O que usava como `title` |
+|---|---|---|
+| `cmd/mem/main.go::runIndexSQLite` | ~1457 (Postgres) + ~1617 (SQLite) | `strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))` → **basename** |
+| `cmd/mem/main.go::preCollectDocTitles` | ~1369 | `fm.Title` → **frontmatter.title** (correto) |
+| `internal/watcher/indexer.go::IndexSingleFileSQLite` | ~47 + ~182 | `strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))` → **basename** |
+
+**Cadeia do bug:**
+
+1. Parser extrai `conn.Tags = [spec, adr-040]` do frontmatter (spec.md 040).
+2. Cria edge `tagged_as` com `target = "spec"`.
+3. `ResolveTagConnections` faz fuzzy match contra `availableTitles` (= frontmatter.title `"Spec 040: Implementação..."`).
+4. Substring match (passo 2): `strings.Contains("spec040:implementacao...", "spec")` → **TRUE**.
+5. `fuzzyResolveTag` retorna o **original** disponível: `"Spec 040: Implementação ADR-040 — Config global única + SQLite auto-scope + Postgres opt-in"`.
+6. Edge gravada no DB com target longo.
+7. `mem doctor` consulta `documents.title` (que é basename `"spec"`) procurando pelo target longo → **não acha** → reporta dead link.
+
+**Resolução (fix direto em código, sem ADR — bug trivial de coerência):**
+
+Em `cmd/mem/main.go::runIndexSQLite` (Postgres + SQLite) e `internal/watcher/indexer.go::IndexSingleFileSQLite` (Postgres + SQLite):
+
+```go
+title := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+// ISSUE-010 (2026-09-18): usar frontmatter.title quando existir, alinhando
+// com preCollectDocTitles e ListDocumentTitles. Caso contrário, o fuzzy
+// substring match [...] grava edges tagged_as com target longo enquanto
+// documents.title no DB é o basename.
+if content != "" {
+    if fmProbe, _ := parser.ExtractFrontmatter(content); fmProbe != nil && fmProbe.Title != "" {
+        title = fmProbe.Title
+    }
+}
+```
+
+**Teste novo:** `internal/watcher/indexer_test.go::TestIndexSingleFileUsesFrontmatterTitle` — indexa nota com frontmatter.title longo e valida que `SELECT title FROM documents WHERE id = ?` retorna o frontmatter.title, não o basename.
+
+**Validação empírica (sessão 2026-09-18):**
+
+| Cenário | Health Score | Dead links | documents.title |
+|---|---:|---:|---|
+| Baseline com `mem doctor --fix` (T1) | 74/100 | 0 | basename (incorreto) |
+| Pós-fix 1ª execução (`--force`) | 34/100 | 12 | frontmatter.title (estado intermediário) |
+| Pós-fix 2ª execução (`--force`) | **74/100** | **0** | frontmatter.title (correto, idempotente) |
+
+**Commits:**
+- `<TBD>` fix(indexer): ISSUE-010 — `documents.title` usa frontmatter.title quando existir (4 lugares)
+
+**Lição cross-project:** salva em agent memory (`MEMORY.md`, regra sobre "consistência entre parser, DB e pre-collect para fuzzy match").
+
+---
+
 ## Métricas
 
 | Issue | Severidade | Status | Achado em |
@@ -206,6 +265,7 @@ Gate `--strict` liberado: 0 CRITICAL permite uso em CI sem bloqueios falsos.
 | ISSUE-007 | 🟢 low | ⏸️ deferred | 2026-09-17 |
 | ISSUE-008 | 🟠 high | ✅ resolved (bc70c5f + 0137779) | 2026-09-17 |
 | ISSUE-009 | 🟡 medium | ✅ resolved (ADR-041, 4c19393) | 2026-09-18 |
+| ISSUE-010 | 🟠 high | ✅ resolved | 2026-09-18 |
 
 ---
 
