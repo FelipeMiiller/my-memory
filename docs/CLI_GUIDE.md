@@ -551,6 +551,58 @@ Analisa o desvio semântico e estrutural entre alterações recentes no históri
 ---
 
 
+## 🗄️ Seleção de Storage (ADR-040)
+
+O `mem` decide automaticamente onde armazenar e consultar dados, seguindo uma matriz de detecção em cascata. SQLite local é o **default**; Postgres+pgvector (central vault) é **opt-in** via config ou flag.
+
+### Ordem de resolução (do mais prioritário ao menos)
+
+1. **Flag CLI explícita**
+   - `--db <path>` → SQLite no path especificado
+   - `--postgres <url>` → Postgres+pgvector na URL
+   - `--storage=sqlite` ou `--storage=postgres` → força engine (EARS-4/5 do ADR-040)
+
+2. **Config explícito**
+   - `storage.engine: sqlite` + `storage.sqlite_path` no YAML global (`~/.memory/config.yaml`)
+   - `storage.engine: postgres` + `storage.postgres_url` no YAML global
+
+3. **Variáveis de ambiente**
+   - `MY_MEMORY_PG_URL`, `POSTGRES_URL`, `DATABASE_URL` → Postgres+pgvector
+   - `MY_MEMORY_FORCE_SQLITE=1` → SQLite local mesmo com Postgres global (CI/sandbox)
+
+4. **Auto-detecção (default)**
+   - Se `.memory/` existe no repo → SQLite em `<repoDir>/.memory/memory.db` (auto-scope)
+   - Caso contrário → erro pedindo `mem init` (sem fallback silencioso pra CWD)
+
+### Matriz de cenários
+
+| Cenário | Comportamento |
+|---|---|
+| `mem index` em repo sem config | DB criado em `.memory/memory.db` (zero-friction) |
+| `~/.memory/config.yaml` declara Postgres | Log "Postgres detectado" + vault remoto, ignora SQLite local |
+| Flag `--storage=sqlite` mesmo com Postgres global | SQLite local forçado, ignora global |
+| Flag `--storage=postgres` sem URL | Erro: "exige --postgres <url> ou storage.postgres_url" |
+| Sem `.memory/`, sem global, sem flag | Erro pedindo `mem init` (sem fallback CWD) |
+
+### Anti-split-brain
+
+Quando o vault central (Postgres) é detectado via config/env e o usuário tem SQLite local em `.memory/memory.db`, o CLI emite log visível:
+
+```
+ℹ️  Postgres detectado no config/env. Central vault será usado.
+ℹ️  SQLite local em /path/.memory/memory.db será ignorado nesta sessão.
+```
+
+Isso evita que o usuário grave dados no lugar errado sem perceber.
+
+### Migração entre engines
+
+- **SQLite → Postgres**: rode `mem export` para snapshot, configure Postgres, rode `mem import` (quando implementado).
+- **Postgres → SQLite**: rode `mem export`, configure SQLite local, importe.
+
+Para migration scripts automatizados, ver `.agents/scripts/migrate-config-to-global.sh` (Spec 041, fora do escopo atual).
+
+
 ## 🔍 Status e Detecção de Desatualização (`mem status`)
 
 O comando `mem status` realiza uma auditoria instantânea entre os arquivos físicos no disco e os documentos indexados no banco (SQLite ou PostgreSQL), identificando discrepâncias temporais e drift de contexto:
