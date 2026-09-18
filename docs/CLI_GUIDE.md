@@ -699,6 +699,93 @@ watcher:
 
 ---
 
+## 🔐 Gestão de Secrets (Postgres URL, API Keys)
+
+> [!warning]
+> **Nunca passe credenciais via flag `--postgres <url>` em produção.** A URL aparece em:
+> - Shell history (PowerShell `Get-History`, bash `~/.bash_history`)
+> - Process list durante execução (`Get-Process mem`)
+> - Logs de sistema se o CLI crashar antes do sanitizer aplicar
+
+A forma segura é usar **variável de ambiente** (recomendado) ou `.memory/.env` (por-repo).
+
+### Ordem de resolução de URL (ADR-040 + segurança)
+
+1. **Flag CLI `--postgres <url>`** — Útil em testes, **evitar em produção**
+2. **Variável de ambiente** (prioridade alta, fora do shell history):
+   - `MY_MEMORY_PG_URL` (custom, preferido)
+   - `POSTGRES_URL` (convenção)
+   - `DATABASE_URL` (Postgres standard)
+3. **`storage.postgres_url`** em `~/.memory/config.yaml` global
+4. **`storage.postgres_url`** em `.memory/config.yaml` local (override)
+
+### Variáveis de ambiente persistentes (Windows)
+
+**Escopo User** (persiste entre reboots, só pra você, sem admin):
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+    "MY_MEMORY_PG_URL",
+    "postgres://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require",
+    "User"
+)
+```
+
+Verificar:
+```powershell
+[Environment]::GetEnvironmentVariable("MY_MEMORY_PG_URL", "User")
+```
+
+**Escopo Machine** (todos os usuários, requer admin):
+
+```powershell
+[Environment]::SetEnvironmentVariable("MY_MEMORY_PG_URL", "...", "Machine")
+```
+
+**Via GUI:** Configurações → Sistema → Sobre → Configurações avançadas do sistema → Variáveis de ambiente → Novo (User) → `MY_MEMORY_PG_URL`.
+
+### Variáveis de ambiente em sessão única (Linux/macOS)
+
+```bash
+export MY_MEMORY_PG_URL="postgres://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require"
+mem index
+```
+
+### Arquivo `.memory/.env` (por-repo)
+
+Para setup isolado por repo (não compartilhado entre projetos):
+
+```bash
+cp .memory/.env.example .memory/.env
+# Editar .env com credenciais reais
+```
+
+`.env` está no `.gitignore` — seguro contra commit acidental.
+
+### Sanitização automática de URLs em logs
+
+`internal/store/sanitize.go::sanitizePostgresURL` mascara `user:password@host` → `***@host` em mensagens de erro. Hostname ainda pode aparecer (vem do DNS resolver do Go), mas credenciais são protegidas.
+
+Exemplo de erro sanitizado:
+
+```
+Erro ao conectar no PostgreSQL: erro ao conectar no postgres 
+(url=postgres://***@db.internal:5432/my_memory?sslmode=require): 
+dial tcp: lookup db.internal: no such host
+```
+
+> [!tip]
+> **Recomendação operacional**: prefira env var de sistema (User scope) + `.env` em CI/sandbox. URL no `config.yaml` só quando compartilhada entre múltiplas máquinas via dotfiles/sync.
+
+### Migração entre métodos
+
+| De | Para | Comando |
+|---|---|---|
+| `--postgres <url>` (em scripts) | env var | `[Environment]::SetEnvironmentVariable(...)` uma vez |
+| `.memory/.env` | env var global | Extrair do .env → SetEnvironmentVariable; remover entrada do .env |
+| `~/.memory/config.yaml` postgres_url | env var | Remover do YAML; CLI detecta env var antes do YAML |
+
+
 ## 🏛️ Federação e Cofre Central de Conhecimento (`mem setup`, `mem central`, `mem repos`)
 
 O My-Memory implementa uma arquitetura federada corporativa conectando um **Cofre Central de Conhecimento** (Global Brain sincronizado no Google Drive, OneDrive ou nuvem) e **Cofres de Projeto** (satélites de código local):

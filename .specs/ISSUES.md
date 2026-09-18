@@ -37,7 +37,7 @@
 **Resolução (sem ADR — bug trivial de tagging):**
 - Removidas tags genéricas (`algorithms`, `internal`, `howto`, `commands`, `flags`) → substituídas por tags específicas com casa (`turboquant`, `rrf`, `pagerank`) ou removidas.
 - Removido `resource` da lista `tags:` (já está em `category:` nos mesmos docs — duplicação semântica).
-- `Tags` no ADR-005 → wrappado em inline code `#Tags` → `` `#Tags` `` para o parser `tagRegex` ignorar (padrão Obsidian para exemplos de sintaxe).
+- `Tags` no ADR-005 → wrappado em inline code (padrão Obsidian para exemplos de sintaxe) para o parser `tagRegex` ignorar.
 
 **Validação empírica (`mem doctor --db .memory/memory.db` pós-fix):**
 

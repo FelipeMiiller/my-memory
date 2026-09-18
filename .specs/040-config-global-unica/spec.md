@@ -2,7 +2,7 @@
 title: "Spec 040: Implementação ADR-040 — Config global única + SQLite auto-scope + Postgres opt-in"
 category: resource
 summary: "Implementação do ADR-040. Centraliza config em ~/.memory/config.yaml, mantém SQLite auto-scope em .memory/memory.db por repo como default, e torna Postgres opt-in via flag --postgres ou storage.engine no config."
-tags: [spec, architecture, federation, storage, sqlite, postgres]
+tags: [spec, adr-040]
 ---
 
 # Spec 040 — Implementação ADR-040
