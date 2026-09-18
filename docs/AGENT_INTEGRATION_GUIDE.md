@@ -187,6 +187,51 @@ embedding:
 | `mem repos` | Lista todos os repositórios federados registrados no catálogo global. | `mem repos` |
 | `mem index` | Varre as notas, calcula hash SHA-256 e gera embeddings com cache incremental. | `mem index` *(ou `mem index --force`)* |
 | `mem status` | Audita sincronização, repo_id imutável e conectividade do cofre central. | `mem status` *(ou `mem status --json`)* |
+
+### 6.1 Seleção de Storage (ADR-040)
+
+A partir da v1.4.0, o `mem` decide automaticamente onde gravar/consultar dados. **Default: SQLite local em `<repoDir>/.memory/memory.db`** (auto-scope). Postgres+pgvector (central vault) é **opt-in** via config global ou flag.
+
+**Matriz de decisão:**
+
+| Sinal | Storage escolhido |
+|---|---|
+| `--storage=sqlite` flag | SQLite local, ignora Postgres global |
+| `--storage=postgres` flag + URL | Postgres, exige URL via `--postgres` ou config |
+| `--postgres <url>` flag | Postgres+pgvector |
+| `--db <path>` flag | SQLite no path especificado |
+| `storage.engine: postgres` + `postgres_url` no global | Postgres+pgvector (central vault) |
+| `storage.engine: sqlite` + `sqlite_path` no global | SQLite no path do config |
+| `MY_MEMORY_PG_URL` / `POSTGRES_URL` / `DATABASE_URL` | Postgres+pgvector |
+| `MY_MEMORY_FORCE_SQLITE=1` | SQLite local mesmo com Postgres global (CI/sandbox) |
+| Nenhum acima + `.memory/` existe | SQLite em `<repoDir>/.memory/memory.db` |
+| Nenhum acima + `.memory/` ausente | Erro pedindo `mem init` |
+
+**Anti-split-brain:** quando Postgres é detectado de fonte não-flag (env/config) e SQLite local existe em `.memory/memory.db`, o CLI emite log visível antes de conectar no Postgres:
+
+```
+ℹ️  Postgres detectado no config/env. Central vault será usado.
+ℹ️  SQLite local em /path/.memory/memory.db será ignorado nesta sessão.
+```
+
+**Exemplos práticos:**
+
+```bash
+# Default zero-config (SQLite local)
+mem index
+
+# Forçar SQLite local mesmo com Postgres global (CI/sandbox)
+mem index --storage=sqlite
+
+# Usar Postgres explicitamente
+mem index --postgres "postgres://user:pass@host:5432/mem"
+
+# Erro explícito se faltar URL
+mem index --storage=postgres
+# → "--storage=postgres exige --postgres <url> ou storage.postgres_url no config"
+```
+
+Mais detalhes em `docs/CLI_GUIDE.md` seção "Seleção de Storage".
 | `mem search` | Busca híbrida federada (Local + Central via RRF) com anotação de proveniência. | `mem search "como funciona o cache SHA-256?"` |
 | `mem inspect` | Inspetor cirúrgico em 3 colunas: in-links (dependências), nó central e out-links. | `mem inspect "docs/ARCHITECTURE.md"` |
 | `mem path` | Descoberta de rotas e menor caminho ponderado por custos epistêmicos entre dois nós. | `mem path "auth" "redis"` |

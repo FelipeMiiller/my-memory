@@ -39,11 +39,13 @@ No início de qualquer sessão ou tarefa no repositório, o Agente de IA **DEVE*
        - `.memory/.gitignore`: Garante que `.env` e arquivos `.db` nunca sejam commitados.
        - `.memory/.env.example`: Modelo de configuração com variáveis para PostgreSQL.
 2. **Conexão com PostgreSQL (pgvector)**:
-   - Se o ambiente local possuir PostgreSQL ativo e o repositório necessitar de persistência em pgvector, o agente pode copiar `.memory/.env.example` para `.memory/.env`:
+   - **Source-of-truth (ADR-040)**: configuração canônica vive em `~/.memory/config.yaml` (global). Seção `storage:` com `engine: postgres` + `postgres_url` ativa o central vault.
+   - **Override local opcional**: o agente pode copiar `.memory/.env.example` para `.memory/.env` para configurar Postgres via env vars:
      ```env
      MY_MEMORY_PG_URL=postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable
      ```
-   - O `my-memory` detectará automaticamente o `.memory/.env` e direcionará todas as operações (índice, busca, MCP) para o PostgreSQL sem necessidade de parâmetros manuais.
+   - O `my-memory` detecta automaticamente (global > local > env) e direciona todas as operações (índice, busca, MCP) para o PostgreSQL sem parâmetros manuais.
+   - **Override consciente**: flag `--storage=postgres` força Postgres mesmo sem config; `--storage=sqlite` força SQLite local (útil pra CI/sandbox). Ver `docs/CLI_GUIDE.md` seção "Seleção de Storage".
 3. **Indexação Inicial**:
    - Caso o vault tenha acabado de ser inicializado, execute a indexação:
      ```bash
