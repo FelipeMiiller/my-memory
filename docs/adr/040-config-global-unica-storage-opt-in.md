@@ -8,7 +8,7 @@ tags: [architecture, federation, config, storage, central-vault, sqlite, postgre
 # ADR-040: Configuração única em `~/.memory/` + SQLite auto-scope por padrão (Postgres opt-in)
 
 - **Date**: 2026-09-18
-- **Status**: Proposed (revisado após clarificação do Felipe)
+- **Status**: Accepted (aprovado pelo Felipe em 2026-09-18)
 - **Deciders**: Felipe Miiller, Mavis (orchestrator)
 - **Tags**: architecture, federation, config, storage, central-vault, pgvector, fallback
 
@@ -175,4 +175,4 @@ func resolveStorage(repoCtx RepoContext) StorageDecision {
 ---
 
 **Supersedes**: ADR-016 (parcialmente — auto-scoping de vault local dá lugar a centralização global + opt-in Postgres)
-**Status note**: Proposed — revisado após clarificação do Felipe (fallback gracioso SQLite quando Postgres ausente). Aguardando aprovação final antes de implementar.
+**Status note**: Accepted em 2026-09-18 pelo Felipe após clarificação do default (SQLite). Implementação a partir de `bf29ba6+`. Spec detalhada em `.specs/040-config-global-unica/`.
