@@ -18,28 +18,39 @@
 
 ## ISSUE-001 — Dead links residuais (8) por conceitos sem nota
 - **Severidade:** 🟡 medium
-- **Status:** 🔵 open (deferred)
+- **Status:** ✅ resolved (commit `849bea3`)
 - **Achado em:** sessão 2026-09-17 via `mem doctor --db .memory/memory.db` (também via MCP `memory_doctor`)
-- **Contexto:** após fix parser EARS (74804c4) + fuzzy resolve de tags (b86a4ce, ae8547b), restam 8 dead links. Todos são edges `tagged_as` de tags de frontmatter que apontam pra conceitos sem nota correspondente no vault.
+- **Contexto:** após fix parser EARS (74804c4) + fuzzy resolve de tags (b86a4ce, ae8547b), restavam 8 dead links. Mix de tags de frontmatter genéricas + categoria duplicada como tag + `#tag` em prosa do ADR-005.
 
-**Lista dos 8 dead links:**
-| Tag | Origem | ADR/doc correspondente |
+**Lista original (8 dead links):**
+| Tag | Origem | Causa raiz |
 |---|---|---|
-| `algorithms` | COMO_FUNCIONA.md | (nenhum — docs 009 e 012 falam de algorithms mas slug não casa) |
-| `internal` | COMO_FUNCIONA.md | (nenhum) |
-| `resource` | COMO_FUNCIONA.md, ARCHITECTURE.md | (categoria, não nota — bug em templates?) |
-| `howto` | COMO_USAR.md | (nenhum) |
-| `commands` | CLI_GUIDE.md | (nenhum) |
-| `flags` | CLI_GUIDE.md | (nenhum) |
-| `Tags` | docs/adr/005 | (nenhum — wikilink pra seção `## Tags` no ADR-005) |
-| `operational-guide` | AGENTS.md | (resolvido por token match em ae8547b) |
+| `algorithms` | `[[COMO_FUNCIONA]]` | Frontmatter: tag genérica sem nota-casa |
+| `internal` | `[[COMO_FUNCIONA]]` | Frontmatter: tag genérica sem nota-casa |
+| `resource` | `[[COMO_FUNCIONA]]`, `[[ARCHITECTURE]]` | Bug: `category: resource` duplicado como tag |
+| `howto` | `[[COMO_USAR]]` | Frontmatter: tag genérica sem nota-casa |
+| `commands` | `[[CLI_GUIDE]]` | Frontmatter: tag genérica sem nota-casa |
+| `flags` | `[[CLI_GUIDE]]` | Frontmatter: tag genérica sem nota-casa |
+| `Tags` | `[[ADR-005]]` | `#Tags` em prosa (linha 22) parseado como tag — fix: inline code |
+| `operational-guide` | `[[AGENTS]]` | Resolvido em `ae8547b` (token match) |
 
-**Possíveis correções (decisão arquitetural pendente):**
-1. **Criar notas-stub** (`architecture.md`, `sqlite.md`, etc.) — mas adiciona manutenção
-2. **Estender fuzzy pra usar `summary` do frontmatter** — risco de falso positivo (ex: tag `cli` casar com qualquer doc mencionando "cli")
-3. **Aceitar como débtio e seguir** — opção atual
+**Resolução (sem ADR — bug trivial de tagging):**
+- Removidas tags genéricas (`algorithms`, `internal`, `howto`, `commands`, `flags`) → substituídas por tags específicas com casa (`turboquant`, `rrf`, `pagerank`) ou removidas.
+- Removido `resource` da lista `tags:` (já está em `category:` nos mesmos docs — duplicação semântica).
+- `Tags` no ADR-005 → wrappado em inline code `#Tags` → `` `#Tags` `` para o parser `tagRegex` ignorar (padrão Obsidian para exemplos de sintaxe).
 
-**Referência:** commit `ae8547b` (última redução: 30 → 8 dead links, -73%).
+**Validação empírica (`mem doctor --db .memory/memory.db` pós-fix):**
+
+| Métrica | ANTES | DEPOIS | Delta |
+|---|---:|---:|---:|
+| Dead links | 8 | **0** | **-100%** |
+| Health Score | 30/100 | **70/100** | **+40** |
+| Documentos | 165 | 167 | +2 (re-index forçado) |
+
+**Commits:**
+- `849bea3` fix(tags): prune dead-link tags + wrap `#Tags` inline code (8→0 dead links)
+
+**Referência:** commit `ae8547b` (redução anterior: 30 → 8, -73%).
 
 ---
 
@@ -143,7 +154,7 @@ Gate `--strict` liberado: 0 CRITICAL permite uso em CI sem bloqueios falsos.
 
 | Issue | Severidade | Status | Achado em |
 |---|---|---|---|
-| ISSUE-001 | 🟡 medium | 🔵 open (deferred) | 2026-09-17 |
+| ISSUE-001 | 🟡 medium | ✅ resolved | 2026-09-18 |
 | ISSUE-002 | 🟠 high | ✅ resolved (ae8547b) | 2026-09-17 |
 | ISSUE-003 | 🟠 high | ✅ resolved (aff45ca) | 2026-09-17 |
 | ISSUE-004 | 🟡 medium | ⏸️ deferred | 2026-09-17 |
