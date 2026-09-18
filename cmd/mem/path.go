@@ -33,6 +33,7 @@ func runPathCommand(ctx context.Context, defaultRepo string, args []string, out 
 	jsonOutput := pathCmd.Bool("json", false, "Exibe o resultado em formato JSON estruturado")
 	dbPath := pathCmd.String("db", "", "Caminho do arquivo SQLite")
 	pgURL := pathCmd.String("postgres", "", "URL de conexão PostgreSQL")
+	storage := pathCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 	targetRepo := pathCmd.String("repo", "", "Slug ou identificador do repositório")
 
 	if err := pathCmd.Parse(rearrangePathArgs(args)); err != nil {
@@ -72,6 +73,11 @@ func runPathCommand(ctx context.Context, defaultRepo string, args []string, out 
 
 	cfg := resolveConfig()
 	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	var errOverride error
+	resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+	if errOverride != nil {
+		return errOverride
+	}
 
 	var pathResult *graph.PathResult
 	var pathErr error

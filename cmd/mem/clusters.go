@@ -39,6 +39,7 @@ func runClustersCommand(ctx context.Context, defaultRepo string, args []string, 
 	jsonOutput := clustersCmd.Bool("json", false, "Exibe o resultado em formato JSON estruturado")
 	dbPath := clustersCmd.String("db", "", "Caminho do arquivo SQLite")
 	pgURL := clustersCmd.String("postgres", "", "URL de conexão PostgreSQL")
+	storage := clustersCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 	targetRepo := clustersCmd.String("repo", "", "Slug ou identificador do repositório")
 
 	if err := clustersCmd.Parse(args); err != nil {
@@ -52,6 +53,11 @@ func runClustersCommand(ctx context.Context, defaultRepo string, args []string, 
 
 	cfg := resolveConfig()
 	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	var errOverride error
+	resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+	if errOverride != nil {
+		return errOverride
+	}
 
 	var gv *graphview.GraphView
 	var err error

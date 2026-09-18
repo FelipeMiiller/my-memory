@@ -53,6 +53,7 @@ func runGraphCLI(ctx context.Context, defaultRepo string, args []string) error {
 	open := graphCmd.Bool("open", action == "view", "Abre automaticamente o arquivo gerado no navegador padrão")
 	dbPath := graphCmd.String("db", "", "Caminho do arquivo de banco SQLite")
 	pgURL := graphCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+	storage := graphCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 	targetRepo := graphCmd.String("repo", "", "Slug ou identificador do repositório")
 
 	if err := graphCmd.Parse(flagArgs); err != nil {
@@ -61,6 +62,11 @@ func runGraphCLI(ctx context.Context, defaultRepo string, args []string) error {
 
 	cfg := resolveConfig()
 	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	var errOverride error
+	resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+	if errOverride != nil {
+		return errOverride
+	}
 
 	outputPath := *outFile
 	if outputPath == "" {

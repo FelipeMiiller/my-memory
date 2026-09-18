@@ -29,6 +29,7 @@ func runInspectCommand(ctx context.Context, defaultRepo string, args []string, o
 	maxLen := inspectCmd.Int("max-len", 500, "Tamanho máximo do preview de conteúdo (padrão: 500 caracteres)")
 	dbPath := inspectCmd.String("db", "", "Caminho do arquivo SQLite")
 	pgURL := inspectCmd.String("postgres", "", "URL de conexão PostgreSQL")
+	storage := inspectCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 	targetRepo := inspectCmd.String("repo", "", "Slug ou identificador do repositório")
 
 	if err := inspectCmd.Parse(rearrangeInspectArgs(args)); err != nil {
@@ -43,6 +44,11 @@ func runInspectCommand(ctx context.Context, defaultRepo string, args []string, o
 
 	cfg := resolveConfig()
 	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	var errOverride error
+	resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+	if errOverride != nil {
+		return errOverride
+	}
 
 	previewLength := *maxLen
 	if *fullContent {

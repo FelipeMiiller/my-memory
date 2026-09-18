@@ -49,6 +49,7 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 	dryRun := openCmd.Bool("dry-run", false, "Simula a abertura, imprimindo a URI e comando sem iniciar o processo")
 	dbPath := openCmd.String("db", "", "Caminho do arquivo SQLite")
 	pgURL := openCmd.String("postgres", "", "URL de conexão PostgreSQL")
+	storage := openCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 	targetRepo := openCmd.String("repo", "", "Slug ou identificador do repositório")
 
 	if err := openCmd.Parse(rearrangeOpenArgs(args)); err != nil {
@@ -64,6 +65,11 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 	// 1. Resolução de configuração e repositório
 	cfg := resolveConfig()
 	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	var errOverride error
+	resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+	if errOverride != nil {
+		return errOverride
+	}
 
 	cwd, _ := os.Getwd()
 	repoRoot := cwd

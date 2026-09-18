@@ -29,6 +29,7 @@ func runImpactCommand(ctx context.Context, defaultRepo string, args []string, ou
 	jsonOutput := impactCmd.Bool("json", false, "Exibe o resultado em formato JSON estruturado")
 	dbPath := impactCmd.String("db", "", "Caminho do arquivo SQLite")
 	pgURL := impactCmd.String("postgres", "", "URL de conexão PostgreSQL")
+	storage := impactCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 	targetRepo := impactCmd.String("repo", "", "Slug ou identificador do repositório")
 
 	if err := impactCmd.Parse(rearrangeImpactArgs(args)); err != nil {
@@ -48,6 +49,11 @@ func runImpactCommand(ctx context.Context, defaultRepo string, args []string, ou
 
 	cfg := resolveConfig()
 	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	var errOverride error
+	resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+	if errOverride != nil {
+		return errOverride
+	}
 
 	var impactResult *graph.ImpactResult
 	var impactErr error

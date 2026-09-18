@@ -33,6 +33,7 @@ func runDriftCommand(ctx context.Context, defaultRepo string, args []string, out
 
 	dbPath := driftCmd.String("db", "", "Caminho para o banco de dados SQLite")
 	pgURL := driftCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+	storage := driftCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 	targetRepo := driftCmd.String("repo", "", "Slug ou identificador do repositório")
 
 	reordered := rearrangeDriftArgs(args)
@@ -42,6 +43,11 @@ func runDriftCommand(ctx context.Context, defaultRepo string, args []string, out
 
 	cfg := resolveConfig()
 	_, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	var errOverride error
+	resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+	if errOverride != nil {
+		return errOverride
+	}
 
 	repoRoot, err := os.Getwd()
 	if err != nil {

@@ -39,6 +39,7 @@ func runNoteCLI(ctx context.Context, emb *embedder.OllamaClient, tq *turboquant.
 		content := cmd.String("content", "", "Conteúdo Markdown da nota (se omitido, lê do stdin se houver pipe)")
 		dbPath := cmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := cmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := cmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := cmd.String("repo", "", "Identificador/slug do repositório")
 		vaultDir := cmd.String("vault", "", "Raiz do vault (padrão: descoberto via .memory/config.yaml)")
 		cmd.Parse(args[1:])
@@ -51,6 +52,11 @@ func runNoteCLI(ctx context.Context, emb *embedder.OllamaClient, tq *turboquant.
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			return errOverride
+		}
 
 		resolvedVault := *vaultDir
 		if resolvedVault == "" {
@@ -157,6 +163,7 @@ func runNoteCLI(ctx context.Context, emb *embedder.OllamaClient, tq *turboquant.
 		createIfMissing := cmd.Bool("create", true, "Cria o arquivo caso não exista")
 		dbPath := cmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := cmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+		storage := cmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := cmd.String("repo", "", "Identificador/slug do repositório")
 		vaultDir := cmd.String("vault", "", "Raiz do vault (padrão: auto-detectado)")
 		cmd.Parse(args[1:])
@@ -186,6 +193,11 @@ func runNoteCLI(ctx context.Context, emb *embedder.OllamaClient, tq *turboquant.
 
 		cfg := resolveConfig()
 		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		var errOverride error
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		if errOverride != nil {
+			return errOverride
+		}
 
 		resolvedVault := *vaultDir
 		if resolvedVault == "" {
@@ -265,6 +277,7 @@ func runCompileCLI(ctx context.Context, emb *embedder.OllamaClient, tq *turboqua
 	overwrite := cmd.Bool("overwrite", false, "Sobrescreve se o arquivo de destino já existir")
 	dbPath := cmd.String("db", "", "Caminho do arquivo SQLite")
 	pgURL := cmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+	storage := cmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 	targetRepo := cmd.String("repo", "", "Identificador/slug do repositório")
 	vaultDir := cmd.String("vault", "", "Raiz do vault (padrão: auto-detectado)")
 	cmd.Parse(args)
@@ -281,6 +294,11 @@ func runCompileCLI(ctx context.Context, emb *embedder.OllamaClient, tq *turboqua
 
 	cfg := resolveConfig()
 	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	var errOverride error
+	resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+	if errOverride != nil {
+		return errOverride
+	}
 
 	resolvedVault := *vaultDir
 	if resolvedVault == "" {
