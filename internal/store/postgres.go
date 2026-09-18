@@ -78,17 +78,18 @@ var _ Store = (*PostgresStore)(nil)
 
 // NewPostgresStore conecta e inicializa o schema do PostgreSQL
 func NewPostgresStore(connStr string) (*PostgresStore, error) {
+	masked := sanitizePostgresURL(connStr)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		return nil, fmt.Errorf("erro ao abrir conexao postgres: %w", err)
+		return nil, fmt.Errorf("erro ao abrir conexao postgres (url=%s): %w", masked, err)
 	}
 
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("erro ao conectar no postgres: %w", err)
+		return nil, fmt.Errorf("erro ao conectar no postgres (url=%s): %w", masked, err)
 	}
 
 	if _, err := db.Exec(PostgresSchema); err != nil {
-		return nil, fmt.Errorf("erro ao aplicar schema postgres: %w", err)
+		return nil, fmt.Errorf("erro ao aplicar schema postgres (url=%s): %w", masked, err)
 	}
 
 	return &PostgresStore{db: db}, nil
