@@ -19,7 +19,7 @@ O ecossistema do **Obsidian** popularizou o uso de notas Markdown locais com lin
 
 ## Considered Options
 
-- **Opção A: Markdown Puro com Suporte a [[Wikilinks]] e #Tags (Estilo Obsidian)**.
+- **Opção A: Markdown Puro com Suporte a [[Wikilinks]] e `#Tags` (Estilo Obsidian)**.
 - **Opção B: Ontologias RDF / OWL ou Triplestores Semânticos** (formato Turtle / JSON-LD).
 - **Opção C: Extração 100% Automatizada por LLM** sem links humanos prévios.
 

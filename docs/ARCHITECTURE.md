@@ -2,7 +2,7 @@
 title: "Arquitetura do My-Memory"
 category: resource
 summary: "Visão técnica e estrutural da arquitetura do My-Memory, incluindo persistência SQLite/Postgres, TurboQuant, RRF, Grafo e Carregamento Progressivo (L0/L1/L2)."
-tags: [architecture, design, sqlite, postgres, turboquant, progressive-loading, resource]
+tags: [architecture, design, sqlite, postgres, turboquant, progressive-loading]
 ---
 
 # Arquitetura do My-Memory

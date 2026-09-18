@@ -2,7 +2,7 @@
 title: "Guia Prático de Uso: My-Memory"
 category: skill
 summary: "Guia prático passo a passo de comandos CLI, inicialização de vault, busca híbrida, inspeção de grafo e integração MCP."
-tags: [guide, howto, cli, skill]
+tags: [guide, cli, skill]
 ---
 
 # 📖 Guia Prático de Uso: My-Memory

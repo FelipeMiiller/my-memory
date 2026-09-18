@@ -2,7 +2,7 @@
 title: "Guia da Linha de Comando (CLI)"
 category: skill
 summary: "Referência completa de comandos, sintaxe, flags e exemplos práticos para o executável mem (CLI do My-Memory)."
-tags: [cli, commands, flags, skill]
+tags: [cli, skill]
 ---
 
 # Guia da Linha de Comando (CLI)
