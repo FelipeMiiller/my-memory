@@ -74,6 +74,8 @@ Antes de realizar ações complexas, consulte e siga as skills instaladas:
 
 | Skill | Localização | Quando o Agente DEVE usar |
 | :--- | :--- | :--- |
+| **`my-memory`** ⭐ canônica | [`.agents/skills/my-memory/SKILL.md`](.agents/skills/my-memory/SKILL.md) | **Primeiro a ser carregada em qualquer sessão do projeto.** Ensina a instalar, configurar, usar a CLI, integrar via MCP e **criar documentos** no vault. Fonte única de verdade para uso do My-Memory. |
+| **`obsidian-markdown`** | [`.agents/skills/obsidian-markdown/SKILL.md`](.agents/skills/obsidian-markdown/SKILL.md) | Referência canônica para formatação `.md` (frontmatter, wikilinks, tags, callouts). Usar SEMPRE que criar/editar uma nota — a skill `my-memory` aponta para esta para markup detalhado. |
 | **`create-adr`** | [`.agents/skills/create-adr/SKILL.md`](.agents/skills/create-adr/SKILL.md) | Ao tomar decisões arquiteturais significativas, registrar escolhas técnicas ou quando o usuário pedir para documentar o motivo de uma escolha. Formato obrigatório: **MADR**. |
 | **`tlc-spec-driven`** | [`.agents/skills/tlc-spec-driven/SKILL.md`](.agents/skills/tlc-spec-driven/SKILL.md) | Ao planejar ou implementar features não-triviais. Seguir as 4 fases adaptativas (*Specify → Design → Tasks → Execute*), critérios em notação EARS, commits atômicos e gates determinísticos em Python. |
 

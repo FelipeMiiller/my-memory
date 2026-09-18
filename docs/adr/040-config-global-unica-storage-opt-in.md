@@ -150,6 +150,7 @@ func resolveStorage(repoCtx RepoContext) StorageDecision {
    - `docs/CLI_GUIDE.md` — atualizar seção de `--db`/`--postgres` com nova flag `--storage`.
    - `docs/AGENT_INTEGRATION_GUIDE.md` — exemplos pra "vou usar central vault" vs "vou usar SQLite local".
    - `docs/REPOSITORY_BRAIN.md` — atualizar diagrama de arquitetura.
+   - `.agents/skills/my-memory/SKILL.md` — skill canônica de uso, distribuída com o binário. Atualizar sempre que uma nova flag, subcomando ou tool MCP for adicionado.
    - `.agents/skills/prova-md/SKILL.md` e `resumo-materias/SKILL.md` — alinhar com novo fluxo.
 7. **`.gitignore`** — garantir `.memory/` continua ignorado (já está).
 8. **Script de migração opcional** — pra quem quiser mover `.memory/config.yaml` local pra `~/.memory/config.yaml`.
