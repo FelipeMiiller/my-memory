@@ -1,5 +1,5 @@
 ---
-name: obsidian-markdown
+name: my-markdown
 description: Regras canônicas para criar e editar notas no formato Obsidian Flavored Markdown (.md) com wikilinks, embeds, callouts, tags e propriedades de frontmatter YAML. Esta é a **referência canônica** para qualquer agente que manipula documentos .md no vault do My-Memory. Aplique em ADRs, specs, ISSUES, skills, READMEs e qualquer nota que será indexada pelo parser.
 ---
 

@@ -22,7 +22,7 @@
   - Ajuda CLI atualizada
 
 - [x] **T5**: Agent Skills Locais (`.agents/skills/`)
-  - Criar `.agents/skills/obsidian-markdown/SKILL.md`
+  - Criar `.agents/skills/my-markdown/SKILL.md`
   - Criar `.agents/skills/json-canvas/SKILL.md`
 
 - [x] **T6**: Documentação e Decisão de Arquitetura (ADR-008)

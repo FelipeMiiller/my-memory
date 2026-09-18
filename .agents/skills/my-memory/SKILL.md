@@ -5,7 +5,7 @@ description: Skill canônica de uso do My-Memory — ensina a configurar, inicia
 
 # My-Memory Skill — Como Configurar, Usar e Criar Documentos
 
-> **Esta é a skill canônica de uso do My-Memory.** Qualquer agente (humano ou IA) que precise instalar, configurar, usar ou documentar algo neste projeto deve seguir este guia. Para regras estritas de formatação de `.md` (wikilinks, tags, frontmatter), consulte a skill [`obsidian-markdown`](.agents/skills/obsidian-markdown/SKILL.md) — ela é a referência canônica de markup.
+> **Esta é a skill canônica de uso do My-Memory.** Qualquer agente (humano ou IA) que precise instalar, configurar, usar ou documentar algo neste projeto deve seguir este guia. Para regras estritas de formatação de `.md` (wikilinks, tags, frontmatter), consulte a skill [`my-markdown`](.agents/skills/my-markdown/SKILL.md) — ela é a referência canônica de markup.
 
 > [!important]
 > **Onde estou?** Você está no **repositório raiz do My-Memory** (`C:\repository\my-memory`). A skill foi escrita assumindo Windows/PowerShell; ajustes para Linux/macOS estão sinalizados com `⚠️ SO`.
@@ -458,7 +458,7 @@ Fluxo:
 ## 11. Como Criar Documentos no Vault
 
 > [!important]
-> **Esta seção é a parte mais importante para quem cria `.md`.** Regras detalhadas de markup vivem na skill [`obsidian-markdown`](.agents/skills/obsidian-markdown/SKILL.md) — esta é só a visão geral.
+> **Esta seção é a parte mais importante para quem cria `.md`.** Regras detalhadas de markup vivem na skill [`my-markdown`](.agents/skills/my-markdown/SKILL.md) — esta é só a visão geral.
 
 ### 11.1 Anatomia mínima de uma nota
 
@@ -648,7 +648,7 @@ Se é bug trivial/cosmético ou ajuste de copy → corrige direto, sem ADR (AGEN
 ## 15. Referências Cruzadas
 
 ### Skills irmãs
-- [`obsidian-markdown`](.agents/skills/obsidian-markdown/SKILL.md) — **canônica de formatação `.md`** (frontmatter, wikilinks, tags, callouts, embeds)
+- [`my-markdown`](.agents/skills/my-markdown/SKILL.md) — **canônica de formatação `.md`** (frontmatter, wikilinks, tags, callouts, embeds)
 - [`create-adr`](.agents/skills/create-adr/SKILL.md) — formato MADR para abrir nova decisão arquitetural
 - [`tlc-spec-driven`](.agents/skills/tlc-spec-driven/SKILL.md) — fluxo Specify → Design → Tasks → Execute para features não-triviais
 
