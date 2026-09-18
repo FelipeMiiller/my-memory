@@ -32,4 +32,4 @@ Esta feature provê interoperabilidade completa com o padrão Obsidian Flavored 
    - Subcomando `mem export --canvas <node_id> [--depth 1] [--out <arquivo.canvas>]`.
 
 5. **Agent Skills**:
-   - Documentações de skill em `.agents/skills/memory-md` e `.agents/skills/json-canvas`.
+   - Documentação da skill unificada em `.agents/skills/my-memory-format` (absorve as antigas `memory-md` + `json-canvas`).

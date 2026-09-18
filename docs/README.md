@@ -84,15 +84,12 @@ Habilidades de engenharia de software configuradas no repositório através do `
   - `references/`: Guias de especificação, design, testes e sub-agentes.
   - `scripts/`: Validadores automáticos em Python (`validate_spec.py`, `validate_tasks.py`, `check_commit.py`, etc.).
 
-### 3.3. `memory-md`
-* **Local:** [`.agents/skills/memory-md/`](../.agents/skills/memory-md/)
-* **Descrição:** Criação e edição de notas em Obsidian Flavored Markdown (`.md`) com wikilinks estruturados, frontmatter YAML (`tags`, `aliases`), callouts e embeds.
-* **Gatilhos para IAs:** *"crie uma nota"*, *"adicione wikilinks"*, *"formate em obsidian"*, *"extraia frontmatter"*.
+### 3.3. `my-memory-format`
+* **Local:** [`.agents/skills/my-memory-format/`](../.agents/skills/my-memory-format/)
+* **Descrição:** Criação de **qualquer tipo de memória** do My-Memory — Markdown Obsidian Flavored (`.md` com wikilinks estruturados, frontmatter YAML `tags`/`aliases`, callouts e embeds) **e** mapas espaciais JSON Canvas 1.0 (`.canvas` com nós e arestas).
+* **Gatilhos para IAs:** *"crie uma nota"*, *"adicione wikilinks"*, *"formate em obsidian"*, *"extraia frontmatter"*, *"exporte para canvas"*, *"crie um json canvas"*, *"mapa mental espacial"*.
 
-### 3.4. `json-canvas`
-* **Local:** [`.agents/skills/json-canvas/`](../.agents/skills/json-canvas/)
-* **Descrição:** Especificação aberta JSON Canvas 1.0 (`.canvas`) para geração e manipulação de mapas mentais espaciais e grafos visuais.
-* **Gatilhos para IAs:** *"exporte para canvas"*, *"crie um json canvas"*, *"mapa mental espacial"*.
+> Substitui as antigas skills `memory-md` + `json-canvas`, agora unificadas. Cobre todos os formatos de memória do projeto num único source-of-truth.
 
 ---
 

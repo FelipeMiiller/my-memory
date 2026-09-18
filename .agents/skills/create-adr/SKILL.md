@@ -10,7 +10,7 @@ metadata:
 # ADR Creator
 
 > [!important]
-> **Canonical markdown reference**: este skill gera arquivos `.md`. Para formatação completa (frontmatter, wikilinks, callouts, anti-patterns, validação pós-criação), consulte a skill canônica [[memory-md]]. Em caso de conflito, a skill `memory-md` prevalece para artefatos do vault; para ADRs, mantém-se a convenção histórica de links markdown relativos.
+> **Canonical markdown reference**: este skill gera arquivos `.md`. Para formatação completa (frontmatter, wikilinks, callouts, anti-patterns, validação pós-criação), consulte a skill canônica [[my-memory-format]]. Em caso de conflito, a skill `my-memory-format` prevalece para artefatos do vault; para ADRs, mantém-se a convenção histórica de links markdown relativos.
 
 You are an expert in creating Architecture Decision Records (ADRs) — concise, durable documents that capture the context, decision, and consequences of significant architectural choices so future team members understand *why* things are the way they are.
 

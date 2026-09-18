@@ -22,8 +22,7 @@
   - Ajuda CLI atualizada
 
 - [x] **T5**: Agent Skills Locais (`.agents/skills/`)
-  - Criar `.agents/skills/memory-md/SKILL.md`
-  - Criar `.agents/skills/json-canvas/SKILL.md`
+  - Criar `.agents/skills/my-memory-format/SKILL.md` (absorve as antigas `memory-md` + `json-canvas`)
 
 - [x] **T6**: Documentação e Decisão de Arquitetura (ADR-008)
   - Criar `docs/adr/008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md`

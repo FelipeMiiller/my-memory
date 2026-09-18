@@ -20,7 +20,7 @@
 | T2: Módulo e Especificação JSON Canvas 1.0 | ✅ Done | `internal/canvas/canvas.go`, `internal/canvas/canvas_test.go` |
 | T3: Tool e Handler MCP memory_export_canvas | ✅ Done | `internal/mcp/tools.go`, `internal/mcp/handlers.go`, `internal/mcp/handlers_test.go` |
 | T4: Comando CLI mem export --canvas | ✅ Done | `cmd/mem/main.go` |
-| T5: Agent Skills Locais | ✅ Done | `.agents/skills/memory-md/SKILL.md`, `.agents/skills/json-canvas/SKILL.md` |
+| T5: Agent Skills Locais | ✅ Done | `.agents/skills/my-memory-format/SKILL.md` (unifica `memory-md` + `json-canvas`) |
 | T6: Documentação e Decisão de Arquitetura (ADR-008) | ✅ Done | `docs/adr/008-interoperabilidade-obsidian-flavored-markdown-e-json-canvas.md`, `docs/REFERENCES.md` |
 
 ---
