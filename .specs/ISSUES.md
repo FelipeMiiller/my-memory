@@ -157,6 +157,40 @@ Gate `--strict` liberado: 0 CRITICAL permite uso em CI sem bloqueios falsos.
 - **Contexto:** `node_modules/playwright-core/lib/tools/skills/playwright-*/SKILL.md` e similares foram instalados durante a sessão post-release-v1.3.0-bugfixes para visual validation, mas o conteúdo é do próprio Playwright (não do my-memory).
 - **Workaround:** já estão excluídos do `.gitignore`. Futuras instalações do Playwright devem usar `npm install --no-save`.
 
+## ISSUE-009 — Indexer gera dead links sistemicamente: tag values viram graph nodes
+- **Severidade:** 🟡 medium (cosmético mas recorrente — cada novo doc com tags genéricos adiciona dead links)
+- **Status:** 🔵 open
+- **Achado em:** validação E2E pós-ADR-040 (sessão 2026-09-18, `mem doctor --db .memory/memory.db` mostrou 19 dead links antes do cleanup parcial, 2 restantes após)
+- **Contexto:** o parser trata QUALQUER valor de tag (frontmatter `tags: [...]` ou inline `#tag`) como nó do grafo e cria edge `tagged_as` do doc para esse nó. Se nenhum doc tem esse exato título, a edge vira dead link. ISSUE-001 limpou 8 tags específicas mas o problema é estrutural: cada novo doc com tags descritivas (ex: `architecture`, `storage`, `federation`) cria dead links potenciais.
+
+**Root cause:**
+
+1. `internal/parser/wikilinks.go::ExtractConnections` linha 278: para cada tag em `conn.Tags`, cria `addEdge(t, "tagged_as", ...)`.
+2. `internal/parser/wikilinks.go::ExtractConnections` linha 235-244: regex `tagRegex` extrai `#tag` de body.
+3. Tags viram nós implícitos; não há verificação se o nó existe como doc title antes de criar a edge.
+4. `internal/parser/fuzzy.go::ResolveTagConnections` (commit `ae8547b`) faz fuzzy resolve quando o título do doc tem match, mas não cria nó novo pra tags não-casadas — só remove ou renomeia a edge.
+
+**Estado pós ADR-040 + ISSUE-001 cleanup (2026-09-18):**
+
+| Doc | Tag morta (sem nota-casa) | Relação |
+|---|---|---|
+| `ADR-040` | `federation`, `architecture`, `config`, `storage`, `central-vault`, `sqlite`, `postgres`, `fallback` | 8 dead links |
+| `.specs/040-config-global-unica/spec.md` | `Spec 040: Implementação ADR-040 — Config global única + SQLite auto-scope + Postgres opt-in` | 1 dead link (self-reference — root cause a investigar) |
+
+**Possíveis correções (decisão arquitetural pendente):**
+
+1. **Não criar `tagged_as` edge se tag não casa com doc title** — parser filtra antes de criar edge. Tags "conceituais" (categorias) deixam de poluir o grafo.
+2. **Aceitar como débtio cosmético** — tags conceituais ainda servem pra `mem search --tag X`; dead link é ruído visual mas funcional.
+3. **Renomear nodes de tag pra `tag:<valor>`** — namespacing explícito (ex: `tag:architecture` vs doc title `architecture`) evita colisão semântica. Decisão arquitetural — ADR-041+.
+4. **Híbrido**: tags com match → edge `tagged_as` normal; tags sem match → ainda cria edge mas marca `target_kind=tag` (cosmético, não dead link).
+
+**Recomendação:** opção 1 (não criar edge pra tags sem casa) — mais limpa, mas pode quebrar `mem search --tag X` que depende do nó existir. Validar impacto primeiro.
+
+**Workaround atual:** adicionar tags só quando há doc title correspondente (convenção manual).
+
+**Referência:** ADR-040 (config centralizada), ISSUE-001 (limpeza específica anterior).
+
+
 ---
 
 ## Métricas
@@ -171,6 +205,7 @@ Gate `--strict` liberado: 0 CRITICAL permite uso em CI sem bloqueios falsos.
 | ISSUE-006 | 🟡 medium | 🔵 open | 2026-09-17 |
 | ISSUE-007 | 🟢 low | ⏸️ deferred | 2026-09-17 |
 | ISSUE-008 | 🟠 high | ✅ resolved (bc70c5f + 0137779) | 2026-09-17 |
+| ISSUE-009 | 🟡 medium | 🔵 open | 2026-09-18 |
 
 ---
 
