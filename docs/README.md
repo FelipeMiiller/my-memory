@@ -84,8 +84,8 @@ Habilidades de engenharia de software configuradas no repositório através do `
   - `references/`: Guias de especificação, design, testes e sub-agentes.
   - `scripts/`: Validadores automáticos em Python (`validate_spec.py`, `validate_tasks.py`, `check_commit.py`, etc.).
 
-### 3.3. `my-markdown`
-* **Local:** [`.agents/skills/my-markdown/`](../.agents/skills/my-markdown/)
+### 3.3. `memory-md`
+* **Local:** [`.agents/skills/memory-md/`](../.agents/skills/memory-md/)
 * **Descrição:** Criação e edição de notas em Obsidian Flavored Markdown (`.md`) com wikilinks estruturados, frontmatter YAML (`tags`, `aliases`), callouts e embeds.
 * **Gatilhos para IAs:** *"crie uma nota"*, *"adicione wikilinks"*, *"formate em obsidian"*, *"extraia frontmatter"*.
 

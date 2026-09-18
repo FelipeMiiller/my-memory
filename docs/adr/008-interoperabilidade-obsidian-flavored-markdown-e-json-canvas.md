@@ -38,7 +38,7 @@ Chosen option: **"Opção A: Adoção das Especificações Obsidian Flavored Mar
 - **Conexões de Grafo Limpas:** Eliminação de nós espúrios gerados por âncoras (`[[Nota#Seção]]` agora aponta precisamente para `Nota`).
 - **Geração de JSON Canvas Nativa:** Novo pacote `internal/canvas` com layout automático espacial radial, garantindo que o comando `mem export --canvas` e a tool MCP `memory_export_canvas` gerem mapas mentais prontos para renderização.
 - **Enriquecimento por Metadados:** Aliases e tags de frontmatter integradas ao modelo de busca.
-- **Capacitação de Agentes:** Inclusão das skills `my-markdown` e `json-canvas` em `.agents/skills/`.
+- **Capacitação de Agentes:** Inclusão das skills `memory-md` e `json-canvas` em `.agents/skills/`.
 
 ### Negative Consequences
 
