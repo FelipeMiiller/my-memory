@@ -18,12 +18,19 @@ import (
 // Não aplica a relações tipadas (implements, depends_on, extends, etc.) —
 // essas têm semântica explícita e não devem ser reescritas.
 //
-// Se nenhum match for encontrado, o target original é preservado (não perdemos
-// informação: a tag continua existindo como nó conceitual). Se múltiplos matches
-// existirem, usa o primeiro encontrado (ordem determinística da lista de entrada).
+// **ISSUE-009 fix (2026-09-18):** se uma edge `tagged_as` não casa com nenhum
+// doc (via fuzzy resolve), ela é REMOVIDA de conn.Edges e conn.OutgoingLinks.
+// Antes era preservada como target original, gerando dead links sistemicamente
+// quando tags conceituais (ex: `architecture`, `storage`) não tinham nota-casa.
+// Tags conceituais permanecem no frontmatter do doc (search via FTS funciona),
+// mas não viram arestas do grafo. Para criar uma tag conceitual como nó do grafo,
+// criar uma nota stub com o nome da tag como title.
+//
+// Se múltiplos matches existirem, usa o primeiro encontrado (ordem determinística
+// da lista de entrada).
 //
 // A lista availableDocs deve conter os títulos (ou IDs) das notas já
-// indexadas. Se vazia ou nil, a função é no-op.
+// indexadas. Se vazia ou nil, a função é no-op (sem remoção possível).
 func ResolveTagConnections(conn *ExtractedConnections, availableDocs []string) {
 	if conn == nil || len(availableDocs) == 0 {
 		return
@@ -39,7 +46,9 @@ func ResolveTagConnections(conn *ExtractedConnections, availableDocs []string) {
 		norm[key] = d
 	}
 
-	// Mutate edges in place (range por índice, não valor)
+	// Mutate edges in place. Quando fuzzy resolve falha para `tagged_as`,
+	// marca com target vazio para remoção posterior (não podemos remover
+	// durante iteração pra não invalidar índices).
 	for i := range conn.Edges {
 		rel := conn.Edges[i].Relation
 		if rel != "tagged_as" && rel != "links_to" {
@@ -49,7 +58,39 @@ func ResolveTagConnections(conn *ExtractedConnections, availableDocs []string) {
 		resolved := fuzzyResolveTag(original, norm, availableDocs)
 		if resolved != "" && resolved != original {
 			conn.Edges[i].Target = resolved
+		} else if resolved == "" && rel == "tagged_as" {
+			// ISSUE-009: tag sem casa → marca pra remoção
+			conn.Edges[i].Target = ""
 		}
+	}
+
+	// Compacta Edges removendo entradas com target vazio, e sincroniza OutgoingLinks
+	filtered := conn.Edges[:0]
+	for _, e := range conn.Edges {
+		if e.Target == "" {
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+	conn.Edges = filtered
+
+	// Reconstroi OutgoingLinks excluindo targets removidos. Mantém ordem original
+	// mas pula targets que sumiram do Edges (i.e., tags sem casa que viraram dead links).
+	if len(conn.OutgoingLinks) > 0 {
+		kept := make([]string, 0, len(conn.OutgoingLinks))
+		for _, t := range conn.OutgoingLinks {
+			found := false
+			for _, e := range conn.Edges {
+				if e.Target == t {
+					found = true
+					break
+				}
+			}
+			if found {
+				kept = append(kept, t)
+			}
+		}
+		conn.OutgoingLinks = kept
 	}
 }
 
@@ -73,6 +114,7 @@ func fuzzyResolveTag(tag string, norm map[string]string, originals []string) str
 	if doc, ok := norm[key]; ok {
 		return doc
 	}
+	_ = "DEBUG: tag=" + tag + " key=" + key
 
 	// 2. Substring match
 	for _, d := range originals {

@@ -37,10 +37,14 @@ func TestResolveTagConnections(t *testing.T) {
 		assertEdges(t, conn, []string{"Memória"})
 	})
 
-	t.Run("no match keeps original", func(t *testing.T) {
+	// ISSUE-009 (2026-09-18): tags sem match são REMOVIDAS (não preservadas
+	// como dead link). Este caso substitui o antigo "no match keeps original".
+	t.Run("ISSUE-009: no match removes edge (was: kept original)", func(t *testing.T) {
 		conn := mkTaggedConn([]string{"nonexistent-concept"})
 		ResolveTagConnections(conn, available)
-		assertEdges(t, conn, []string{"nonexistent-concept"})
+		if len(conn.Edges) != 0 {
+			t.Errorf("esperava 0 edges (removida por ISSUE-009), obteve %d: %+v", len(conn.Edges), conn.Edges)
+		}
 	})
 
 	t.Run("nil connection is no-op", func(t *testing.T) {
@@ -113,6 +117,42 @@ func TestResolveTagConnections(t *testing.T) {
 		conn := mkTaggedConn([]string{"cli"})
 		ResolveTagConnections(conn, []string{"CLI_GUIDE", "AGENTS"})
 		assertEdges(t, conn, []string{"CLI_GUIDE"})
+	})
+
+	// ISSUE-009 (2026-09-18): tags sem casa devem ser REMOVIDAS de conn.Edges
+	// (não preservadas como dead links). Tags conceituais como `architecture`,
+	// `storage`, `federation` ficam só no frontmatter (search via FTS) mas não
+	// viram arestas do grafo.
+	t.Run("ISSUE-009: tag sem casa é removida (não preservada como dead link)", func(t *testing.T) {
+		conn := mkTaggedConn([]string{"architecture", "storage", "federation"})
+		// availableDocs não tem nenhum desses títulos
+		ResolveTagConnections(conn, []string{"001-uso-de-sqlite", "AGENTS"})
+
+		// Todas as 3 tags devem ser removidas — conn.Edges deve ficar vazio
+		if len(conn.Edges) != 0 {
+			t.Errorf("esperava 0 edges (todas tags sem casa removidas), obteve %d: %+v", len(conn.Edges), conn.Edges)
+		}
+
+		// OutgoingLinks também deve ser sincronizado (não aponta pra targets removidos)
+		if len(conn.OutgoingLinks) != 0 {
+			t.Errorf("esperava 0 OutgoingLinks, obteve %v", conn.OutgoingLinks)
+		}
+	})
+
+	t.Run("ISSUE-009: mistura — tag com casa resolvida, tag sem casa removida", func(t *testing.T) {
+		conn := mkTaggedConn([]string{"sqlite", "architecture", "federation"})
+		ResolveTagConnections(conn, []string{"001-uso-de-sqlite", "002-adocao-de-go"})
+
+		// Apenas `sqlite` (resolved para "001-uso-de-sqlite") deve sobreviver.
+		if len(conn.Edges) != 1 {
+			t.Fatalf("esperava 1 edge sobrevivente, obteve %d: %+v", len(conn.Edges), conn.Edges)
+		}
+		if conn.Edges[0].Target != "001-uso-de-sqlite" {
+			t.Errorf("target esperado `001-uso-de-sqlite`, obteve %q", conn.Edges[0].Target)
+		}
+		if conn.Edges[0].Relation != "tagged_as" {
+			t.Errorf("relação esperada `tagged_as`, obteve %q", conn.Edges[0].Relation)
+		}
 	})
 }
 
