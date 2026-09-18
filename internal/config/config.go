@@ -614,5 +614,17 @@ func LoadCascadingConfig(repoDir string) (*Config, string, error) {
 		cfg.MCP.Port = 8080
 	}
 
+	// ADR-016 Auto-Scoping de Vault: se SQLitePath ficou no default CWD
+	// `memory.db` mas o vault canônico `.memory/` existe em repoDir,
+	// promover para `<repoDir>/.memory/memory.db`. Não toca em paths
+	// explícitos do usuário (global, local YAML, ou catálogo de repos).
+	// Resolve ISSUE-004 (DB criado em CWD em vez de `.memory/`).
+	if cfg.Storage.SQLitePath == "memory.db" {
+		memDir := filepath.Join(repoDir, ".memory")
+		if stat, err := os.Stat(memDir); err == nil && stat.IsDir() {
+			cfg.Storage.SQLitePath = filepath.Join(memDir, "memory.db")
+		}
+	}
+
 	return &cfg, cfgPath, nil
 }

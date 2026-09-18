@@ -1204,8 +1204,10 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 	if db == "" {
 		if cfg.Storage.SQLitePath != "" {
 			db = cfg.Storage.SQLitePath
-		} else if stat, err := os.Stat(".memory/memory.db"); err == nil && !stat.IsDir() {
-			db = ".memory/memory.db"
+		} else if stat, err := os.Stat(".memory"); err == nil && stat.IsDir() {
+			// .memory/ existe → DB canônico vive lá (ADR-016: Auto-Scoping de Vault).
+			// db.InitDB cria o arquivo automaticamente; não usar fallback em CWD.
+			db = filepath.Join(".memory", "memory.db")
 		} else {
 			db = "memory.db"
 		}

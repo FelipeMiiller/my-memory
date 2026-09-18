@@ -435,6 +435,83 @@ mcp:
 	}
 }
 
+// TestLoadCascadingConfig_AutoScopeVault cobre ISSUE-004:
+// quando `.memory/` existe em repoDir mas o config local NÃO declara
+// `storage.sqlite_path`, o cascade loader promove o default `memory.db`
+// (CWD) para `<repoDir>/.memory/memory.db`. Sem isso, `mem index` sem
+// `--db` criava DB órfão em CWD.
+func TestLoadCascadingConfig_AutoScopeVault(t *testing.T) {
+	repoDir := t.TempDir()
+	memDir := filepath.Join(repoDir, ".memory")
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	yamlNoStorage := `
+version: 1
+repo_id: "repo_autoscope12345"
+repository: "test/auto-scope"
+`
+	if err := os.WriteFile(filepath.Join(memDir, "config.yaml"), []byte(yamlNoStorage), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := LoadCascadingConfig(repoDir)
+	if err != nil {
+		t.Fatalf("LoadCascadingConfig falhou: %v", err)
+	}
+
+	wantPath := filepath.Join(memDir, "memory.db")
+	if cfg.Storage.SQLitePath != wantPath {
+		t.Errorf("Auto-Scoping falhou:\n  got  = %s\n  want = %s", cfg.Storage.SQLitePath, wantPath)
+	}
+}
+
+// TestLoadCascadingConfig_NoAutoScopeWithoutMemoryDir garante que NÃO
+// promovemos o path default quando `.memory/` não existe (vault não-inicializado).
+func TestLoadCascadingConfig_NoAutoScopeWithoutMemoryDir(t *testing.T) {
+	repoDir := t.TempDir() // sem .memory/
+
+	cfg, _, err := LoadCascadingConfig(repoDir)
+	if err != nil {
+		t.Fatalf("LoadCascadingConfig falhou: %v", err)
+	}
+
+	if cfg.Storage.SQLitePath != "memory.db" {
+		t.Errorf("esperava manter default CWD `memory.db` sem `.memory/`, obteve %s", cfg.Storage.SQLitePath)
+	}
+}
+
+// TestLoadCascadingConfig_ExplicitSQLitePathWins garante que paths
+// explícitos do usuário (global, local YAML, catálogo) sempre ganham
+// do auto-scoping.
+func TestLoadCascadingConfig_ExplicitSQLitePathWins(t *testing.T) {
+	repoDir := t.TempDir()
+	memDir := filepath.Join(repoDir, ".memory")
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	yamlExplicit := `
+version: 1
+repo_id: "repo_explicit123456"
+repository: "test/explicit-wins"
+storage:
+  engine: "sqlite"
+  sqlite_path: "/my/explicit/path.db"
+`
+	if err := os.WriteFile(filepath.Join(memDir, "config.yaml"), []byte(yamlExplicit), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := LoadCascadingConfig(repoDir)
+	if err != nil {
+		t.Fatalf("LoadCascadingConfig falhou: %v", err)
+	}
+
+	if cfg.Storage.SQLitePath != "/my/explicit/path.db" {
+		t.Errorf("esperava path explícito do usuário, obteve %s", cfg.Storage.SQLitePath)
+	}
+}
+
 func TestRegisterRepositoryInGlobalConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv(GlobalConfigDirEnv, tmpDir)
