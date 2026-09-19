@@ -222,7 +222,7 @@ func runEventsInspect(ctx context.Context, database *sql.DB, args []string) erro
 		"actor":          nullStringToString(actor),
 		"created_at":     nullStringToString(createdAt),
 		"acked_at":       nullStringToString(ackedAt),
-		"headers":        json.RawMessage(nullStringToString(payloadB)),
+		"headers":        json.RawMessage(nullStringToString(headersB)),
 		"payload":        json.RawMessage(nullStringToString(payloadB)),
 	}
 	if revision.Valid {
