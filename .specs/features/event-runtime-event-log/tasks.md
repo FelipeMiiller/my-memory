@@ -99,6 +99,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: None
 **Reuses**: Existing `Schema` / `FallbackSchema` const pattern; existing ALTER guard pattern from `content_hash` migration.
 **Requirement**: EVT-01 (partial — schema only)
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 

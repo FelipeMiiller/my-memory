@@ -61,6 +61,18 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		_, _ = db.Exec("ALTER TABLE graph_edges ADD COLUMN weight REAL NOT NULL DEFAULT 1.0")
 	}
 
+	// Migração retrocompatível: adiciona colunas revision e last_event_id em documents (ADR-043 event_runtime)
+	var revisionColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'revision'").Scan(&revisionColCount)
+	if revisionColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+	}
+	var lastEventIDColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'last_event_id'").Scan(&lastEventIDColCount)
+	if lastEventIDColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN last_event_id TEXT")
+	}
+
 	return db, nil
 }
 
