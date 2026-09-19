@@ -1,9 +1,11 @@
 # ADR-036: Consolidação Pós-Release v1.3.0 — Backlog Técnico e Roadmap para v1.4.0
 
-- **Date**: 2026-09-16
-- **Status**: Accepted
+- **Date**: 2026-09-16 (última atualização: 2026-09-19)
+- **Status**: Accepted (vivo — Trilhas A/B/C concluídas ou em curso; Trilha D adicionada em 2026-09-19)
 - **Deciders**: Felipe Miiller
-- **Tags**: backlog, technical-debt, release-planning, graph-viewer, embedder, viewer, multi-repo, encoding
+- **Tags**: backlog, technical-debt, release-planning, graph-viewer, embedder, viewer, multi-repo, encoding, voice-agent, foundation
+
+> **Atualização 2026-09-19**: pesquisa autoral (`pesquisa-infraestrutura-autoral-mymemory.md`) define um roadmap mais amplo (F0–F5) cobrindo voz, agente runtime, MCP server autoral, viewer/editor contínuo e threat model OWASP. Os três primeiros alicerces desse roadmap viraram ADRs Proposed: **[ADR-042: `mymemoryd` núcleo local com workers sidecar](042-nucleo-local-mymemoryd-com-workers-sidecar-isolados.md)**, **[ADR-043: Envelope de Eventos Canônico (event_runtime)](043-envelope-de-eventos-canonico-event-runtime.md)** e **[ADR-044: Memory Writer Atômico + Outbox + Reprojeção Idempotente](044-memory-writer-atomico-outbox-e-reprojecao-idempotente.md)**. Eles formam a **Trilha D** deste backlog — fundação sem a qual voz/agente/MCP avançado não devem começar.
 
 ## Context and Problem Statement
 
@@ -47,12 +49,16 @@ ADR-036 (consolidação)
 │   ├── B3: Multi-repo viewer — flag `--all-repos` ainda não implementada  [REVERTED em 2bf79bd → ADR-038]
 │   ├── B4: `mem open` no CLI só suporta Obsidian                          [DEFERRED → ADR-037]
 │   └── B5: OpenWith modal no viewer (parcial — falta persistir reader)   [DEFERRED → ADR-037]
-└── Trilha C — Itens diferidos do roadmap maior
-    ├── C1: ADR-035 — implementação do embedder embutido (ONNX MiniLM)  [DEFERRED → tlc-spec-driven]
-    ├── C2: Backend --all-repos com datasets reais                        [CANCELLED — coberto por ADR-038]
-    ├── C3: Mini-mapa interativo (drag-to-navigate)                       [DEFERRED → ADR-037]
-    ├── C4: Animações de entrada dos nodes                                 [DEFERRED → ADR-037]
-    └── C5: Edge labels no hover (polish)                                 [DEFERRED → ADR-037]
+├── Trilha C — Itens diferidos do roadmap maior
+│   ├── C1: ADR-035 — implementação do embedder embutido (ONNX MiniLM)  [DEFERRED → tlc-spec-driven]
+│   ├── C2: Backend --all-repos com datasets reais                        [CANCELLED — coberto por ADR-038]
+│   ├── C3: Mini-mapa interativo (drag-to-navigate)                       [DEFERRED → ADR-037]
+│   ├── C4: Animações de entrada dos nodes                                 [DEFERRED → ADR-037]
+│   └── C5: Edge labels no hover (polish)                                 [DEFERRED → ADR-037]
+└── Trilha D — Fundação F0/F1 do roadmap pós-v1.4.0 (NEW 2026-09-19) 🆕 Proposed
+    ├── D1: ADR-042 — `mymemoryd` núcleo local com workers sidecar isolados   [PROPOSED]
+    ├── D2: ADR-043 — Envelope de eventos canônico (event_runtime)            [PROPOSED]
+    └── D3: ADR-044 — Memory writer atômico + outbox + reprojeção idempotente  [PROPOSED → refina ADR-018]
 ```
 
 > **Mudanças pós-ADR-036**:

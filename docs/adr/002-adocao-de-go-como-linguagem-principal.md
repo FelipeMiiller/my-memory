@@ -58,7 +58,23 @@ Chosen option: **"Opção A: Go (Golang)"**, because gera um binário estático 
 - ✅ Máxima performance e segurança de memória sem garbage collector.
 - ❌ Curva de aprendizado e tempo de compilação significativamente maiores para desenvolvimento ágil.
 
+## Update 2026-09-19: Limites de Runtime
+
+A pesquisa autoral de 2026-09-18 (documento `pesquisa-infraestrutura-autoral-mymemory.md`) formaliza a topologia de runtime que este ADR implicitamente já assumia mas não declarava. Sem mexer na decisão original, esta nota **documenta os limites de runtime** que dela decorrem:
+
+- **Núcleo de domínio e orquestração é Go.** O core (event_runtime, session-manager, policy-engine, memory-writer, projection-workers, mcp-server, supervisor) vive no binário `mymemoryd` (ver ADR-042).
+- **Python entra apenas como worker sidecar isolado**, restrito a ASR (Whisper/Vosk/sherpa-onnx), TTS (Piper/Kokoro) e outras cargas ML que não têm equivalente Go nativo.
+- **CGO/ONNX é aceito dentro do core** apenas para o embedder builtin (ADR-035), porque o modelo é estaticamente linkado e a latência in-process compensa o custo.
+- **Workers não compartilham memória do core.** Comunicação via JSON-RPC + framing binário (Wyoming-inspired) sobre stdio ou Unix socket.
+- **Egress deny-by-default em todos os workers** (OWASP LLM Top 10 LLM05/LLM06 — ver ADR-050 planejado).
+- **CLI standalone continua existindo.** `mem <subcomando>` não exige `mymemoryd` rodando; modo standalone é o fallback pra CI/sandbox.
+
+Nada nesta nota revoga a decisão original deste ADR — ela **esclarece o escopo** para que trabalho em voz/agente não contamine o core domain com Python nem CGO indiscriminado.
+
 ## Links
 
 - [Go Official Site](https://go.dev/)
 - [ADR-001: Uso de SQLite como Camada Unificada de Dados](001-uso-de-sqlite-como-camada-unificada-de-dados.md)
+- [ADR-035: Embedder Embutido com Fallback ONNX MiniLM](035-embedder-embutido-com-fallback-onnx-minilm.md)
+- [ADR-042: Núcleo Local `mymemoryd` com Workers Sidecar Isolados](042-nucleo-local-mymemoryd-com-workers-sidecar-isolados.md)
+- Documento de pesquisa `pesquisa-infraestrutura-autoral-mymemory.md` (2026-09-18), §6 (escolhas tecnológicas) e §7 (roadmap F0–F5).
