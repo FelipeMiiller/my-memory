@@ -1,7 +1,7 @@
 # ADR-043: Envelope de Eventos Canônico (event_runtime)
 
-- **Date**: 2026-09-19
-- **Status**: Proposed
+- **Date**: 2026-09-19 (promovido para Accepted em 2026-09-19 após Verifier PASS)
+- **Status**: Accepted (implementado em `internal/event_runtime/`, 13 commits merged; Verifier PASS — 19/19 ACs, 4/4 sensors mataram mutations; `validation.md` em `.specs/features/event-runtime-event-log/`)
 - **Deciders**: Felipe Miiller, Mavis (orchestrator)
 - **Tags**: events, event-driven, envelope, outbox, replay, idempotency, observability
 
