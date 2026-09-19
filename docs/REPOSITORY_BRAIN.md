@@ -263,3 +263,5 @@ Convenção segrega stubs (placeholders) de concept docs completos (documentaç�
 - [ADR-041](../adr/041-issue-009-tag-sem-casa-removida-do-grafo.md) — regra original: tags sem casa viram filtros, não edges
 - [Spec 042](../specs/042-stubs-editoriais/spec.md) — escopo + EARS
 - [ADR-005](../adr/005-markdown-com-wikilinks-como-fonte-de-verdade.md) — wikilinks como entrada canônica
+
+← [[README]] · [[COMO_FUNCIONA]]

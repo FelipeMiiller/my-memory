@@ -16,3 +16,7 @@ Toda vez que o agente concluir ou modificar qualquer código, função, arquivo 
 4. **Observabilidade de Gargalos:** Ao executar testes na CLI e no MCP, avaliar ativamente latência, possíveis timeouts, consumo de I/O e precisão semântica das respostas, reportando gargalos encontrados.
 5. **Critério de Aceitação:** Nenhum commit ou encerramento de tarefa é permitido se houver testes falhando ou se a execução real na CLI/MCP apresentar erro.
 6. **Novos Comportamentos Exigem Novos Testes:** Toda nova funcionalidade, caso de borda ou correção de bug deve incluir testes unitários assertivos correspondentes.
+
+---
+
+← [[AGENTS]]

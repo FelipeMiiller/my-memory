@@ -120,3 +120,5 @@ Avaliando: TurboQuant 4-bit, Reciprocal Rank Fusion (RRF), SHA-256 Hashing e Mar
  Markdown Chunking (200w/30o)   | 39066      | 3.85 µs/op    | 1.9 KB/op   | 3/op      | 94.37 MB/s
 ==================================================================================================
 ```
+
+← [[README]] · [[COMO_FUNCIONA]]

@@ -1,5 +1,7 @@
 # Contribuindo com o My-Memory
 
+> 📖 [[README|README]] • 🤝 [[CONTRIBUTING|CONTRIBUTING]] • 📜 [[CODE_OF_CONDUCT|CODE_OF_CONDUCT]] • 🛡 [[SECURITY|SECURITY]]
+
 Obrigado por seu interesse em contribuir com o **My-Memory**! Este projeto combina sistemas de alta performance em Go, extensões SQLite (`sqlite-vec`), compressão vetorial de última geração (TurboQuant - Google DeepMind, ICLR 2026), travessia de grafos via SQL recursivo e integração de agentes de IA via Model Context Protocol (MCP).
 
 ---

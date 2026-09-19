@@ -1,5 +1,7 @@
 # Código de Conduta do Contribuinte
 
+> 📖 [[README|README]] • 🤝 [[CONTRIBUTING|CONTRIBUTING]] • 📜 [[CODE_OF_CONDUCT|CODE_OF_CONDUCT]] • 🛡 [[SECURITY|SECURITY]]
+
 ## Nosso Compromisso
 
 Nós, como membros, colaboradores e líderes, nos comprometemos a fazer da participação em nossa comunidade uma experiência livre de assédio para todos, independentemente de idade, tamanho corporal, deficiência visível ou invisível, etnia, características sexuais, identidade e expressão de gênero, nível de experiência, educação, status socioeconômico, nacionalidade, aparência pessoal, raça, religião ou identidade e orientação sexual.

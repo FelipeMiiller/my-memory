@@ -1,5 +1,7 @@
 # Política de Segurança
 
+> 📖 [[README|README]] • 🤝 [[CONTRIBUTING|CONTRIBUTING]] • 📜 [[CODE_OF_CONDUCT|CODE_OF_CONDUCT]] • 🛡 [[SECURITY|SECURITY]]
+
 O **My-Memory** é uma engine de memória local desenvolvida com foco em privacidade e segurança *local-first*.
 
 ---

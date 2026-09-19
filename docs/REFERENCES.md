@@ -123,3 +123,5 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
 | **Federação Multi-Vault** | Isolamento por repositório local | **Protocolo Canônico Federado (`memory://`)** e Topologia Hub & Spoke | `sergio-sisternes-epam/atlas` & OKF v0.2 |
 | **Higiene de Memórias** | Escrita direta no cofre | **Ciclo de Vida Staging → Promote** para notas geradas por agentes | `sergio-sisternes-epam/atlas` |
 
+← [[README]] · [[COMO_FUNCIONA]]
+

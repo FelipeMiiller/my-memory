@@ -174,3 +174,7 @@ Se **qualquer item** falhar: **parar**, corrigir, re-rodar este gate do início.
 ## 📌 Histórico
 
 - **2026-09-17**: criada. Complementa `always-test.md` (que cobre só test+build+MCP) e `always-update-docs-and-specs-on-pr.md` (que cobre só docs). Adiciona benchmarks, visual, pipeline, política explícita de erros.
+
+---
+
+← [[AGENTS]]

@@ -170,7 +170,20 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 | 📖 [**`COMO_USAR.md`**](COMO_USAR.md) | **Desenvolvedores** | Manual prático de comandos CLI, exemplos de busca, configuração de PostgreSQL/SQLite e monitoramento em tempo real. |
 | 🔍 [**`COMO_FUNCIONA.md`**](COMO_FUNCIONA.md) | **Engenheiros & Arquitetos** | Explicação profunda da arquitetura, matemática do TurboQuant, algoritmo RRF, CTEs recursivas e ciclo de vida do cache. |
 | 🤖 [**`AGENT_INTEGRATION_GUIDE.md`**](docs/AGENT_INTEGRATION_GUIDE.md) | **Agentes de IA & Integrações** | Como integrar o My-Memory com Cursor, Claude Code, Copilot e Antigravity via MCP e regras `AGENTS.md`. |
-| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 34 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
+| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 41 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
+| 🧠 [**`docs/concepts/architecture.md`**](docs/concepts/architecture.md) | **Engenheiros** | Stub conceitual: visão arquitetural consolidada (camadas, decisões centrais, ADRs relacionados). |
+| 🧪 [**`docs/BENCHMARKS.md`**](docs/BENCHMARKS.md) | **Engenheiros de Performance** | Metodologia, resultados consolidados e como reproduzir benchmarks (TurboQuant, RRF, indexação, grafo). |
+| 🔗 [**`docs/REFERENCES.md`**](docs/REFERENCES.md) | **Pesquisadores & Curiosos** | Projetos de referência (CodeGraph, Cursor, etc.) e matriz de refinamento arquitetural. |
+| 🏗 [**`docs/REPOSITORY_BRAIN.md`**](docs/REPOSITORY_BRAIN.md) | **Integradores** | Como integrar My-Memory em qualquer projeto + convention de Concept Stubs (Spec 042). |
+
+### 📜 Documentos do Repositório
+
+| Doc | Descrição |
+| :--- | :--- |
+| 🤝 [[CONTRIBUTING|CONTRIBUTING.md]] | Como contribuir (Conventional Commits, testes, PR workflow). |
+| 📜 [[CODE_OF_CONDUCT|CODE_OF_CONDUCT.md]] | Pacto de convivência da comunidade. |
+| 🛡 [[SECURITY|SECURITY.md]] | Política de reporte e versões suportadas. |
+| 📄 [[LICENSE|LICENSE]] | Licença MIT. |
 
 ---
 
