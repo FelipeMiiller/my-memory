@@ -307,6 +307,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: T2
 **Reuses**: `crypto/sha256` from stdlib; existing JSON traversal pattern (none direct, but `encoding/json` round-trip is the safest path).
 **Requirement**: EVT-13 (PII gate — part of P5 Audit Subscriber story)
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 
