@@ -714,6 +714,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "events":
+		if err := runEventsCLI(ctx, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "setup":
 		if err := runSetupCLI(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -758,6 +764,8 @@ func printHelp() {
 	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
 	fmt.Println("  mem status [--json] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Exibe o status de sincronização e detecção de desatualização do vault em tempo real")
+	fmt.Println("  mem events <tail|inspect|replay|trace|last-sequence|stats> [opções]")
+	fmt.Println("      Inspeciona o event_runtime event_log (JSON Lines) e re-emite eventos para replay")
 	fmt.Println("  mem watch [--debounce <ms>] [--interval <ms>] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Monitora continuamente o vault em segundo plano e reindexa notas em tempo real")
 	fmt.Println("  mem hook <install|uninstall> [--force] [<pasta>]")

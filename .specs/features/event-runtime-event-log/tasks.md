@@ -372,6 +372,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: T3, T7
 **Reuses**: Existing CLI pattern from `cmd/mem/note.go` (cobra-style subcommands + JSON output); existing config loading from `internal/config/`.
 **Requirement**: EVT-14, EVT-15, EVT-16, EVT-17, EVT-18, EVT-19, EVT-20, EVT-21
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 
