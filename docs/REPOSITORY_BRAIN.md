@@ -170,3 +170,96 @@ Isso instala um script pre-commit leve e não-invasivo em `.git/hooks/pre-commit
 ```bash
 mem hook uninstall
 ```
+
+---
+
+## 🌱 Concept Stubs: Quando e Como
+
+Tags recorrentes merecem ser nós do grafo, não filtros soltos. **Concept stubs** são notas curtas que servem como "casa" para conceitos centrais do seu vault.
+
+### Decision matrix
+
+| Situação | Ação |
+|---|---|
+| Tag usada em **≥3 docs** e representa conceito central | ✅ Criar stub em `docs/concepts/<tag>.md` |
+| Tag usada em 1-2 docs (específica) | ❌ Aceitar como filtro |
+| Tag ambígua (significados diferentes) | 🔧 Renomear pra ser específica |
+
+**Por que ≥3 docs?** Limiar arbitrário mas útil: abaixo disso, a tag é específica demais pra ser hub. Acima, é conceito recorrente e merece nó.
+
+### Walkthrough: criar stub `architecture`
+
+**Cenário:** você nota que a tag `architecture` aparece em 5 docs (`COMO_FUNCIONA.md`, `SKILL.md`, `ARCHITECTURE.md`, `AGENT_INTEGRATION_GUIDE.md`, etc). Sem stub, cada uma dessas tags vira filtro solto — sem nó no grafo.
+
+**Passo 1 — Criar o stub:**
+
+```bash
+mkdir -p docs/concepts
+```
+
+Crie `docs/concepts/architecture.md` com frontmatter exato:
+
+```markdown
+---
+title: "architecture"
+category: resource
+summary: "Visão arquitetural consolidada do projeto"
+tags: [concept, architecture, design]
+---
+
+# architecture
+
+<descrição de 1-2 frases>
+
+## Onde aparece neste vault
+
+- [[doc-que-referencia-1]] — contexto
+- [[doc-que-referencia-2]] — contexto
+```
+
+**Regra crítica:** `title` do frontmatter = slug do arquivo (exato, sem fuzzy). O parser casa via exact title match pra stubs.
+
+**Passo 2 — Indexar e validar:**
+
+```bash
+bin/mem.exe index --force
+bin/mem.exe doctor --db .memory/memory.db
+```
+
+**Esperado:**
+- Documentos indexados: **+1**
+- Dead links: **0** (sem regressão)
+- Orphans: pode **cair 1** (a tag stub vira nó resolvido, sai do orphan list)
+- Health Score: **não regride**
+
+**Passo 3 — Verificar resolução da tag:**
+
+```sql
+SELECT source_id, target_id FROM graph_edges
+WHERE relation = 'tagged_as' AND target_id = 'architecture';
+-- Deve retornar 5 rows (1 por doc que usa a tag)
+```
+
+### Quando NÃO criar stub
+
+- **Tags de domínio específico** (`pipeline-de-ci`, `deploy-production`) — vivem em 1-2 docs só
+- **Tags de trabalho** (`adr-040`, `spec-041`) — versionadas com o trabalho, não conceitos
+- **Tags-meta** (`parser`, `graph`) — descrevem o sistema, não o domínio
+
+### Evolução do stub
+
+Conforme o stub cresce (passa de 200 linhas, ganha seções próprias, vira doc conceitual maduro), **promova-o pra raiz**:
+
+```bash
+mv docs/concepts/architecture.md docs/ARCHITECTURE.md
+# atualizar wikilinks se necessário
+```
+
+Convenção segrega stubs (placeholders) de concept docs completos (documentação madurecida).
+
+### Ver também
+
+- [`docs/concepts/README.md`](concepts/README.md) — convenção formal completa
+- [ADR-041](../adr/041-issue-009-tag-sem-casa-removida-do-grafo.md) — regra original: tags sem casa viram filtros, não edges
+- [Spec 042](../specs/042-stubs-editoriais/spec.md) — escopo + EARS
+- [ADR-005](../adr/005-markdown-com-wikilinks-como-fonte-de-verdade.md) — wikilinks como entrada canônica
