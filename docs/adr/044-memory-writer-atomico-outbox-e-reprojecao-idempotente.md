@@ -166,6 +166,6 @@ CREATE TABLE projection_cursor (
 - **ADR-018**: Compile-not-Retrieve — base, **refinado por este ADR** (write passa a ser outbox + projection).
 - **ADR-042**: `mymemoryd` — hospeda writer, dispatcher e subscribers.
 - **ADR-043**: Envelope de Eventos — formato canônico do `event_log`.
-- **ADR-050**: Threat Model OWASP LLM — auditoria via event log.
+- [ADR-050: Threat Model OWASP LLM](050-threat-model-owasp-llm-aplicado-ao-mymemory.md) — auditoria via event log.
 - **Documento de pesquisa** `pesquisa-infraestrutura-autoral-mymemory.md` §4.3 (commit canônico) e §5 (security: redaction, retenção).
 - Referências externas: [LangGraph checkpoints](https://github.com/langchain-ai/langgraph), [Graphiti temporal graphs](https://github.com/getzep/graphiti) (validade/invalidação não destrutiva).

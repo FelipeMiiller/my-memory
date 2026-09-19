@@ -141,6 +141,6 @@ Chosen option: **"Opção A: `mymemoryd` em Go + workers Python sidecar"**, porq
 - **ADR-035**: Embedder Embutido — primeiro worker CGO/ONNX.
 - **ADR-043**: Envelope de Eventos Canônico — barramento interno.
 - **ADR-044**: Memory Writer Atômico + Outbox — escrita durável.
-- **ADR-050**: Threat Model OWASP LLM — egress sandbox e policy.
+- [ADR-050: Threat Model OWASP LLM](050-threat-model-owasp-llm-aplicado-ao-mymemory.md) — egress sandbox e policy.
 - **Documento de pesquisa** `pesquisa-infraestrutura-autoral-mymemory.md` (2026-09-18).
 - Referências externas (documento §3.1, §3.7): [Wyoming](https://github.com/OHF-Voice/wyoming), [Home Assistant voice pipelines](https://developers.home-assistant.io/docs/voice/pipelines/), [MCP Specification](https://modelcontextprotocol.io/specification/2026-07-28).

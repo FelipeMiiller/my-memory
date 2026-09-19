@@ -189,6 +189,6 @@ session.failed
 - **ADR-018**: Compile-not-Retrieve — escrita atômica (refinado por ADR-044 com outbox).
 - **ADR-042**: `mymemoryd` — núcleo que hospeda event_runtime.
 - **ADR-044**: Memory Writer + Outbox — outbox na mesma transação.
-- **ADR-050**: Threat Model OWASP LLM — auditoria via event log.
+- [ADR-050: Threat Model OWASP LLM](050-threat-model-owasp-llm-aplicado-ao-mymemory.md) — auditoria via event log.
 - **Documento de pesquisa** `pesquisa-infraestrutura-autoral-mymemory.md` §4.1 (envelope) e §4.2 (eventos de voz).
 - Referências externas: [NATS JetStream](https://docs.nats.io/concepts/jetstream), [Wyoming](https://github.com/OHF-Voice/wyoming) (framing binário p/ áudio), [pi-mono](https://github.com/badlogic/pi-mono) (eventos de execução serializáveis).

@@ -66,7 +66,7 @@ A pesquisa autoral de 2026-09-18 (documento `pesquisa-infraestrutura-autoral-mym
 - **Python entra apenas como worker sidecar isolado**, restrito a ASR (Whisper/Vosk/sherpa-onnx), TTS (Piper/Kokoro) e outras cargas ML que não têm equivalente Go nativo.
 - **CGO/ONNX é aceito dentro do core** apenas para o embedder builtin (ADR-035), porque o modelo é estaticamente linkado e a latência in-process compensa o custo.
 - **Workers não compartilham memória do core.** Comunicação via JSON-RPC + framing binário (Wyoming-inspired) sobre stdio ou Unix socket.
-- **Egress deny-by-default em todos os workers** (OWASP LLM Top 10 LLM05/LLM06 — ver ADR-050 planejado).
+- **Egress deny-by-default em todos os workers** (OWASP LLM Top 10 LLM05/LLM06 — ver [ADR-050](050-threat-model-owasp-llm-aplicado-ao-mymemory.md)).
 - **CLI standalone continua existindo.** `mem <subcomando>` não exige `mymemoryd` rodando; modo standalone é o fallback pra CI/sandbox.
 
 Nada nesta nota revoga a decisão original deste ADR — ela **esclarece o escopo** para que trabalho em voz/agente não contamine o core domain com Python nem CGO indiscriminado.
