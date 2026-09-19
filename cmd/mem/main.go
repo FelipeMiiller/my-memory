@@ -621,6 +621,7 @@ func main() {
 	case "doctor":
 		docCmd := flag.NewFlagSet("doctor", flag.ExitOnError)
 		fix := docCmd.Bool("fix", false, "Repara automaticamente anomalias conhecidas (self-loops e dead links)")
+		showEvents := docCmd.Bool("events", false, "Inclui seção 'Events' com saúde do event_runtime (ADR-043)")
 		dbPath := docCmd.String("db", "", "Caminho do arquivo SQLite")
 		pgURL := docCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		storage := docCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
@@ -644,6 +645,10 @@ func main() {
 			}
 			defer pgStore.Close()
 			runDoctorPostgres(ctx, pgStore, resolvedRepo, *fix)
+			if *showEvents {
+				// Postgres event_log integration is out of scope for T12.
+				fmt.Fprintln(os.Stderr, "mem doctor --events: Postgres backend não suportado nesta versão")
+			}
 		} else {
 			database, err := db.InitDB(resolvedDB)
 			if err != nil {
@@ -652,6 +657,11 @@ func main() {
 			}
 			defer database.Close()
 			runDoctorSQLite(ctx, database, *fix)
+			if *showEvents {
+				if err := runDoctorEventsSection(ctx, database); err != nil {
+					fmt.Fprintf(os.Stderr, "mem doctor --events: %v\n", err)
+				}
+			}
 		}
 
 	case "note":
@@ -770,8 +780,8 @@ func printHelp() {
 	fmt.Println("      Monitora continuamente o vault em segundo plano e reindexa notas em tempo real")
 	fmt.Println("  mem hook <install|uninstall> [--force] [<pasta>]")
 	fmt.Println("      Instala ou remove o Git pre-commit hook para indexação automática pré-commit")
-	fmt.Println("  mem doctor [--fix] [--db <arq>] [--postgres <url>] [--repo <slug>]")
-	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score)")
+	fmt.Println("  mem doctor [--fix] [--events] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score). Use --events para inspecionar o event_runtime")
 	fmt.Println("  mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
 	fmt.Println("      Busca com Progressive Context Loading (L0/L1/L2), filtro de categoria, RRF, decaimento temporal e grafo")
 

@@ -478,3 +478,87 @@ func nullStringToString(s sql.NullString) string {
 var _ = strconv.Itoa
 var _ = strings.TrimSpace
 var _ = event_runtime.Envelope{}
+
+// EventsHealthReport summarizes event_runtime health metrics for
+// `mem doctor --events` (ADR-043 §Success Criteria).
+type EventsHealthReport struct {
+	TotalEvents             int64 `json:"total_events"`
+	UnackedCount            int64 `json:"unacked_count"`
+	OldestUnackedAgeSeconds int64 `json:"oldest_unacked_age_seconds"`
+	SubscribersActive       int   `json:"subscribers_active"`
+	Warn                    bool  `json:"warn,omitempty"`
+}
+
+// CollectEventsHealth queries the event_log + projection_cursor tables and
+// returns a snapshot of the event_runtime health metrics. The query path
+// is read-only — it never modifies state.
+func CollectEventsHealth(ctx context.Context, database *sql.DB) (*EventsHealthReport, error) {
+	rep := &EventsHealthReport{}
+
+	// Total events.
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_log`).Scan(&rep.TotalEvents); err != nil {
+		// event_log may not exist on a fresh vault — treat as 0 events.
+		rep.TotalEvents = 0
+	}
+
+	// Unacked count: events with no acked_at set. Fan-out semantics keep
+	// acked_at NULL on successful per-subscriber delivery (only the cursor
+	// advances), so NULL means "still pending any form of resolution".
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM event_log WHERE acked_at IS NULL`).Scan(&rep.UnackedCount); err != nil {
+		rep.UnackedCount = 0
+	}
+
+	// Oldest unacked age.
+	var oldestCreated sql.NullString
+	row := database.QueryRowContext(ctx,
+		`SELECT created_at FROM event_log WHERE acked_at IS NULL ORDER BY sequence ASC LIMIT 1`)
+	if err := row.Scan(&oldestCreated); err == nil && oldestCreated.Valid {
+		if t, err := time.Parse(time.RFC3339Nano, oldestCreated.String); err == nil {
+			ageSec := int64(time.Since(t).Seconds())
+			if ageSec < 0 {
+				ageSec = 0
+			}
+			rep.OldestUnackedAgeSeconds = ageSec
+		}
+	}
+
+	// Subscribers active (count projection_cursor rows for any running dispatcher).
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM projection_cursor`).Scan(&rep.SubscribersActive); err != nil {
+		rep.SubscribersActive = 0
+	}
+
+	// Warn if oldest unacked age > 5 minutes (stuck dispatcher heuristic).
+	if rep.OldestUnackedAgeSeconds > 300 {
+		rep.Warn = true
+	}
+	return rep, nil
+}
+
+// runDoctorEventsSection prints the "Events" section appended by
+// `mem doctor --events`. Output is human-readable AND machine-parseable
+// (the JSON object line at the end lets test assertions grep for it).
+func runDoctorEventsSection(ctx context.Context, database *sql.DB) error {
+	rep, err := CollectEventsHealth(ctx, database)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(strings.Repeat("-", 90))
+	fmt.Println(" [📨 Events / event_runtime Health]")
+	fmt.Printf("  total_events:                %d\n", rep.TotalEvents)
+	fmt.Printf("  unacked_count:               %d\n", rep.UnackedCount)
+	fmt.Printf("  oldest_unacked_age_seconds:  %d\n", rep.OldestUnackedAgeSeconds)
+	fmt.Printf("  subscribers_active:          %d\n", rep.SubscribersActive)
+
+	if rep.Warn {
+		fmt.Printf("  ⚠️  WARN: oldest_unacked_age_seconds (%d) > 300; dispatcher pode estar travado\n",
+			rep.OldestUnackedAgeSeconds)
+	}
+
+	// Machine-readable summary for tests / automation.
+	out, _ := json.Marshal(rep)
+	fmt.Printf("  [json] %s\n", string(out))
+	return nil
+}

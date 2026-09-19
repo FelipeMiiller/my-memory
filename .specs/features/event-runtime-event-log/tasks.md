@@ -434,6 +434,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: T10
 **Reuses**: Existing doctor pattern from `cmd/mem/drift.go` (flag-based conditional checks); existing report format from `internal/drift/`.
 **Requirement**: Success Criterion: "`mem doctor` ganha check opcional `--events` reportando `total_events`, `oldest_unacked_age_seconds`, `subscribers_active`"
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 
