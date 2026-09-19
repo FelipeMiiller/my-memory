@@ -43,7 +43,11 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 		}
 	}
 
-	// 3. Orphan Notes (documentos sem conexões de entrada ou saída)
+	// 3. Orphan Notes (documentos sem conexões de entrada ou saída).
+	// ISSUE-006 (2026-09-18): docs by-design (ADRs, specs, skills, configs, .github)
+	// são excluídos da contagem de órfãos — eles existem para leitura isolada, não
+	// como hubs do grafo. Sem isso, o Health Score fica saturado em ~74/100 só
+	// porque a maioria dos docs do repo é by-design.
 	orphanRows, err := s.db.QueryContext(ctx, `
 		SELECT id, title
 		FROM documents
@@ -51,6 +55,11 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 		  AND id NOT IN (SELECT source_id FROM graph_edges WHERE repository = $1)
 		  AND id NOT IN (SELECT target_id FROM graph_edges WHERE repository = $1)
 		  AND title NOT IN (SELECT target_id FROM graph_edges WHERE repository = $1)
+		  AND (path NOT LIKE '%docs\adr\%' AND path NOT LIKE '%docs/adr/%')
+		  AND (path NOT LIKE '%.specs\%'   AND path NOT LIKE '%.specs/%')
+		  AND (path NOT LIKE '%.agents\skills\%' AND path NOT LIKE '%.agents/skills/%')
+		  AND (path NOT LIKE '%.memory\%'  AND path NOT LIKE '%.memory/%')
+		  AND (path NOT LIKE '%.github\%'  AND path NOT LIKE '%.github/%')
 		ORDER BY title
 	`, repo)
 	if err == nil {

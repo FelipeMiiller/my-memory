@@ -141,12 +141,47 @@ Gate `--strict` liberado: 0 CRITICAL permite uso em CI sem bloqueios falsos.
 
 ---
 
-## ISSUE-006 — Health Score persistentemente baixo (30/100)
+## ISSUE-006 — Health Score persistentemente baixo (74/100)
 - **Severidade:** 🟡 medium (métrica informativa, não bloqueia funcionalidade)
-- **Status:** 🔵 open (consequência de outras issues)
+- **Status:** ✅ resolved (commit pending — ISSUE-010 antecedente já estava zerando dead links)
 - **Achado em:** `mem doctor --db .memory/memory.db` (sessão 2026-09-17)
-- **Contexto:** mesmo após reduções (44 → 8 dead links, +30 edges recuperadas), Health Score permanece em 30/100. Fórmula do score provavelmente pesa notas órfãs (144) que existem por design (ADRs e skills não devem ser linkados ativamente).
-- **Possível correção:** revisar fórmula do Health Score ou categorizar "órfão" como aceitável pra docs leaf.
+- **Contexto:** após ISSUE-010 zerar dead links (74/100), restava um cap de penalty de órfãs em 26 pontos. Análise dos 119 órfãos mostrou que **88% (105/119) são docs by-design** — ADRs, `.specs/*/tasks.md`+`validation.md`, SKILL.md de agents — que existem para leitura isolada, não como hubs do grafo. Fórmula `orphanRatio × 40` (cap 30) foi calibrada pra grafos densos; penaliza estruturalmente este repo.
+- **Root cause:** a query de órfãos em `internal/db/graph.go` (SQLite) e `internal/store/doctor.go` (Postgres) contava TUDO que não tivesse edge — incluindo ADRs (32 órfãos), specs/tasks/validation (64 órfãos), skills (9 órfãos), `.memory/*` (config), `.github/pull_request_template.md`. Fórmula treats-by-design as if fosse signal.
+
+**Resolução (path-prefix, sem ADR — calibração trivial):**
+- Adicionado `path NOT LIKE` filter na query de órfãos dos DO stores (SQLite + Postgres), excluindo buckets by-design:
+  - `docs\adr\` / `docs/adr/` (ADRs)
+  - `.specs\` / `.specs/` (specs, tasks.md, validation.md)
+  - `.agents\skills\` / `.agents/skills/` (SKILL.md)
+  - `.memory\` / `.memory/` (config do vault)
+  - `.github\` / `.github/` (PR templates, workflows .md)
+- Paths cobrem Windows (`\`) e Unix (`/`) pra rodar em CI matrix.
+- Fórmula do score (`orphanRatio × 40`, cap 30) **inalterada** — correção é só no numerador.
+
+**Validação empírica (`mem doctor --db .memory/memory.db`):**
+
+| Métrica | ANTES | DEPOIS | Delta |
+|---|---:|---:|---:|
+| Health Score | 74/100 | **98/100** | **+24** |
+| Dead links | 0 | 0 | 0 |
+| Orphans reportados | 119 | **10** | **-91%** |
+| Self-loops | 0 | 0 | 0 |
+| Desynced chunks | 0 | 0 | 0 |
+
+**10 órfãos restantes (sinal real, não bug):**
+- `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` — arquivos raiz que deveriam linkar entre si
+- `docs/BENCHMARKS.md`, `docs/REFERENCES.md`, `docs/REPOSITORY_BRAIN.md` — concept docs que deveriam ser linkados do `README.md`
+- `.agents/rules/always-{quality-gate,test,update-docs-and-specs-on-pr}.md` — regras de agente que deveriam ser cross-referenciadas com `AGENTS.md`
+
+Decisão consciente: deixar como signal (não adicionar `.agents/rules/` ao exclude) — esses 10 são "should-be-linked" e o doctor deve continuar apontando.
+
+**Commits:**
+- `f51c342` (antecedente): fix(indexer): ISSUE-010 — `documents.title` usa frontmatter.title
+- (pendente): fix(doctor): ISSUE-006 — exclui by-design paths do orphan count (SQLite + Postgres)
+
+**Trade-off aceito:** hardcoded path prefixes são brittle se a estrutura de pastas mudar. Mitigação: comentário ISSUE-006 em ambas as funções de query sinaliza o porquê. Migração futura pra `frontmatter.category` (opção B da ISSUE-006) continua disponível sem retrabalho — basta adicionar `OR (path NOT LIKE ...)` ou trocar o filtro pra `category != 'adr' AND category != 'spec' ...`.
+
+**Lição durável:** métrica "ratio of bad things / total" precisa ter denominador consistente com o universo sendo medido. Quando a maioria do corpus é by-design, o ratio captura a estrutura do repo, não a saúde. Salva em agent memory (`MEMORY.md`, regra sobre "ratio metrics: filter numerator and denominator consistently").
 
 ---
 
