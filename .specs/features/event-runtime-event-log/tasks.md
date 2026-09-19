@@ -190,6 +190,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: T2, T3
 **Reuses**: `Log.Append` from T3; existing error wrapping pattern (`fmt.Errorf("...: %w", err)`) used throughout `internal/compiler/`.
 **Requirement**: EVT-08, EVT-09, EVT-10
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 
