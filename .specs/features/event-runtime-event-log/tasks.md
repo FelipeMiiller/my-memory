@@ -156,6 +156,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: T1, T2
 **Reuses**: Existing DB connection pattern from `internal/db/store.go` (`*sql.DB` or `*sql.Tx`); existing test setup pattern from `internal/db/store_test.go` (in-memory SQLite via `sql.Open("sqlite3", ":memory:")`).
 **Requirement**: EVT-01 (write path), EVT-07 (tx-respecting API)
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 
