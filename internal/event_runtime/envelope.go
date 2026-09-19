@@ -87,6 +87,7 @@ type Envelope struct {
 	ConversationID string          `json:"conversation_id,omitempty"`
 	AggregateID    string          `json:"aggregate_id"`
 	Epoch          int             `json:"epoch,omitempty"`
+	Revision       int             `json:"revision,omitempty"`
 	Sequence       int64           `json:"sequence,omitempty"`
 	CorrelationID  string          `json:"correlation_id,omitempty"`
 	CausationID    string          `json:"causation_id,omitempty"`
