@@ -128,6 +128,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: None
 **Reuses**: Go stdlib `encoding/json`; existing project pattern of package-level types with co-located `_test.go` (see `internal/compiler/note.go`).
 **Requirement**: EVT-02, EVT-03, EVT-04, EVT-05, EVT-06
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 
