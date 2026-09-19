@@ -217,6 +217,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: T4
 **Reuses**: Test helpers from T3; existing transaction patterns from `internal/db/store_test.go`.
 **Requirement**: EVT-10 (atomicidade), EVT-12 (idempotência por event_id)
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 
