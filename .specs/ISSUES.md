@@ -187,10 +187,19 @@ Decisão consciente: deixar como signal (não adicionar `.agents/rules/` ao excl
 
 ## ISSUE-007 — 18 .md files em `node_modules/playwright-core/` desnecessários no repo
 - **Severidade:** 🟢 low (artefatos de Playwright instalados pra validação visual)
-- **Status:** ⏸️ deferred (já existem no `.gitignore` para novas instalações)
+- **Status:** ✅ resolved (workaround aplicado + convenção documentada)
 - **Achado em:** debug do fuzzy resolver (sessão 2026-09-17)
 - **Contexto:** `node_modules/playwright-core/lib/tools/skills/playwright-*/SKILL.md` e similares foram instalados durante a sessão post-release-v1.3.0-bugfixes para visual validation, mas o conteúdo é do próprio Playwright (não do my-memory).
-- **Workaround:** já estão excluídos do `.gitignore`. Futuras instalações do Playwright devem usar `npm install --no-save`.
+- **Resolução (workaround, sem ADR — bug trivial):**
+  - `.gitignore` já exclui `node_modules/` por padrão (entry raiz ou via `**/node_modules/`).
+  - Convenção: futuras instalações Playwright usam `npm install --no-save` (evita persistir deps).
+  - Verificação: `git ls-files | grep -i playwright-core | wc -l` → **0** (nenhum SKILL.md do Playwright commitado).
+
+**Validação empírica:**
+```bash
+git ls-files | Select-String "playwright-core.*SKILL\.md"
+# (no output)
+```
 
 ## ISSUE-009 — Indexer gera dead links sistemicamente: tag values viram graph nodes
 - **Severidade:** 🟡 medium (cosmético mas recorrente — cada novo doc com tags genéricos adiciona dead links)
