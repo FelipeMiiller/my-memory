@@ -101,6 +101,98 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
 
 ---
 
+### 1.7. [Always-on Memory Agent](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/agents/always-on-memory-agent) (`GoogleCloudPlatform/generative-ai`)
+* **Autor / Organização:** Shubhamsaboo / Google Cloud Platform (Gemini Enterprise Agent Platform samples)
+* **O que é:** Agente Python sempre ativo que vigia uma pasta `inbox/` para ingestão automática de arquivos (text, images, audio, video, PDFs), consolida periodicamente (default 30 min) e serve um **QueryAgent** que sintetiza respostas com citações explícitas `[Memory N]` via HTTP REST API (`localhost:8888`) + Streamlit dashboard. Usa Google ADK + Gemini 3.1 Flash-Lite e SQLite para persistência.
+* **Pontos de inspiração para o My-Memory (atualizado 2026-09-19):**
+  1. **Loop de Consolidação Periódica:**
+     - Polling de 30 min no GCP Agent é o oposto do que queremos (event_runtime ADR-043 é reativo via outbox + dispatcher). Porém o **padrão** de consolidação agendada — resumir/Sintetizar periodicamente, persistir o resumo com proveniência, e oferecer via query — deve existir como **drift watcher + consolidator** no my-memory. Pode virar ADR-046 Proposed após ADR-044.
+  2. **Citation Layer Explícita na Resposta:**
+     - O QueryAgent do GCP cita `[Memory 2]`, `[Memory 3]` na resposta. Hoje o my-memory tem `documents`/`chunks` com `source_document` mas a camada de apresentação que cita `[Doc 042]` (ou `[memory://repo/doc]`) na resposta do agente ainda não existe. Pode entrar no ModelProvider (ADR-047 planejado) ou virar ADR-051 explícito.
+  3. **HTTP REST Paralelo ao MCP:**
+     - O endpoint `GET /query?q=...` do GCP Agent é mais discoverable que MCP pra humanos testando com `curl`. Quando o MCP HTTP (ADR-021) for público, vale oferecer endpoint REST complementar (`mem serve --http` em `:8888`) com `/health`, `/query`, `/ingest` — mantendo MCP como transporte preferido pra agentes.
+  4. **Inbox Watcher Multi-formato:**
+     - O watcher de `inbox/` com auto-ingest (text, image, audio, video, PDF) é uma UX forte. O `internal/watcher/` do my-memory (ADR-017) já cobre `.md` — estender para `.txt`, `.pdf`, `.png`, `.mp3` no F2 (voz) é caminho natural.
+  5. **Streaming Dashboard:**
+     - Streamlit em `:8501` mostra ingest/query/delete em tempo real. O viewer Vite (ADR-037) cobre o caso geral; pode-se adicionar um **timeline feed live** (via Server-Sent Events sobre `/events`) que empurra novos envelopes conforme o event_runtime os comita — equivalente funcional sem Streamlit.
+
+---
+
+### 1.8. [Roadmap Autoral F0-F5](file:///./adr/043-envelope-de-eventos-canonico-event-runtime.md) — Referências por Camada
+
+A pesquisa autoral de 2026-09-18 (`pesquisa-infraestrutura-autoral-mymemory.md`) definiu F0-F5 como roadmap pós-v1.4.0 e citou dezenas de projetos externos como inspiração por camada. Esta entry agrega essas referências agrupadas por fase/camada, com breve nota sobre o que cada uma contribuiu. **Para acompanhar o estado de evolução destes projetos, marque esta entry como referência viva — quando algum deles lançar release relevante, vale reler a pesquisa e revisar se o my-memory precisa atualizar contratos.**
+
+#### F0-F1 — Fundação (`mymemoryd`, `event_runtime`, writer atômico)
+
+*Sem referências externas significativas.* ADR-043 explicitamente rejeitou NATS JetStream, Redis Streams, ZeroMQ e CRDT libraries em favor de in-process Go + SQLite WAL (single-node MVP). A decisão de in-process está consolidada em ADR-043 §3.9.
+
+#### F2 — Voz (capture, VAD, wake word, ASR, TTS)
+
+| Projeto | URL | Contribuição |
+|---|---|---|
+| Wyoming | [`OHF-Voice/wyoming`](https://github.com/OHF-Voice/wyoming) | Framing binário JSON + payload; separação serviço de áudio vs processamento; capabilities negotiation. **Não usar** em rede aberta (sem auth/cripto por design). |
+| Home Assistant voice pipelines | [`developers.home-assistant.io/docs/voice/pipelines`](https://developers.home-assistant.io/docs/voice/pipelines/) | Máquina de estados explícita: `start_stage`/`end_stage`, VAD no dispositivo, streaming WebSocket, barge-in, eventos de erro. |
+| OpenAI Realtime API | [`developers.openai.com/api/docs/guides/realtime`](https://developers.openai.com/api/docs/guides/realtime) | Full-duplex sessionful, VAD server-side, barge-in, resumption, compressão de contexto. **Referência proprietária** — não incorporada. |
+| Gemini Live API | [`ai.google.dev/gemini-api/docs/live-api`](https://ai.google.dev/gemini-api/docs/live-api) | Similar ao OpenAI Realtime. **Referência proprietária** — não incorporada. |
+| openWakeWord | [`dscripka/openWakeWord`](https://github.com/dscripka/openWakeWord) | PCM mono 16 kHz, scores por frame, threshold calibrável, segundo verificador. Cuidado: modelos pré-treinados CC BY-NC-SA 4.0. |
+| Porcupine | [`Picovoice/porcupine`](https://github.com/Picovoice/porcupine) | Engine multiplataforma leve, registry de modelos, sensibilidade calibrável. **Exige AccessKey** — não é Apache. |
+| Whisper.cpp | [`ggml-org/whisper.cpp`](https://github.com/ggml-org/whisper.cpp) | Backend local C/C++/GGML, quantização CPU/GPU, multilíngue. **ADR-046 planejado** (F2) avalia como backend primário. |
+| faster-whisper | [`SYSTRAN/faster-whisper`](https://github.com/SYSTRAN/faster-whisper) | CTranslate2 worker, INT8/FP16, batching — alta qualidade mas sem streaming nativo. |
+| Vosk | [`alphacep/vosk-api`](https://github.com/alphacep/vosk-api) | Streaming stateful, vocabulário customizável, bindings Go. |
+| sherpa-onnx | [`k2-fsa/sherpa-onnx`](https://github.com/k2-fsa/sherpa-onnx) | ASR online + endpointing + WebSocket, encoder/decoder/joiner. Bom candidato a sidecar Python. |
+| Piper | [`OHF-Voice/piper1-gpl`](https://github.com/OHF-Voice/piper1-gpl) | TTS local enxuto, vozes `pt_BR` e `pt_PT`. **GPL-3.0 + licença por voz** — verificar antes de embedder. |
+| Kokoro | [`hexgrad/kokoro`](https://github.com/hexgrad/kokoro) | Open-weight 82M params, vozes brasileiras `pf_dora`, `pm_alex`, `pm_santa`. Qualidade depende do G2P. |
+| Coqui XTTS-v2 | [`docs.coqui.ai/en/latest/models/xtts.html`](https://docs.coqui.ai/en/latest/models/xtts.html) | Clonagem de voz, streaming manual. **CPML — uso não-comercial** — não embedder sem licença compatível. |
+
+#### F3 — Agente runtime (loop, tools, policy, approval)
+
+| Projeto | URL | Contribuição |
+|---|---|---|
+| llama.cpp | [`ggml-org/llama.cpp`](https://github.com/ggml-org/llama.cpp) | GGUF, mmap, quantização, streaming, tool calling via template/parser. **ADR-047 ModelProvider** planejado suporta. |
+| Ollama | [`ollama/ollama`](https://github.com/ollama/ollama) | Lifecycle de modelos, API local, tools, JSON Schema. **Não usar como dependência obrigatória** (research autoral §6 rejeita explicitamente). |
+| vLLM | [`vllm-project/vllm`](https://github.com/vllm-project/vllm) | PagedAttention, continuous batching, prefix cache, structured outputs. Foco GPU/Linux. |
+| MLX-LM | [`ml-explore/mlx-lm`](https://github.com/ml-explore/mlx-lm) | Memória unificada Apple Silicon. Structured output precisa validação por versão. |
+| LangGraph | [`langchain-ai/langgraph`](https://github.com/langchain-ai/langgraph) | StateGraph, nodes, edges, reducers, checkpointers, `interrupt/resume`. **Pattern forte** de checkpoint antes de approval. |
+| PydanticAI | [`pydantic/pydantic-ai`](https://github.com/pydantic/pydantic-ai) | Agentes tipados, dependencies, output validation, deferred tools. |
+| smolagents | [`huggingface/smolagents`](https://github.com/huggingface/smolagents) | ReAct, ToolCallingAgent, CodeAgent. **Cuidado**: execução de Python gerado não é sandbox. |
+| pi-mono | [`badlogic/pi-mono`](https://github.com/badlogic/pi-mono) | Eventos de execução serializáveis, tool hooks, RPC JSONL — inspirador pro CLI/viewer do my-memory. |
+
+#### Memória de Longo Prazo (referências conceituais)
+
+| Projeto | URL | Contribuição |
+|---|---|---|
+| A-MEM | [`agiresearch/a-mem`](https://github.com/agiresearch/a-mem) | Notas atômicas + keywords + tags + descrições contextuais + embeddings + links candidatos. |
+| Graphiti | [`getzep/graphiti`](https://github.com/getzep/graphiti) | Grafos temporais com `event_time`/`recorded_at`, validade, invalidação não destrutiva, comunidades. |
+| Hindsight | [`vectorize-io/hindsight`](https://github.com/vectorize-io/hindsight) | Separa `retain`/`recall`/`reflect`, vetor + BM25 + grafo temporal, observações com citações e `proof_count`. |
+| Cognee | [`topoteretes/cognee`](https://github.com/topoteretes/cognee) | DataPoints, sessões, `remember`/`recall`/`improve`, datasets, ontologias, permissões. |
+| LlamaIndex | [`run-llama/llama_index`](https://github.com/run-llama/llama_index) | Memory blocks, flush por orçamento, prioridades. |
+
+#### Barramento / Event Streaming (deferred F5)
+
+| Projeto | URL | Contribuição |
+|---|---|---|
+| NATS JetStream | [`docs.nats.io/concepts/jetstream`](https://docs.nats.io/concepts/jetstream) | Subjects, queue groups, ACK, replay, redelivery, pull consumers. **ADR-043 §3.9** rejeita pra MVP. |
+| ZeroMQ | [`zeromq.org/socket-api/`](https://zeromq.org/socket-api/) | IPC brokerless, `inproc`/IPC/TCP, pub-sub, pipeline. **Não fornece cursor/ACK** — teria que construir. |
+| Redis Streams | [`redis.io/docs/latest/develop/data-types/streams/`](https://redis.io/docs/latest/develop/data-types/streams/) | IDs, grupos, PEL, `XACK`, `XAUTOCLAIM`. **Cuidado**: licença SSPL desde Redis 7.4. |
+
+#### Threat Model e Segurança (ADR-050 transversal)
+
+| Projeto | URL | Contribuição |
+|---|---|---|
+| OWASP LLM Top 10 | [`genai.owasp.org/llm-top-10/`](https://genai.owasp.org/llm-top-10/) | LLM01-LLM10 — prompt injection, info disclosure, supply chain, data poisoning, output handling, excessive agency, system prompt leakage, vector weaknesses, misinformation, unbounded consumption. **ADR-050** mapeia esses vetores pra controles no mymemoryd. |
+| NVIDIA garak | [`NVIDIA/garak`](https://github.com/NVIDIA/garak) | Scanner externo de LLM vulnerability (probes, detectors, relatórios JSONL). **Não incorporar como runtime** — usar em staging/F5. |
+
+#### Viewer / Canvas / Protocolo
+
+| Projeto | URL | Contribuição |
+|---|---|---|
+| Model Context Protocol | [`modelcontextprotocol.io/specification`](https://modelcontextprotocol.io/specification) | Contratos de interoperabilidade: resources, tools, prompts. **ADR-006, ADR-021, ADR-043** já usam; **ADR-048 planejado** (MCP server autoral). |
+| BlockSuite | [`toeverything/blocksuite`](https://github.com/toeverything/blocksuite) | Blocos ricos, canvas edgeless, Yjs/CRDT, snapshots. Avaliar licenças por package. |
+| tldraw | [`tldraw/tldraw`](https://github.com/tldraw/tldraw) | Shapes tipados, store reativo, snapshots, migrações. Licença source-available — incorporar requer decisão comercial. |
+| Obsidian Vault API | [`docs.obsidian.md/Plugins/Vault`](https://docs.obsidian.md/Plugins/Vault) | Edição atômica, MetadataCache, backlinks. **ADR-008, ADR-037** usam. |
+
+---
+
 ## 🚀 2. Matriz de Refinamento Arquitetural para o My-Memory
 
 | Capacidade | Estado Inicial do My-Memory | Refinamento Inspirado | Projeto Referência |
@@ -122,6 +214,12 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
 | **Governança de Schema** | Validação informal | **Gates Determinísticos e Validação OKF** (`mem doctor --strict` / `mem lint`) | `sergio-sisternes-epam/atlas` |
 | **Federação Multi-Vault** | Isolamento por repositório local | **Protocolo Canônico Federado (`memory://`)** e Topologia Hub & Spoke | `sergio-sisternes-epam/atlas` & OKF v0.2 |
 | **Higiene de Memórias** | Escrita direta no cofre | **Ciclo de Vida Staging → Promote** para notas geradas por agentes | `sergio-sisternes-epam/atlas` |
+| **Consolidação Periódica** | `mem index` sob demanda | **Drift Watcher + Consolidator Agendado** (resumos periódicos com proveniência, persistidos como eventos) | `GoogleCloudPlatform/generative-ai` (Always-on Memory Agent) |
+| **Citation Layer** | Sem citação explícita na resposta | **Citação `[Doc 042]` / `[memory://repo/doc]` na resposta do agente** | `GoogleCloudPlatform/generative-ai` (QueryAgent cita `[Memory N]`) |
+| **HTTP REST Paralelo** | MCP stdio (ADR-021) | **`mem serve --http :8888` complementar** com `/health`, `/query`, `/ingest` | `GoogleCloudPlatform/generative-ai` (REST :8888 + Streamlit) |
+| **Inbox Watcher Multi-formato** | Só `.md` via `internal/watcher/` | **Watcher estendido para `.txt`, `.pdf`, `.png`, `.mp3`** (F2 voz) | `GoogleCloudPlatform/generative-ai` & ADR-017 |
+| **Event Bus/Outbox (F0)** | Sem barramento interno | **Envelope canônico + outbox transacional + replay nativo** (ADR-043) | `nats-io/nats-server`, `zeromq`, `redis/redis` (rejeitados p/ MVP — ver ADR-043 §3.9) |
+| **Threat Model LLM (F5 transversal)** | Sem threat model | **Mapeamento OWASP LLM01-LLM10 → controles no mymemoryd** (ADR-050) | `OWASP LLM Top 10 2026` + `NVIDIA/garak` (scanner externo) |
 
 ← [[README]] · [[COMO_FUNCIONA]]
 
