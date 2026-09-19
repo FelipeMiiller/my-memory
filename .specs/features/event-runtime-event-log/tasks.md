@@ -402,6 +402,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: T10
 **Reuses**: Existing CLI test pattern from `cmd/mem/note_test.go` (exec `mem` binary via `os/exec` against a temp DB).
 **Requirement**: EVT-14..EVT-20 (all CLI ACs)
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 

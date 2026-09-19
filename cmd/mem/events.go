@@ -110,7 +110,7 @@ func runEventsTail(ctx context.Context, database *sql.DB, args []string) error {
 	}
 
 	query := `SELECT sequence, event_id, event_type, aggregate_id, schema_version, revision,
-	                 actor, payload, created_at, acked_at
+	                 json_extract(payload, '$.actor') AS actor, payload, created_at, acked_at
 	          FROM event_log
 	          WHERE 1=1`
 	args2 := []interface{}{}
@@ -145,13 +145,17 @@ func runEventsTail(ctx context.Context, database *sql.DB, args []string) error {
 		var r rowSummary
 		var ackedAt sql.NullString
 		var revision sql.NullInt64
+		var actor sql.NullString
 		if err := rows.Scan(&r.Sequence, &r.EventID, &r.EventType, &r.AggregateID,
-			&r.SchemaVersion, &revision, &r.Actor, &r.PayloadPreview,
+			&r.SchemaVersion, &revision, &actor, &r.PayloadPreview,
 			&r.CreatedAt, &ackedAt); err != nil {
 			return fmt.Errorf("scan: %w", err)
 		}
 		if revision.Valid {
 			r.Revision = int(revision.Int64)
+		}
+		if actor.Valid {
+			r.Actor = actor.String
 		}
 		if ackedAt.Valid {
 			r.AckedAt = ackedAt.String
@@ -190,14 +194,14 @@ func runEventsInspect(ctx context.Context, database *sql.DB, args []string) erro
 
 	row := database.QueryRowContext(ctx,
 		`SELECT sequence, event_id, event_type, aggregate_id, schema_version, revision,
-		        actor, payload, headers, created_at, acked_at
+		        json_extract(payload, '$.actor') AS actor, payload, headers, created_at, acked_at
 		 FROM event_log WHERE event_id = ?`, eventID)
 
 	var (
 		seq, revision                        sql.NullInt64
 		eventType, aggID                     string
 		schemaV                              int
-		actor, payloadB, headersB, createdAt string
+		actor, payloadB, headersB, createdAt sql.NullString
 		ackedAt                              sql.NullString
 	)
 	if err := row.Scan(&seq, &eventID, &eventType, &aggID, &schemaV, &revision,
@@ -215,11 +219,11 @@ func runEventsInspect(ctx context.Context, database *sql.DB, args []string) erro
 		"event_type":     eventType,
 		"aggregate_id":   aggID,
 		"schema_version": schemaV,
-		"actor":          actor,
-		"created_at":     createdAt,
+		"actor":          nullStringToString(actor),
+		"created_at":     nullStringToString(createdAt),
 		"acked_at":       nullStringToString(ackedAt),
-		"headers":        json.RawMessage(headersB),
-		"payload":        json.RawMessage(payloadB),
+		"headers":        json.RawMessage(nullStringToString(payloadB)),
+		"payload":        json.RawMessage(nullStringToString(payloadB)),
 	}
 	if revision.Valid {
 		env["revision"] = int(revision.Int64)
@@ -330,7 +334,9 @@ func runEventsTrace(ctx context.Context, database *sql.DB, args []string) error 
 	correlationID := args[0]
 
 	rows, err := database.QueryContext(ctx,
-		`SELECT sequence, event_id, event_type, aggregate_id, actor, causation_id
+		`SELECT sequence, event_id, event_type, aggregate_id,
+		        json_extract(payload, '$.actor') AS actor,
+		        json_extract(payload, '$.causation_id') AS causation_id
 		 FROM event_log
 		 WHERE json_extract(payload, '$.correlation_id') = ?
 		 ORDER BY sequence ASC`, correlationID)
