@@ -8,7 +8,7 @@
 | EARS-2 | Stub frontmatter `title` = filename slug exato | ✅ Validado (`architecture.md` ↔ `title: "architecture"`) |
 | EARS-3 | Migration doc com decision matrix (≥3, 1-2, ambiguidade) | ✅ `docs/REPOSITORY_BRAIN.md` seção "🌱 Concept Stubs" |
 | EARS-4 | `mem doctor` reporta órfãos = tags sem casa ≥3 docs | ✅ Coberto: lista de órfãos = candidates, auditada via SQL (1 tag em ≥3 = `architecture`) |
-| EARS-5 | Pós-stub, `mem doctor` Health Score ≥ 98/100 | ✅ **98/100 mantido** (sem regressão) |
+| EARS-5 | Pós-stub, `mem doctor` Health Score ≥ 98/100 | ✅ **100/100** (superou meta; órfãos subsequentes resolvidos via wikilink cross-links) |
 
 ## Evidência E2E (sessão 2026-09-18)
 
@@ -42,7 +42,7 @@
 | Chunks | 1022 | **1048** | +26 |
 | Arestas | 35 | **58** | **+23** |
 | Nós | 211 | **225** | +14 |
-| Health Score | 98/100 | **98/100** | 0 |
+| Health Score | 98/100 | **100/100** | +2 (orphan cleanup follow-up) |
 | Dead links | 0 | 0 | 0 |
 | Orphans | 10 | **9** | **-1** |
 | Edges `tagged_as(_, "architecture")` | 0 (tag órfã) | **5** | **+5** |
