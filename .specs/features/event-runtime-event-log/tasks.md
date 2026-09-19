@@ -272,6 +272,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: T3, T6
 **Reuses**: `Log` from T3; existing goroutine pattern from `internal/watcher/` (fsnotify-based watcher has cancel + drain logic).
 **Requirement**: EVT-11, EVT-15, EVT-16, EVT-17, EVT-18, EVT-19
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 

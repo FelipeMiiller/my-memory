@@ -97,6 +97,14 @@ func (l *Log) LastSequence(ctx context.Context) (int64, error) {
 // ReadUnacked returns up to `limit` envelopes that have not yet been acked
 // for the given subscriber, ordered by sequence ASC. The cursor lookup uses
 // projection_cursor.last_sequence; a missing cursor means "from the start".
+//
+// Fan-out semantics (T7): an envelope is considered "pending" for a
+// subscriber if the subscriber's cursor is behind the envelope's sequence
+// AND the envelope has not been permanently rejected by ANY subscriber
+// (acked_at column embedded with a reason like "unsupported_schema" or
+// "pattern_mismatch"). Successful delivery does NOT set acked_at — only the
+// per-subscriber cursor advances — so multiple subscribers receive the
+// same envelope (one delivery per subscriber, exactly-once per subscriber).
 func (l *Log) ReadUnacked(ctx context.Context, subscriberName string, limit int) ([]Envelope, error) {
 	if subscriberName == "" {
 		return nil, fmt.Errorf("%w: subscriber name is empty", ErrInvalidEnvelope)
@@ -110,8 +118,8 @@ func (l *Log) ReadUnacked(ctx context.Context, subscriberName string, limit int)
 		FROM event_log e
 		LEFT JOIN projection_cursor c
 		  ON c.projection_name = ?
-		WHERE e.acked_at IS NULL
-		  AND (c.last_sequence IS NULL OR e.sequence > c.last_sequence)
+		WHERE (c.last_sequence IS NULL OR e.sequence > c.last_sequence)
+		  AND (e.acked_at IS NULL OR e.acked_at NOT LIKE '%|%')
 		ORDER BY e.sequence ASC
 		LIMIT ?
 	`, subscriberName, limit)

@@ -16,9 +16,11 @@ package event_runtime
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // ErrNilSubscriber is returned by RegisterDispatcher when the caller passes
@@ -75,32 +77,46 @@ type Subscriber interface {
 
 // Dispatcher is the fan-out engine that reads from the event_log and
 // delivers envelopes to every registered Subscriber whose EventTypes()
-// match the envelope's event_type. T6 only defines the registry;
-// T7 fills in the worker goroutines, ACK/NACK protocol, retry, panic
-// recovery and graceful stop.
+// match the envelope's event_type. T6 defined the registry; T7 added the
+// engine fields below.
 //
 // Field semantics:
-//   - subs:    named subscribers registered via RegisterDispatcher.
-//   - pattern: pattern-keyed subscriptions registered via Subscribe (T7).
-//   - stopCh:  closed by Stop() to signal worker goroutines to drain.
-//   - mu:      guards subs and pattern; use RLock for read paths.
+//   - subs:        named subscribers registered via RegisterDispatcher.
+//   - pattern:     pattern-keyed subscriptions registered via Subscribe.
+//   - subStates:   per-subscriber delivery state (cancel func, done chan,
+//     in-flight counter, retry counts).
+//   - stopCh:      closed by Stop() to signal worker goroutines to drain.
+//   - started:     true after Start has spawned workers.
+//   - stopped:     true after Stop has run (Start is rejected after this).
+//   - db, log:     wired by Attach before Start; nil until then.
+//   - pollInterval: how often idle workers re-check the event_log.
+//   - gracePeriod:  how long Stop waits for in-flight handlers.
+//   - mu:           guards every field above; use RLock for read paths.
 //
-// The zero value is NOT ready — callers must use NewDispatcher.
+// The zero value is NOT ready — callers must use NewDispatcher + Attach + Start.
 type Dispatcher struct {
-	mu      sync.RWMutex
-	subs    map[string]Subscriber
-	pattern map[string]*Subscription
-	stopCh  chan struct{}
-	stopped bool
+	mu           sync.RWMutex
+	subs         map[string]Subscriber
+	pattern      map[string]*Subscription
+	subStates    map[string]*subState
+	stopCh       chan struct{}
+	started      bool
+	stopped      bool
+	db           *sql.DB
+	log          *Log
+	pollInterval time.Duration
+	gracePeriod  time.Duration
+	wg           sync.WaitGroup
 }
 
 // NewDispatcher constructs an empty dispatcher. T7 wires the DB/Log
 // handles and the poll interval when Start is called.
 func NewDispatcher() *Dispatcher {
 	return &Dispatcher{
-		subs:    make(map[string]Subscriber),
-		pattern: make(map[string]*Subscription),
-		stopCh:  make(chan struct{}),
+		subs:      make(map[string]Subscriber),
+		pattern:   make(map[string]*Subscription),
+		subStates: make(map[string]*subState),
+		stopCh:    make(chan struct{}),
 	}
 }
 
