@@ -337,6 +337,7 @@ Total: **12 tasks across 4 phases**. Fits a single batch (~7 tasks/budget) when 
 **Depends on**: T6, T7, T8
 **Reuses**: `Redact` from T8; existing JSONL write pattern from `internal/compiler/` (atomic write via tmp + rename).
 **Requirement**: EVT-12 (audit persisted), EVT-13 (PII redaction applied)
+**Status**: Verified (2026-09-19)
 
 **Tools**:
 
