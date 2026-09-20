@@ -1,8 +1,9 @@
 # ADR-044: Memory Writer Atômico, Outbox e Reprojeção Idempotente
 
 - **Date**: 2026-09-19
-- **Status**: Proposed
+- **Status**: Accepted (2026-09-20)
 - **Deciders**: Felipe Miiller, Mavis (orchestrator)
+- **Implementation**: 11/11 tasks verified — see [`.specs/features/memory-writer-atomic/validation.md`](../../.specs/features/memory-writer-atomic/validation.md). Commits `4e0759a..25133d6` (T1-T11) + validation `2f0499c`. 20/22 WRTR ACs PASS, 2/22 WARN (D3 deferral tracked).
 - **Tags**: writer, atomicity, outbox, idempotency, projection, markdown, crash-safety
 
 ## Context and Problem Statement
