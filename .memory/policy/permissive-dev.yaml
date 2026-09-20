@@ -1,0 +1,9 @@
+# ADR-050 permissive-dev profile — every write is allowed. Use ONLY in
+# development / CI / sandbox environments. Production deployments
+# MUST use `strict` or `balanced`.
+schema_version: 1
+default_owner: user:owner
+vault_scope: ""
+rules:
+  - match_actor: "*"
+    decision: allow

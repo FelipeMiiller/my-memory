@@ -1,0 +1,14 @@
+# ADR-050 strict profile — every non-owner actor must obtain approval
+# before any write. Use in production or any vault with regulated data.
+schema_version: 1
+default_owner: user:owner
+vault_scope: ""
+rules:
+  - match_actor: user:owner
+    decision: allow
+  - match_actor: system:*
+    decision: allow
+  # catch-all: everything else (agents, integrations, automation)
+  # must request explicit approval.
+  - match_actor: "*"
+    decision: require_approval

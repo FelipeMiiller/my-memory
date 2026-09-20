@@ -1,0 +1,16 @@
+# ADR-050 balanced profile (default) — owner + system actors write
+# freely; agents require approval when writing outside the configured
+# vault scope. Use when an AI agent is in the loop but the human
+# owner still drives most writes.
+schema_version: 1
+default_owner: user:owner
+vault_scope: ""
+rules:
+  - match_actor: user:owner
+    decision: allow
+  - match_actor: system:*
+    decision: allow
+  # External / agent actors: require explicit approval so the owner
+  # can review before the write lands.
+  - match_actor: "*"
+    decision: require_approval
