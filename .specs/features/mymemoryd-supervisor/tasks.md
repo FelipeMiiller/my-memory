@@ -93,19 +93,19 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 in
 **Depends on**: None
 **Reuses**: Existing CLI entrypoint pattern from `cmd/mem/main.go`; existing PID handling from `os.Getpid()`.
 **Requirement**: SUPR-01, SUPR-06
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `mymemoryd` binary reads `--profile <name>` flag (default `default`)
-- [ ] On startup: checks `.memory/supervisor.lock`, refuses if fresh + PID alive, removes if stale
-- [ ] Writes lock with `{pid, started_at}` JSON on successful start
-- [ ] Removes lock on graceful shutdown (SIGTERM/SIGINT)
-- [ ] Exits with code 2 on `ErrInvalidProfile` (fail-closed)
-- [ ] Test `TestLock_StaleRemoved`: create lock with old timestamp + dead PID → new start removes and proceeds
-- [ ] Test `TestLock_FreshBlocks`: create lock with alive PID → new start returns `ErrAlreadyRunning`
+- [x] `mymemoryd` binary reads `--profile <name>` flag (default `default`)
+- [x] On startup: checks `.memory/supervisor.lock`, refuses if fresh + PID alive, removes if stale
+- [x] Writes lock with `{pid, started_at}` JSON on successful start
+- [x] Removes lock on graceful shutdown (SIGTERM/SIGINT)
+- [x] Exits with code 2 on `ErrInvalidProfile` (fail-closed)
+- [x] Test `TestLock_StaleRemoved`: create lock with old timestamp + dead PID → new start removes and proceeds
+- [x] Test `TestLock_FreshBlocks`: create lock with alive PID → new start returns `ErrAlreadyRunning`
 
 **Tests**: integration
 **Gate**: full
