@@ -252,8 +252,8 @@ A seção sai do estado deferred **somente** quando **uma** das condições abai
 ### Como promover (quando um gatilho dispara)
 
 1. Abrir issue rastreável no GitHub referenciando este ADR e o gatilho que disparou.
-2. Criar ADR-046 "ASR Python Sidecar Fallback" com análise do provider específico escolhido (Whisper.cpp? sherpa-onnx?), estimativa de esforço, e trade-offs de licença/tamanho.
-3. Atualizar este ADR-045 movendo a subseção "Status" abaixo de **Deferred (→ ADR-046)** para **Promoted** com link cruzado.
+2. Criar **ADR-047** "ASR Python Sidecar Fallback" (slot reservado, usando a metodologia do [ADR-046](046-deferred-until-padrao-para-fallbacks-opcionais-em-adrs.md)) com análise do provider específico escolhido (Whisper.cpp? sherpa-onnx?), estimativa de esforço, e trade-offs de licença/tamanho.
+3. Atualizar este ADR-045 movendo a subseção "Status" abaixo de **Deferred (→ ADR-047)** para **Promoted** com link cruzado.
 4. Implementar a promotion via spec `tlc-spec-driven` (`spec.md` → `tasks.md` → execução em batches com quality gate).
 5. Atualizar `docs/REFERENCES.md` entry 1.8 (Voz) com a nova referência.
 
@@ -263,6 +263,7 @@ A seção sai do estado deferred **somente** quando **uma** das condições abai
 - **Gatilhos disparados**: 0
 - **Evidence log**: nenhum ainda
 - **Próxima revisão**: quando F2 (voz) entrar na trilha de implementação ativa (post-Foundation per Trilha D do ADR-036).
+- **Cross-ref metodológico**: estrutura desta seção segue [ADR-046](046-deferred-until-padrao-para-fallbacks-opcionais-em-adrs.md) "Deferred Until: Padrão para Fallbacks Opcionais em ADRs" (first application deste framework).
 
 ## Implementation Plan (futuro, fora do escopo deste ADR)
 
