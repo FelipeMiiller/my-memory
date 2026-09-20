@@ -463,6 +463,66 @@ func TestWrite_OversizeWarningFlag(t *testing.T) {
 	}
 }
 
+func TestWrite_IfMatchRecordedWhenSet(t *testing.T) {
+	db := newWriterDB(t)
+	log := event_runtime.NewLog(db)
+	w := New(db, log)
+	dir := tempDir(t)
+	path := filepath.Join(dir, "foo.md")
+
+	rev0 := int64(0)
+	res := writeOK(t, w, path, []byte("v1"), &rev0)
+
+	// payload.if_match should be present and equal to the value the
+	// caller passed via WriteRequest.ExpectedRevision.
+	var raw []byte
+	if err := db.QueryRow(`SELECT payload FROM event_log WHERE event_id = ?`,
+		res.EventID).Scan(&raw); err != nil {
+		t.Fatalf("payload lookup: %v", err)
+	}
+	var env event_runtime.Envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatalf("envelope unmarshal: %v", err)
+	}
+	var p committedPayload
+	if err := json.Unmarshal(env.Payload, &p); err != nil {
+		t.Fatalf("payload unmarshal: %v", err)
+	}
+	if p.IfMatch == nil || *p.IfMatch != 0 {
+		t.Errorf("payload.IfMatch = %v, want pointer-to-0", p.IfMatch)
+	}
+}
+
+func TestWrite_IfMatchOmittedWhenUnset(t *testing.T) {
+	db := newWriterDB(t)
+	log := event_runtime.NewLog(db)
+	w := New(db, log)
+	dir := tempDir(t)
+	path := filepath.Join(dir, "foo.md")
+
+	// No ExpectedRevision → backward-compat path. payload.IfMatch
+	// must be absent (omitempty) so subscribers can't confuse a
+	// deliberate "no precondition" with a precondition of 0.
+	res := writeOK(t, w, path, []byte("v1"), nil)
+
+	var raw []byte
+	if err := db.QueryRow(`SELECT payload FROM event_log WHERE event_id = ?`,
+		res.EventID).Scan(&raw); err != nil {
+		t.Fatalf("payload lookup: %v", err)
+	}
+	var env event_runtime.Envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatalf("envelope unmarshal: %v", err)
+	}
+	var p committedPayload
+	if err := json.Unmarshal(env.Payload, &p); err != nil {
+		t.Fatalf("payload unmarshal: %v", err)
+	}
+	if p.IfMatch != nil {
+		t.Errorf("payload.IfMatch = %v, want nil (backward-compat path)", p.IfMatch)
+	}
+}
+
 func TestExtractWikilinks(t *testing.T) {
 	cases := []struct {
 		in   string

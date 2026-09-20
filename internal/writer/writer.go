@@ -125,12 +125,19 @@ type WriteResult struct {
 // committedPayload is the JSON body of the memory.committed envelope.
 // Stable field order is part of the wire contract — reordering fields
 // would break subscribers that pattern-match on position.
+//
+// IfMatch carries the HTTP-style metadata header "If-Match:
+// revision=N" so future HTTP transports (ADR-021 MCP HTTP/SSE) can
+// reconstruct precondition semantics from the envelope alone. The
+// pointer-to-int64 matches the WriteRequest.ExpectedRevision shape
+// (nil = no precondition was requested).
 type committedPayload struct {
 	Path        string   `json:"path"`
 	ContentHash string   `json:"content_hash"`
 	SizeBytes   int      `json:"size_bytes"`
 	Anchors     []string `json:"anchors"`
 	Oversize    bool     `json:"oversize,omitempty"`
+	IfMatch     *int64   `json:"if_match,omitempty"`
 }
 
 // Write performs the atomic commit described in ADR-044 §P1 AC 1. The
@@ -225,6 +232,7 @@ func (w *Writer) Write(ctx context.Context, req WriteRequest) (WriteResult, erro
 		SizeBytes:   len(req.Content),
 		Anchors:     extractWikilinks(req.Content),
 		Oversize:    len(req.Content) > WarnWriteBytes,
+		IfMatch:     req.ExpectedRevision,
 	})
 	committedEnv.Provenance = req.Provenance
 
