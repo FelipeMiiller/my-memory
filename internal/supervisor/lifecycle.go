@@ -20,6 +20,8 @@ const (
 	EventWorkerStarted       = "worker.started"
 	EventWorkerStopped       = "worker.stopped"
 	EventWorkerHeartbeatLost = "worker.heartbeat_lost"
+	EventWorkerFailed        = "supervisor.worker_failed"
+	EventWorkerRestarted     = "worker.restarted"
 )
 
 // defaultStopGrace is the SIGTERM → SIGKILL escalation timeout
@@ -151,12 +153,15 @@ const (
 	HealthDead     HealthStatus = "dead"
 )
 
-// watchWorker blocks until the subprocess exits. If it exits with
-// a non-nil error (signal, non-zero code, abnormal exit) OR was
-// not initiated by Stop (expectedExit=false), we emit
-// worker.heartbeat_lost. The active map is updated BEFORE the
-// done channel closes so callers that observe the close see the
-// consistent state.
+// watchWorker blocks until the subprocess exits. If the exit was
+// not initiated by Stop (expectedExit=false) we emit
+// worker.heartbeat_lost AND, if a RestartPolicy is configured,
+// schedule a restart with exponential backoff. After
+// policy.MaxRetries attempts we emit supervisor.worker_failed and
+// stop trying.
+//
+// The active map is updated BEFORE the done channel closes so
+// callers that observe the close see the consistent state.
 func (m *Manager) watchWorker(w *Worker) {
 	err := w.cmd.Wait()
 
@@ -166,20 +171,172 @@ func (m *Manager) watchWorker(w *Worker) {
 
 	close(w.doneCh)
 
-	if !w.expectedExit {
-		reason := "abnormal_exit"
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			reason = fmt.Sprintf("exit_code=%d", exitErr.ExitCode())
-		} else if err != nil {
-			reason = fmt.Sprintf("signal: %v", err)
-		}
-		m.emitEvent(context.Background(), EventWorkerHeartbeatLost, w.ID, map[string]any{
-			"pid":    w.PID,
-			"reason": reason,
-			"ts":     time.Now().UTC().Format(time.RFC3339Nano),
-		})
+	if w.expectedExit {
+		return
 	}
+
+	reason := "abnormal_exit"
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		reason = fmt.Sprintf("exit_code=%d", exitErr.ExitCode())
+	} else if err != nil {
+		reason = fmt.Sprintf("signal: %v", err)
+	}
+	m.emitEvent(context.Background(), EventWorkerHeartbeatLost, w.ID, map[string]any{
+		"pid":           w.PID,
+		"reason":        reason,
+		"restart_count": w.restartCount,
+		"ts":            time.Now().UTC().Format(time.RFC3339Nano),
+	})
+
+	// Restart path: only when a policy is configured AND we
+	// haven't exhausted the retry budget.
+	policy := w.spec.RestartPolicy
+	if policy.MaxRetries <= 0 {
+		return
+	}
+	if w.restartCount >= policy.MaxRetries {
+		w.failed = true
+		m.emitEvent(context.Background(), EventWorkerFailed, w.ID, map[string]any{
+			"pid":         w.PID,
+			"exit_code":   exitCodeOf(err),
+			"retries":     w.restartCount,
+			"max_retries": policy.MaxRetries,
+			"ts":          time.Now().UTC().Format(time.RFC3339Nano),
+		})
+		return
+	}
+
+	delay := computeBackoff(w.restartCount, policy)
+	w.restartCount++
+
+	// Schedule the restart. We use time.AfterFunc so the watcher
+	// goroutine returns immediately and the supervisor can keep
+	// doing useful work. The timer is intentionally NOT cancellable
+	// — once a crash is detected we always honour the backoff so the
+	// worker has time to settle.
+	time.AfterFunc(delay, func() {
+		m.restartWorker(w)
+	})
+}
+
+// restartWorker re-Starts the same worker spec, reusing the
+// existing *Worker struct so restartCount / failed flags persist
+// across attempts. Returns early (without emitting events) when
+// the manager has been shut down — the timer fired after Run()
+// returned.
+func (m *Manager) restartWorker(w *Worker) {
+	// Re-check expectedExit — Stop may have been called while the
+	// backoff timer was pending. If so, leave the worker alone.
+	if w.expectedExit {
+		return
+	}
+
+	// Reset the per-attempt flags. cmd + doneCh must be replaced
+	// because the previous ones are now closed/finished.
+	cmd := exec.Command(w.spec.Command, w.spec.Args...)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	if len(w.spec.Env) > 0 {
+		cmd.Env = append(os.Environ(), w.spec.Env...)
+	}
+
+	if err := cmd.Start(); err != nil {
+		m.emitEvent(context.Background(), EventWorkerFailed, w.ID, map[string]any{
+			"pid":         w.PID,
+			"error":       err.Error(),
+			"retries":     w.restartCount,
+			"max_retries": w.spec.RestartPolicy.MaxRetries,
+			"ts":          time.Now().UTC().Format(time.RFC3339Nano),
+		})
+		w.failed = true
+		return
+	}
+
+	w.cmd = cmd
+	w.PID = cmd.Process.Pid
+	w.expectedExit = false
+	w.doneCh = make(chan struct{})
+	w.lastRestart = time.Now()
+
+	m.mu.Lock()
+	m.active[w.ID] = w
+	m.mu.Unlock()
+
+	m.emitEvent(context.Background(), EventWorkerRestarted, w.ID, map[string]any{
+		"pid":           w.PID,
+		"restart_count": w.restartCount,
+		"ts":            time.Now().UTC().Format(time.RFC3339Nano),
+	})
+
+	go m.watchWorker(w)
+}
+
+// computeBackoff returns the delay before the next restart attempt.
+// Formula: min(maxDelay, baseDelay * 2^n) with ±jitter. Jitter is
+// applied multiplicatively — e.g. jitter=0.2, delay=100ms produces a
+// uniform sample in [80ms, 120ms]. Tests override the RNG via the
+// `rngFn` package var to keep determinism.
+func computeBackoff(attempt int, policy RestartPolicy) time.Duration {
+	if attempt < 0 {
+		attempt = 0
+	}
+	base := policy.BaseDelay
+	if base <= 0 {
+		base = 100 * time.Millisecond
+	}
+	max := policy.MaxDelay
+	if max <= 0 {
+		max = 30 * time.Second
+	}
+	// 2^n grows fast; cap to avoid overflow.
+	shift := uint(attempt)
+	if shift > 30 {
+		shift = 30
+	}
+	delay := base << shift
+	if delay <= 0 || delay > max {
+		delay = max
+	}
+
+	jitter := policy.Jitter
+	if jitter < 0 {
+		jitter = 0
+	}
+	if jitter > 0 {
+		// Sample in [1-jitter, 1+jitter]. rngFn returns [0,1).
+		r := rngFn() - 0.5 // [-0.5, 0.5)
+		delta := float64(delay) * jitter * 2 * r
+		delay += time.Duration(delta)
+		if delay < 0 {
+			delay = 0
+		}
+	}
+	return delay
+}
+
+// exitCodeOf extracts the OS exit code from an exec.Cmd error,
+// returning -1 when the error is nil or doesn't carry a code. Used
+// by the restart bookkeeping so worker_failed payloads carry the
+// same exit_code semantics as heartbeat_lost.
+func exitCodeOf(err error) int {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return -1
+}
+
+// rngFn is the package-level random source used by computeBackoff.
+// Default uses math/rand's Float64; tests override to a fixed seed
+// for deterministic backoff verification.
+var rngFn = func() float64 { return randFloat64() }
+
+// randFloat64 wraps math/rand.Float64 behind a tiny indirection so
+// the import lives in restart_randr.go (separate file) — keeps the
+// hot path in lifecycle.go free of crypto-grade dependencies.
+func randFloat64() float64 {
+	return randFloat64Runtime()
 }
 
 // stopWorker performs the SIGTERM → wait → SIGKILL escalation.

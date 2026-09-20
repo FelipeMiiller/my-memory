@@ -148,18 +148,18 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 in
 **Depends on**: T2
 **Reuses**: `time.AfterFunc` for backoff; existing retry contract from ADR-043 §6.
 **Requirement**: SUPR-02
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `Restart` detects worker exit (channel from `cmd.Wait()`)
-- [ ] Applies backoff: 100ms × 2^n + jitter, capped 30s
-- [ ] After 5 retries: emits `supervisor.worker_failed` event with `worker_id`, `exit_code`, `retries=5`
-- [ ] After 5 retries: stops trying (worker marked `failed`)
-- [ ] Test `TestRestart_ExponentialBackoff`: crash 3 times → 3 restarts with increasing intervals
-- [ ] Test `TestRestart_MaxRetriesThenFailed`: crash 6 times → `worker_failed` event after 5th
+- [x] `Restart` detects worker exit (channel from `cmd.Wait()`)
+- [x] Applies backoff: 100ms × 2^n + jitter, capped 30s
+- [x] After 5 retries: emits `supervisor.worker_failed` event with `worker_id`, `exit_code`, `retries=5`
+- [x] After 5 retries: stops trying (worker marked `failed`)
+- [x] Test `TestRestart_ExponentialBackoff`: crash 3 times → 3 restarts with increasing intervals
+- [x] Test `TestRestart_MaxRetriesThenFailed`: crash 6 times → `worker_failed` event after 5th
 
 **Tests**: integration
 **Gate**: full

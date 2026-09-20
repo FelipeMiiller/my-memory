@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/event_runtime"
 )
@@ -43,21 +44,54 @@ type Manager struct {
 
 // WorkerSpec describes a single worker declared in the active
 // profile. T2 extends the T1 placeholder with Command/Args/Env so
-// the lifecycle hooks can launch the subprocess. Required / Egress
-// / Config land in T4 + T5 with the YAML parser.
+// the lifecycle hooks can launch the subprocess. T3 adds
+// RestartPolicy so crashes trigger automatic restart with
+// exponential backoff. Required / Egress / Config land in T4 + T5
+// with the YAML parser.
 type WorkerSpec struct {
-	Name    string
-	Command string
-	Args    []string
-	Env     []string
+	Name          string
+	Command       string
+	Args          []string
+	Env           []string
+	RestartPolicy RestartPolicy
+}
+
+// RestartPolicy configures automatic restart behavior for a worker.
+// T3 baseline: exponential backoff with jitter (ADR-043 §6 retry
+// contract). MaxRetries=0 disables restart entirely; positive
+// values bound the number of restart attempts before the supervisor
+// emits supervisor.worker_failed and gives up.
+//
+// BaseDelay and MaxDelay are not strict across platforms — the
+// jitter can push individual intervals slightly outside the [base,
+// max] window, which is intentional (thundering-herd avoidance,
+// ADR-043 §6.2).
+type RestartPolicy struct {
+	MaxRetries int
+	BaseDelay  time.Duration
+	MaxDelay   time.Duration
+	Jitter     float64
+}
+
+// DefaultRestartPolicy returns the T3 baseline used when a worker
+// spec omits a policy. Matches ADR-043 §6 defaults.
+func DefaultRestartPolicy() RestartPolicy {
+	return RestartPolicy{
+		MaxRetries: 5,
+		BaseDelay:  100 * time.Millisecond,
+		MaxDelay:   30 * time.Second,
+		Jitter:     0.2,
+	}
 }
 
 // Worker holds the live handle to a started worker subprocess.
 // T2 implements the subprocess plumbing (start, watch, stop).
+// T3 adds restart bookkeeping so the watcher can schedule a
+// restart on unexpected exit.
 //
 // expectedExit is set by Stop() before sending SIGTERM so the
-// watcher can distinguish graceful shutdown (no heartbeat_lost)
-// from a crash (heartbeat_lost emitted).
+// watcher can distinguish graceful shutdown (no heartbeat_lost,
+// no restart) from a crash (heartbeat_lost + restart attempt).
 type Worker struct {
 	ID           string
 	PID          int
@@ -65,6 +99,23 @@ type Worker struct {
 	cmd          *exec.Cmd
 	doneCh       chan struct{}
 	expectedExit bool
+
+	// restartCount tracks how many times this worker has been
+	// auto-restarted since the initial Start(). Persisted across
+	// restarts via the *Worker pointer that watchWorker carries;
+	// if Start() ever re-allocates we lose the count, so the
+	// restart path always reuses the same Worker struct.
+	restartCount int
+
+	// lastRestart is the wall-clock time of the most recent
+	// successful restart attempt. Used by `mem status` and by
+	// tests that want to measure backoff timing.
+	lastRestart time.Time
+
+	// failed is set to true once the restart policy is exhausted;
+	// the watcher emits supervisor.worker_failed exactly once and
+	// stops attempting further restarts.
+	failed bool
 }
 
 // NewManager constructs a Manager for the given memory directory and

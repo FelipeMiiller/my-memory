@@ -56,12 +56,19 @@ func TestMain(m *testing.M) {
 // surface the supervisor needs. We use the pure-Go modernc.org/sqlite
 // driver so tests run under CGO_ENABLED=0 (consistent with the
 // quality gate baseline). T9's audit log may add additional tables.
+//
+// The connection pool is capped at 1 because each :memory: SQLite
+// database is per-connection — without this cap, a second
+// connection would see an empty schema and the helper CREATE TABLE
+// statements would only land on the first connection, breaking
+// downstream tests that race on COUNT(*) etc.
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("open :memory: db: %v", err)
 	}
+	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })
 
 	for _, stmt := range []string{
