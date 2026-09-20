@@ -100,18 +100,18 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: None
 **Reuses**: Existing `Schema` constant from event-runtime-event-log spec; existing sentinel error pattern from `internal/event_runtime/envelope.go`.
 **Requirement**: WRTR-01 (precondition — schema side)
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `documents.revision INTEGER NOT NULL DEFAULT 0` exists in SQLite (verified via `PRAGMA table_info`)
-- [ ] `documents.last_event_id TEXT` exists in SQLite
-- [ ] `internal/writer/doc.go` declares package and imports
-- [ ] `internal/writer/errors.go` exports 5 sentinel errors with descriptive docstrings
-- [ ] `go build ./...` succeeds
-- [ ] No regression on existing writer tests (none expected since package is new)
+- [x] `documents.revision INTEGER NOT NULL DEFAULT 0` exists in SQLite (verified via `PRAGMA table_info`)
+- [x] `documents.last_event_id TEXT` exists in SQLite
+- [x] `internal/writer/doc.go` declares package and imports
+- [x] `internal/writer/errors.go` exports 5 sentinel errors with descriptive docstrings
+- [x] `go build ./...` succeeds
+- [x] No regression on existing writer tests (none expected since package is new)
 
 **Tests**: none (build gate only)
 **Gate**: build
@@ -126,21 +126,21 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: None
 **Reuses**: Existing DB connection pattern from `internal/event_runtime/log.go`.
 **Requirement**: WRTR-12, WRTR-13, WRTR-14, WRTR-15
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `Check(ctx, db, documentID, expectedRevision)` returns `nil` on match
-- [ ] Returns `ErrPreconditionFailed{Current: 7}` on mismatch (expected 5, current 7)
-- [ ] Returns `ErrPreconditionFailed` on `expected=0` + document exists
-- [ ] Returns `nil` on `expected=0` + document does NOT exist (creation OK)
-- [ ] Returns `ErrInvalidRevision` on `expected<0`
-- [ ] Test `TestPrecondition_Match`: revision 5==5 returns nil
-- [ ] Test `TestPrecondition_Mismatch`: revision 5 vs 7 returns `ErrPreconditionFailed` with `Current=7`
-- [ ] Test `TestPrecondition_CreationConflict`: expected=0 + existing doc returns error
-- [ ] Test `TestPrecondition_InvalidRevision`: expected=-1 returns `ErrInvalidRevision`
+- [x] `Check(ctx, db, documentID, expectedRevision)` returns `nil` on match
+- [x] Returns `ErrPreconditionFailed{Current: 7}` on mismatch (expected 5, current 7)
+- [x] Returns `ErrPreconditionFailed` on `expected=0` + document exists
+- [x] Returns `nil` on `expected=0` + document does NOT exist (creation OK)
+- [x] Returns `ErrInvalidRevision` on `expected<0`
+- [x] Test `TestPrecondition_Match`: revision 5==5 returns nil
+- [x] Test `TestPrecondition_Mismatch`: revision 5 vs 7 returns `ErrPreconditionFailed` with `Current=7`
+- [x] Test `TestPrecondition_CreationConflict`: expected=0 + existing doc returns error
+- [x] Test `TestPrecondition_InvalidRevision`: expected=-1 returns `ErrInvalidRevision`
 
 **Tests**: integration (uses real SQLite via `:memory:`)
 **Gate**: full
@@ -156,23 +156,23 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: T1, T2
 **Reuses**: `event_runtime.Log.Append` from event-runtime-event-log; existing `content_hash` SHA-256 computation from `internal/compiler/` (ADR-010).
 **Requirement**: WRTR-01, WRTR-02, WRTR-03, WRTR-04, WRTR-05, WRTR-06
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `Write` performs atomic commit (`.md` + `event_log` + `documents.revision` in single tx)
-- [ ] `memory.write.requested` envelope emitted BEFORE transaction begins
-- [ ] `memory.committed` envelope emitted via `Log.Append` in same tx with `aggregate_id`, `revision`, `payload.content_hash`, `payload.anchors`, `payload.actor`
-- [ ] Compensating action: SQLite error → `.md` removed + tx rolled back
-- [ ] `.md` write failure → SQLite tx rolled back, no event emitted, returns `ErrWriteFailed`
-- [ ] `content_hash` computed via SHA-256, stored in envelope payload
-- [ ] `revision` auto-assigned as `documents.revision + 1`
-- [ ] `last_event_id` updated to new `event_id`
-- [ ] Test `TestWrite_CommitIsAtomic`: simulate crash mid-write via SIGKILL equivalent → next startup detects inconsistency
-- [ ] Test `TestWrite_NoEventIfMdFails`: force filesystem error → 0 rows in `event_log`, tx rolled back
-- [ ] Test `TestWrite_CompensatingActionOnDbError`: force SQLite error → `.md` removed
+- [x] `Write` performs atomic commit (`.md` + `event_log` + `documents.revision` in single tx)
+- [x] `memory.write.requested` envelope emitted BEFORE transaction begins
+- [x] `memory.committed` envelope emitted via `Log.Append` in same tx with `aggregate_id`, `revision`, `payload.content_hash`, `payload.anchors`, `payload.actor`
+- [x] Compensating action: SQLite error → `.md` removed + tx rolled back
+- [x] `.md` write failure → SQLite tx rolled back, no event emitted, returns `ErrWriteFailed`
+- [x] `content_hash` computed via SHA-256, stored in envelope payload
+- [x] `revision` auto-assigned as `documents.revision + 1`
+- [x] `last_event_id` updated to new `event_id`
+- [x] Test `TestWrite_CommitIsAtomic`: simulate crash mid-write via SIGKILL equivalent → next startup detects inconsistency
+- [x] Test `TestWrite_NoEventIfMdFails`: force filesystem error → 0 rows in `event_log`, tx rolled back
+- [x] Test `TestWrite_CompensatingActionOnDbError`: force SQLite error → `.md` removed
 
 **Tests**: integration (uses real SQLite via `:memory:` + temp dir)
 **Gate**: full
@@ -189,17 +189,17 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: T3
 **Reuses**: `event_runtime.Log.Append` from T3.
 **Requirement**: WRTR-13 (conflict.detected event side)
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `Write` with stale `expected_revision` emits `conflict.detected` event BEFORE returning error
-- [ ] Returned error includes `CurrentRevision` field for caller diagnostics
-- [ ] Event payload includes `expected`, `current`, `document_id`, `correlation_id`
-- [ ] Test `TestWrite_PreconditionConflict_409`: stale revision → 409 + conflict.detected event in event_log
-- [ ] Test `TestWrite_CreationConflict_409`: expected=0 + existing doc → 409 + conflict.detected event
+- [x] `Write` with stale `expected_revision` emits `conflict.detected` event BEFORE returning error
+- [x] Returned error includes `CurrentRevision` field for caller diagnostics
+- [x] Event payload includes `expected`, `current`, `document_id`, `correlation_id`
+- [x] Test `TestWrite_PreconditionConflict_409`: stale revision → 409 + conflict.detected event in event_log
+- [x] Test `TestWrite_CreationConflict_409`: expected=0 + existing doc → 409 + conflict.detected event
 
 **Tests**: integration
 **Gate**: full
@@ -214,17 +214,17 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: T3
 **Reuses**: `event_runtime.Envelope.Headers` from event-runtime-event-log.
 **Requirement**: WRTR-15, WRTR-16
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `WriteRequest` struct has optional `ExpectedRevision *int64` (nil = always write)
-- [ ] When `ExpectedRevision == nil`, writer proceeds without precondition check
-- [ ] `memory.committed` envelope includes `If-Match: revision=<N>` in headers (when ExpectedRevision set)
-- [ ] Test `TestWrite_NoExpectedRevision_AlwaysWrites`: nil ExpectedRevision proceeds unconditionally
-- [ ] Test `TestWrite_IfMatchHeader_InEnvelope`: ExpectedRevision=5 produces `If-Match: revision=5` header
+- [x] `WriteRequest` struct has optional `ExpectedRevision *int64` (nil = always write)
+- [x] When `ExpectedRevision == nil`, writer proceeds without precondition check
+- [x] `memory.committed` envelope includes `If-Match: revision=<N>` in headers (when ExpectedRevision set)
+- [x] Test `TestWrite_NoExpectedRevision_AlwaysWrites`: nil ExpectedRevision proceeds unconditionally
+- [x] Test `TestWrite_IfMatchHeader_InEnvelope`: ExpectedRevision=5 produces `If-Match: revision=5` header
 
 **Tests**: integration
 **Gate**: full
@@ -241,20 +241,20 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: T3
 **Reuses**: Existing `chunks` and `chunks_fts` schema from `internal/db/schema.go`; `event_runtime.Subscriber` interface from event-runtime-event-log.
 **Requirement**: WRTR-07, WRTR-08 (idempotency via projection_cursor)
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `SqliteProjection` implements `event_runtime.Subscriber.Handle(ctx, env) error`
-- [ ] Upserts `documents` row matching `aggregate_id`
-- [ ] Upserts `chunks` rows with `(document_id, revision_id)` dedup key
-- [ ] Upserts `chunks_fts` content
-- [ ] Uses `INSERT OR IGNORE` on `event_id` for idempotency
-- [ ] Advances `projection_cursor.last_sequence` for `projection.sqlite` only after success
-- [ ] Test `TestProjectionSqlite_IdempotentReplay`: apply event 5x → only 1 row in `documents`
-- [ ] Test `TestProjectionSqlite_HandlesMultipleRevisions`: same doc, 3 revisions → 3 chunks, latest revision wins for `last_event_id`
+- [x] `SqliteProjection` implements `event_runtime.Subscriber.Handle(ctx, env) error`
+- [x] Upserts `documents` row matching `aggregate_id`
+- [x] Upserts `chunks` rows with `(document_id, revision_id)` dedup key
+- [x] Upserts `chunks_fts` content
+- [x] Uses `INSERT OR IGNORE` on `event_id` for idempotency
+- [x] Advances `projection_cursor.last_sequence` for `projection.sqlite` only after success
+- [x] Test `TestProjectionSqlite_IdempotentReplay`: apply event 5x → only 1 row in `documents`
+- [x] Test `TestProjectionSqlite_HandlesMultipleRevisions`: same doc, 3 revisions → 3 chunks, latest revision wins for `last_event_id`
 
 **Tests**: integration
 **Gate**: full
@@ -269,19 +269,19 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: T6
 **Reuses**: `internal/parser/wikilink.go` for edge extraction; existing `edges` schema from `internal/db/schema.go`.
 **Requirement**: WRTR-07, WRTR-09 (replay produces identical state)
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `GraphProjection` implements `event_runtime.Subscriber`
-- [ ] On `memory.committed`: extracts wikilinks from `payload.content` (or re-parses `.md` if needed)
-- [ ] DELETEs old edges for `(document_id, revision_id-1)`
-- [ ] INSERTs new edges for `(document_id, revision_id)`
-- [ ] `INSERT OR IGNORE` on edge dedup key
-- [ ] Test `TestProjectionGraph_DiffEdges`: write doc with 3 wikilinks, update to remove 1 → old edges deleted, new edges present
-- [ ] Test `TestProjectionGraph_IdempotentReplay`: apply same event 5x → edge count identical
+- [x] `GraphProjection` implements `event_runtime.Subscriber`
+- [x] On `memory.committed`: extracts wikilinks from `payload.content` (or re-parses `.md` if needed)
+- [x] DELETEs old edges for `(document_id, revision_id-1)`
+- [x] INSERTs new edges for `(document_id, revision_id)`
+- [x] `INSERT OR IGNORE` on edge dedup key
+- [x] Test `TestProjectionGraph_DiffEdges`: write doc with 3 wikilinks, update to remove 1 → old edges deleted, new edges present
+- [x] Test `TestProjectionGraph_IdempotentReplay`: apply same event 5x → edge count identical
 
 **Tests**: integration
 **Gate**: full
@@ -296,18 +296,18 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: T6, T7
 **Reuses**: `event_runtime.Dispatcher` from event-runtime-event-log; existing CLI pattern from `cmd/mem/events.go`.
 **Requirement**: WRTR-08, WRTR-09, WRTR-10, WRTR-11
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `mem replay --since <seq>` re-emits events to subscribers without re-executing handlers (dry-run)
-- [ ] `mem replay --since <seq> --apply` re-executes handlers (idempotent)
-- [ ] Returns 0 events with exit 0 when `seq > MAX(sequence)` (stream Unix-like behavior)
-- [ ] Outputs JSON summary: `{ "from": <seq>, "to": <seq>, "events_replayed": <count>, "errors": [] }`
-- [ ] Test `TestReplay_DryRun_ReEmitsToAudit`: 100 events → audit subscriber receives 100, others do NOT
-- [ ] Test `TestReplay_Apply_RecoversState`: delete SQLite, restore event_log, replay --since 0 --apply → state byte-equal to pre-delete
+- [x] `mem replay --since <seq>` re-emits events to subscribers without re-executing handlers (dry-run)
+- [x] `mem replay --since <seq> --apply` re-executes handlers (idempotent)
+- [x] Returns 0 events with exit 0 when `seq > MAX(sequence)` (stream Unix-like behavior)
+- [x] Outputs JSON summary: `{ "from": <seq>, "to": <seq>, "events_replayed": <count>, "errors": [] }`
+- [x] Test `TestReplay_DryRun_ReEmitsToAudit`: 100 events → audit subscriber receives 100, others do NOT
+- [x] Test `TestReplay_Apply_RecoversState`: delete SQLite, restore event_log, replay --since 0 --apply → state byte-equal to pre-delete
 
 **Tests**: integration
 **Gate**: full
@@ -324,25 +324,25 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: None
 **Reuses**: YAML parsing via `gopkg.in/yaml.v3` (already in go.mod from `internal/config/`).
 **Requirement**: WRTR-17, WRTR-18, WRTR-19
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `Engine` struct holds profile config + decision logic
-- [ ] `Load("/path/to/policy.yaml")` parses YAML and returns `*Engine`
-- [ ] `Decide(actor="user:owner", path="docs/foo.md", op="write")` returns `Allow` for `balanced` profile
-- [ ] `Decide(actor="agent:external", path="docs/foo.md", op="write")` returns `RequireApproval` for `balanced`
-- [ ] `Decide(actor="user:owner", path="/etc/passwd", op="write")` returns `Deny` for `balanced`
-- [ ] `strict` profile: all non-owner actors → `RequireApproval`
-- [ ] `permissive-dev` profile: all writes → `Allow`
-- [ ] `.memory/policy/balanced.yaml` is default fallback
-- [ ] Missing policy file → default `balanced` + warn at startup
-- [ ] Test `TestEngine_BalancedAllowsOwnerWritesInScope`
-- [ ] Test `TestEngine_BalancedRequiresApprovalForExternalActor`
-- [ ] Test `TestEngine_StrictBlocksAllNonOwnerWrites`
-- [ ] Test `TestEngine_PermissiveDevAllowsEverything`
+- [x] `Engine` struct holds profile config + decision logic
+- [x] `Load("/path/to/policy.yaml")` parses YAML and returns `*Engine`
+- [x] `Decide(actor="user:owner", path="docs/foo.md", op="write")` returns `Allow` for `balanced` profile
+- [x] `Decide(actor="agent:external", path="docs/foo.md", op="write")` returns `RequireApproval` for `balanced`
+- [x] `Decide(actor="user:owner", path="/etc/passwd", op="write")` returns `Deny` for `balanced`
+- [x] `strict` profile: all non-owner actors → `RequireApproval`
+- [x] `permissive-dev` profile: all writes → `Allow`
+- [x] `.memory/policy/balanced.yaml` is default fallback
+- [x] Missing policy file → default `balanced` + warn at startup
+- [x] Test `TestEngine_BalancedAllowsOwnerWritesInScope`
+- [x] Test `TestEngine_BalancedRequiresApprovalForExternalActor`
+- [x] Test `TestEngine_StrictBlocksAllNonOwnerWrites`
+- [x] Test `TestEngine_PermissiveDevAllowsEverything`
 
 **Tests**: integration
 **Gate**: full
@@ -357,20 +357,20 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: T3, T9
 **Reuses**: `policy.Engine` from T9.
 **Requirement**: WRTR-19, WRTR-20, WRTR-21
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `Write` calls `policy.Engine.Decide` before transaction
-- [ ] `Deny` → `ErrPolicyDenied`, no event, no tx
-- [ ] `RequireApproval` → `approval.requested` event + `ErrApprovalRequired`
-- [ ] `Allow` → proceeds normally
-- [ ] `policy.decision_id` recorded in `memory.committed` envelope
-- [ ] Test `TestWrite_PolicyBlocksHighRiskActor`: external actor + strict → `ErrPolicyDenied`
-- [ ] Test `TestWrite_PolicyRequiresApprovalForExternalScope`: external path + balanced → `approval.requested` event
-- [ ] Test `TestWrite_PolicyRecordsDecisionID`: allow path → `policy.decision_id` in envelope
+- [x] `Write` calls `policy.Engine.Decide` before transaction
+- [x] `Deny` → `ErrPolicyDenied`, no event, no tx
+- [x] `RequireApproval` → `approval.requested` event + `ErrApprovalRequired`
+- [x] `Allow` → proceeds normally
+- [x] `policy.decision_id` recorded in `memory.committed` envelope
+- [x] Test `TestWrite_PolicyBlocksHighRiskActor`: external actor + strict → `ErrPolicyDenied`
+- [x] Test `TestWrite_PolicyRequiresApprovalForExternalScope`: external path + balanced → `approval.requested` event
+- [x] Test `TestWrite_PolicyRecordsDecisionID`: allow path → `policy.decision_id` in envelope
 
 **Tests**: integration
 **Gate**: full
@@ -385,19 +385,19 @@ Total: **11 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 i
 **Depends on**: T5, T10
 **Reuses**: Existing CLI flag parsing from `cobra`; existing MCP tool registration from `internal/mcp/`.
 **Requirement**: WRTR-16 (CLI flag), MCP integration spec
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `mem write --if-match 5 ./foo.md` calls writer with `ExpectedRevision=5`
-- [ ] `mem write ./foo.md` (no flag) calls writer with `ExpectedRevision=nil`
-- [ ] `mem write --if-match 5 ./foo.md` on stale revision returns exit 2 with error message
-- [ ] MCP tool `memory_write_note` accepts `if_match` parameter (JSON int) and passes to writer
-- [ ] Test `TestCliWrite_IfMatch_StaleReturnsError`
-- [ ] Test `TestCliWrite_NoFlag_AlwaysWrites`
-- [ ] Test `TestMcpWriteNote_IfMatchParameter`
+- [x] `mem write --if-match 5 ./foo.md` calls writer with `ExpectedRevision=5`
+- [x] `mem write ./foo.md` (no flag) calls writer with `ExpectedRevision=nil`
+- [x] `mem write --if-match 5 ./foo.md` on stale revision returns exit 2 with error message
+- [x] MCP tool `memory_write_note` accepts `if_match` parameter (JSON int) and passes to writer
+- [x] Test `TestCliWrite_IfMatch_StaleReturnsError`
+- [x] Test `TestCliWrite_NoFlag_AlwaysWrites`
+- [x] Test `TestMcpWriteNote_IfMatchParameter`
 
 **Tests**: integration
 **Gate**: full
