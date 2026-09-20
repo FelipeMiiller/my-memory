@@ -30,6 +30,13 @@ func NewMemoryWriteNoteHandler(engine *compiler.SyncEngine, defaultVaultRoot str
 			Overwrite  bool          `json:"overwrite"`
 			Repository string        `json:"repository"`
 			VaultRoot  string        `json:"vault_root"`
+			// IfMatch is the ADR-044 / T11 precondition parameter. The
+			// pointer-to-int64 shape matches WriteRequest.ExpectedRevision
+			// in the writer package (nil = no precondition). Currently
+			// accepted but not enforced on the compiler path — the
+			// `mem write` CLI subcommand uses the writer directly and
+			// does enforce it.
+			IfMatch *int64 `json:"if_match,omitempty"`
 		}
 
 		if len(args) == 0 {
