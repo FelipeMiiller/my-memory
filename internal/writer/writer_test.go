@@ -231,6 +231,81 @@ func TestWrite_PreconditionMismatch(t *testing.T) {
 	if string(got) != "v1" {
 		t.Errorf("file should be v1 after rejected write, got %q", got)
 	}
+
+	// T4: conflict.detected event must have been emitted (T4 contract)
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM event_log WHERE event_type = 'conflict.detected'`).Scan(&n); err != nil {
+		t.Fatalf("count conflict.detected: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("conflict.detected count=%d, want 1", n)
+	}
+
+	// Validate the conflict.detected payload
+	var raw []byte
+	if err := db.QueryRow(`SELECT payload FROM event_log WHERE event_type = 'conflict.detected' LIMIT 1`).Scan(&raw); err != nil {
+		t.Fatalf("read conflict payload: %v", err)
+	}
+	var env event_runtime.Envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatalf("unmarshal envelope: %v", err)
+	}
+	var cp conflictPayload
+	if err := json.Unmarshal(env.Payload, &cp); err != nil {
+		t.Fatalf("unmarshal conflictPayload: %v", err)
+	}
+	if cp.Expected != 99 || cp.Current != 1 {
+		t.Errorf("conflict payload: expected=%d current=%d, want 99/1", cp.Expected, cp.Current)
+	}
+	if cp.DocumentID == "" {
+		t.Error("conflict payload: document_id missing")
+	}
+	if cp.Path != path {
+		t.Errorf("conflict payload: path=%q want %q", cp.Path, path)
+	}
+	if cp.Reason != "precondition_failed" {
+		t.Errorf("conflict payload: reason=%q want precondition_failed", cp.Reason)
+	}
+}
+
+func TestWrite_CreationConflictEmitsConflict(t *testing.T) {
+	db := newWriterDB(t)
+	log := event_runtime.NewLog(db)
+	w := New(db, log)
+	dir := tempDir(t)
+	path := filepath.Join(dir, "foo.md")
+
+	rev0 := int64(0)
+	writeOK(t, w, path, []byte("v1"), &rev0)
+
+	// Now ask to create (expected=0) again — must fail
+	_, err := w.Write(context.Background(), WriteRequest{
+		Path:             path,
+		Content:          []byte("v2-create-conflict"),
+		Actor:            "user:test",
+		ExpectedRevision: &rev0,
+	})
+	if !errors.Is(err, ErrPreconditionFailed) {
+		t.Errorf("creation conflict must fail with ErrPreconditionFailed, got %v", err)
+	}
+
+	// conflict.detected must still be emitted for creation conflicts
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM event_log WHERE event_type = 'conflict.detected'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("conflict.detected count=%d, want 1 for creation conflict", n)
+	}
+
+	// File unchanged
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if string(got) != "v1" {
+		t.Errorf("file should still be v1 after creation conflict, got %q", got)
+	}
 }
 
 func TestWrite_NoMdFailsRollsBack(t *testing.T) {

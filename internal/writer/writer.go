@@ -148,7 +148,8 @@ type committedPayload struct {
 // On any failure between step 5 and step 8, the .md file is removed as
 // a compensating action so the filesystem and the database cannot
 // diverge. Step 3 (precondition failure) is reported via
-// *PreconditionError and does NOT touch disk.
+// *PreconditionError, a conflict.detected event is emitted for
+// forensics, and disk is NOT touched.
 func (w *Writer) Write(ctx context.Context, req WriteRequest) (WriteResult, error) {
 	// --- 1. validate ---
 	if req.Path == "" {
@@ -179,6 +180,12 @@ func (w *Writer) Write(ctx context.Context, req WriteRequest) (WriteResult, erro
 	if req.ExpectedRevision != nil {
 		expected = *req.ExpectedRevision
 		if err := Check(ctx, w.db, docID, expected); err != nil {
+			// ADR-044 §P4: emit conflict.detected for forensics
+			// BEFORE returning the error. Done in a fresh tx so
+			// the event is durable independently of the failed
+			// write — operators can correlate the attempt with
+			// the rejection later.
+			w.emitConflictDetected(ctx, docID, req, expected, err)
 			return WriteResult{}, err
 		}
 	}
@@ -353,4 +360,58 @@ func extractWikilinks(content []byte) []string {
 		s = s[j+len(close):]
 	}
 	return out
+}
+
+// conflictPayload is the JSON body of the conflict.detected envelope.
+// Carries enough context for an operator (or replay tool) to
+// reconstruct what was attempted and why it was rejected.
+type conflictPayload struct {
+	DocumentID string `json:"document_id"`
+	Path       string `json:"path"`
+	Expected   int64  `json:"expected"`
+	Current    int64  `json:"current"`
+	Reason     string `json:"reason"`
+}
+
+// emitConflictDetected writes a conflict.detected envelope to the
+// event_log in a fresh transaction. Best-effort: if the emit itself
+// fails (DB unavailable mid-write) the error is swallowed because the
+// caller is already returning a more important error to the user —
+// losing the forensic event is unfortunate but not worse than losing
+// the rejection response.
+//
+// ADR-044 §P4: this event is emitted when the precondition check fails
+// so that operators can correlate the rejection with subsequent
+// retry attempts and so that `mem replay` can show the chain.
+func (w *Writer) emitConflictDetected(ctx context.Context, documentID string, req WriteRequest, expected int64, preconditionErr error) {
+	// Pull Current from *PreconditionError when available; fall back
+	// to -1 (sentinel meaning "unknown") otherwise.
+	current := int64(-1)
+	var pe *PreconditionError
+	if errors.As(preconditionErr, &pe) {
+		current = pe.Current
+	}
+
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return // best-effort
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	env := event_runtime.NewEnvelope("conflict.detected", documentID)
+	env.Actor = req.Actor
+	env.CorrelationID = req.CorrelationID
+	env.CausationID = req.CausationID
+	env.Payload, _ = json.Marshal(conflictPayload{
+		DocumentID: documentID,
+		Path:       req.Path,
+		Expected:   expected,
+		Current:    current,
+		Reason:     "precondition_failed",
+	})
+
+	if err := w.log.Append(ctx, tx, env); err != nil {
+		return // best-effort
+	}
+	_ = tx.Commit()
 }
