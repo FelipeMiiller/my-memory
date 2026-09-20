@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/event_runtime"
+	"github.com/FelipeMiiller/my-memory/internal/policy"
 )
 
 // MaxWriteBytes is the hard size limit for a single .md write (ADR-044
@@ -98,6 +99,19 @@ type WriteRequest struct {
 	// imported from outside the vault (quarantine decisions, trust
 	// levels, etc.).
 	Provenance *event_runtime.Provenance
+
+	// PolicyEngine is an optional ADR-050 gate. When non-nil, the
+	// writer calls Decide(actor, path, write) before the transaction
+	// begins:
+	//   - Allow            → proceeds normally
+	//   - RequireApproval  → emits approval.requested event +
+	//                        returns ErrApprovalRequired (caller must
+	//                        obtain approval out-of-band and retry)
+	//   - Deny             → returns ErrPolicyDenied (no event)
+	//
+	// When nil, the writer skips policy entirely (backward-compat
+	// path — T9/T10 are opt-in).
+	PolicyEngine *policy.Engine
 }
 
 // WriteResult is what a successful Write returns. Callers use this for
@@ -131,13 +145,20 @@ type WriteResult struct {
 // reconstruct precondition semantics from the envelope alone. The
 // pointer-to-int64 matches the WriteRequest.ExpectedRevision shape
 // (nil = no precondition was requested).
+//
+// PolicyDecisionID is the stringified Decision (allow /
+// require_approval / deny) the policy engine returned for THIS write.
+// Empty when no policy engine was supplied (backward-compat path).
+// Audit subscribers can correlate the decision back to the YAML
+// rule that produced it.
 type committedPayload struct {
-	Path        string   `json:"path"`
-	ContentHash string   `json:"content_hash"`
-	SizeBytes   int      `json:"size_bytes"`
-	Anchors     []string `json:"anchors"`
-	Oversize    bool     `json:"oversize,omitempty"`
-	IfMatch     *int64   `json:"if_match,omitempty"`
+	Path             string   `json:"path"`
+	ContentHash      string   `json:"content_hash"`
+	SizeBytes        int      `json:"size_bytes"`
+	Anchors          []string `json:"anchors"`
+	Oversize         bool     `json:"oversize,omitempty"`
+	IfMatch          *int64   `json:"if_match,omitempty"`
+	PolicyDecisionID string   `json:"policy_decision_id,omitempty"`
 }
 
 // Write performs the atomic commit described in ADR-044 §P1 AC 1. The
@@ -176,6 +197,34 @@ func (w *Writer) Write(ctx context.Context, req WriteRequest) (WriteResult, erro
 	docID := req.DocumentID
 	if docID == "" {
 		docID = pathToDocID(req.Path)
+	}
+
+	// --- 1.5 policy check (ADR-050 §DR-3) ---
+	// When a PolicyEngine is supplied, we evaluate the write BEFORE
+	// the transaction. Deny → no event, no tx. RequireApproval →
+	// emit approval.requested + return ErrApprovalRequired; the
+	// caller must obtain approval out-of-band and retry.
+	//
+	// policyDecisionID is "" when no engine is configured (backward-
+	// compat path) — empty string is omitted from the envelope JSON
+	// via the omitempty tag on committedPayload.PolicyDecisionID.
+	var policyDecision policy.Decision
+	if req.PolicyEngine != nil {
+		policyDecision = req.PolicyEngine.Decide(req.Actor, req.Path, policy.OpWrite)
+		switch policyDecision {
+		case policy.Deny:
+			return WriteResult{}, fmt.Errorf("%w: actor=%s path=%s", ErrPolicyDenied, req.Actor, req.Path)
+		case policy.RequireApproval:
+			// Best-effort: emit the request so operators can see
+			// what was held back. The caller gets the structured
+			// error and decides what to do (poll for approval,
+			// queue for human review, etc.).
+			w.emitApprovalRequested(ctx, docID, req, policyDecision)
+			return WriteResult{}, fmt.Errorf("%w: actor=%s path=%s", ErrApprovalRequired, req.Actor, req.Path)
+		case policy.Allow:
+			// fall through — committed payload will carry
+			// PolicyDecisionID = "allow" so audit can correlate.
+		}
 	}
 
 	// --- 2. compute content_hash ---
@@ -226,13 +275,23 @@ func (w *Writer) Write(ctx context.Context, req WriteRequest) (WriteResult, erro
 	committedEnv.CorrelationID = req.CorrelationID
 	committedEnv.CausationID = req.CausationID
 	committedEnv.Revision = int(expected) + 1
+	// Only stamp policy_decision_id when a policy engine was actually
+	// consulted. Empty string would otherwise be JSON-marshaled
+	// with omitempty (omitted) but the field-level decision logic is
+	// clearer this way: zero-value Decision is a sentinel meaning
+	// "no policy configured".
+	policyDecisionID := ""
+	if req.PolicyEngine != nil {
+		policyDecisionID = policyDecision.String()
+	}
 	committedEnv.Payload, _ = json.Marshal(committedPayload{
-		Path:        req.Path,
-		ContentHash: contentHash,
-		SizeBytes:   len(req.Content),
-		Anchors:     extractWikilinks(req.Content),
-		Oversize:    len(req.Content) > WarnWriteBytes,
-		IfMatch:     req.ExpectedRevision,
+		Path:             req.Path,
+		ContentHash:      contentHash,
+		SizeBytes:        len(req.Content),
+		Anchors:          extractWikilinks(req.Content),
+		Oversize:         len(req.Content) > WarnWriteBytes,
+		IfMatch:          req.ExpectedRevision,
+		PolicyDecisionID: policyDecisionID,
 	})
 	committedEnv.Provenance = req.Provenance
 
@@ -379,6 +438,47 @@ type conflictPayload struct {
 	Expected   int64  `json:"expected"`
 	Current    int64  `json:"current"`
 	Reason     string `json:"reason"`
+}
+
+// approvalPayload is the JSON body of the approval.requested
+// envelope. It carries enough context for an approval.granted handler
+// to match against (correlation_id is the join key).
+type approvalPayload struct {
+	DocumentID string `json:"document_id"`
+	Path       string `json:"path"`
+	Actor      string `json:"actor"`
+	Decision   string `json:"decision"`
+}
+
+// emitApprovalRequested writes an approval.requested envelope in a
+// fresh transaction. Best-effort — failures are swallowed because the
+// caller is already returning ErrApprovalRequired; the human-facing
+// error matters more than the forensic event here.
+//
+// ADR-044 §P4 + ADR-050 §DR-3: this event lets operators correlate a
+// held-back write with the eventual approval.granted (or timeout).
+func (w *Writer) emitApprovalRequested(ctx context.Context, documentID string, req WriteRequest, decision policy.Decision) {
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	env := event_runtime.NewEnvelope("approval.requested", documentID)
+	env.Actor = req.Actor
+	env.CorrelationID = req.CorrelationID
+	env.CausationID = req.CausationID
+	env.Payload, _ = json.Marshal(approvalPayload{
+		DocumentID: documentID,
+		Path:       req.Path,
+		Actor:      req.Actor,
+		Decision:   decision.String(),
+	})
+
+	if err := w.log.Append(ctx, tx, env); err != nil {
+		return
+	}
+	_ = tx.Commit()
 }
 
 // emitConflictDetected writes a conflict.detected envelope to the

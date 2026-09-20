@@ -37,6 +37,13 @@ var (
 	// negative or otherwise outside the int64 range accepted by the
 	// precondition checker. See ADR-044 §Edge Cases.
 	ErrInvalidRevision = errors.New("writer: invalid revision value")
+
+	// ErrApprovalRequired is returned when the policy engine
+	// returned RequireApproval. The writer emits an
+	// approval.requested event for forensics; the caller must
+	// obtain an approval.granted event (out of band) before
+	// re-attempting the write. See ADR-050 §DR-3 + ADR-044 P4.
+	ErrApprovalRequired = errors.New("writer: approval required (policy returned require_approval)")
 )
 
 // PreconditionError enriches ErrPreconditionFailed with the current

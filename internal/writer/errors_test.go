@@ -14,6 +14,7 @@ func TestSentinelErrors_AreDistinct(t *testing.T) {
 		ErrPreconditionFailed,
 		ErrPolicyDenied,
 		ErrInvalidRevision,
+		ErrApprovalRequired,
 	}
 	for i, a := range sentinels {
 		for j, b := range sentinels {
