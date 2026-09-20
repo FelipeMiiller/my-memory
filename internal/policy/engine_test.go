@@ -192,9 +192,9 @@ func TestGlobMatch(t *testing.T) {
 
 func TestDecision_String(t *testing.T) {
 	cases := map[Decision]string{
-		Allow:            "allow",
-		RequireApproval:  "require_approval",
-		Deny:             "deny",
+		Allow:           "allow",
+		RequireApproval: "require_approval",
+		Deny:            "deny",
 	}
 	for d, want := range cases {
 		if got := d.String(); got != want {

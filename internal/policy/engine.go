@@ -12,7 +12,7 @@
 // Three profiles ship by default (T9):
 //   - strict:             every non-owner actor → RequireApproval
 //   - balanced:           writes within the vault scope proceed;
-//                         writes outside the scope require approval
+//     writes outside the scope require approval
 //   - permissive-dev:     every write is allowed (development only)
 //
 // The default profile (used when no policy file is configured) is
@@ -72,10 +72,10 @@ const (
 // Field names match the policy spec exactly so reviewers can grep
 // between docs and config without translation.
 type Profile struct {
-	SchemaVersion int      `yaml:"schema_version"`
-	DefaultOwner  string   `yaml:"default_owner"`
-	VaultScope    string   `yaml:"vault_scope"` // glob; paths matching are "in scope"
-	Rules         []Rule   `yaml:"rules"`
+	SchemaVersion int    `yaml:"schema_version"`
+	DefaultOwner  string `yaml:"default_owner"`
+	VaultScope    string `yaml:"vault_scope"` // glob; paths matching are "in scope"
+	Rules         []Rule `yaml:"rules"`
 }
 
 // Rule is one entry in a profile's decision table. First match wins.
