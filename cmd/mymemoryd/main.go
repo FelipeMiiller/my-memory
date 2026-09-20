@@ -89,7 +89,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 	}()
 
-	mgr := supervisor.NewManager(*memoryDir, *profile)
+	mgr := supervisor.NewManager(*memoryDir, *profile, nil)
 
 	// Wire signals through context so manager.Run() can block on it
 	// without owning signal.Notify itself.

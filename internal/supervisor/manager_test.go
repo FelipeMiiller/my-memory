@@ -7,7 +7,7 @@ import (
 )
 
 func TestManager_RunBlocksUntilContextCancelled(t *testing.T) {
-	mgr := NewManager(t.TempDir(), "default")
+	mgr := NewManager(t.TempDir(), "default", nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -33,7 +33,7 @@ func TestManager_RunBlocksUntilContextCancelled(t *testing.T) {
 }
 
 func TestManager_DoneClosesAfterRunReturns(t *testing.T) {
-	mgr := NewManager(t.TempDir(), "default")
+	mgr := NewManager(t.TempDir(), "default", nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	runDone := make(chan struct{})
@@ -59,14 +59,14 @@ func TestManager_DoneClosesAfterRunReturns(t *testing.T) {
 }
 
 func TestManager_ActiveWorkersEmptyOnT1(t *testing.T) {
-	mgr := NewManager(t.TempDir(), "default")
+	mgr := NewManager(t.TempDir(), "default", nil)
 	if got := mgr.ActiveWorkers(); len(got) != 0 {
 		t.Fatalf("T1 ActiveWorkers should be empty, got %v", got)
 	}
 }
 
 func TestManager_ProfileRoundTrip(t *testing.T) {
-	mgr := NewManager(t.TempDir(), "voice")
+	mgr := NewManager(t.TempDir(), "voice", nil)
 	if got := mgr.Profile(); got != "voice" {
 		t.Fatalf("Profile() = %q, want %q", got, "voice")
 	}
@@ -74,7 +74,7 @@ func TestManager_ProfileRoundTrip(t *testing.T) {
 
 func TestManager_StringIncludesProfileAndDir(t *testing.T) {
 	dir := t.TempDir()
-	mgr := NewManager(dir, "default")
+	mgr := NewManager(dir, "default", nil)
 	s := mgr.String()
 	if s == "" {
 		t.Fatal("String() returned empty")
@@ -85,6 +85,26 @@ func TestManager_StringIncludesProfileAndDir(t *testing.T) {
 	}
 	if !contains(s, dir) {
 		t.Fatalf("expected memoryDir in String, got %q", s)
+	}
+}
+
+func TestManager_RegisterSpecAndLookup(t *testing.T) {
+	mgr := NewManager(t.TempDir(), "default", nil)
+	mgr.RegisterSpec(WorkerSpec{Name: "embedder", Command: ".memory/workers/embedder", Args: []string{"--port", "49156"}})
+
+	spec, ok := mgr.Spec("embedder")
+	if !ok {
+		t.Fatal("expected embedder to be registered")
+	}
+	if spec.Command != ".memory/workers/embedder" {
+		t.Fatalf("expected Command preserved, got %q", spec.Command)
+	}
+	if len(spec.Args) != 2 || spec.Args[0] != "--port" || spec.Args[1] != "49156" {
+		t.Fatalf("Args not preserved: %v", spec.Args)
+	}
+
+	if _, ok := mgr.Spec("missing"); ok {
+		t.Fatal("expected missing worker to be absent")
 	}
 }
 

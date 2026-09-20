@@ -120,20 +120,20 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 in
 **Depends on**: T1
 **Reuses**: `os/exec` for subprocess; `event_runtime.Log.Append` for events.
 **Requirement**: SUPR-01, SUPR-03
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `Start` launches worker subprocess with declared command + args
-- [ ] `Stop` sends SIGTERM, waits 10s, sends SIGKILL to survivors
-- [ ] `HealthCheck` reads worker heartbeat channel; 3 misses = unhealthy
-- [ ] `worker.started` event emitted with `worker_id`, `pid`, `ts`
-- [ ] `worker.stopped` event emitted with `worker_id`, `reason`, `ts`
-- [ ] `worker.heartbeat_lost` event emitted after 3 misses
-- [ ] Test `TestWorker_StartStopRoundtrip`: start fake worker → stop → 2 events in audit
-- [ ] Test `TestWorker_HeartbeatLost`: kill worker's heartbeat goroutine → event after 15s
+- [x] `Start` launches worker subprocess with declared command + args
+- [x] `Stop` sends SIGTERM, waits 10s, sends SIGKILL to survivors
+- [x] `HealthCheck` reads worker heartbeat channel; 3 misses = unhealthy
+- [x] `worker.started` event emitted with `worker_id`, `pid`, `ts`
+- [x] `worker.stopped` event emitted with `worker_id`, `reason`, `ts`
+- [x] `worker.heartbeat_lost` event emitted after 3 misses
+- [x] Test `TestWorker_StartStopRoundtrip`: start fake worker → stop → 2 events in audit
+- [x] Test `TestWorker_HeartbeatLost`: kill worker's heartbeat goroutine → event after 15s
 
 **Tests**: integration (uses fake worker binary)
 **Gate**: full
