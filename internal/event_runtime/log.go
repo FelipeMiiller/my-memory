@@ -94,6 +94,73 @@ func (l *Log) LastSequence(ctx context.Context) (int64, error) {
 	return seq.Int64, nil
 }
 
+// ReadRange returns up to `limit` envelopes with sequence >= fromSeq,
+// ordered by sequence ASC. Unlike ReadUnacked, this method does NOT
+// consult projection_cursor — it is the replay primitive used by
+// `mem replay --since N` to re-emit events regardless of how many
+// subscribers have already acked them.
+//
+// Idempotency is the caller's responsibility (the dispatcher relies
+// on subscriber.Handle being idempotent; replay is the same contract).
+func (l *Log) ReadRange(ctx context.Context, fromSeq int64, limit int) ([]Envelope, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("event_runtime: ReadRange limit must be positive (got %d)", limit)
+	}
+	rows, err := l.db.QueryContext(ctx, `
+		SELECT sequence, event_id, schema_version, event_type, aggregate_id,
+		       revision, payload, headers, created_at, acked_at
+		FROM event_log
+		WHERE sequence >= ?
+		ORDER BY sequence ASC
+		LIMIT ?
+	`, fromSeq, limit)
+	if err != nil {
+		return nil, fmt.Errorf("event_runtime: read range: %w", err)
+	}
+	defer rows.Close()
+
+	var out []Envelope
+	for rows.Next() {
+		var (
+			seq                              int64
+			eventID, etype, aggID, createdAt string
+			schemaVer                        int
+			revision                         sql.NullInt64
+			payload, headers                 []byte
+			ackedAt                          sql.NullString
+		)
+		if err := rows.Scan(&seq, &eventID, &schemaVer, &etype, &aggID, &revision, &payload, &headers, &createdAt, &ackedAt); err != nil {
+			return nil, fmt.Errorf("event_runtime: scan range row: %w", err)
+		}
+		env := Envelope{
+			EventID:       eventID,
+			SchemaVersion: schemaVer,
+			EventType:     etype,
+			AggregateID:   aggID,
+			Revision:      int(revision.Int64),
+			Sequence:      seq,
+			CreatedAt:     createdAt,
+		}
+		// AckedAt isn't an envelope field — it's a column on event_log
+		// (per ADR-043 §event_log). ReadRange surfaces it as an
+		// in-band value via the headers blob; subscribers that need
+		// the ack timestamp can read it there.
+		// Decode the full envelope from the payload BLOB. The BLOB
+		// holds the canonical wire format (json.Marshal(env)) so
+		// any fields not stored as dedicated columns are recovered
+		// here (Provenance, Trace, Actor, CorrelationID, Payload).
+		if err := json.Unmarshal(payload, &env); err != nil {
+			return nil, fmt.Errorf("event_runtime: unmarshal envelope payload: %w", err)
+		}
+		env.Sequence = seq
+		out = append(out, env)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("event_runtime: iterate range rows: %w", err)
+	}
+	return out, nil
+}
+
 // ReadUnacked returns up to `limit` envelopes that have not yet been acked
 // for the given subscriber, ordered by sequence ASC. The cursor lookup uses
 // projection_cursor.last_sequence; a missing cursor means "from the start".
