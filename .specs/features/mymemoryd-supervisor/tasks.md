@@ -176,17 +176,17 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 in
 **Depends on**: None
 **Reuses**: YAML parsing from `internal/config/`.
 **Requirement**: SUPR-12, SUPR-13
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `WorkerSpec` + `Profile` structs exported with validation
-- [ ] `LoadProfile` parses YAML, rejects unknown fields, returns error on malformed
-- [ ] Round-trip test: write profile → parse → fields equal
-- [ ] Test `TestProfile_LoadValid`: parse `.memory/profiles/default.yaml` template
-- [ ] Test `TestProfile_LoadMalformed_ReturnsErrInvalidProfile`
+- [x] `WorkerSpec` + `Profile` structs exported with validation
+- [x] `LoadProfile` parses YAML, rejects unknown fields, returns error on malformed
+- [x] Round-trip test: write profile → parse → fields equal
+- [x] Test `TestProfile_LoadValid`: parse `.memory/profiles/default.yaml` template
+- [x] Test `TestProfile_LoadMalformed_ReturnsErrInvalidProfile`
 
 **Tests**: integration
 **Gate**: full

@@ -46,14 +46,21 @@ type Manager struct {
 // profile. T2 extends the T1 placeholder with Command/Args/Env so
 // the lifecycle hooks can launch the subprocess. T3 adds
 // RestartPolicy so crashes trigger automatic restart with
-// exponential backoff. Required / Egress / Config land in T4 + T5
-// with the YAML parser.
+// exponential backoff. T4 completes the YAML contract with
+// Required / Egress / Config so profiles round-trip cleanly.
+//
+// YAML tags are explicit so the T4 strict decoder rejects
+// unknown fields without ambiguity. Keep tag names snake_case
+// to match the spec (ADR-042 §profile-yaml).
 type WorkerSpec struct {
-	Name          string
-	Command       string
-	Args          []string
-	Env           []string
-	RestartPolicy RestartPolicy
+	Name          string         `yaml:"name"`
+	Command       string         `yaml:"command"`
+	Args          []string       `yaml:"args,omitempty"`
+	Env           []string       `yaml:"env,omitempty"`
+	Required      bool           `yaml:"required,omitempty"`
+	Egress        string         `yaml:"egress,omitempty"`
+	Config        map[string]any `yaml:"config,omitempty"`
+	RestartPolicy RestartPolicy  `yaml:"restart_policy,omitempty"`
 }
 
 // RestartPolicy configures automatic restart behavior for a worker.
@@ -66,11 +73,15 @@ type WorkerSpec struct {
 // jitter can push individual intervals slightly outside the [base,
 // max] window, which is intentional (thundering-herd avoidance,
 // ADR-043 §6.2).
+//
+// YAML tags follow the contract documented in ADR-042 §profile-yaml
+// and are kept stable so future Profile.SchemaVersion > 1 bumps can
+// land without a migration step.
 type RestartPolicy struct {
-	MaxRetries int
-	BaseDelay  time.Duration
-	MaxDelay   time.Duration
-	Jitter     float64
+	MaxRetries int           `yaml:"max_retries,omitempty"`
+	BaseDelay  time.Duration `yaml:"base_delay,omitempty"`
+	MaxDelay   time.Duration `yaml:"max_delay,omitempty"`
+	Jitter     float64       `yaml:"jitter,omitempty"`
 }
 
 // DefaultRestartPolicy returns the T3 baseline used when a worker
