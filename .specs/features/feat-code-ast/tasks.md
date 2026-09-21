@@ -92,7 +92,7 @@ graph TD
 - Isolar import tree-sitter atrás de `//go:build treesitter` em arquivo separado; arquivo sem tag exporta stubs que retornam `ErrTreesitterDisabled`.
 - Adicionar logging one-time no boot: `tree-sitter: enabled` ou `tree-sitter: disabled (code pipeline skipped)`.
 
-### T2: Adicionar tabelas `code_files`, `code_symbols`, `code_edges`, `code_edges_uncertain` à migração
+### [x] T2: Adicionar tabelas `code_files`, `code_symbols`, `code_edges`, `code_edges_uncertain` à migração
 **Where**: `internal/db/db.go` (ver Details para `code_migration.go` e `code_migration_test.go`)
 **Depends on**: T1
 **Tests**: `internal/db/code_migration_test.go`
