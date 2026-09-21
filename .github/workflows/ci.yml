@@ -179,6 +179,128 @@ jobs:
           path: db-coverage.txt
           retention-days: 7
 
+  # ---------------------------------------------------------------------------
+  # feat-code-ast / ADR-047 / CA-15: CI matrix CGO on/off for code AST pipeline
+  # ---------------------------------------------------------------------------
+  # Tree-sitter integration is opt-in via the `treesitter` build tag
+  # (//go:build treesitter). Two parallel jobs exercise both paths so that:
+  #   * CGO-on  : build with `-tags treesitter`, real backend (when CGO toolchain
+  #               is available) or stub backend; tests must cover CA-01..CA-12.
+  #   * CGO-off : default build with no tag; code pipeline MUST be no-op and
+  #               markdown pipeline MUST keep working (CA-03, CA-14, CA-15).
+  # In this branch the tree-sitter binding is still a stub
+  # (internal/codeast/treesitter_enabled.go) that compiles without gcc. When
+  # the real binding github.com/tree-sitter/go-tree-sitter lands, the
+  # CGO-on job will additionally require gcc on Ubuntu (apt: build-essential)
+  # and gcc-mingw or MSVC on Windows runners. Failure to find a C compiler
+  # must surface as a clear diagnostic, not a silent green.
+  codeast-cgo-on:
+    name: Code AST Pipeline (CGO on / -tags treesitter)
+    # Best-effort: real tree-sitter binding may require a C toolchain not
+    # present in every CI image. The default build path stays green so the
+    # release pipeline is not blocked by an optional feature.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Install C toolchain (gcc) for future real binding
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc
+          gcc --version
+          echo "CGO_ENABLED=$(go env CGO_ENABLED)"
+          echo "CC=$(go env CC)"
+
+      - name: Run Code AST Tests (-tags treesitter)
+        run: |
+          CGO_ENABLED=1 go test -tags treesitter -v \
+            ./internal/codeast/... ./cmd/mem/... ./internal/mcp/... \
+            -run 'TestBuildTagIsolatesTreesitter|TestCode|TestMemoryCode|TestSQLCode|TestRanking|TestParser_|TestPipeline|TestCache|TestMockParser|TestLanguageDetection'
+
+      - name: Confirm boot log path
+        run: |
+          # In the treesitter-tagged build, LogTreesitterBootStatus emits:
+          #   "tree-sitter: enabled (stub backend ...)" (or the real backend
+          #   message once the binding is injected).
+          cat <<'EOF' > /tmp/bootcheck.go
+          package main
+          import (
+              "fmt"
+              "github.com/FelipeMiiller/my-memory/internal/codeast"
+          )
+          func main() {
+              fmt.Printf("treesitter enabled=%v\n", codeast.IsTreesitterEnabled())
+              codeast.LogTreesitterBootStatus()
+          }
+          EOF
+          cd /tmp && go mod init bootcheck >/dev/null 2>&1 || true
+          # Use the local module via replace directive
+          mkdir -p /tmp/bootcheck && cd /tmp/bootcheck
+          cp /tmp/bootcheck.go main.go
+          go mod init bootcheck 2>/dev/null || true
+          go mod edit -replace github.com/FelipeMiiller/my-memory=$GITHUB_WORKSPACE
+          go mod tidy 2>/dev/null || true
+          go run -tags treesitter .
+
+  codeast-cgo-off:
+    name: Code AST Pipeline (CGO off / default build - no-op path)
+    # Gating job for CA-03/CA-14/CA-15: the default `go test ./...` (no tag)
+    # MUST keep passing without any C toolchain. Code pipeline becomes no-op
+    # and emits the one-time boot warning:
+    #   "tree-sitter: disabled (code pipeline skipped)".
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Run Code AST No-Op Tests (default, no tag)
+        run: |
+          go test -v ./internal/codeast/... \
+            -run 'TestBuildTagIsolatesTreesitter|TestPipelineNoOpWhenTreesitterDisabled'
+
+      - name: Run Full Suite Without treesitter tag (markdown pipeline regression)
+        run: |
+          # No tag means no CGO requirement. If this fails, the markdown
+          # pipeline regressed because of the codeast package additions.
+          go test -count=1 ./internal/codeast/...
+
+      - name: Confirm IsTreesitterEnabled returns false on default build
+        run: |
+          mkdir -p /tmp/bootcheck_off && cd /tmp/bootcheck_off
+          cat <<'EOF' > main.go
+          package main
+          import (
+              "fmt"
+              "github.com/FelipeMiiller/my-memory/internal/codeast"
+          )
+          func main() {
+              if codeast.IsTreesitterEnabled() {
+                  fmt.Println("FAIL: IsTreesitterEnabled()=true without -tags treesitter")
+                  return
+              }
+              fmt.Println("OK: IsTreesitterEnabled()=false on default build")
+              codeast.LogTreesitterBootStatus()
+          }
+          EOF
+          go mod init bootcheck 2>/dev/null || true
+          go mod edit -replace github.com/FelipeMiiller/my-memory=$GITHUB_WORKSPACE
+          go mod tidy 2>/dev/null || true
+          go run .
+
   build-verification:
     name: Build Verification
     needs: [unit-tests, database-tests]

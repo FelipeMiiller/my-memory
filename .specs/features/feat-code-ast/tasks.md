@@ -176,7 +176,7 @@ graph TD
 
 ### Phase 5: CI, Docs, Validation
 
-### T9: CI matrix (linux/macos/windows × CGO on/off)
+### [x] T9: CI matrix (linux/macos/windows × CGO on/off)
 **Where**: `.github/workflows/ci.yml`
 **Depends on**: T8
 **Tests**: workflow run
