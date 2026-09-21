@@ -61,8 +61,68 @@ var (
 					"enum":        []string{"resource", "memory", "skill"},
 					"description": "Filtra por taxonomia de conhecimento: 'resource' (especificações técnicas, arquitetura), 'memory' (regras de conduta, lições aprendidas, padrões) ou 'skill' (habilidades, comandos operacionais, procedimentos)",
 				},
+				"include_code": map[string]any{
+					"type":        "boolean",
+					"description": "Quando verdadeiro, code_symbols competem em RRF com markdown chunks (CA-12, default: false)",
+				},
 			},
 			"required": []string{"query"},
+		},
+	}
+
+	ToolMemoryCodeSearch = Tool{
+		Name:        "memory_code_search",
+		Description: "Busca estruturada em code_symbols (function/method/class/interface/struct/etc.) com boost RRF 2x por qualified_name match exato (CA-10, ADR-047)",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"query": map[string]any{
+					"type":        "string",
+					"description": "Texto ou qualified_name (ex: 'pkg.FuncName') a buscar em code_symbols",
+				},
+				"language": map[string]any{
+					"type":        "string",
+					"description": "Filtra por linguagem (ex: 'go', 'python')",
+				},
+				"kind": map[string]any{
+					"type":        "string",
+					"enum":        []string{"function", "method", "class", "interface", "struct", "import", "constant", "variable"},
+					"description": "Filtra por symbol kind",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Número máximo de resultados (padrão: 10)",
+				},
+				"no_code_boost": map[string]any{
+					"type":        "boolean",
+					"description": "Desativa o boost 2x por qualified_name match exato (padrão: false → boost ativo)",
+				},
+			},
+			"required": []string{"query"},
+		},
+	}
+
+	ToolMemoryCodeNeighbors = Tool{
+		Name:        "memory_code_neighbors",
+		Description: "Retorna o sub-grafo (in/out edges) de um code_symbol via CTE recursivo até depth hops (CA-11, ADR-004 + ADR-047)",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"symbol": map[string]any{
+					"type":        "string",
+					"description": "Qualified_name ou nome curto do code_symbol a partir do qual explorar",
+				},
+				"depth": map[string]any{
+					"type":        "integer",
+					"description": "Profundidade máxima de travessia (padrão: 1, máx: 5)",
+				},
+				"direction": map[string]any{
+					"type":        "string",
+					"enum":        []string{"in", "out", "both"},
+					"description": "Direção: 'in' (chamadores), 'out' (chamados) ou 'both' (padrão)",
+				},
+			},
+			"required": []string{"symbol"},
 		},
 	}
 

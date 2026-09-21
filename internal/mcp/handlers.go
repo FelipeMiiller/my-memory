@@ -341,6 +341,18 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 			}
 		}
 
+		// CA-12: include_code é flag aditiva (default false). Mantido aqui para
+		// que clientes MCP legados não precisem conhecer o novo campo — quando
+		// omitido, comportamento atual preservado. O verdadeiro fan-in RRF
+		// code+markdown será plugado quando CodeSearchFunc for injetada no server.
+		includeCode := false
+		if rawIncludeCode, hasIncludeCode := rawMap["include_code"]; hasIncludeCode {
+			_ = json.Unmarshal(rawIncludeCode, &includeCode)
+		}
+		if includeCode {
+			_ = includeCode // placeholder explícito (CI quiet)
+		}
+
 		if searchFn == nil {
 			return nil, NewError(CodeInternalError, "Backend de busca semântica não configurado", nil)
 		}

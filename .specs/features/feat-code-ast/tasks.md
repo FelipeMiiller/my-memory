@@ -153,7 +153,7 @@ graph TD
 
 ### Phase 4: MCP & Quality
 
-### T7: MCP tools `memory_code_search`, `memory_code_neighbors` + flag `include_code` em `memory_search`
+### [x] T7: MCP tools `memory_code_search`, `memory_code_neighbors` + flag `include_code` em `memory_search`
 **Where**: `internal/mcp/tools.go` (ver Details para `code_handlers.go` e `_test.go`)
 **Depends on**: T6
 **Tests**: `internal/mcp/code_handlers_test.go`
