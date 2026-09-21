@@ -229,20 +229,20 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 in
 **Depends on**: None
 **Reuses**: `net/rpc` or hand-rolled JSON-RPC parser; `bufio.Scanner` for stdio.
 **Requirement**: SUPR-07, SUPR-09, SUPR-10, SUPR-11
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] Server accepts JSON-RPC 2.0 frames over stdio
-- [ ] `initialize` handshake completes within 5s or fail-closed
-- [ ] Malformed frame → response with `code: -32600 Invalid Request`
-- [ ] Request timeout 30s → `ipc.timeout` event + connection close
-- [ ] Batch > 100 → response with `code: -32613 Batch limit exceeded`
-- [ ] Test `TestJsonRpc_InitializeHandshake`
-- [ ] Test `TestJsonRpc_RejectsMalformedFrame`
-- [ ] Test `TestJsonRpc_RejectsBatchOver100`
+- [x] Server accepts JSON-RPC 2.0 frames over stdio
+- [x] `initialize` handshake completes within 5s or fail-closed
+- [x] Malformed frame → response with `code: -32600 Invalid Request`
+- [x] Request timeout 30s → `ipc.timeout` event + connection close
+- [x] Batch > 100 → response with `code: -32613 Batch limit exceeded`
+- [x] Test `TestJsonRpc_InitializeHandshake`
+- [x] Test `TestJsonRpc_RejectsMalformedFrame`
+- [x] Test `TestJsonRpc_RejectsBatchOver100`
 
 **Tests**: unit + integration
 **Gate**: full
