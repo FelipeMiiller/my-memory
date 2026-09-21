@@ -131,7 +131,7 @@ graph TD
 
 ### Phase 3: Ranking & Search
 
-### T5: Boost RRF por `qualified_name` match + CLI `mem code-search`
+### [x] T5: Boost RRF por `qualified_name` match + CLI `mem code-search`
 **Where**: `internal/codeast/ranking.go` (ver Details para `cmd/mem/codesearch.go` e respectivos `_test.go`)
 **Depends on**: T4
 **Tests**: `internal/codeast/ranking_test.go`, `cmd/mem/codesearch_test.go`
