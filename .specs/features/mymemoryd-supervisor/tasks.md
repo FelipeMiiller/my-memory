@@ -201,18 +201,18 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 in
 **Depends on**: T4
 **Reuses**: T4 parser.
 **Requirement**: SUPR-12, SUPR-13, SUPR-14, SUPR-15
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `voice.yaml extends default.yaml` → effective workers = merged list (parent first, child overrides)
-- [ ] `required: true` worker fails to start → manager exits with code 2 after 30s timeout
-- [ ] `required: false` worker fails to start → emits `worker.optional_failed` event, continues
-- [ ] Test `TestProfile_Inheritance_MergesWorkers`
-- [ ] Test `TestProfile_RequiredWorkerMissing_FailsClosed`
-- [ ] Test `TestProfile_OptionalWorkerMissing_ContinuesWithEvent`
+- [x] `voice.yaml extends default.yaml` → effective workers = merged list (parent first, child overrides)
+- [x] `required: true` worker fails to start → manager exits with code 2 after 30s timeout
+- [x] `required: false` worker fails to start → emits `worker.optional_failed` event, continues
+- [x] Test `TestProfile_Inheritance_MergesWorkers`
+- [x] Test `TestProfile_RequiredWorkerMissing_FailsClosed`
+- [x] Test `TestProfile_OptionalWorkerMissing_ContinuesWithEvent`
 
 **Tests**: integration
 **Gate**: full

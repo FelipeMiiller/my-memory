@@ -138,11 +138,25 @@ func LoadProfile(path string) (*Profile, error) {
 }
 
 // ResolveProfile applies T5 inheritance semantics: when p.Extends
-// is non-empty, the parent's workers list is loaded from
-// baseDir/<extends>.yaml and merged with p.Workers (child entries
-// override parent entries with the same Name). This stub returns
-// p unchanged so T4 callers can use the same field shape; T5 will
-// flesh out the merge + required/optional semantics.
+// is non-empty, the parent's profile is loaded from
+// baseDir/<extends>.yaml and merged with p.Workers.
+//
+// Merge rules (spec P3 AC 2):
+//  1. Parent workers appear first, in declared order.
+//  2. Child workers with a Name matching a parent entry OVERRIDE
+//     that parent entry (Command, Args, Env, Required, Egress,
+//     Config, RestartPolicy all replaced). The override does NOT
+//     preserve parent fields the child omits — the child must
+//     re-declare everything it wants to keep.
+//  3. Child-only workers (Name not in parent) are appended in
+//     declared order after the parent list.
+//  4. Worker configs are merged at the Config map level: child
+//     keys override parent keys for the same worker.
+//
+// A non-empty extends field that points at a missing or malformed
+// file is an error — inheritance failures must surface loudly so
+// operators don't ship a profile that silently drops half the
+// worker pool.
 func ResolveProfile(p *Profile, baseDir string) (*Profile, error) {
 	if p == nil {
 		return nil, fmt.Errorf("%w: profile is nil", ErrInvalidProfile)
@@ -150,10 +164,87 @@ func ResolveProfile(p *Profile, baseDir string) (*Profile, error) {
 	if p.Extends == "" {
 		return p, nil
 	}
-	// T5: load parent, merge workers by name, override Config keys.
-	// T4 returns the profile unchanged so callers don't have to
-	// guard against the unmerged form.
-	return p, nil
+
+	parentPath := filepath.Join(baseDir, p.Extends+".yaml")
+	parent, err := LoadProfile(parentPath)
+	if err != nil {
+		return nil, fmt.Errorf("%w: extends %q: %v", ErrInvalidProfile, p.Extends, err)
+	}
+
+	// Recursive resolve in case parent also extends something.
+	resolvedParent, err := ResolveProfile(parent, baseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	merged := mergeWorkers(resolvedParent.Workers, p.Workers)
+
+	// Build a fresh Profile so callers can't mutate the parent
+	// via the returned pointer.
+	out := *p
+	out.Workers = merged
+	out.Extends = "" // fully resolved; downstream code shouldn't see extends
+	return &out, nil
+}
+
+// mergeWorkers combines parent and child worker lists per the rules
+// in ResolveProfile. Pure function — exposed at package level so
+// future tests can exercise the merge independently of file IO.
+func mergeWorkers(parent, child []WorkerSpec) []WorkerSpec {
+	if len(parent) == 0 {
+		return append([]WorkerSpec(nil), child...)
+	}
+	if len(child) == 0 {
+		return append([]WorkerSpec(nil), parent...)
+	}
+
+	// Index parent by name so we can detect overrides in O(1) and
+	// preserve the parent's declared order. Override entries
+	// replace the parent entry at the same position so the merged
+	// list keeps the parent's order for overridden workers; new
+	// child entries go to the end.
+	merged := make([]WorkerSpec, 0, len(parent)+len(child))
+	overridden := make(map[string]bool, len(child))
+	for _, pw := range parent {
+		replaced := false
+		for _, cw := range child {
+			if cw.Name == pw.Name {
+				merged = append(merged, mergeWorker(pw, cw))
+				overridden[cw.Name] = true
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			merged = append(merged, pw)
+		}
+	}
+	// Append child-only workers in their declared order.
+	for _, cw := range child {
+		if overridden[cw.Name] {
+			continue
+		}
+		merged = append(merged, cw)
+	}
+	return merged
+}
+
+// mergeWorker combines a parent and child worker entry where the
+// Name matches. The child's scalar fields (Command, Args, Env,
+// Required, Egress) win outright; the child's Config map is
+// merged into the parent's (child keys override parent keys).
+func mergeWorker(parent, child WorkerSpec) WorkerSpec {
+	out := child
+	if len(parent.Config) > 0 {
+		out.Config = make(map[string]any, len(parent.Config)+len(child.Config))
+		for k, v := range parent.Config {
+			out.Config[k] = v
+		}
+		for k, v := range child.Config {
+			out.Config[k] = v
+		}
+	}
+	return out
 }
 
 // writeProfileAtomic serializes p to YAML atomically (tmp + rename).

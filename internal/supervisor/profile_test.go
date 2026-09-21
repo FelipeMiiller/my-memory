@@ -296,18 +296,29 @@ func TestProfile_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestProfile_ExtendsParsedButNotMerged(t *testing.T) {
-	// T4 ships the parser; T5 owns the merge. The stub
-	// ResolveProfile must accept the field shape and return the
-	// same profile (no inheritance applied yet).
-	yaml := `schema_version: 1
+func TestProfile_ExtendsParsedAndMerged(t *testing.T) {
+	// T5 ships the merge. ResolveProfile must load the parent
+	// from <baseDir>/<extends>.yaml and combine workers per the
+	// spec rules. Extends must be cleared on the resolved profile
+	// so downstream code never sees the inheritance pointer.
+	dir := t.TempDir()
+	writeProfileFile(t, dir, "default.yaml", `schema_version: 1
+workers:
+  - name: embedder
+    command: .memory/workers/embedder
+`)
+	childPath := filepath.Join(dir, "voice.yaml")
+	childYAML := `schema_version: 1
 extends: default
 workers:
-  - name: overlay
-    command: .memory/workers/overlay
+  - name: tts
+    command: .memory/workers/tts
 `
-	path := writeProfileFixture(t, yaml)
-	p, err := LoadProfile(path)
+	if err := os.WriteFile(childPath, []byte(childYAML), 0o644); err != nil {
+		t.Fatalf("write child: %v", err)
+	}
+
+	p, err := LoadProfile(childPath)
 	if err != nil {
 		t.Fatalf("LoadProfile: %v", err)
 	}
@@ -315,15 +326,21 @@ workers:
 		t.Fatalf("Extends = %q, want default", p.Extends)
 	}
 
-	resolved, err := ResolveProfile(p, t.TempDir())
+	resolved, err := ResolveProfile(p, dir)
 	if err != nil {
 		t.Fatalf("ResolveProfile: %v", err)
 	}
-	if resolved.Extends != "default" {
-		t.Fatalf("ResolveProfile dropped Extends: %q", resolved.Extends)
+	if resolved.Extends != "" {
+		t.Fatalf("ResolveProfile must clear Extends after merge; got %q", resolved.Extends)
 	}
-	if len(resolved.Workers) != 1 || resolved.Workers[0].Name != "overlay" {
-		t.Fatalf("T4 baseline ResolveProfile must NOT merge; got %+v", resolved.Workers)
+	if len(resolved.Workers) != 2 {
+		t.Fatalf("workers count = %d, want 2 (parent + child)", len(resolved.Workers))
+	}
+	if resolved.Workers[0].Name != "embedder" {
+		t.Errorf("workers[0].Name = %q, want embedder (parent first)", resolved.Workers[0].Name)
+	}
+	if resolved.Workers[1].Name != "tts" {
+		t.Errorf("workers[1].Name = %q, want tts (child-only appended)", resolved.Workers[1].Name)
 	}
 }
 

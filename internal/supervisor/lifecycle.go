@@ -17,11 +17,13 @@ import (
 // Lifecycle event types written to event_log (ADR-042 §lifecycle
 // events). Exported so tests and external tools can match them.
 const (
-	EventWorkerStarted       = "worker.started"
-	EventWorkerStopped       = "worker.stopped"
-	EventWorkerHeartbeatLost = "worker.heartbeat_lost"
-	EventWorkerFailed        = "supervisor.worker_failed"
-	EventWorkerRestarted     = "worker.restarted"
+	EventWorkerStarted        = "worker.started"
+	EventWorkerStopped        = "worker.stopped"
+	EventWorkerHeartbeatLost  = "worker.heartbeat_lost"
+	EventWorkerFailed         = "supervisor.worker_failed"
+	EventWorkerRestarted      = "worker.restarted"
+	EventWorkerOptionalFailed = "worker.optional_failed"
+	EventSupervisorRequired   = "supervisor.required_failed"
 )
 
 // defaultStopGrace is the SIGTERM → SIGKILL escalation timeout
@@ -37,6 +39,12 @@ var (
 	// ErrWorkerAlreadyStarted is returned by Start when a worker
 	// with the same ID is already in the active map.
 	ErrWorkerAlreadyStarted = errors.New("supervisor: worker already started")
+
+	// ErrRequiredFailed is returned by StartAll when any worker
+	// with Required=true fails to start. The error wraps the worker
+	// name so callers (notably cmd/mymemoryd) can map it to exit
+	// code 2 per ADR-050 LLM10 fail-closed semantics.
+	ErrRequiredFailed = errors.New("supervisor: required worker failed to start")
 )
 
 // Start launches the worker subprocess declared by spec, registers

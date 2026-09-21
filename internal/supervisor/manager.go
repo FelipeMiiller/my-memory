@@ -213,3 +213,43 @@ func (m *Manager) Profile() string {
 func (m *Manager) String() string {
 	return fmt.Sprintf("Manager{profile=%s dir=%s}", m.profile, m.memoryDir)
 }
+
+// StartAll starts each worker in specs sequentially, honoring
+// Required vs optional semantics (ADR-042 §DR-2 + spec P3 AC 3/4).
+// Returns nil when every worker started successfully or when only
+// optional workers failed. Returns an error wrapping
+// ErrRequiredFailed when any required worker fails to start —
+// callers should map that to exit code 2.
+//
+// Required workers are evaluated strictly: when one fails, the
+// remaining workers are NOT started (fail-closed). Optional worker
+// failures emit worker.optional_failed and StartAll continues with
+// the next spec.
+//
+// Each successful Start emits worker.started; each optional
+// failure emits worker.optional_failed; each required failure
+// emits supervisor.required_failed. The 30s ready timeout
+// referenced in the spec is enforced by the IPC handshake in T6/T7
+// (not by StartAll — Start only validates the binary exists).
+func (m *Manager) StartAll(ctx context.Context, specs []WorkerSpec) error {
+	for _, spec := range specs {
+		if _, err := m.Start(ctx, spec); err != nil {
+			if spec.Required {
+				m.emitEvent(ctx, EventSupervisorRequired, spec.Name, map[string]any{
+					"command": spec.Command,
+					"error":   err.Error(),
+					"ts":      time.Now().UTC().Format(time.RFC3339Nano),
+				})
+				return fmt.Errorf("%w: id=%s command=%s: %v",
+					ErrRequiredFailed, spec.Name, spec.Command, err)
+			}
+			// Optional failure: log and continue.
+			m.emitEvent(ctx, EventWorkerOptionalFailed, spec.Name, map[string]any{
+				"command": spec.Command,
+				"error":   err.Error(),
+				"ts":      time.Now().UTC().Format(time.RFC3339Nano),
+			})
+		}
+	}
+	return nil
+}
