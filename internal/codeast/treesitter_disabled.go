@@ -7,6 +7,7 @@
 package codeast
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -28,10 +29,10 @@ func IsTreesitterEnabled() bool {
 }
 
 // LogTreesitterBootStatus imprime "tree-sitter: disabled (code pipeline skipped)"
-// exatamente uma vez durante o boot do processo.
+// exatamente uma vez durante o boot do processo (CA-14).
 func LogTreesitterBootStatus() {
 	treesitterLogOnce.Do(func() {
-		// Saída controlada pelo chamador via fmt; aqui só sinalizamos.
+		fmt.Println("tree-sitter: disabled (code pipeline skipped)")
 		treesitterEnabled = false
 	})
 }
