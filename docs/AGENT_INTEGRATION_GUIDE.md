@@ -249,6 +249,10 @@ Mais detalhes em `docs/CLI_GUIDE.md` seção "Seleção de Storage".
 | `mem pack` | Empacota subgrafo conexo centrado em nota raiz com controle rígido de tokens. | `mem pack "docs/auth.md" --max-tokens 3000` |
 | `mem open` | Abre nota local ou federada (`memory://`) diretamente no Obsidian ou VS Code com cursor opcional na linha. | `mem open "memory://central/standards/oauth2" --app obsidian` |
 | `mem drift` | Diagnostica desvio entre commits de código e documentação (Semantic Drift). | `mem drift --since HEAD~5 --strict` |
+| `mem code-index` | Indexa símbolos e arestas de código via tree-sitter (ADR-047, build opt-in `-tags treesitter`). | `mem code-index --lang=go,py ./internal` |
+| `mem code-search` | Busca híbrida de símbolos com boost RRF 2× em `qualified_name` (CA-05). | `mem code-search "Parser.Parse" --kind=function` |
+| `mem code-graph` | Vizinhança recursiva de um símbolo via CTE sobre `code_edges`. | `mem code-graph internal/parser.Parser.Parse --depth 2` |
+| `mem code-stats` | Distribuição por linguagem/kind e arquivos órfãos sem símbolos. | `mem code-stats --json` |
 | `mem mcp` | Inicia o servidor MCP via stdio (para IDEs) ou HTTP/SSE com federação RRF. | `mem mcp --port 38400` |
 
 ---
@@ -276,6 +280,9 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | `memory_pack_context` | Para extrair e empacotar um subgrafo conexo com limite rígido de tokens em prompt único. | `root_node` (string), `max_depth` (int), `max_tokens` (int), `direction` ("both" \| "outbound" \| "inbound") |
 | `memory_open_node` | Para gerar links acionáveis (`obsidian://`, `vscode://`) ou solicitar abertura de nota local ou federada (`memory://`) no editor. | `node_id` (string), `app` ("obsidian" \| "vscode" \| "system"), `line` (int), `action` ("links_only" \| "open") |
 | `memory_get_drift` | Para identificar desvios entre código recente e notas, além de código órfão sem decisões. | `since` (string), `threshold` (float), `include_uncovered` (bool) |
+| `memory_code_search` | Para localizar símbolos de código (funções, classes, structs) por nome/linguagem/kind com boost RRF 2× em `qualified_name` (CA-10, ADR-047). Requer build com `-tags treesitter`; no build padrão devolve lista vazia com aviso. | `query` (string), `language` (string opcional), `kind` (string opcional), `limit` (int opcional) |
+| `memory_code_neighbors` | Para inspecionar o sub-grafo de chamadas/referências (in+out) de um símbolo até `depth` hops via CTE recursivo (CA-11, ADR-047). | `symbol` (string), `depth` (int opcional, padrão 1, máx 5) |
+| `memory_search` (com `include_code`) | Estende a busca híbrida existente para que `code_symbols` concorram no ranqueamento RRF quando `include_code=true` (CA-12, default `false` para preservar comportamento de clientes legados). | `query` (string), `include_code` (bool opcional) |
 
 ---
 

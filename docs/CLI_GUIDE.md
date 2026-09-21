@@ -550,6 +550,100 @@ Analisa o desvio semântico e estrutural entre alterações recentes no históri
 
 ---
 
+### 24. `mem code-index [--lang=<csv>] [--include=<glob>] [--exclude=<glob>] [--ast-hash] [--no-embed] [--storage=<sqlite|postgres>] [<pasta>]`
+
+Estágio **opt-in** do pipeline de código (ADR-047) que varre os arquivos-fontes do vault, faz o parsing sintático via **tree-sitter** e persiste os símbolos/edges no `memory.db` unificado:
+
+* **Build CGO opt-in (`-tags treesitter`)**: o binding real (`github.com/tree-sitter/go-tree-sitter`) requer gcc. Sem a tag, o `code_pipeline` torna-se **no-op silencioso** com warning `tree-sitter: disabled (code pipeline skipped)` no boot (CA-03/CA-14). O pipeline Markdown continua 100% funcional.
+* **Detecção por extensão** (`go`, `py`, `ts`, `tsx`, `js`, `jsx`, `rs`, `java`, `c`, `cpp`, `h`, `hpp`, `rb`, `php`, `sh`, `bash`, `cs`) + fallback por shebang na primeira linha.
+* **Cache incremental** via `content_hash` (SHA-256) + `ast_hash` (SHA-256 da tripla `{kind, qualified_name, start_line}` ordenada). Re-roda apenas o que mudou (CA-04).
+* **Resolução de referências cross-file** via heurística literal do `qualified_name`: match único → `code_edges` (`confidence=1.0`); match ambíguo → `code_edges_uncertain` (`confidence=0.5`).
+* **`--lang <csv>`**: restringe parsing a um subconjunto (ex.: `--lang=go,py`). `--lang=all` baixa gramáticas adicionais sob demanda.
+* **`--include` / `--exclude`**: globs adicionais empilhados sobre o escopo declarativo de `.memory/config.yaml` (ADR-016).
+* **`--ast-hash`**: re-emite `ast_hash` mesmo quando `content_hash` mudou (forçar full-reparse).
+* **`--no-embed`**: pula a geração de embeddings vetoriais (somente metadados).
+* **`--storage=<sqlite|postgres>`**: respeita a matriz de seleção de storage do ADR-040.
+
+**Exemplos:**
+```bash
+# Build padrão (sem tree-sitter): comando emite warning e termina com sucesso,
+# sem alterar o banco. Idempotente e CI-friendly.
+./bin/mem.exe code-index
+
+# Build com tag treesitter: parsing real e persistência dos símbolos/edges.
+CGO_ENABLED=1 go build -tags treesitter -o bin/mem-ast.exe ./cmd/mem
+./bin/mem-ast.exe code-index ./meu-repo
+
+# Restringir a linguagens específicas:
+./bin/mem-ast.exe code-index --lang=go,rust ./internal/...
+
+# Auditoria: indexar somente o que mudou desde a última execução:
+./bin/mem-ast.exe code-index --include="internal/codeast/**/*.go"
+```
+
+---
+
+### 25. `mem code-search "<query>" [--lang=<csv>] [--kind=<symbol_kind>] [--limit=<N>] [--no-code-boost]`
+
+Atalho sobre `mem search` otimizado para o universo de símbolos de código. Aplica **boost RRF 2×** quando a query casa com `qualified_name` (ex.: `internal/parser.Parser.Parse`) — prioriza o símbolo sobre prosa contendo os mesmos tokens (CA-05/CA-07):
+
+* `--lang <csv>`: filtra por linguagem (`go`, `py`, `ts`, etc.).
+* `--kind <symbol_kind>`: filtra por tipo de símbolo (`function`, `method`, `class`, `interface`, `struct`, `import`, `constant`, `variable`).
+* `--limit <N>`: limite de resultados (padrão: 10).
+* `--no-code-boost`: desativa o boost de `qualified_name` para diagnósticos ou testes A/B.
+
+**Exemplos:**
+```bash
+# Encontrar todas as funções Go cujo qualified_name contém "Parser":
+./bin/mem-ast.exe code-search "Parser" --lang=go --kind=function --limit 20
+
+# Localizar implementações de uma interface:
+./bin/mem-ast.exe code-search "Parser.Parse" --lang=go
+
+# Diagnóstico sem boost (RRF puro):
+./bin/mem-ast.exe code-search "Database.Open" --no-code-boost
+```
+
+---
+
+### 26. `mem code-graph <symbol> [--depth=<N>] [--json]`
+
+Resolve um símbolo (`exact qualified_name` ou fallback `suffix .Name`) e devolve a vizinhança direcionada (in + out) até a profundidade solicitada, usando **CTE recursivo** sobre `code_edges` (ADR-004 / CA-08):
+
+* `--depth <N>`: profundidade máxima (padrão: 1, máximo: 5).
+* **`--json`**: emite payload estruturado com `{root, neighbors[]}` pronto para automações ou agentes MCP.
+* **Markdown table padrão**: colunas `direction | kind | symbol | file | line` com deep links `[[rel:code:<id>]]`.
+
+**Exemplos:**
+```bash
+# Quem chama Parser.Parse e o que Parser.Parse chama:
+./bin/mem-ast.exe code-graph internal/parser.Parser.Parse --depth 2
+
+# Subgrafo profundo para análise estática:
+./bin/mem-ast.exe code-graph db.DB.Query --depth 3 --json > graph_db_query.json
+```
+
+---
+
+### 27. `mem code-stats [--json]`
+
+Agrega contadores de `code_files` e `code_symbols` em três visões complementares (CA-09):
+
+* **Distribuição por linguagem**: contagem de arquivos e símbolos por `language` detectado.
+* **Distribuição por kind**: histograma de `function`, `class`, `struct`, `interface`, etc.
+* **Arquivos órfãos**: lista `code_files` sem nenhum símbolo extraído (sinaliza arquivos de configuração, dados ou gramática não suportada).
+
+**Exemplos:**
+```bash
+# Relatório tabular padrão:
+./bin/mem-ast.exe code-stats
+
+# Saída JSON para painéis/dashboards:
+./bin/mem-ast.exe code-stats --json
+```
+
+---
+
 
 ## 🗄️ Seleção de Storage (ADR-040)
 

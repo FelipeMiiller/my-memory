@@ -85,6 +85,48 @@ O **My-Memory** é uma engine de memória semântica e relacional local desenvol
 - `graph_nodes`: Vértices do grafo (`note`, `tag`, `concept`, `decision`).
 - `graph_edges`: Arestas direcionadas tipadas com status epistêmico (`EXTRACTED`, `INFERRED`, `TAG`) e pesos associados.
 
+### 6. Code AST (ADR-047 / feat-code-ast)
+
+Quando o binário é compilado com `-tags treesitter`, o `mem index` orquestra um segundo estágio (`code_pipeline`) que faz parsing sintático dos arquivos-fonte e persiste metadados estruturados nas tabelas `code_*`:
+
+- **`code_files`**: 1 linha por arquivo parseado (`path`, `language`, `content_hash` SHA-256, `ast_hash` SHA-256 dos símbolos, `size_bytes`, `indexed_at`). Reusa o `content_hash` da ADR-010 para cache incremental.
+- **`code_symbols`**: símbolos extraídos (`function`, `method`, `class`, `interface`, `struct`, `import`, `constant`, `variable`) com `qualified_name`, `start_line`, `end_line`, `signature`, `doc_comment` e referência ao `code_file_id`.
+- **`code_edges`**: arestas tipadas entre símbolos (`calls`, `imports`, `embeds`, `implements`) com `confidence` (1.0 quando a resolução do `qualified_name` é única).
+- **`code_edges_uncertain`**: arestas com `confidence < 0.5`, separadas do grafo principal para evitar ruído estrutural em resoluções ambíguas.
+
+Índices canônicos: `code_graph_kind_idx`, `code_symbols_kind_name_idx`, `code_files_language_idx`. Toda a criação é **idempotente** (`CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`) e funciona identicamente em SQLite local e PostgreSQL/pgvector (ADR-040/ADR-001/ADR-016, CA-02/CA-16).
+
+**Build opt-in (CA-14)**: o binding real `github.com/tree-sitter/go-tree-sitter` exige CGO. O pacote `internal/codeast` isola o import atrás de `//go:build treesitter` em `treesitter_enabled.go`; o arquivo `treesitter_disabled.go` exporta um stub que devolve `ErrTreesitterDisabled` e mantém o `code_pipeline` como **no-op** no build padrão. No boot, o processo emite exatamente uma vez: `tree-sitter: enabled` (com tag) ou `tree-sitter: disabled (code pipeline skipped)` (sem tag).
+
+---
+
+## 🔌 Estágio `code_pipeline` dentro do `mem index`
+
+O fluxo de indexação do My-Memory é estendido opcionalmente com o estágio `code_pipeline`, executado **após** o pipeline Markdown tradicional:
+
+```
+                          [ Arquivos Markdown / Código-fonte ]
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  ▼                                          ▼
+       [ markdown_pipeline ]                       [ code_pipeline ]
+       (chunks, embeddings,                      (tree-sitter + cache
+        wikilinks, FTS, turboquant)                SHA-256 + ast_hash)
+                  │                                          │
+                  │                  ┌───────────────────────┴───────────────────────┐
+                  ▼                  ▼                                               ▼
+       [ graph_nodes/edges ]   [ code_files/code_symbols/code_edges ]      [ code_edges_uncertain ]
+                  │                  │                                               │
+                  └──────────────────┼───────────────────────────────────────────────┘
+                                     ▼
+                     SQLite Local (memory.db) / PostgreSQL pgvector
+```
+
+* **`mem index` (default, sem `-tags treesitter`)**: roda apenas o `markdown_pipeline`; warning único no boot e code_pipeline no-op (CA-03).
+* **`mem code-index`** (ADR-047): executa somente o `code_pipeline`, útil para re-indexações cirúrgicas após refactors massivos de código.
+* **Resolução de referências cross-file** (CA-05): varrer `code_symbols` para nomes matching literalmente; 1 match → `code_edges` (`confidence=1.0`); múltiplos → `code_edges_uncertain` (`confidence=0.5`).
+* **Cache incremental** (CA-04): se `content_hash` matches → skip parse; se difere mas `ast_hash` é idêntico → atualiza `content_hash` mas skip embed/downstream (mudanças apenas whitespace/comentários).
+
 ---
 
 ## 🕸 Expansão de Grafo com SQL Recursivo

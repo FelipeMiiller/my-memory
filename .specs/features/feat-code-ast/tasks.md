@@ -187,7 +187,7 @@ graph TD
 - Em jobs CGO-off: rodar `go test` sem tag; assertar que `tree-sitter: disabled` warning aparece e code_pipeline é no-op.
 - Em Windows: documentar uso de `gcc` (mingw) ou MSVC; erro claro se faltar.
 
-### T10: Atualizar docs (CLI_GUIDE, AGENT_INTEGRATION_GUIDE, ARCHITECTURE, README)
+### [x] T10: Atualizar docs (CLI_GUIDE, AGENT_INTEGRATION_GUIDE, ARCHITECTURE, README)
 **Where**: `docs/CLI_GUIDE.md` (ver Details para demais docs)
 **Depends on**: T9
 **Tests**: grep asserts

@@ -61,6 +61,7 @@ O **My-Memory** resolve isso unificando **busca vetorial**, **grafo de conhecime
 3. **🕸 Grafo Estilo Obsidian via SQL Recursivo:** Extrai conexões explícitas de notas (`[[links]]` e `#tags`), permitindo travessias relacionais, detecção de comunidades (LPA) e análise de raio de impacto em microssegundos.
 4. **🔌 Model Context Protocol (MCP) Nativo:** Conecta-se diretamente aos assistentes de codificação de IA via `stdio` (JSON-RPC 2.0) ou rede HTTP/SSE, expondo ferramentas de busca e expansão de contexto.
 5. **🏛️ Federação, Cofre Central e Wikilinks Cross-Vault:** Vincula um Cofre Central de padrões corporativos (Google Drive / OneDrive para Obsidian) a repositórios satélites com `repo_id` criptográfico imutável, catálogo global (`~/.memory/config.yaml`), zero-credentials no Git, busca híbrida federada via RRF e protocolo canônico universal `memory://<repo>/<path>` para resolução transparente de wikilinks cross-vault em editores e MCP.
+6. **🌳 Code AST Indexing (tree-sitter, opt-in via `-tags treesitter`):** Parser sintático multi-linguagem (Go, Python, TS/JS, Rust, Java, C/C++, Ruby, PHP, Shell, C#) com persistência de símbolos/arestas em `code_files`/`code_symbols`/`code_edges`, boost RRF 2× em `qualified_name` e ferramentas CLI/MCP dedicadas (`mem code-index`/`code-search`/`code-graph`/`code-stats`, `memory_code_search`/`memory_code_neighbors`). Build padrão (sem tag) continua CGO-free e mantém o pipeline Markdown 100% funcional (CA-14, ADR-047).
 
 ---
 
@@ -189,9 +190,9 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 
 ## 🤖 Ferramentas MCP para Assistentes de IA
 
-Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 17 ferramentas para o ecossistema de IA:
+Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 19 ferramentas para o ecossistema de IA:
 
-- `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional.
+- `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional. Aceita `include_code: true` (default `false`, CA-12) para que `code_symbols` concorram no ranqueamento.
 - `memory_get_neighbors`: Expansão recursiva de nós e dependências conectadas via SQL recursivo (CTEs) com marcação `is_federated: true`.
 - `memory_find_path`: Descoberta do caminho mais curto entre duas notas via BFS bidirecional com pesos epistêmicos.
 - `memory_get_impact`: Análise de raio de destruição (*Blast Radius*) e dependentes reversos com risk scoring.
@@ -208,6 +209,8 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 17 fer
 - `memory_visualize_graph`: Exportação de visualizador interativo em HTML/SVG standalone com física de forças.
 - `memory_export_canvas`: Exportação bidirecional para o padrão Obsidian JSON Canvas 1.0 (.canvas).
 - `memory_open_node`: Abertura cirúrgica de notas locais e canônicas federadas (`memory://`) no editor via deep links de IDE.
+- `memory_code_search` *(ADR-047, CA-10)*: Busca estruturada de símbolos de código com filtros `language` e `kind`, ranqueada por boost RRF 2× em `qualified_name`. Requer build com `-tags treesitter`.
+- `memory_code_neighbors` *(ADR-047, CA-11)*: Sub-grafo de chamadas/referências (in+out) de um símbolo até `depth` hops via CTE recursivo sobre `code_edges`.
 
 ---
 
@@ -219,6 +222,7 @@ my-memory/
 ├── internal/
 │   ├── autowire/       # Injeção e sugestão automática de wikilinks em Markdown
 │   ├── canvas/         # Conversor e exportador para formato JSON Canvas 1.0 (.canvas)
+│   ├── codeast/        # Pipeline tree-sitter (build tag treesitter), cache SHA-256/ast_hash, ranking e sub-grafo de código (ADR-047)
 │   ├── compiler/       # Compilador semântico de contexto e síntese sob demanda
 │   ├── config/         # Configuração declarativa, descoberta de vault e variáveis de ambiente
 │   ├── db/             # Schemas SQLite, virtual tables sqlite-vec e queries recursivas CTE
@@ -246,7 +250,7 @@ my-memory/
 
 ## 🧪 Validação e Testes
 
-O My-Memory conta com cobertura de testes unitários e de integração em todos os 18 pacotes Go:
+O My-Memory conta com cobertura de testes unitários e de integração em todos os 19 pacotes Go:
 
 ```bash
 # Executar todos os testes do repositório
