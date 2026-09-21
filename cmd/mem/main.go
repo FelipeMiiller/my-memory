@@ -718,6 +718,22 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "up":
+		code := runUpCommand(ctx, os.Args[2:], ".memory", "", os.Stdout, os.Stderr)
+		os.Exit(code)
+
+	case "down":
+		code := runDownCommand(ctx, os.Args[2:], ".memory", os.Stdout, os.Stderr)
+		os.Exit(code)
+
+	case "profiles":
+		code := runProfilesCommand(ctx, os.Args[2:], ".memory", os.Stdout, os.Stderr)
+		os.Exit(code)
+
+	case "logs":
+		code := runLogsCommand(ctx, os.Args[2:], ".memory", os.Stdout, os.Stderr)
+		os.Exit(code)
+
 	case "status":
 		if err := runStatusCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)

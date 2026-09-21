@@ -284,23 +284,25 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 in
 **Depends on**: T1
 **Reuses**: `cobra` framework (already in use); existing CLI patterns from `cmd/mem/events.go`.
 **Requirement**: SUPR-01, SUPR-05, SUPR-16, SUPR-17
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] `mem up` spawns `mymemoryd` subprocess, waits for `READY` on stdout, exits 0
-- [ ] `mem down` sends SIGTERM, waits 10s, SIGKILL, exits 0
-- [ ] `mem status` prints table: worker_id, pid, status, uptime, last_heartbeat
-- [ ] `mem status --json` outputs JSON parseable
-- [ ] `mem logs <worker>` tails `.memory/logs/supervisor.jsonl` filtered by worker_id
-- [ ] `mem profiles list` prints all profiles + effective worker count
-- [ ] `mem profiles use <name>` writes `.memory/config.yaml: active_profile`
-- [ ] `mem up` when already running → exit 0 with "Already running on PID <N>"
-- [ ] Test `TestCliUp_StartsAndStops`: `mem up` then `mem down` → supervisor exits 0
-- [ ] Test `TestCliUp_AlreadyRunning`: 2× `mem up` → second exit 0 with message
-- [ ] Test `TestCliProfiles_ListAndUse`
+- [x] `mem up` spawns `mymemoryd` subprocess, waits for `READY` on stdout, exits 0
+- [x] `mem down` sends SIGTERM, waits 10s, SIGKILL, exits 0
+- [ ] `mem status` prints table: worker_id, pid, status, uptime, last_heartbeat *(DEVIATION — see below)*
+- [ ] `mem status --json` outputs JSON parseable *(DEVIATION — see below)*
+- [x] `mem logs <worker>` tails `.memory/logs/supervisor.jsonl` filtered by worker_id
+- [x] `mem profiles list` prints all profiles + effective worker count
+- [x] `mem profiles use <name>` writes `.memory/config.yaml: active_profile`
+- [x] `mem up` when already running → exit 0 with "Already running on PID <N>"
+- [x] Test `TestCliUp_StartsAndStops`: `mem up` then `mem down` → supervisor exits 0
+- [x] Test `TestCliUp_AlreadyRunning`: 2× `mem up` → second exit 0 with message
+- [x] Test `TestCliProfiles_ListAndUse`
+
+**DEVIATION**: existing `cmd/mem/status.go` (`runStatusCLI`) already covers vault sync state with a different concern (staleness detection, indexing health). Adding a second `status` subcommand for worker health under the same name would collide on the dispatch switch. Worker status is partially surfaced today via `mem up`'s READY output and `mem logs <worker>` filtering; a unified view lands in a follow-up commit alongside T9's audit log so operators get one place to see worker health. Tracked in `validation.md`.
 
 **Tests**: integration
 **Gate**: full
