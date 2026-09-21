@@ -40,6 +40,7 @@
 - **AD-042**: Núcleo Local `mymemoryd` com Workers Sidecar Isolados (Proposed) (`docs/adr/042-nucleo-local-mymemoryd-com-workers-sidecar-isolados.md`)
 - **AD-043**: Envelope de Eventos Canônico (event_runtime) (Proposed) (`docs/adr/043-envelope-de-eventos-canonico-event-runtime.md`)
 - **AD-044**: Memory Writer Atômico + Outbox + Reprojeção Idempotente (Proposed) (`docs/adr/044-memory-writer-atomico-outbox-e-reprojecao-idempotente.md`)
+- **AD-047**: Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem) (`docs/adr/047-code-ast-tree-sitter-multi-linguagem.md`) — Spec em `.specs/features/feat-code-ast/` (Specify + Tasks prontas; 11 tasks aguardando Execute)
 - **AD-050**: Threat Model — OWASP LLM Top 10 Aplicado ao MyMemory (Proposed, transversal) (`docs/adr/050-threat-model-owasp-llm-aplicado-ao-mymemory.md`)
 
 ## Handoff

@@ -193,6 +193,40 @@ A pesquisa autoral de 2026-09-18 (`pesquisa-infraestrutura-autoral-mymemory.md`)
 
 ---
 
+### 1.9. Cross-Reference 2026-09-21 — Cinco Repositórios Avaliados para Agregação
+
+Esta entry agrega a análise de 2026-09-21 sobre cinco repositórios candidatos a inspirar/ser agregados ao my-memory. **Veredito binário: agregar (com ADR), observar, ou rejeitar.** Cada linha abaixo é uma decisão rastreável.
+
+| Repositório | ⭐ | Foco | Veredito | ADR/Justificativa |
+| :--- | :---: | :--- | :--- | :--- |
+| **[`DeusData/codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)** | 43.9k | MCP server de código, tree-sitter 158 linguagens, Cypher-like queries, sub-ms | **AGREGAR** | **ADR-047** — tree-sitter como dependência opcional CGO; tabela `code_*` no SQLite unificado; ferramentas CLI `mem code-*` + MCP `memory_code_*`. Concorrente mais próximo; tree-sitter prova performance (sub-ms) e cobertura linguística. |
+| **[`MemTensor/MemOS`](https://github.com/MemTensor/MemOS)** | 11.5k | Memory OS p/ LLM agents — working/short/long term, skill reuse cross-task, MCP | **OBSERVAR** | Conceito de **camadas de memória** + **skills reutilizáveis** é candidato natural ao v2.x do my-memory (ADR-048/049 candidatos). Não urgente; nenhum gap imediato no core atual. |
+| **[`deeplethe/forkd`](https://github.com/deeplethe/forkd)** | 2.9k | microVM sandbox (KVM/Firecracker), fork em ~100ms | **REJEITAR** | Infra de execução isolada, não memory layer. Crossover possível se my-memory ganhar runtime de execução de queries (F5+); sem demanda hoje. |
+| **[`oxigraph/oxigraph`](https://github.com/oxigraph/oxigraph)** | 1.9k | Triplestore RDF/SPARQL | **REJEITAR** | ADR-004 fixa SQL recursivo. RDF/SPARQL duplicaria superfície sem benefício. |
+| **[`iwe-org/iwe`](https://github.com/iwe-org/iwe)** | 1.7k | Markdown knowledge graph, LSP (VSCode/Neovim/Zed), MCP, OKF | **AGREGAR (referência)** | Concorrente mais próximo em markdown+grafo. Inspirou **ADR-047** (validou tree-sitter como caminho). LSP server e `mem pack`/`mem unpack` (formato OKF) são candidatos a ADR-048/049 quando Felipe priorizar DX. |
+
+#### Padrões herdados e onde aplicar
+
+| Padrão | Origem | Aplicação no my-memory | Status |
+| :--- | :--- | :--- | :--- |
+| **Tree-sitter multi-linguagem** | codebase-memory-mcp | ADR-047 §Decision Outcome — parser CGO opt-in via `--tags treesitter` | ✅ ADR-047 Accepted |
+| **Boost por símbolo exato em ranking RRF** | codebase-memory-mcp | ADR-047 §CA-05 — `qualified_name` match → 2x weight no RRF | ✅ ADR-047 Accepted |
+| **Memory layers (working/short/long)** | MemOS | v2.x — tabela `memory_layers` com TTL+decay | ⏸ Observar |
+| **Skill reuse cross-task** | MemOS | v2.x — tabela `skills` + `mem skill add/list/invoke` | ⏸ Observar |
+| **LSP server (editor-first)** | iwe | v2.x — `gopls`/`pyright` adapter OU implementação autoral | ⏸ Observar |
+| **OKF pack/unpack** | iwe | v2.x — `mem pack` / `mem unpack` para distribuição de vaults | ⏸ Observar |
+| **Cypher-like query language** | codebase-memory-mcp | Nice-to-have — parser Cypher → SQL recursivo não compensa | ❌ Rejeitar |
+| **microVM sandbox** | forkd | F5+ — execução isolada de queries/scripts no vault | ❌ Rejeitar (escopo) |
+| **RDF/SPARQL** | oxigraph | Substituiria ADR-004 (SQL recursivo) | ❌ Rejeitar (escopo) |
+
+#### Próximas ações rastreadas
+
+- ✅ **ADR-047** aberto em `docs/adr/047-code-ast-tree-sitter-multi-linguagem.md` (Accepted).
+- ✅ **Spec `feat-code-ast`** em `.specs/features/feat-code-ast/` com 11 tasks (Specify + Tasks prontas).
+- ⏸ Quando Felipe priorizar DX/voice/agent: avaliar ADR-048 (LSP server), ADR-049 (OKF pack/unpack), ADR-052+ (skill reuse + memory layers).
+
+---
+
 ## 🚀 2. Matriz de Refinamento Arquitetural para o My-Memory
 
 | Capacidade | Estado Inicial do My-Memory | Refinamento Inspirado | Projeto Referência |

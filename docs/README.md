@@ -59,6 +59,7 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-033`](adr/033-federated-central-vault-and-repo-identity.md)** — Arquitetura Federada de Vault Central e Identidade Imutável de Repositório (`repo_id`)
 * **[`ADR-034`](adr/034-protocolo-canonico-federado-e-wikilinks-cross-vault.md)** — Protocolo Canônico Federado e Wikilinks Cross-Vault (`memory://`)
 * **[`ADR-035`](adr/035-embedder-embutido-com-fallback-onnx-minilm.md)** — Embedder Embutido com Fallback Automático (`builtin` / `all-MiniLM-L6-v2` via ONNX Runtime) — *Proposed*
+* **[`ADR-047`](adr/047-code-ast-tree-sitter-multi-linguagem.md)** — Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem, opt-in via `--tags treesitter`); habilita `mem code-index`, `mem code-search`, `mem code-graph`, `mem code-stats` + MCP tools `memory_code_search` e `memory_code_neighbors`
 
 
 
