@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -19,10 +20,15 @@ func toSQLDB(h *dbHandle) *sql.DB {
 }
 
 // writeFile encapsula os.WriteFile para evitar import direto nos testes
-// (deixar código de teste focado no codeast).
+// (deixar código de teste focado no codeast). Cria diretórios pais.
 func writeFile(path string, content []byte) error {
 	if path == "" {
 		return errors.New("writeFile: path vazio")
+	}
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
 	}
 	return os.WriteFile(path, content, 0o644)
 }

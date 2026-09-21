@@ -764,6 +764,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "code-index":
+		if err := runCodeIndexCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "install":
 		if err := runInstallCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -840,6 +846,8 @@ func printHelp() {
 	fmt.Println("      Gerencia e audita o Cofre Central de Conhecimento (Global Brain no Google Drive / OneDrive)")
 	fmt.Println("  mem repos")
 	fmt.Println("      Lista todos os repositórios federados registrados no catálogo global")
+	fmt.Println("  mem code-index [--lang=go,py,...] [--include=glob] [--exclude=glob] [--ast-hash] [--no-embed] [--storage=sqlite|postgres] [--db=<arq>] [--repo=<slug>] [<dir>]")
+	fmt.Println("      Indexa arquivos de código-fonte via tree-sitter (ADR-047) — grava symbols/edges em code_* tabelas")
 	fmt.Println("  mem version [--json]")
 	fmt.Println("      Exibe metadados de versão, commit, data de compilação e arquitetura (ou via -v, --version)")
 	fmt.Println()

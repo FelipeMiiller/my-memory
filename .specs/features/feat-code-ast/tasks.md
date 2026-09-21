@@ -117,7 +117,7 @@ graph TD
 - Implementar `computeAstHash(symbols []Symbol) (string, error)` — serializa `{kind, qualified_name, start_line}` deterministically (sorted) e sha256.
 - Cache lookup: se `content_hash` matches, skip parse. Se difere mas `ast_hash` idêntico, atualiza `content_hash` mas skip embed/downstream.
 
-### T4: Integrar `code_pipeline` ao `mem index` + CLI `mem code-index`
+### [x] T4: Integrar `code_pipeline` ao `mem index` + CLI `mem code-index`
 **Where**: `internal/codeast/pipeline.go` (ver Details para `cmd/mem/codeindex.go` e respectivos `_test.go`)
 **Depends on**: T3
 **Tests**: `internal/codeast/pipeline_test.go`, `cmd/mem/codeindex_test.go`
