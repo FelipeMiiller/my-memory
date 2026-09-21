@@ -164,7 +164,7 @@ graph TD
 - `memory_code_neighbors(symbol, depth?)` retorna sub-grafo JSON.
 - Adicionar `include_code: boolean` (default false) ao schema de `memory_search` existente; quando true, code_symbols competem em RRF.
 
-### T8: Benchmarks reproduzíveis
+### [x] T8: Benchmarks reproduzíveis
 **Where**: `bench/codeast/index_go_test.go` (ver Details para demais benchmarks)
 **Depends on**: T7
 **Tests**: `bench/codeast/*_test.go`
