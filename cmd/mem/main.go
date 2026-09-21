@@ -776,6 +776,18 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "code-graph":
+		if err := runCodeGraphCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "code-stats":
+		if err := runCodeStatsCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "install":
 		if err := runInstallCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -856,6 +868,10 @@ func printHelp() {
 	fmt.Println("      Indexa arquivos de código-fonte via tree-sitter (ADR-047) — grava symbols/edges em code_* tabelas")
 	fmt.Println("  mem code-search [--lang=go,py,...] [--kind=function|class|...] [--limit=10] [--no-code-boost] [--links] [--db=<arq>] [--repo=<slug>] <query>")
 	fmt.Println("      Busca em code_symbols com boost RRF 2x por qualified_name match (CA-05/CA-07)")
+	fmt.Println("  mem code-graph [--depth=N] [--direction=in|out|both] [--db=<arq>] [--repo=<slug>] <qualified_name>")
+	fmt.Println("      Vizinhança de código via CTE recursivo (ADR-004) — Markdown table (CA-08)")
+	fmt.Println("  mem code-stats [--top=20] [--json] [--db=<arq>] [--repo=<slug>]")
+	fmt.Println("      Estatísticas de code_*: distribuição por linguagem/kind, orphan files (CA-09)")
 	fmt.Println("  mem version [--json]")
 	fmt.Println("      Exibe metadados de versão, commit, data de compilação e arquitetura (ou via -v, --version)")
 	fmt.Println()

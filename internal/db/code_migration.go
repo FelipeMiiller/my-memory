@@ -185,6 +185,20 @@ func CountCodeSymbols(ctx context.Context, db *sql.DB) (int64, error) {
 	return n, err
 }
 
+// CountCodeEdges devolve o total de code_edges indexados (somente arestas
+// de alta confiança; code_edges_uncertain é contado separadamente).
+func CountCodeEdges(ctx context.Context, db *sql.DB) (int64, error) {
+	var n int64
+	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM code_edges`).Scan(&n)
+	return n, err
+}
+
+// OrphanFile representa um code_file sem symbols extraídos (T6/CA-09).
+// Exportado para permitir serialização JSON no CLI.
+type OrphanFile struct {
+	Path string `json:"path"`
+}
+
 // LanguageDistribution devolve um mapa `lang → count` ordenado por count desc.
 // Útil para mem code-stats (T6).
 type LanguageCount struct {

@@ -142,7 +142,7 @@ graph TD
 - CLI `mem code-search <query>` delega para `mem search --kind=code` com flag `--no-code-boost` para desativar.
 - Suportar `--lang`, `--kind`, `--limit`.
 
-### T6: CLI `mem code-graph` + `mem code-stats`
+### [x] T6: CLI `mem code-graph` + `mem code-stats`
 **Where**: `cmd/mem/codegraph.go` (ver Details para `codestats.go` e respectivos `_test.go`)
 **Depends on**: T5
 **Tests**: `cmd/mem/codegraph_test.go`, `cmd/mem/codestats_test.go`
