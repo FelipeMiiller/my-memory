@@ -107,7 +107,7 @@ graph TD
 
 ### Phase 2: Pipeline & CLI
 
-### T3: Cache incremental via SHA-256 + `ast_hash`
+### [x] T3: Cache incremental via SHA-256 + `ast_hash`
 **Where**: `internal/codeast/cache.go` (ver Details para `cache_test.go`)
 **Depends on**: T2
 **Tests**: `internal/codeast/cache_test.go`
