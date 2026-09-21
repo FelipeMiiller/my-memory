@@ -80,7 +80,7 @@ graph TD
 
 ### Phase 1: Foundation — Parser & Schema
 
-### T1: Build tree-sitter parser wrapper com build tag `treesitter`
+### [x] T1: Build tree-sitter parser wrapper com build tag `treesitter`
 **Where**: `internal/codeast/parser.go` (ver Details para `languages.go` e `parser_test.go`)
 **Depends on**: none
 **Tests**: `internal/codeast/parser_test.go`
