@@ -1,0 +1,67 @@
+{
+  "app": {
+    "title": "Grafo de Memória",
+    "subtitle": "my-memory · Phase 1 MVP"
+  },
+  "nav": {
+    "title": "Navegação",
+    "graph": "Grafo",
+    "graphDesc": "Visualização interativa",
+    "code": "Code",
+    "codeDesc": "Símbolos e referências (Phase 2)",
+    "staleness": "Staleness",
+    "stalenessDesc": "Drift detection (Phase 2)"
+  },
+  "tab": {
+    "graph": "Grafo",
+    "code": "Code",
+    "staleness": "Staleness"
+  },
+  "badge": {
+    "dark": "Dark",
+    "hub": "Hub"
+  },
+  "locale": {
+    "label": "Idioma",
+    "pt-BR": "Português (BR)",
+    "en-US": "English (US)"
+  },
+  "phase2": {
+    "coming_soon": "Disponível na Phase 2 (ADR-049/051)",
+    "code": {
+      "title": "Code (Phase 2)",
+      "description": "Integração com ADR-047 (tree-sitter code AST) — símbolos de código no grafo com boost RRF 2× em qualified_name."
+    },
+    "staleness": {
+      "title": "Staleness (Phase 2)",
+      "description": "Dashboard de drift detection via ADR-031 — staleness banners, git-diff coverage e auditoria semântica código↔documentação."
+    },
+    "graphTabNotice": "Phase 1 entrega apenas a tab {{tab}} com Cytoscape bundled lendo data-central.json estático.",
+    "codeTooltip": "Code symbols — Phase 2 (ADR-047/051)",
+    "stalenessTooltip": "Staleness dashboard — Phase 2 (ADR-031/051)"
+  },
+  "graph": {
+    "loading": "Carregando data-central.json…",
+    "error": "Falha ao carregar dataset: {{msg}}",
+    "errorHint": "Verifique se viewer/public/data-central.json existe.",
+    "errorTitle": "Falha ao carregar dataset",
+    "summaryNodes": "{{count}} nodes",
+    "summaryEdges": "{{count}} edges",
+    "selected": "selecionado: {{label}}"
+  },
+  "inspector": {
+    "id": "ID",
+    "color": "Cor",
+    "inDegree": "In-degree",
+    "outDegree": "Out-degree",
+    "pageRank": "PageRank",
+    "radius": "Raio (px)"
+  },
+  "footer": {
+    "dataset": "Dataset:",
+    "phase1": "ADR-048 · Phase 1 MVP"
+  },
+  "github": {
+    "label": "Abrir repositório no GitHub"
+  }
+}
