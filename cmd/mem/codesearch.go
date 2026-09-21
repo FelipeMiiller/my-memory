@@ -18,6 +18,12 @@ import (
 // Estratégia: consulta SQL direta sobre code_symbols aplicando
 // match por substring em name/qualified_name/signature e aplica o boost
 // CA-05 por qualified_name match exato (codeast.ApplyBoostToHits).
+
+// runCodeSearchCLI implementa `mem code-search <query>` (CA-07 / ADR-047).
+//
+// Estratégia: consulta SQL direta sobre code_symbols aplicando
+// match por substring em name/qualified_name/signature e aplica o boost
+// CA-05 por qualified_name match exato (codeast.ApplyBoostToHits).
 //
 // Flags:
 //
@@ -33,6 +39,7 @@ import (
 // ainda — a integração RRF unificada é ADR-040 (storage) + backlog ADR-047.
 // Este comando implementa o sub-grafo de busca de código enquanto isso.
 func runCodeSearchCLI(ctx context.Context, defaultRepo string, args []string) error {
+	codeast.LogTreesitterBootStatus() // CA-14: boot log uniforme em todos os code-*
 	fs := flag.NewFlagSet("code-search", flag.ContinueOnError)
 	dbPath := fs.String("db", "", "Caminho do arquivo SQLite (padrão: memory.db)")
 	repoSlug := fs.String("repo", "", "Identificador/slug do repositório")

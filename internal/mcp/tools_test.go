@@ -145,6 +145,8 @@ func TestServer_ToolsList(t *testing.T) {
 	foundNeighbors := false
 	foundCanvas := false
 	foundHubs := false
+	foundCodeSearch := false
+	foundCodeNeighbors := false
 	for _, tool := range listResult.Tools {
 		if tool.Name == "memory_search" {
 			foundSearch = true
@@ -170,6 +172,18 @@ func TestServer_ToolsList(t *testing.T) {
 				t.Errorf("inputSchema inválido para memory_get_hubs na resposta: %+v", tool.InputSchema)
 			}
 		}
+		if tool.Name == "memory_code_search" {
+			foundCodeSearch = true
+			if tool.InputSchema == nil || tool.InputSchema["type"] != "object" {
+				t.Errorf("inputSchema inválido para memory_code_search na resposta: %+v", tool.InputSchema)
+			}
+		}
+		if tool.Name == "memory_code_neighbors" {
+			foundCodeNeighbors = true
+			if tool.InputSchema == nil || tool.InputSchema["type"] != "object" {
+				t.Errorf("inputSchema inválido para memory_code_neighbors na resposta: %+v", tool.InputSchema)
+			}
+		}
 	}
 
 	if !foundSearch {
@@ -183,6 +197,14 @@ func TestServer_ToolsList(t *testing.T) {
 	}
 	if !foundHubs {
 		t.Errorf("ferramenta 'memory_get_hubs' não encontrada em tools/list")
+	}
+	// GAP-5 fix: garantir que memory_code_search e memory_code_neighbors aparecem
+	// no catálogo MCP, defendendo o path CA-10/CA-11 contra remoção acidental.
+	if !foundCodeSearch {
+		t.Errorf("ferramenta 'memory_code_search' não encontrada em tools/list (CA-10/ADR-047)")
+	}
+	if !foundCodeNeighbors {
+		t.Errorf("ferramenta 'memory_code_neighbors' não encontrada em tools/list (CA-11/ADR-047)")
 	}
 }
 

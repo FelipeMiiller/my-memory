@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/FelipeMiiller/my-memory/internal/codeast"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 )
 
@@ -25,6 +26,7 @@ import (
 //	--direction    in | out | both (padrão both)
 //	--repo=<slug>  slug multi-tenant (placeholder)
 func runCodeGraphCLI(ctx context.Context, defaultRepo string, args []string) error {
+	codeast.LogTreesitterBootStatus() // CA-14: boot log uniforme em todos os code-*
 	fs := flag.NewFlagSet("code-graph", flag.ContinueOnError)
 	dbPath := fs.String("db", "", "Caminho do arquivo SQLite (padrão: memory.db)")
 	repoSlug := fs.String("repo", "", "Identificador/slug do repositório")

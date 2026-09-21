@@ -345,12 +345,16 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 		// que clientes MCP legados não precisem conhecer o novo campo — quando
 		// omitido, comportamento atual preservado. O verdadeiro fan-in RRF
 		// code+markdown será plugado quando CodeSearchFunc for injetada no server.
+		// GAP-2 fix: quando include_code=true, prepend warning loud no response
+		// para que clientes fiquem cientes de que o fan-in ainda não está ativo
+		// (em vez de no-op silencioso).
 		includeCode := false
 		if rawIncludeCode, hasIncludeCode := rawMap["include_code"]; hasIncludeCode {
 			_ = json.Unmarshal(rawIncludeCode, &includeCode)
 		}
+		includeCodeWarning := ""
 		if includeCode {
-			_ = includeCode // placeholder explícito (CI quiet)
+			includeCodeWarning = "⚠ include_code=true: fan-in RRF code+markdown agendado para backlog (CA-12 placeholder).\n\n"
 		}
 
 		if searchFn == nil {
@@ -386,7 +390,7 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro na execução da busca: %v", err), nil)
 		}
 
-		return NewTextResult(FormatSearchResultsWithOptions(results, detailLevel)), nil
+		return NewTextResult(includeCodeWarning + FormatSearchResultsWithOptions(results, detailLevel)), nil
 	}
 }
 
