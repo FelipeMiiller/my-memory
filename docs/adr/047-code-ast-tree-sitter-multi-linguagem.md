@@ -253,6 +253,45 @@ Benchmarks viram `bench/` com harness reproduzível (similar aos `bench/embed-*`
 - **Evidence log**: nenhum ainda — `tree-sitter/go-tree-sitter` ativo e mantido, gramáticas top-10 estáveis.
 - **Próxima revisão**: 2027-03-21 (6 meses) ou quando 1ª issue significativa de CGO binding aparecer.
 
+## Deferral: Plano Real tree-sitter Binding
+
+O backend tree-sitter real (`github.com/tree-sitter/go-tree-sitter`) é o caminho de produção definido por ADR-047 §Decision Outcome (Opção 5). A v1 (commits `3ea93b9`..`ae614be`) shipou **stub/mock isolado por `//go:build treesitter`** que retorna `ErrTreesitterDisabled` enquanto gcc/CGO não está disponível; o `MockParser` regex-based cumpre contrato "SHALL persist symbols/edges" funcionalmente. Promover significa substituir o body de `newBackendParser()` pelo binding real sem perder ABI nem performance.
+
+Esta cláusula é parte vinculante deste ADR — substituir `newBackendParser()` pelo binding real sem cumprir os 3 gatilhos abaixo é violação arquitetural e exige spec `tlc-spec-driven`.
+
+### Condições-gatilho para promoção
+
+A seção sai do estado deferred **somente** quando **TODAS** as condições abaixo forem atendidas com evidência documental anexada (link de commit, issue, log binário ou screenshot):
+
+1. **gcc + CGO toolchain disponível no ambiente-alvo** — Linux/macOS gcc nativo; Windows gcc-mingw via MSYS2 ou chocolatey. CI workflow deve rodar `gcc --version` com sucesso.
+2. **`go get github.com/tree-sitter/go-tree-sitter` succeeds sem patch** — dependência importável e compila limpa com `CGO_ENABLED=1 go build -tags treesitter ./cmd/mem` em CI Linux.
+3. **`mem code-search` retorna símbolos reais (não regex-based)** — evidência: teste E2E que parseia um arquivo Go real e extrai símbolos tree-sitter com tipos corretos (`function`/`method`/`struct`/`interface`); tabela de símbolos bate com `gopls definition` em ≥95% dos símbolos top-10 de uma fixture real.
+
+**Não é gatilho válido**: "queremos melhor qualidade", "vamos esperar", "talvez precise em produção", "outro binding apareceu". Plano só promove com evidência concreta de gcc funcional + binding compila + teste E2E verde.
+
+### O que fica proibido até a promoção
+
+- ❌ Adicionar `github.com/tree-sitter/go-tree-sitter` (ou qualquer binding tree-sitter alternativo) ao `go.mod` sem cumprir os 3 gatilhos cumulativamente.
+- ❌ Substituir body de `newBackendParser()` em `treesitter_enabled.go` por chamada ao binding real.
+- ❌ Adicionar tabela `code_grammar_downloads` ou cache de gramáticas on-demand (referência: codebase-memory-mcp baixa `.so` em runtime).
+- ❌ Remover `MockParser` antes de E2E verde — fica como fallback determinístico para testes.
+- ❌ Promover ADR-047 (re-acceptance) enquanto este Plano seguir Deferred sem queima de stub.
+
+### Como promover (quando os 3 gatilhos disparam)
+
+1. Abrir issue em `.specs/issues/047-real-treesitter-binding.md` referenciando ADR-047 + evidência (log de `gcc --version`, log de `go get`, output do teste E2E).
+2. Criar spec via `tlc-spec-driven` (`.specs/features/feat-treesitter-real/`) com `spec.md` → `tasks.md` → batches com quality gate.
+3. Atualizar este ADR movendo Status da subseção "Status atual" para **Promoted** com link cruzado para spec de promoção.
+4. Substituir body de `newBackendParser()` em `treesitter_enabled.go` pelo binding real.
+5. Atualizar `docs/REFERENCES.md` §1.9 + `docs/adr/README.md` (status).
+
+### Status atual
+
+- **Última revisão**: 2026-09-21
+- **Gatilhos disparados**: 0 (gcc indisponível no ambiente Windows do dev; CI matrix `codeast-cgo-on` é `continue-on-error: true`)
+- **Evidence log**: nenhum ainda. CI matrix instalado em commit `ab2a21b`; `bench/codeast` valida estrutura com mock mas não mede tree-sitter real.
+- **Próxima revisão**: 2026-12-21 (3 meses) ou quando 1º ambiente com gcc/CGO for provisionado (CI próprio Linux ou máquina de dev Linux/macOS).
+
 ## References
 
 - **`DeusData/codebase-memory-mcp`** — referência de mercado para performance (43.9k⭐). Influenciou alvos p99 e o pattern Cypher-like.

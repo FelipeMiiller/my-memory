@@ -123,9 +123,9 @@ Open questions: none — todas as premissas arquiteturais (10 linhas da tabela a
   - CGO-off: code pipeline skipped with warning; markdown pipeline passes.
 - **WHERE**: When CGO-on fails on a platform, the system SHALL emit a clear error message identifying the missing toolchain (e.g., `gcc not found — install Xcode CLT or set CGO_ENABLED=0`).
 
-### CA-16: Schema migration idempotente
+### CA-16: Schema migration idempotente (SQLite local; Postgres deferred)
 - **UBIQUITOUS**: The system SHALL add `code_*` tables via the same migration mechanism as ADR-001 (idempotent on boot, no manual SQL).
-- **UBIQUITOUS**: The system SHALL work identically against SQLite local and Postgres/pgvector (ADR-040).
+- **UBIQUITOUS**: The system SHALL work identically against SQLite local (default storage); Postgres/pgvector support (ADR-040) is **deferred** because `EnsureCodeTables` uses SQLite-specific `pragma_table_info` and Postgres dialect-aware DDL is not implemented in v1.
 
 ### CA-17: Documentação atualizada
 - **UBIQUITOUS**: The system SHALL update `docs/CLI_GUIDE.md`, `docs/AGENT_INTEGRATION_GGUIDE.md`, `docs/ARCHITECTURE.md` com a nova superfície (`mem code-*`, MCP tools, schema).
@@ -150,5 +150,5 @@ Open questions: none — todas as premissas arquiteturais (10 linhas da tabela a
 | CA-13 | Benchmarks reproduzíveis | verified |
 | CA-14 | Build CGO opt-in (`//go:build treesitter`) | verified |
 | CA-15 | CI matrix cross-platform × CGO on/off | verified |
-| CA-16 | Schema migration idempotente (SQLite + Postgres) | verified |
+| CA-16 | Schema migration idempotente (SQLite local; Postgres deferred) | partial (Postgres: deferred per GAP-3) |
 | CA-17 | Documentação atualizada | verified |
