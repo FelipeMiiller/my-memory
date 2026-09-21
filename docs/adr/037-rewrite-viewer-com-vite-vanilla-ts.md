@@ -1,7 +1,7 @@
 # ADR-037: Rewrite do Viewer com Vite + Vanilla TypeScript
 
 - **Date**: 2026-09-17
-- **Status**: Accepted
+- **Status**: Superseded by [ADR-048](048-viewer-electron-react-vite-shadcn.md) — 2026-09-21
 - **Deciders**: Felipe Miiller
 - **Tags**: viewer, graphview, vite, typescript, refactor, frontend-tooling, deferred
 

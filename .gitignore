@@ -37,17 +37,18 @@ vault_test/
 __pycache__/
 *.pyc
 
-# Node.js (Playwright instalado via npm install --no-save em sessões de validação visual)
+# Node.js — viewer Electron (ADR-048): node_modules não versionado;
+# package.json + package-lock.json VERSIONADOS (são as deps do viewer Electron).
 node_modules/
-package.json
-package-lock.json
 
-# Artefatos de smoke test / Playwright CLI (output de `mem graph` e screenshots)
+# Build artifacts — viewer (Vite output) + electron (tsc output).
+# Recompile via `npm run build` quando precisar.
+viewer/dist/
+electron/dist/
+
+# Artefatos de smoke test / Playwright CLI (output de validação visual)
 screenshot-*.png
 smoke-*.html
-graph-smoke-*.html
-graph-test-*.html
-graph-central.html
 config-global.txt
 config-local.txt
 debug-*.cjs
