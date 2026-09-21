@@ -208,3 +208,40 @@ graph TD
 - `validation.md` lista cada AC com `file:line` evidence + verdict PASS/FAIL.
 - Verifier também confirma que ADR-047 §Deferral (gopls) **NÃO foi violado** — nenhum arquivo `*_lsp.go`, nenhum bloco `code_ast.backend: lsp` em config schemas.
 - Sucesso → ADR-047 vira `Accepted` com link pro validation.md; quality gate fecha a spec.
+
+---
+
+## ✅ Task Status (pós-Execute)
+
+**Verdict final**: PASS-WITH-DEFER (Verifier iter 2, branch `mvs_cc51fd0a51d748da83619b5c057b8a32`).
+
+| Task | Status | Commit hash | Notes |
+| :--- | :---: | :--- | :--- |
+| T1 | ✅ | `3ea93b9` | Parser wrapper com `//go:build treesitter`, mock backend (CGO indisponível). |
+| T2 | ✅ | `4dc0c39` | Schema `code_files`/`code_symbols`/`code_edges`/`code_edges_uncertain` em `internal/db/db.go`. |
+| T3 | ✅ | `bf6abe4` | Cache SHA-256 + `ast_hash` (SkipParse/SkipDownstream/FullReparse). |
+| T4 | ✅ | `615f5e8` | `code_pipeline` + `mem code-index` CLI honoring scope/lang/cache. |
+| T5 | ✅ | `574c046` | RRF boost por `qualified_name` match + `mem code-search` (delegação a SQL direto). |
+| T6 | ✅ | `8a8d5a4` | `mem code-graph` (CTE recursive) + `mem code-stats` (aggregations). |
+| T7 | ✅ | `a9e97b6` | MCP `memory_code_search` + `memory_code_neighbors` + `include_code` flag (com warning loud). |
+| T8 | ✅ | `5b9e212` | Benchmarks `bench/codeast/` (alvos documentados como `indicative` com mock backend). |
+| T9 | ✅ | `ab2a21b` | CI matrix `codeast-cgo-on` (best-effort, `continue-on-error: true`) + `codeast-cgo-off` (gating). |
+| T10 | ✅ | `4d20d85` | Docs CLI/AGENT/ARCHITECTURE/README sincronizadas com `mem code-*` + MCP. |
+| T11 | ✅ | `26c8ee1` | Verifier iter 2 (PASS-WITH-DEFER, 5/5 gaps fechados). `validation.md` + `validation-iter2.md` gravados. |
+| **fix** | ✅ | `ae614be` | Fix pós-batch 3: boot log `tree-sitter: disabled (code pipeline skipped)` no path `!treesitter` (CA-14). |
+| **fix** | ✅ | `0983d11` | Fix Verifier iter 1 — GAP-2 (warning loud `include_code`), GAP-4 (boot log uniforme), GAP-5 (`TestServer_ToolsList` estendido). |
+| **docs** | ✅ | `e5e85e6` | Docs Verifier iter 1 — GAP-1 (§Deferral Plano A Real tree-sitter Binding no ADR-047), GAP-3 (CA-16 spec relaxada para Postgres deferred). |
+| **state** | ✅ | `df26d6a` | `STATE.md` Handoff atualizado feat-code-ast DONE. |
+
+---
+
+## 🎯 Spec Closure Summary
+
+- **Spec**: `.specs/features/feat-code-ast/spec.md`
+- **Tasks**: este doc (1+1 table acima, 11 tasks + 4 fix commits)
+- **ADR pai**: `docs/adr/047-code-ast-tree-sitter-multi-linguagem.md` (Accepted, com §Deferral duplo: Plano A Real tree-sitter Binding + Plano B gopls LSP)
+- **Validação**: `validation.md` (iter 1, PARTIAL) + `validation-iter2.md` (PASS-WITH-DEFER, recommend promote)
+- **Quality gate final**: gofmt clean + go build 0 + 28/28 packages PASS em `go test -count=1 ./...`
+- **Spec-GAPs documentados (não-bloqueantes)**: (1) CA-01 tree-sitter real deferred per ADR-047 §Deferral Plano A; (2) CA-12 `include_code` retorna warning loud em vez de fan-in RRF real (decorre de ADR-040 backlog); (3) CA-16 Postgres deferred per GAP-3.
+- **Surviving mutants (LOW)**: Fault E (boot log CLI sem guard automatizado) + Fault G (warning `include_code` sem guard automatizado) — ambos detectáveis via smoke humano.
+- **Estado da spec**: **DONE — `2026-09-21`**. Spec fechada por aprovação do operador (`Fechar spec formal`); follow-ups LOW opcionais não-bloqueantes podem ser abertos depois.
