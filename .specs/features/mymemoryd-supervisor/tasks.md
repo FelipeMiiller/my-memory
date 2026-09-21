@@ -257,17 +257,17 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time (Phase 1-2 in
 **Depends on**: T6
 **Reuses**: `net.UnixListener`; existing JSON-RPC parser from T6.
 **Requirement**: SUPR-08
-**Status**: Pending
+**Status**: Verified (2026-09-20)
 
 **Tools**: MCP: NONE | Skill: NONE
 
 **Done when**:
 
-- [ ] Unix socket listener accepts connections on `/tmp/mymemoryd-<pid>.sock`
-- [ ] Each frame: 4-byte big-endian length + JSON-RPC payload
-- [ ] Binary payloads (audio PCM) preserved end-to-end with zero loss
-- [ ] Test `TestUnixSocket_FrameDelimitsBinaryAudio`: 10 chunks × 512 bytes PCM, zero loss
-- [ ] Test `TestUnixSocket_RejectsTruncatedFrame`: send 2 bytes instead of 4 → error
+- [x] Unix socket listener accepts connections on `/tmp/mymemoryd-<pid>.sock`
+- [x] Each frame: 4-byte big-endian length + JSON-RPC payload
+- [x] Binary payloads (audio PCM) preserved end-to-end with zero loss
+- [x] Test `TestUnixSocket_FrameDelimitsBinaryAudio`: 10 chunks × 512 bytes PCM, zero loss
+- [x] Test `TestUnixSocket_RejectsTruncatedFrame`: send 2 bytes instead of 4 → error
 
 **Tests**: integration
 **Gate**: full
