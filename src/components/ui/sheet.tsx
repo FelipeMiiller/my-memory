@@ -9,32 +9,68 @@ import { cn } from "@/utils/tailwind";
 
 /**
  * Sheet — slide-in panel from any edge (shadcn/ui standard).
- * Built on top of @radix-ui/react-dialog. The conversations sidebar
- * (ChatSidebar) now renders inside a Sheet on the right edge.
+ * Built on top of @radix-ui/react-dialog.
+ *
+ * Two layout modes:
+ *   - Default: portals to <body>, uses `position: fixed`, overlays the
+ *     entire viewport.
+ *   - Contained (`container` prop set): portals to that DOM node, uses
+ *     `position: absolute`, constrained to the container's box. Used by
+ *     ChatView to keep the conversations slide-in inside the chat pane
+ *     rather than overlaying the whole workspace window.
  */
 
 const Sheet = SheetPrimitive.Root;
 const SheetTrigger = SheetPrimitive.Trigger;
 const SheetClose = SheetPrimitive.Close;
-const SheetPortal = SheetPrimitive.Portal;
+
+interface SheetPortalProps {
+  container?: HTMLElement | null;
+  children: React.ReactNode;
+}
+
+function SheetPortal({
+  container,
+  children,
+}: SheetPortalProps): React.JSX.Element {
+  if (container) {
+    return (
+      <SheetPrimitive.Portal container={container}>
+        {children}
+      </SheetPrimitive.Portal>
+    );
+  }
+  return <SheetPrimitive.Portal>{children}</SheetPrimitive.Portal>;
+}
+
+interface SheetOverlayProps
+  extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay> {
+  container?: HTMLElement | null;
+}
 
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <SheetPrimitive.Overlay
-    ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className,
-    )}
-    {...props}
-  />
-));
+  SheetOverlayProps
+>(({ className, ...props }, ref) => {
+  const isContained =
+    (props as Record<string, unknown>)["data-contained"] === "true";
+  return (
+    <SheetPrimitive.Overlay
+      ref={ref}
+      className={cn(
+        isContained
+          ? "absolute inset-0 z-40 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+          : "fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-card shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  "z-50 gap-4 bg-card shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
   {
     variants: {
       side: {
@@ -45,34 +81,47 @@ const sheetVariants = cva(
         right:
           "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
       },
+      position: {
+        viewport: "fixed",
+        contained: "absolute",
+      },
     },
-    defaultVariants: { side: "right" },
+    defaultVariants: { side: "right", position: "viewport" },
   },
 );
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {}
+    VariantProps<typeof sheetVariants> {
+  container?: HTMLElement | null;
+}
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, ...props }, ref) => (
-  <SheetPortal>
-    <SheetOverlay />
-    <SheetPrimitive.Content
-      ref={ref}
-      className={cn(sheetVariants({ side }), className)}
-      {...props}
-    >
-      {children}
-      <SheetPrimitive.Close className="absolute right-3 top-3 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-        <X className="h-4 w-4" aria-hidden="true" />
-        <span className="sr-only">Close</span>
-      </SheetPrimitive.Close>
-    </SheetPrimitive.Content>
-  </SheetPortal>
-));
+>(
+  (
+    { side = "right", position, container, className, children, ...props },
+    ref,
+  ) => (
+    <SheetPortal container={container}>
+      <SheetOverlay
+        data-contained={position === "contained" ? "true" : "false"}
+      />
+      <SheetPrimitive.Content
+        ref={ref}
+        className={cn(sheetVariants({ side, position }), className)}
+        {...props}
+      >
+        {children}
+        <SheetPrimitive.Close className="absolute right-3 top-3 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+          <X className="h-4 w-4" aria-hidden="true" />
+          <span className="sr-only">Close</span>
+        </SheetPrimitive.Close>
+      </SheetPrimitive.Content>
+    </SheetPortal>
+  ),
+);
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
 function SheetHeader({

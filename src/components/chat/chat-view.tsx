@@ -153,8 +153,18 @@ export function ChatView(): React.JSX.Element {
 
   const showTip = conversations.length === 0 || !activeId;
 
+  // Container that hosts the conversations Sheet. The Sheet portals into
+  // this node and uses `position: absolute` (instead of `fixed`) so the
+  // slide-in stays inside the chat pane and doesn't overlay the whole
+  // workspace window.
+  const chatPaneRef = React.useRef<HTMLDivElement>(null);
+
   return (
-    <div className="flex h-full w-full flex-col" data-testid="chat-view">
+    <div
+      ref={chatPaneRef}
+      className="relative flex h-full w-full flex-col"
+      data-testid="chat-view"
+    >
       {/* Chat header: title + 4 icon actions */}
       <header
         className="flex items-center justify-between gap-2 border-b border-border bg-card/30 px-3 py-1.5"
@@ -258,10 +268,13 @@ export function ChatView(): React.JSX.Element {
         </div>
       </div>
 
-      {/* Conversations slide-in panel (shadcn Sheet on the right edge) */}
+      {/* Conversations slide-in panel (shadcn Sheet, constrained to this
+          chat pane via the container ref + position="contained"). */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent
           side="right"
+          position="contained"
+          container={chatPaneRef.current}
           className="w-80 gap-0 p-0 sm:max-w-sm"
           data-testid="chat-sessions-sheet"
         >
