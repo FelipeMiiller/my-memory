@@ -70,6 +70,24 @@ export function ChatView(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
 
+  // Sidebar (conversations) auto-collapses when the window can't fit both
+  // the chat (min 400px) and the 256px sidebar. Priority is the chat.
+  // Once auto-collapsed, the sidebar stays closed even after the window
+  // grows again — the user has to explicitly reopen it via the header
+  // toggle (matches the principle that we never undo the user's last
+  // explicit collapse action with a silent re-open).
+  React.useEffect(() => {
+    const NARROW_BREAKPOINT_PX = 720; // 400 (chat min) + 256 (sidebar) + slack
+    function handle(): void {
+      if (window.innerWidth < NARROW_BREAKPOINT_PX && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    }
+    handle();
+    window.addEventListener("resize", handle);
+    return () => window.removeEventListener("resize", handle);
+  }, [sidebarOpen]);
+
   React.useEffect(() => {
     void loadConversations();
     void loadConfig();
@@ -226,7 +244,7 @@ export function ChatView(): React.JSX.Element {
 
       <div className="flex min-h-0 flex-1">
         <div
-          className="flex min-w-0 flex-1 flex-col"
+          className="flex min-w-[400px] flex-1 shrink-0 flex-col"
           data-testid="chat-view-main"
         >
           <ChatThread />
