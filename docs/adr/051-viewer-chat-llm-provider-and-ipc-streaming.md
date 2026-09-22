@@ -1,7 +1,7 @@
 # ADR-051: Chat LLM no Viewer — Provider Abstraction + IPC Streaming + RAG via `mem search`
 
 - **Date**: 2026-09-22
-- **Status**: Proposed
+- **Status**: Accepted
 - **Deciders**: Felipe Miiller, Mavis (orchestrator)
 - **Tags**: viewer, chat, llm, ai-sdk, ipc, electron, streaming, rag, security, mvp
 

@@ -73,6 +73,10 @@ function createMainWindow(): BrowserWindow {
     mainWindow.show();
   });
 
+  mainWindowRef = mainWindow;
+  mainWindow.on("closed", () => {
+    if (mainWindowRef === mainWindow) mainWindowRef = null;
+  });
   return mainWindow;
 }
 
@@ -94,6 +98,7 @@ app.on("window-all-closed", () => {
 
 // Wire minimal IPC handlers — Phase 2 expands via ADR-049.
 import { ipcMain } from "electron/main";
+import { registerChatHandlers } from "@electron/ipc/chat";
 
 ipcMain.handle(IPC_CHANNELS.MEM_DATASET_LOAD, async () => {
   return Promise.reject(new Error("mem:dataset:load not implemented (Phase 2)"));
@@ -102,3 +107,7 @@ ipcMain.handle(IPC_CHANNELS.MEM_DATASET_LOAD, async () => {
 ipcMain.handle(IPC_CHANNELS.MEM_CLI_RUN, async () => {
   return Promise.reject(new Error("mem:cli:run not implemented (Phase 2)"));
 });
+
+// Chat handlers (ADR-051) — registered last so they can capture the main window.
+let mainWindowRef: BrowserWindow | null = null;
+registerChatHandlers(() => mainWindowRef);
