@@ -15,7 +15,6 @@ import { buildSystemPrompt } from "@/lib/chat/prompts";
 import { useChatStore } from "@/lib/chat/store";
 import type { ChatMessage } from "@/lib/chat/types";
 import { ChatInput } from "./chat-input";
-import { ChatModelPicker } from "./chat-model-picker";
 import { ChatSettingsModal } from "./chat-settings-modal";
 import { ChatSidebar } from "./chat-sidebar";
 import { ChatThread } from "./chat-thread";
@@ -190,10 +189,6 @@ export function ChatView(): React.JSX.Element {
           >
             <Plus className="h-3.5 w-3.5" />
           </Button>
-          <ChatModelPicker
-            compact
-            onOpenSettings={() => setSettingsOpen(true)}
-          />
           <Button
             variant="ghost"
             size="icon"
