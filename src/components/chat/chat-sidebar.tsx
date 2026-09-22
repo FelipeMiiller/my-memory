@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+﻿import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import { cn } from "@/utils/tailwind";
  */
 
 export function ChatSidebar(): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t } = useTranslation("chat");
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeConversationId);
   const createConversation = useChatStore((s) => s.createConversation);
@@ -44,14 +44,14 @@ export function ChatSidebar(): React.JSX.Element {
       {/* Header: title + actions */}
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("chat.sidebar.title")}
+          {t("sidebar.title")}
         </span>
         <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => void createConversation()}
-            aria-label={t("chat.sidebar.newConversation")}
+            aria-label={t("sidebar.newConversation")}
             data-testid="chat-sidebar-new"
             className="h-6 w-6"
           >
@@ -83,7 +83,7 @@ export function ChatSidebar(): React.JSX.Element {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("chat.sidebar.searchPlaceholder")}
+          placeholder={t("sidebar.searchPlaceholder")}
           className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           data-testid="chat-sidebar-search"
         />
@@ -94,8 +94,8 @@ export function ChatSidebar(): React.JSX.Element {
           {filtered.length === 0 ? (
             <div className="px-2 py-4 text-center text-[11px] text-muted-foreground">
               {conversations.length === 0
-                ? t("chat.sidebar.empty")
-                : t("chat.sidebar.noMatch")}
+                ? t("sidebar.empty")
+                : t("sidebar.noMatch")}
             </div>
           ) : (
             filtered.map((c) => (
@@ -106,7 +106,7 @@ export function ChatSidebar(): React.JSX.Element {
                 active={activeId === c.id}
                 onSelect={() => selectConversation(c.id)}
                 onDelete={() => void deleteConversation(c.id)}
-                deleteLabel={t("chat.sidebar.delete")}
+                deleteLabel={t("sidebar.delete")}
               />
             ))
           )}

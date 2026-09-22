@@ -13,7 +13,7 @@ import "@/lib/chat/ipc"; // augments globalThis.memAPI with the `window` field
  */
 
 export function WindowControls(): React.JSX.Element | null {
-  const { t } = useTranslation();
+  const { t } = useTranslation("topbar");
   const isMac = React.useMemo(
     () => (globalThis.navigator?.userAgent ?? "").toLowerCase().includes("mac"),
     [],
@@ -58,8 +58,8 @@ export function WindowControls(): React.JSX.Element | null {
         variant="ghost"
         size="icon"
         onClick={() => void handleMinimize()}
-        aria-label={t("workspace.topbar.minimize")}
-        title={t("workspace.topbar.minimize")}
+        aria-label={t("minimize")}
+        title={t("minimize")}
         data-testid="window-control-minimize"
         className="h-8 w-8 rounded-none"
       >
@@ -70,9 +70,9 @@ export function WindowControls(): React.JSX.Element | null {
         size="icon"
         onClick={() => void handleToggleMaximize()}
         aria-label={
-          maximized ? t("workspace.topbar.restore") : t("workspace.topbar.maximize")
+          maximized ? t("restore") : t("maximize")
         }
-        title={maximized ? t("workspace.topbar.restore") : t("workspace.topbar.maximize")}
+        title={maximized ? t("restore") : t("maximize")}
         data-testid="window-control-maximize"
         className="h-8 w-8 rounded-none"
       >
@@ -82,8 +82,8 @@ export function WindowControls(): React.JSX.Element | null {
         variant="ghost"
         size="icon"
         onClick={() => void handleClose()}
-        aria-label={t("workspace.topbar.close")}
-        title={t("workspace.topbar.close")}
+        aria-label={t("close")}
+        title={t("close")}
         data-testid="window-control-close"
         className={cn(
           "h-8 w-8 rounded-none",

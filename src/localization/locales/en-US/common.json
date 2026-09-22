@@ -42,5 +42,12 @@
     "graphTabNotice": "Phase 1 ships only the {{tab}} tab with bundled Cytoscape reading the static data-central.json.",
     "codeTooltip": "Code symbols — Phase 2 (ADR-047/051)",
     "stalenessTooltip": "Staleness dashboard — Phase 2 (ADR-031/051)"
+  },
+  "footer": {
+    "dataset": "Dataset:",
+    "phase1": "ADR-048 · Phase 1 MVP"
+  },
+  "github": {
+    "label": "Open repository on GitHub"
   }
 }

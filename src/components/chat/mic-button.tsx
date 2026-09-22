@@ -45,7 +45,7 @@ export function MicButton({
   disabled = false,
   locale,
 }: MicButtonProps): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t } = useTranslation("chat");
   const [dictating, setDictating] = React.useState(false);
   const [unsupported, setUnsupported] = React.useState(false);
   const [elapsedMs, setElapsedMs] = React.useState(0);
@@ -255,10 +255,10 @@ export function MicButton({
   }
 
   const title = unsupported
-    ? t("chat.input.dictateUnsupported")
+    ? t("input.dictateUnsupported")
     : dictating
-      ? t("chat.input.stopDictation", { seconds: Math.floor(elapsedMs / 1000) })
-      : t("chat.input.startDictation");
+      ? t("input.stopDictation", { seconds: Math.floor(elapsedMs / 1000) })
+      : t("input.startDictation");
 
   return (
     <Button

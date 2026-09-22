@@ -1,34 +1,32 @@
 {
-  "workspace": {
-    "statusBar": {
-      "layout": "layout",
-      "explorer": "explorer",
-      "chat": "chat",
-      "dock": "dock",
-      "on": "ativo",
-      "off": "oculto",
-      "reset": "restaurar layout padrão"
-    },
-    "explorer": {
-      "title": "Explorador",
-      "centralVault": "Central Vault",
-      "currentRepo": "Repositório atual",
-      "federatedRepos": "Repositórios federados",
-      "noRepos": "Nenhum repositório federado configurado",
-      "comingInM3": "Mock de vaults · implementação real em M3",
-      "active": "ativo"
-    },
-    "editor": {
-      "title": "Editor",
-      "emptyTitle": "Selecione um arquivo para começar",
-      "emptySubtitle": "Editor Markdown com preview ao vivo, autocomplete de wikilinks e active-doc context binding chega em M3.",
-      "openFile": "Abrir arquivo",
-      "searchVault": "Buscar no vault"
-    },
-    "dock": {
-      "placeholder": "Terminal · placeholder",
-      "comingInM4": "xterm.js + node-pty shell → M4",
-      "toggleHint": "Ctrl+` para alternar"
-    }
+  "statusBar": {
+    "layout": "layout",
+    "explorer": "explorer",
+    "chat": "chat",
+    "dock": "dock",
+    "on": "ativo",
+    "off": "oculto",
+    "reset": "restaurar layout padrão"
+  },
+  "explorer": {
+    "title": "Explorador",
+    "centralVault": "Central Vault",
+    "currentRepo": "Repositório atual",
+    "federatedRepos": "Repositórios federados",
+    "noRepos": "Nenhum repositório federado configurado",
+    "comingInM3": "Mock de vaults · implementação real em M3",
+    "active": "ativo"
+  },
+  "editor": {
+    "title": "Editor",
+    "emptyTitle": "Selecione um arquivo para começar",
+    "emptySubtitle": "Editor Markdown com preview ao vivo, autocomplete de wikilinks e active-doc context binding chega em M3.",
+    "openFile": "Abrir arquivo",
+    "searchVault": "Buscar no vault"
+  },
+  "dock": {
+    "placeholder": "Terminal · placeholder",
+    "comingInM4": "xterm.js + node-pty shell → M4",
+    "toggleHint": "Ctrl+` para alternar"
   }
 }

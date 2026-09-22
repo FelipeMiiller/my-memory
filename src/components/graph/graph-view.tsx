@@ -45,7 +45,7 @@ type LoadState =
   | { kind: "error"; message: string };
 
 export function GraphView(): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t } = useTranslation("graph");
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const cyRef = React.useRef<CytoscapeCore | null>(null);
   const [state, setState] = React.useState<LoadState>({ kind: "idle" });
@@ -152,7 +152,7 @@ export function GraphView(): React.JSX.Element {
         >
           <div className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm shadow">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            {t("graph.loading")}
+            {t("loading")}
           </div>
         </div>
       )}
@@ -167,10 +167,10 @@ export function GraphView(): React.JSX.Element {
             <CardContent className="flex items-start gap-3 p-4">
               <AlertCircle className="mt-0.5 h-5 w-5 text-destructive" />
               <div className="space-y-1 text-sm">
-                <p className="font-medium">{t("graph.errorTitle")}</p>
+                <p className="font-medium">{t("errorTitle")}</p>
                 <p className="text-muted-foreground">{state.message}</p>
                 <p className="text-xs text-muted-foreground">
-                  {t("graph.errorHint")}
+                  {t("errorHint")}
                 </p>
               </div>
             </CardContent>
@@ -190,20 +190,20 @@ export function GraphView(): React.JSX.Element {
             <strong className="text-foreground">
               {state.dataset.nodes.length}
             </strong>{" "}
-            {t("graph.summaryNodes", { count: state.dataset.nodes.length })}
+            {t("summaryNodes", { count: state.dataset.nodes.length })}
           </span>
           <span aria-hidden="true">·</span>
           <span>
             <strong className="text-foreground">
               {state.dataset.edges.length}
             </strong>{" "}
-            {t("graph.summaryEdges", { count: state.dataset.edges.length })}
+            {t("summaryEdges", { count: state.dataset.edges.length })}
           </span>
           {state.selected && (
             <>
               <span aria-hidden="true">·</span>
               <Badge variant="secondary" className="text-[10px]">
-                {t("graph.selected", { label: state.selected.label })}
+                {t("selected", { label: state.selected.label })}
               </Badge>
             </>
           )}
@@ -218,7 +218,7 @@ function SelectedNodePanel({
 }: {
   node: SelectedNode;
 }): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t } = useTranslation("graph");
   return (
     <aside
       className="pointer-events-auto absolute right-3 top-3 w-72 max-w-[80%] rounded-lg border border-border bg-card/95 p-4 shadow-lg backdrop-blur"
@@ -243,9 +243,9 @@ function SelectedNodePanel({
       </header>
 
       <dl className="space-y-1.5 text-xs">
-        <Stat label={t("inspector.id")} value={node.id} mono />
+        <Stat label={t("id")} value={node.id} mono />
         <Stat
-          label={t("inspector.color")}
+          label={t("color")}
           value={
             <span className="inline-flex items-center gap-1.5">
               <span
@@ -257,15 +257,15 @@ function SelectedNodePanel({
             </span>
           }
         />
-        <Stat label={t("inspector.inDegree")} value={String(node.in_degree)} />
-        <Stat label={t("inspector.outDegree")} value={String(node.out_degree)} />
+        <Stat label={t("inDegree")} value={String(node.in_degree)} />
+        <Stat label={t("outDegree")} value={String(node.out_degree)} />
         <Stat
-          label={t("inspector.pageRank")}
+          label={t("pageRank")}
           value={node.pagerank.toFixed(4)}
           mono
         />
         <Stat
-          label={t("inspector.radius")}
+          label={t("radius")}
           value={String(Math.round(pagerankToRadius(node.pagerank)))}
         />
       </dl>

@@ -1,34 +1,32 @@
 {
-  "workspace": {
-    "statusBar": {
-      "layout": "layout",
-      "explorer": "explorer",
-      "chat": "chat",
-      "dock": "dock",
-      "on": "on",
-      "off": "off",
-      "reset": "reset layout to defaults"
-    },
-    "explorer": {
-      "title": "Explorer",
-      "centralVault": "Central Vault",
-      "currentRepo": "Current repository",
-      "federatedRepos": "Federated repositories",
-      "noRepos": "No federated repositories configured",
-      "comingInM3": "Mock vaults · real implementation in M3",
-      "active": "active"
-    },
-    "editor": {
-      "title": "Editor",
-      "emptyTitle": "Select a file to start editing",
-      "emptySubtitle": "Markdown editor with live preview, wikilink autocomplete, and active-doc context binding will land in M3.",
-      "openFile": "Open file",
-      "searchVault": "Search vault"
-    },
-    "dock": {
-      "placeholder": "Terminal · placeholder",
-      "comingInM4": "xterm.js + node-pty shell → M4",
-      "toggleHint": "Ctrl+` to toggle"
-    }
+  "statusBar": {
+    "layout": "layout",
+    "explorer": "explorer",
+    "chat": "chat",
+    "dock": "dock",
+    "on": "active",
+    "off": "hidden",
+    "reset": "reset to default layout"
+  },
+  "explorer": {
+    "title": "Explorer",
+    "centralVault": "Central Vault",
+    "currentRepo": "Current repository",
+    "federatedRepos": "Federated repositories",
+    "noRepos": "No federated repositories configured",
+    "comingInM3": "Mock vaults · real implementation in M3",
+    "active": "active"
+  },
+  "editor": {
+    "title": "Editor",
+    "emptyTitle": "Select a file to start",
+    "emptySubtitle": "Markdown editor with live preview, wikilink autocomplete and active-doc context binding ships in M3.",
+    "openFile": "Open file",
+    "searchVault": "Search vault"
+  },
+  "dock": {
+    "placeholder": "Terminal · placeholder",
+    "comingInM4": "xterm.js + node-pty shell → M4",
+    "toggleHint": "Ctrl+` to toggle"
   }
 }

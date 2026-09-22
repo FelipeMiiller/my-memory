@@ -1,13 +1,9 @@
 {
-  "workspace": {
-    "topbar": {
-      "toggleExplorer": "Toggle Explorer (Ctrl+B)",
-      "toggleChat": "Toggle Chat (Ctrl+J)",
-      "toggleDock": "Toggle Terminal (Ctrl+`)",
-      "minimize": "Minimize",
-      "maximize": "Maximize",
-      "restore": "Restore",
-      "close": "Close"
-    }
-  }
+  "toggleExplorer": "Toggle Explorer (Ctrl+B)",
+  "toggleChat": "Toggle Chat (Ctrl+J)",
+  "toggleDock": "Toggle Terminal (Ctrl+`)",
+  "minimize": "Minimize",
+  "maximize": "Maximize",
+  "restore": "Restore",
+  "close": "Close"
 }

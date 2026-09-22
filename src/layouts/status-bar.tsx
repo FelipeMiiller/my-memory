@@ -7,19 +7,19 @@ import { useUiStore } from "@/lib/ui/use-ui-store";
  */
 
 export function StatusBar(): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t } = useTranslation("workspace");
   const layout = useUiStore((s) => s.layout);
   const resetLayout = useUiStore((s) => s.resetLayout);
 
   const explorerLabel = layout.explorer.visible
-    ? `${t("workspace.statusBar.explorer")} ${layout.explorer.widthPct}%`
-    : `${t("workspace.statusBar.explorer")} ${t("workspace.statusBar.off")}`;
+    ? `${t("statusBar.explorer")} ${layout.explorer.widthPct}%`
+    : `${t("statusBar.explorer")} ${t("statusBar.off")}`;
   const chatLabel = layout.chat.visible
-    ? `${t("workspace.statusBar.chat")} ${layout.chat.widthPct}%`
-    : `${t("workspace.statusBar.chat")} ${t("workspace.statusBar.off")}`;
+    ? `${t("statusBar.chat")} ${layout.chat.widthPct}%`
+    : `${t("statusBar.chat")} ${t("statusBar.off")}`;
   const dockLabel = layout.dock.visible
-    ? `${t("workspace.statusBar.dock")} ${layout.dock.heightPct}%`
-    : `${t("workspace.statusBar.dock")} ${t("workspace.statusBar.off")}`;
+    ? `${t("statusBar.dock")} ${layout.dock.heightPct}%`
+    : `${t("statusBar.dock")} ${t("statusBar.off")}`;
 
   return (
     <div className="flex h-6 shrink-0 items-center justify-between border-t border-border bg-card/30 px-3 text-[10px] text-muted-foreground">
@@ -27,17 +27,17 @@ export function StatusBar(): React.JSX.Element {
         <span>my-memory viewer</span>
         <span>·</span>
         <span>
-          {t("workspace.statusBar.layout")}: {explorerLabel} · {chatLabel} · {dockLabel}
+          {t("statusBar.layout")}: {explorerLabel} · {chatLabel} · {dockLabel}
         </span>
       </div>
       <button
         type="button"
         onClick={() => resetLayout()}
         className="hover:text-foreground"
-        title={t("workspace.statusBar.reset")}
+        title={t("statusBar.reset")}
         data-testid="statusbar-reset-layout"
       >
-        {t("workspace.statusBar.reset")}
+        {t("statusBar.reset")}
       </button>
     </div>
   );

@@ -1,28 +1,17 @@
 {
-  "chat": {
-    "picker": {
-      "search": "Buscar modelos",
-      "settingsTitle": "Configurações do provedor",
-      "autoBadge": "padrão",
-      "otherModels": "Outros modelos",
-      "emptyMatch": "nenhum modelo corresponde",
-      "upgradeLabel": "Requer chave de API",
-      "noKeyBadge": "sem chave"
-    },
-    "input": {
-      "startDictation": "Ditar (Speech-to-Text) · Ctrl+I",
-      "stopDictation": "Parar ditado ({{seconds}}s)",
-      "dictateUnsupported": "Microfone indisponível neste build"
-    },
-    "sidebar": {
-      "title": "Conversas",
-      "searchPlaceholder": "Buscar conversas",
-      "newConversation": "Nova conversa",
-      "delete": "Excluir conversa",
-      "newer": "Mais recentes",
-      "older": "Antigas",
-      "empty": "Nenhuma conversa ainda.\nClique em + para começar.",
-      "noMatch": "Nenhuma conversa corresponde à busca."
-    }
+  "input": {
+    "startDictation": "Ditar (Speech-to-Text) · Ctrl+I",
+    "stopDictation": "Parar ditado ({{seconds}}s)",
+    "dictateUnsupported": "Microfone indisponível neste build"
+  },
+  "sidebar": {
+    "title": "Conversas",
+    "searchPlaceholder": "Buscar conversas",
+    "newConversation": "Nova conversa",
+    "delete": "Excluir conversa",
+    "newer": "Mais recentes",
+    "older": "Antigas",
+    "empty": "Nenhuma conversa ainda.\nClique em + para começar.",
+    "noMatch": "Nenhuma conversa corresponde à busca."
   }
 }

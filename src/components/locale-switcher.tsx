@@ -33,7 +33,7 @@ const OPTIONS: ReadonlyArray<LocaleOption> = [
 ];
 
 export function LocaleSwitcher(): React.JSX.Element {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation("common");
   const [current, setCurrent] = React.useState<SupportedLocale>(
     (i18n.resolvedLanguage ?? i18n.language ?? DEFAULT_LOCALE) as SupportedLocale,
   );

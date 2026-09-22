@@ -225,24 +225,24 @@ function Node({ node, depth }: { node: MockNode; depth: number }): React.JSX.Ele
 }
 
 export function FileExplorerStub(): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t } = useTranslation("workspace");
 
   return (
     <div className="flex h-full flex-col overflow-hidden" data-testid="file-explorer-stub">
-      <VaultHeader vault={CURRENT_REPO} title={t("workspace.explorer.title")} />
+      <VaultHeader vault={CURRENT_REPO} title={t("explorer.title")} />
       <div className="flex-1 overflow-auto">
         {ALL_VAULTS.map((vault) => {
           const label =
             vault.kind === "central"
-              ? t("workspace.explorer.centralVault")
+              ? t("explorer.centralVault")
               : vault.kind === "current"
-                ? t("workspace.explorer.currentRepo")
-                : t("workspace.explorer.federatedRepos");
+                ? t("explorer.currentRepo")
+                : t("explorer.federatedRepos");
           return <VaultSection key={vault.id} vault={vault} label={label} />;
         })}
       </div>
       <div className="border-t border-border bg-card/30 px-2 py-1 text-[10px] text-muted-foreground italic">
-        {t("workspace.explorer.comingInM3")}
+        {t("explorer.comingInM3")}
       </div>
     </div>
   );

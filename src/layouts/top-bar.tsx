@@ -21,7 +21,7 @@ import { useUiStore } from "@/lib/ui/use-ui-store";
  */
 
 export function TopBar(): React.JSX.Element {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "topbar"]);
   const layout = useUiStore((s) => s.layout);
   const togglePane = useUiStore((s) => s.togglePane);
 
@@ -48,8 +48,8 @@ export function TopBar(): React.JSX.Element {
           variant={layout.explorer.visible ? "secondary" : "ghost"}
           size="icon"
           onClick={() => togglePane("explorer")}
-          aria-label={t("workspace.topbar.toggleExplorer")}
-          title={t("workspace.topbar.toggleExplorer")}
+          aria-label={t("toggleExplorer")}
+          title={t("toggleExplorer")}
           data-testid="topbar-toggle-explorer"
         >
           <PanelLeft className="h-4 w-4" />
@@ -58,8 +58,8 @@ export function TopBar(): React.JSX.Element {
           variant={layout.chat.visible ? "secondary" : "ghost"}
           size="icon"
           onClick={() => togglePane("chat")}
-          aria-label={t("workspace.topbar.toggleChat")}
-          title={t("workspace.topbar.toggleChat")}
+          aria-label={t("toggleChat")}
+          title={t("toggleChat")}
           data-testid="topbar-toggle-chat"
         >
           <MessageSquare className="h-4 w-4" />
@@ -68,8 +68,8 @@ export function TopBar(): React.JSX.Element {
           variant={layout.dock.visible ? "secondary" : "ghost"}
           size="icon"
           onClick={() => togglePane("dock")}
-          aria-label={t("workspace.topbar.toggleDock")}
-          title={t("workspace.topbar.toggleDock")}
+          aria-label={t("toggleDock")}
+          title={t("toggleDock")}
           data-testid="topbar-toggle-dock"
         >
           <Terminal className="h-4 w-4" />
