@@ -4,7 +4,7 @@ Evolução do viewer Electron do MVP v2.0.0 (Chat tab) para um workspace AI-modu
 
 PR #7 contra `develop`. Branch: `feat/v3-workspace-architecture`.
 
-> **Update 2026-09-22 (M1 audit):** branch agora com **31 commits** (3 novos: smoke test fix + retro tasks.md + retro validation.md). Decision do Felipe: push as-is (full audit trail); squash-merge no PR pode colapsar pra 1 commit em develop. Ver seção "Validação retroativa" abaixo.
+> **Update 2026-09-22 (M1 audit + T11 close):** branch agora com **33 commits** (5 novos: smoke test fix + retro tasks.md + retro validation.md + retro PR doc + vitest tests ChatSidebar/ChatInput). Decision do Felipe: push as-is (full audit trail); squash-merge no PR pode colapsar pra 1 commit em develop. Ver seção "Validação retroativa" abaixo.
 
 ## O que entra
 
@@ -113,7 +113,7 @@ O ciclo tlc-spec-driven foi fechado retroativamente. Ver:
 ### Tasks parciais (defer justificável)
 
 - **T10 — Atalhos de teclado (Ctrl+B/J/`)** — toggle via botão funciona; listener global fica pra v3.1
-- **T11 — Testes unit do `useUiStore` + ChatSidebar / ChatInput** — vitest suite tem só Electron smoke (1/1 PASS); vitest tests pra essas components ficam em follow-up
+- **T11 — Testes unit do `useUiStore` + ChatSidebar / ChatInput** — ✅ **RESOLVIDO** (commit `f27193c`): 4 testes vitest adicionados (`chat-sidebar.test.tsx` + `chat-input.test.tsx`). Suíte: 5/5 PASS em 3.09s
 - **T17 — ASR real (Nemotron)** — só scaffold (MicButton + IPC pipeline); implementação real em `features/nemotron-asr-streaming/tasks.md` (T1-T9)
 
 ## Commits no branch (31 ahead de develop)
@@ -122,6 +122,8 @@ Ordem cronológica (mais recente → mais antigo):
 
 | Commit | Descrição |
 |---|---|
+| `f27193c` | test(viewer): add vitest unit tests for ChatSidebar + ChatInput (T11) |
+| `a9a1a82` | docs(pr): update PR #7 description to reflect 31 commits + audit findings |
 | `c12b71a` | docs(spec): add M1 validation.md (retroactive quality gate + AC verification) |
 | `2fcaf81` | docs(spec): add M1 tasks.md (retroactive breakdown of 28 commits) |
 | `1ad44e7` | fix(viewer): update smoke test for M1 shell (canvas → layout status text) |
@@ -157,7 +159,6 @@ Ordem cronológica (mais recente → mais antigo):
 
 ## Próximos passos (fora do escopo deste PR)
 
-- **Tests do ChatSidebar / ChatInput** — 2-3 testes vitest cobrindo: render do header, click no `+` cria conversation, search filtra lista
 - **ADR-044** (writer atômico + outbox + reprojeção) — próximo ADR natural pós-ADR-043
 - **PR #6 merge** (chat-language-models) — afeta fonte de dados quando ChatModelPicker voltar no futuro
 - **M2 — React Query split + service layer** (ADR-054) — roadmap após M1 close
