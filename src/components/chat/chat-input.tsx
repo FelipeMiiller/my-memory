@@ -5,6 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/utils/tailwind";
 
 interface ChatInputProps {
+  /** ChatModelPicker node — rendered in the input toolbar (VS Code style). */
+  modelPicker?: React.ReactNode;
   disabled?: boolean;
   streaming: boolean;
   hasApiKey: boolean;
@@ -13,6 +15,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({
+  modelPicker,
   disabled = false,
   streaming,
   hasApiKey,
@@ -45,25 +48,28 @@ export function ChatInput({
       className="border-t border-border bg-card/40 p-3"
       data-testid="chat-input"
     >
-      <div className="flex items-end gap-2">
-        <Textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            hasApiKey
-              ? "Pergunte algo… (Enter envia · Shift+Enter quebra linha)"
-              : "Adicione sua API key nas Configurações para começar."
-          }
-          disabled={disabled || !hasApiKey}
-          className={cn(
-            "min-h-[44px] max-h-[200px]",
-            !hasApiKey && "opacity-60",
-          )}
-          rows={1}
-          data-testid="chat-input-textarea"
-        />
+      <Textarea
+        ref={textareaRef}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={
+          hasApiKey
+            ? "Pergunte algo… (Enter envia · Shift+Enter quebra linha)"
+            : "Adicione sua API key nas Configurações para começar."
+        }
+        disabled={disabled || !hasApiKey}
+        className={cn("min-h-[44px] max-h-[200px]", !hasApiKey && "opacity-60")}
+        rows={1}
+        data-testid="chat-input-textarea"
+      />
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <div
+          className="flex min-w-0 items-center gap-1"
+          data-testid="chat-input-toolbar"
+        >
+          {modelPicker}
+        </div>
         {streaming ? (
           <Button
             onClick={onStop}

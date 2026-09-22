@@ -159,7 +159,7 @@ export function ChatModelPicker({
 
       {open && (
         <div
-          className="absolute left-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
+          className="absolute bottom-full left-0 z-50 mb-1 w-80 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
           data-testid="chat-model-picker-popover"
           role="listbox"
         >
