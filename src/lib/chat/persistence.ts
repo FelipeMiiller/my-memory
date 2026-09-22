@@ -1,4 +1,4 @@
-import { get, set, del, keys, createStore } from "idb-keyval";
+import { createStore, del, get, keys, set } from "idb-keyval";
 import type { ChatConversation } from "@/lib/chat/types";
 
 /**
@@ -58,7 +58,9 @@ export async function deleteConversation(id: string): Promise<void> {
   }
 }
 
-export async function getConversation(id: string): Promise<ChatConversation | null> {
+export async function getConversation(
+  id: string,
+): Promise<ChatConversation | null> {
   try {
     const c = await get<ChatConversation>(id, db());
     return c ?? null;

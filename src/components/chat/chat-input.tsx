@@ -1,5 +1,5 @@
-import * as React from "react";
 import { Send, Square } from "lucide-react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/utils/tailwind";
@@ -22,7 +22,8 @@ export function ChatInput({
   const [text, setText] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
-  const canSend = !disabled && !streaming && text.trim().length > 0 && hasApiKey;
+  const canSend =
+    !disabled && !streaming && text.trim().length > 0 && hasApiKey;
 
   function submit(): void {
     const trimmed = text.trim();
@@ -40,7 +41,10 @@ export function ChatInput({
   }
 
   return (
-    <div className="border-t border-border bg-card/40 p-3" data-testid="chat-input">
+    <div
+      className="border-t border-border bg-card/40 p-3"
+      data-testid="chat-input"
+    >
       <div className="flex items-end gap-2">
         <Textarea
           ref={textareaRef}
@@ -53,7 +57,10 @@ export function ChatInput({
               : "Adicione sua API key nas Configurações para começar."
           }
           disabled={disabled || !hasApiKey}
-          className={cn("min-h-[44px] max-h-[200px]", !hasApiKey && "opacity-60")}
+          className={cn(
+            "min-h-[44px] max-h-[200px]",
+            !hasApiKey && "opacity-60",
+          )}
           rows={1}
           data-testid="chat-input-textarea"
         />

@@ -37,7 +37,8 @@ export function buildSystemPrompt(
   let chars = 0;
   for (let i = 0; i < ragResults.length; i++) {
     const r = ragResults[i];
-    const snippet = r.snippet.length > 400 ? `${r.snippet.slice(0, 400)}…` : r.snippet;
+    const snippet =
+      r.snippet.length > 400 ? `${r.snippet.slice(0, 400)}…` : r.snippet;
     const block = `[${i + 1}] ${r.title} (${r.path}, score=${r.score.toFixed(3)})\n${snippet}\n\n`;
     if (chars + block.length > RAG_MAX_CHARS) break;
     lines.push(block);

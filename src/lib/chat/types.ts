@@ -10,11 +10,7 @@
 export type ChatProvider = "anthropic" | "openai";
 
 export const CHAT_MODELS: Record<ChatProvider, readonly string[]> = {
-  anthropic: [
-    "claude-opus-4-1",
-    "claude-sonnet-4-5",
-    "claude-haiku-4-5",
-  ],
+  anthropic: ["claude-opus-4-1", "claude-sonnet-4-5", "claude-haiku-4-5"],
   openai: ["gpt-4o", "gpt-4o-mini", "o3", "o3-mini"],
 } as const;
 
@@ -68,7 +64,12 @@ export interface ChatDoneEvent {
   latencyMs: number;
 }
 
-export type ChatErrorKind = "auth" | "rate_limit" | "network" | "invalid" | "unknown";
+export type ChatErrorKind =
+  | "auth"
+  | "rate_limit"
+  | "network"
+  | "invalid"
+  | "unknown";
 
 export interface ChatError {
   kind: ChatErrorKind;

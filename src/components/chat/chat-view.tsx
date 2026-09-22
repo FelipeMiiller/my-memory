@@ -1,12 +1,12 @@
 import * as React from "react";
-import { ChatSidebar } from "./chat-sidebar";
-import { ChatThread } from "./chat-thread";
-import { ChatInput } from "./chat-input";
-import { ChatSettingsModal } from "./chat-settings-modal";
-import { useChatStore } from "@/lib/chat/store";
 import { chatApi } from "@/lib/chat/ipc";
 import { buildSystemPrompt } from "@/lib/chat/prompts";
+import { useChatStore } from "@/lib/chat/store";
 import type { ChatMessage } from "@/lib/chat/types";
+import { ChatInput } from "./chat-input";
+import { ChatSettingsModal } from "./chat-settings-modal";
+import { ChatSidebar } from "./chat-sidebar";
+import { ChatThread } from "./chat-thread";
 
 /**
  * ChatView — root of the Chat tab.
@@ -23,12 +23,16 @@ export function ChatView(): React.JSX.Element {
   const error = useChatStore((s) => s.error);
   const loadConversations = useChatStore((s) => s.loadConversations);
   const loadConfig = useChatStore((s) => s.loadConfig);
-  const ensureActiveConversation = useChatStore((s) => s.ensureActiveConversation);
+  const ensureActiveConversation = useChatStore(
+    (s) => s.ensureActiveConversation,
+  );
   const appendUserMessage = useChatStore((s) => s.appendUserMessage);
   const startAssistantMessage = useChatStore((s) => s.startAssistantMessage);
   const setStreamingRequestId = useChatStore((s) => s.setStreamingRequestId);
   const appendDelta = useChatStore((s) => s.appendDelta);
-  const finalizeAssistantMessage = useChatStore((s) => s.finalizeAssistantMessage);
+  const finalizeAssistantMessage = useChatStore(
+    (s) => s.finalizeAssistantMessage,
+  );
   const abortStreaming = useChatStore((s) => s.abortStreaming);
   const setError = useChatStore((s) => s.setError);
   const clearError = useChatStore((s) => s.clearError);
@@ -67,13 +71,17 @@ export function ChatView(): React.JSX.Element {
       startAssistantMessage();
 
       // Build messages array from the (now updated) conversation.
-      const conv = useChatStore.getState().conversations.find(
-        (c) => c.id === useChatStore.getState().activeConversationId,
-      );
+      const conv = useChatStore
+        .getState()
+        .conversations.find(
+          (c) => c.id === useChatStore.getState().activeConversationId,
+        );
       if (!conv) return;
 
       // Run RAG search on the main process if enabled.
-      let ragResults: ReadonlyArray<import("@/lib/chat/types").MemSearchResult> = [];
+      let ragResults: ReadonlyArray<
+        import("@/lib/chat/types").MemSearchResult
+      > = [];
       if (config.useMemory) {
         try {
           const rag = await chatApi.memSearch(text, 5);
@@ -107,7 +115,10 @@ export function ChatView(): React.JSX.Element {
       </aside>
 
       {/* Main chat area */}
-      <main className="flex min-w-0 flex-1 flex-col" data-testid="chat-view-main">
+      <main
+        className="flex min-w-0 flex-1 flex-col"
+        data-testid="chat-view-main"
+      >
         <div className="flex items-center justify-between border-b border-border bg-card/30 px-4 py-2">
           <div className="text-xs text-muted-foreground">
             {config.provider} · {config.model} ·{" "}
@@ -135,7 +146,10 @@ export function ChatView(): React.JSX.Element {
         />
       </main>
 
-      <ChatSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <ChatSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
 
       {/* Hidden — for test selectors */}
       <span className="sr-only" data-testid="chat-conv-count">
