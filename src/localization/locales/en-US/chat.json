@@ -1,0 +1,13 @@
+{
+  "chat": {
+    "picker": {
+      "search": "Search models",
+      "settingsTitle": "Provider settings",
+      "autoBadge": "default",
+      "otherModels": "Other Models",
+      "emptyMatch": "no models match",
+      "upgradeLabel": "Requires API key",
+      "noKeyBadge": "no key"
+    }
+  }
+}

@@ -122,7 +122,7 @@ export function ChatView(): React.JSX.Element {
       >
         <div className="flex items-center justify-between gap-2 border-b border-border bg-card/30 px-3 py-1.5">
           <div className="flex items-center gap-2">
-            <ChatModelPicker />
+            <ChatModelPicker onOpenSettings={() => setSettingsOpen(true)} />
             <span className="text-[10px] text-muted-foreground">·</span>
             <span className="text-[10px] text-muted-foreground">
               {config.useMemory ? "com memória" : "sem memória"}

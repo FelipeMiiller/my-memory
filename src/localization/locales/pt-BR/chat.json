@@ -1,0 +1,13 @@
+{
+  "chat": {
+    "picker": {
+      "search": "Buscar modelos",
+      "settingsTitle": "Configurações do provedor",
+      "autoBadge": "padrão",
+      "otherModels": "Outros modelos",
+      "emptyMatch": "nenhum modelo corresponde",
+      "upgradeLabel": "Requer chave de API",
+      "noKeyBadge": "sem chave"
+    }
+  }
+}

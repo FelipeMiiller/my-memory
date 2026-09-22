@@ -1,6 +1,6 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-
+import chatEN from "./locales/en-US/chat.json";
 // Per-namespace bundles — keeps each translation file small, makes diffs
 // easier to review, and lets a translator copy an entire language folder
 // without touching unrelated strings.
@@ -8,6 +8,7 @@ import commonEN from "./locales/en-US/common.json";
 import graphEN from "./locales/en-US/graph.json";
 import topbarEN from "./locales/en-US/topbar.json";
 import workspaceEN from "./locales/en-US/workspace.json";
+import chatPT from "./locales/pt-BR/chat.json";
 import commonPT from "./locales/pt-BR/common.json";
 import graphPT from "./locales/pt-BR/graph.json";
 import topbarPT from "./locales/pt-BR/topbar.json";
@@ -22,7 +23,7 @@ import workspacePT from "./locales/pt-BR/workspace.json";
  * ─── Adding a new language ───────────────────────────────────────────────
  * 1. Copy the whole `pt-BR/` folder:
  *      cp -r src/localization/locales/pt-BR src/localization/locales/<new>
- *    (same shape for every namespace: common / topbar / graph / workspace)
+ *    (same shape for every namespace: common / topbar / graph / workspace / chat)
  * 2. Translate each `*.json` file under `locales/<new>/`. Keep the key paths
  *    identical — only the string values change.
  * 3. Register the new locale in three places (all in `src/localization/`):
@@ -52,7 +53,7 @@ const FALLBACK_LOCALE = "en-US";
 export const SUPPORTED_LOCALES = ["pt-BR", "en-US"] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
-const NAMESPACES = ["common", "topbar", "graph", "workspace"] as const;
+const NAMESPACES = ["common", "topbar", "graph", "workspace", "chat"] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
 const RESOURCES = {
@@ -61,12 +62,14 @@ const RESOURCES = {
     topbar: topbarPT,
     graph: graphPT,
     workspace: workspacePT,
+    chat: chatPT,
   },
   "en-US": {
     common: commonEN,
     topbar: topbarEN,
     graph: graphEN,
     workspace: workspaceEN,
+    chat: chatEN,
   },
 } as const satisfies Record<SupportedLocale, Record<Namespace, unknown>>;
 
