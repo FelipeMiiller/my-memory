@@ -195,6 +195,92 @@ Ordem de execução recomendada:
 
 ---
 
+## Chat LLM (ADR-051)
+
+A aba **Chat** (`src/components/chat/`) é uma extensão da Phase 2 que cabe
+inteira no stack atual (Vite + React 19 + shadcn/ui) sem introduzir Next.js
+ou outro framework. Padrões de referência adaptados do
+[trendy-design/llmchat](https://github.com/trendy-design/llmchat) (Next.js 14
++ AI SDK + Zustand + Dexie) para o esqueleto Vite + Electron já existente.
+
+### Capacidades (Phase 1 da feature `feat-viewer-chat`)
+
+- Multi-provider via Vercel AI SDK: **Anthropic** (default — Claude Opus/Sonnet/Haiku 4.x) e **OpenAI** (GPT-4o, o3, o3-mini).
+- Streaming token a token via IPC `webContents.send('mem:chat:delta', …)` (latência 5-15ms por hop).
+- Persistência local de múltiplas conversas em IndexedDB (`idb-keyval`); sobrevive a restart.
+- RAG opcional via `mem search --json` rodando como subprocess no main process; top-5 snippets injetados no system prompt.
+- API keys **nunca** saem do main process — gravadas em `app.getPath('userData')/chat-config.json`; renderer vê apenas `hasApiKey: boolean`.
+
+### Arquitetura
+
+```
+┌────────────────── Renderer (React 19 + Vite) ──────────────────┐
+│  components/chat/*  (shadcn Textarea, Button, Card)            │
+│       │                                                        │
+│       ▼                                                        │
+│  lib/chat/store.ts  (Zustand: conversations + streaming state) │
+│       │                                                        │
+│       ▼                                                        │
+│  lib/chat/ipc.ts    (type-safe wrappers de window.memAPI.chat) │
+└──────────────────────────┬─────────────────────────────────────┘
+                           │ contextBridge (electron/preload.ts)
+┌──────────────────────────▼─────────────────────────────────────┐
+│                  Main Process (Node 22)                       │
+│  ipc/chat.ts         (ipcMain.handle + webContents.send)      │
+│       │                                                        │
+│       ▼                                                        │
+│  services/chat/llm.ts        (Vercel AI SDK — streamText)      │
+│  services/chat/mem-search.ts (child_process.execFile mem)     │
+│  services/chat/config.ts     (JSON em app.getPath('userData')) │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### IPC Surface (Phase 1)
+
+| Channel | Direção | Payload |
+|---|---|---|
+| `mem:chat:send` | renderer → main (invoke) | `{conversationId, messages, system?}` → `{requestId}` |
+| `mem:chat:abort` | renderer → main (invoke) | `{requestId}` → `{aborted: boolean}` |
+| `mem:chat:delta` | main → renderer (event) | `{requestId, delta}` |
+| `mem:chat:done` | main → renderer (event) | `{requestId, totalChars, latencyMs}` |
+| `mem:chat:error` | main → renderer (event) | `{requestId, error: {kind, message}}` |
+| `mem:chat:mem-search` | renderer → main (invoke) | `{query, topK?}` → `{results: [...]}` |
+| `mem:chat:config-get` | renderer → main (invoke) | `{}` → `{provider, model, useMemory, hasApiKey}` (nunca retorna a key) |
+| `mem:chat:config-set` | renderer → main (invoke) | `{provider?, model?, apiKey?, useMemory?}` → `{ok}` |
+
+### Componentes
+
+| Arquivo | Função |
+|---|---|
+| `chat-view.tsx` | Raiz da aba. Compõe sidebar + thread + input + settings modal. Orquestra streaming (wiring de listeners IPC). |
+| `chat-sidebar.tsx` | Lista de conversas + nova conversa + abre settings. |
+| `chat-thread.tsx` | ScrollArea auto-rolante para o fim com cada novo delta. |
+| `chat-message.tsx` | Bolha user/assistant/system com MarkdownLite (regex-based: code, bold, headings, lists). |
+| `chat-input.tsx` | Textarea + Send/Stop. Enter envia; Shift+Enter quebra linha. |
+| `chat-settings-modal.tsx` | Provider/model/API key/useMemory. API key é **write-only**. |
+
+### Configuração
+
+1. Abrir a aba Chat no viewer.
+2. Clicar no ícone de engrenagem (sidebar) → **Configurações do Chat**.
+3. Escolher **Provider** (Anthropic ou OpenAI).
+4. Escolher **Modelo**.
+5. Colar a **API Key** (write-only — não conseguimos ler de volta).
+6. (Opcional) Ativar **Usar memória do vault** para injetar contexto via `mem search`.
+7. **Salvar**.
+
+A key é gravada em `<userData>/chat-config.json`. Nunca toca o renderer, o bundle, ou o IndexedDB.
+
+### Recursos futuros (Plano B deferred)
+
+- **Tiptap rich-text** (input + markdown render rico via `react-markdown`) — quando ≥3 pedidos.
+- **Tool calling / agent loop** (chat invoca `mem note create`, `mem search`, etc.) — quando Felipe pedir.
+- **Sync entre devices** — converter conversas em notas via `mem compile`.
+
+Ver `.specs/features/feat-viewer-chat/spec.md` + `tasks.md` + `ADR-051` para detalhes.
+
+---
+
 ## Restrições de Phase 1
 
 - **`data-central.json` é estático**: copiado para `public/data-central.json` durante o build, fetchado pelo renderer em runtime. Phase 2 substitui por IPC via `mem graph export`.

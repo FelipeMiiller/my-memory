@@ -1,6 +1,6 @@
-import * as React from "react";
-import { cn } from "@/utils/tailwind";
+import type * as React from "react";
 import type { ChatMessage } from "@/lib/chat/types";
+import { cn } from "@/utils/tailwind";
 
 /**
  * ChatMessage — renders a single message bubble with markdown-flavored
@@ -15,16 +15,16 @@ interface ChatMessageProps {
   streaming?: boolean;
 }
 
-export function ChatMessage({ message, streaming = false }: ChatMessageProps): React.JSX.Element {
+export function ChatMessage({
+  message,
+  streaming = false,
+}: ChatMessageProps): React.JSX.Element {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
 
   return (
     <div
-      className={cn(
-        "flex w-full",
-        isUser ? "justify-end" : "justify-start",
-      )}
+      className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}
       data-testid={`chat-message-${message.role}`}
       data-message-id={message.id}
     >
@@ -37,17 +37,27 @@ export function ChatMessage({ message, streaming = false }: ChatMessageProps): R
         )}
       >
         <div className="mb-0.5 text-[10px] uppercase tracking-wider opacity-60">
-          {message.role === "user" ? "Você" : message.role === "assistant" ? "Assistente" : "Sistema"}
+          {message.role === "user"
+            ? "Você"
+            : message.role === "assistant"
+              ? "Assistente"
+              : "Sistema"}
         </div>
         <MarkdownLite content={message.content} />
-        {streaming && isAssistant && <span className="ml-0.5 inline-block animate-pulse">▍</span>}
+        {streaming && isAssistant && (
+          <span className="ml-0.5 inline-block animate-pulse">▍</span>
+        )}
         {message.sources && message.sources.length > 0 && (
           <details className="mt-2 border-t border-border/40 pt-1.5 text-[11px] opacity-70">
-            <summary className="cursor-pointer">Fontes ({message.sources.length})</summary>
+            <summary className="cursor-pointer">
+              Fontes ({message.sources.length})
+            </summary>
             <ul className="mt-1 list-disc space-y-0.5 pl-4">
               {message.sources.map((s, i) => (
                 <li key={i}>
-                  <code className="rounded bg-muted px-1 font-mono text-[10px]">{s.path}</code>{" "}
+                  <code className="rounded bg-muted px-1 font-mono text-[10px]">
+                    {s.path}
+                  </code>{" "}
                   <span className="opacity-70">score={s.score.toFixed(2)}</span>
                 </li>
               ))}
@@ -127,26 +137,29 @@ function MarkdownLite({ content }: { content: string }): React.JSX.Element {
   );
 }
 
-function renderInline(text: string): React.ReactNode {
+function renderInline(input: string): React.ReactNode {
   // Handle inline code first (so we don't format inside code).
   const parts: React.ReactNode[] = [];
   let cursor = 0;
   const codeRe = /`([^`]+)`/g;
   let match: RegExpExecArray | null;
   let idx = 0;
-  while ((match = codeRe.exec(text)) !== null) {
+  while ((match = codeRe.exec(input)) !== null) {
     if (match.index > cursor) {
-      parts.push(renderBold(text.slice(cursor, match.index), idx++));
+      parts.push(renderBold(input.slice(cursor, match.index), idx++));
     }
     parts.push(
-      <code key={`c-${idx++}`} className="rounded bg-muted px-1 font-mono text-[11px]">
+      <code
+        key={`c-${idx++}`}
+        className="rounded bg-muted px-1 font-mono text-[11px]"
+      >
         {match[1]}
       </code>,
     );
     cursor = match.index + match[0].length;
   }
-  if (cursor < text.length) {
-    parts.push(renderBold(text.slice(cursor), idx++));
+  if (cursor < input.length) {
+    parts.push(renderBold(input.slice(cursor), idx++));
   }
   return parts;
 }
