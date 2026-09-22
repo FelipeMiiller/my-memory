@@ -147,7 +147,7 @@ export function ChatModelPicker({
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={cn(compact ? "h-8 w-8" : "h-7 gap-1 px-2 text-xs")}
+        className={cn(compact ? "h-7 w-7" : "h-7 gap-1 px-2 text-xs")}
         data-testid="chat-model-picker-button"
       >
         {compact ? (

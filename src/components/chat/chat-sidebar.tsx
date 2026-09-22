@@ -1,34 +1,34 @@
-import { Plus, Search, Settings, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChatStore } from "@/lib/chat/store";
-import type { ChatConversation } from "@/lib/chat/types";
 import { cn } from "@/utils/tailwind";
 
 /**
- * ChatSidebar — list of conversations + new chat + settings (ADR-051 + M1 polish).
+ * ChatSidebar — left sidebar listing conversations (ADR-051 + M1 polish).
  *
- * VS Code Sessions-style layout (top → bottom):
- *   • Header row: title + new conversation + settings
+ * VS Code Sessions-style layout (top → bottom) matching the photo:
+ *   • Header row: "Conversas" title + [+] [⚙] [↻] [×] (new, settings,
+ *     refresh, close-sidebar)
  *   • Search input
- *   • Grouped list: "Newer" (last 30 days) → "Older"
+ *   • Flat list of sessions, title + relative-time subtitle
  *
- * Each item shows title + relative time (`updatedAt`) as the subtitle, matching
- * the VS Code pattern where multi-user diff stats would appear (we don't have
- * multi-user/git diff in this build — just time).
+ * The `onClose` callback is wired to the [×] in the header; the parent
+ * (ChatView) collapses the <aside> entirely. To reopen, the parent shows
+ * a `PanelLeft` toggle button in the chat header.
  */
 
 interface ChatSidebarProps {
   onOpenSettings: () => void;
+  onClose?: () => void;
 }
-
-const NEWER_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export function ChatSidebar({
   onOpenSettings,
+  onClose,
 }: ChatSidebarProps): React.JSX.Element {
   const { t } = useTranslation();
   const conversations = useChatStore((s) => s.conversations);
@@ -40,49 +40,61 @@ export function ChatSidebar({
 
   const needle = search.trim().toLowerCase();
   const filtered = React.useMemo(() => {
-    if (needle === "") return conversations;
-    return conversations.filter((c) => c.title.toLowerCase().includes(needle));
+    const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+    if (needle === "") return sorted;
+    return sorted.filter((c) => c.title.toLowerCase().includes(needle));
   }, [conversations, needle]);
 
-  const { newer, older } = React.useMemo(() => {
-    const cutoff = Date.now() - NEWER_THRESHOLD_MS;
-    const newer: ChatConversation[] = [];
-    const older: ChatConversation[] = [];
-    for (const c of filtered) {
-      if (c.updatedAt >= cutoff) newer.push(c);
-      else older.push(c);
-    }
-    // Most-recent first in each bucket.
-    newer.sort((a, b) => b.updatedAt - a.updatedAt);
-    older.sort((a, b) => b.updatedAt - a.updatedAt);
-    return { newer, older };
-  }, [filtered]);
-
   return (
-    <div className="flex h-full flex-col bg-transparent">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="flex h-full flex-col">
+      {/* Header: title + actions */}
+      <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {t("chat.sidebar.title")}
         </span>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onOpenSettings}
-            aria-label={t("chat.sidebar.settingsTitle")}
-            data-testid="chat-sidebar-settings"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-0">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => void createConversation()}
             aria-label={t("chat.sidebar.newConversation")}
             data-testid="chat-sidebar-new"
+            className="h-6 w-6"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenSettings}
+            aria-label={t("chat.sidebar.settingsTitle")}
+            data-testid="chat-sidebar-settings"
+            className="h-6 w-6"
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSearch("")}
+            aria-label="Limpar busca"
+            data-testid="chat-sidebar-refresh"
+            className="h-6 w-6"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label="Fechar painel de conversas"
+              data-testid="chat-sidebar-close"
+              className="h-6 w-6"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -114,44 +126,17 @@ export function ChatSidebar({
                 : t("chat.sidebar.noMatch")}
             </div>
           ) : (
-            <>
-              {newer.length > 0 && (
-                <Group
-                  label={t("chat.sidebar.newer")}
-                  count={newer.length}
-                  testId="chat-sidebar-group-newer"
-                >
-                  {newer.map((c) => (
-                    <SessionItem
-                      key={c.id}
-                      conv={c}
-                      active={activeId === c.id}
-                      onSelect={() => selectConversation(c.id)}
-                      onDelete={() => void deleteConversation(c.id)}
-                      deleteLabel={t("chat.sidebar.delete")}
-                    />
-                  ))}
-                </Group>
-              )}
-              {older.length > 0 && (
-                <Group
-                  label={t("chat.sidebar.older")}
-                  count={older.length}
-                  testId="chat-sidebar-group-older"
-                >
-                  {older.map((c) => (
-                    <SessionItem
-                      key={c.id}
-                      conv={c}
-                      active={activeId === c.id}
-                      onSelect={() => selectConversation(c.id)}
-                      onDelete={() => void deleteConversation(c.id)}
-                      deleteLabel={t("chat.sidebar.delete")}
-                    />
-                  ))}
-                </Group>
-              )}
-            </>
+            filtered.map((c) => (
+              <SessionItem
+                key={c.id}
+                title={c.title}
+                updatedAt={c.updatedAt}
+                active={activeId === c.id}
+                onSelect={() => selectConversation(c.id)}
+                onDelete={() => void deleteConversation(c.id)}
+                deleteLabel={t("chat.sidebar.delete")}
+              />
+            ))
           )}
         </nav>
       </ScrollArea>
@@ -159,36 +144,9 @@ export function ChatSidebar({
   );
 }
 
-interface GroupProps {
-  label: string;
-  count: number;
-  testId: string;
-  children: React.ReactNode;
-}
-
-function Group({
-  label,
-  count,
-  testId,
-  children,
-}: GroupProps): React.JSX.Element {
-  return (
-    <div className="mt-1 first:mt-0" data-testid={testId}>
-      <div className="flex items-center justify-between px-2 py-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
-        <span className="rounded bg-muted/40 px-1 text-[10px] tabular-nums text-muted-foreground">
-          {count}
-        </span>
-      </div>
-      <div className="flex flex-col gap-0.5">{children}</div>
-    </div>
-  );
-}
-
 interface SessionItemProps {
-  conv: ChatConversation;
+  title: string;
+  updatedAt: number;
   active: boolean;
   onSelect: () => void;
   onDelete: () => void;
@@ -196,13 +154,14 @@ interface SessionItemProps {
 }
 
 function SessionItem({
-  conv,
+  title,
+  updatedAt,
   active,
   onSelect,
   onDelete,
   deleteLabel,
 }: SessionItemProps): React.JSX.Element {
-  const relative = formatRelative(conv.updatedAt);
+  const relative = formatRelative(updatedAt);
   return (
     <div
       className={cn(
@@ -219,11 +178,9 @@ function SessionItem({
         type="button"
         onClick={onSelect}
         className="flex min-w-0 flex-1 flex-col items-start text-left"
-        title={conv.title}
+        title={title}
       >
-        <span className="w-full truncate text-xs font-medium">
-          {conv.title}
-        </span>
+        <span className="w-full truncate text-xs font-medium">{title}</span>
         <span className="mt-0.5 truncate text-[10px] text-muted-foreground">
           {relative}
         </span>

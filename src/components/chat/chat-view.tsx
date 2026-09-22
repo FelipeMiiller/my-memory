@@ -1,9 +1,11 @@
 import {
+  HardDrive,
   ListFilter,
   MessageSquare,
+  PanelLeft,
   Plus,
   Settings,
-  Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -21,22 +23,25 @@ import { ChatThread } from "./chat-thread";
 /**
  * ChatView — root of the Chat tab.
  *
- * Layout (top → bottom) matches the VS Code chat-with-secondary-sidebar
- * pattern shown in the photo:
+ * Layout (top → bottom):
  *
- *   ┌─ Chat header (title + 4 icon actions) ─────────────┐
- *   │ Chat                  [+ new] [∨ model] [⚙] [☰]  │
- *   ├─ Collapsible sessions section ─────────────────────┤
- *   │ ▾ Conversas (count)                              │
- *   │   ● ola · 1 mo ago                               │
- *   │   ● feat: ... · 4 mos ago                        │
- *   ├───────────────────────────────────────────────────┤
- *   │ [thread — messages render here]                  │
- *   ├───────────────────────────────────────────────────┤
- *   │ Tip: ...                                         │
- *   │ [textarea "Pergunte algo…"]                      │
- *   │ [🎤] [▶]                                         │
- *   └───────────────────────────────────────────────────┘
+ *   ┌─ Chat header ──────────────────────────────────────────┐
+ *   │ Chat · com memória  [☰ sessions] [+ new] [∨] [⚙] [☰] │
+ *   ├─────────────────────────────────────────────────────────┤
+ *   │ Sidebar (toggle) │ Thread                              │
+ *   │  ● Sessions      │                                     │
+ *   │  [search]        │                                     │
+ *   │  ● ola           │                                     │
+ *   │  ● feat:...      ├─────────────────────────────────────┤
+ *   │                  │ Tip: ...                            │
+ *   │                  │ [textarea]               [🎤] [▶]  │
+ *   ├──────────────────┴─────────────────────────────────────┤
+ *   │ 💬 Local · 🛡 Default permissions                     │
+ *   └─────────────────────────────────────────────────────────┘
+ *
+ * The conversations sidebar is collapsible: `sidebarOpen` defaults to
+ * `true` (matches the VS Code default with the secondary sidebar visible).
+ * Click the `☰ sessions` button in the header to toggle.
  */
 
 export function ChatView(): React.JSX.Element {
@@ -64,7 +69,7 @@ export function ChatView(): React.JSX.Element {
   const { i18n } = useTranslation();
 
   const [settingsOpen, setSettingsOpen] = React.useState(false);
-  const [sessionsOpen, setSessionsOpen] = React.useState(true);
+  const [sidebarOpen, setSidebarOpen] = React.useState(true);
 
   React.useEffect(() => {
     void loadConversations();
@@ -140,6 +145,8 @@ export function ChatView(): React.JSX.Element {
     void createConversation();
   }
 
+  const showTip = conversations.length === 0 || !activeId;
+
   return (
     <div className="flex h-full w-full flex-col" data-testid="chat-view">
       {/* Chat header: title + 4 icon actions */}
@@ -160,14 +167,29 @@ export function ChatView(): React.JSX.Element {
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => setSidebarOpen((o) => !o)}
+            aria-label={
+              sidebarOpen ? "Fechar painel de conversas" : "Abrir conversas"
+            }
+            aria-pressed={sidebarOpen}
+            title={
+              sidebarOpen ? "Fechar painel de conversas" : "Abrir conversas"
+            }
+            data-testid="chat-header-toggle-sidebar"
+            className="h-7 w-7"
+          >
+            <PanelLeft className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={handleNewConversation}
             aria-label="Nova conversa"
             data-testid="chat-header-new"
+            className="h-7 w-7"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
           </Button>
-          {/* Compact model trigger — opens the same popover as the picker
-              previously did in the input toolbar. */}
           <ChatModelPicker
             compact
             onOpenSettings={() => setSettingsOpen(true)}
@@ -178,16 +200,18 @@ export function ChatView(): React.JSX.Element {
             onClick={() => setSettingsOpen(true)}
             aria-label="Configurações do chat"
             data-testid="chat-header-settings"
+            className="h-7 w-7"
           >
-            <Settings className="h-4 w-4" />
+            <Settings className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
             aria-label="Mais ações"
             data-testid="chat-header-menu"
+            className="h-7 w-7"
           >
-            <ListFilter className="h-4 w-4" />
+            <ListFilter className="h-3.5 w-3.5" />
           </Button>
         </div>
       </header>
@@ -205,63 +229,64 @@ export function ChatView(): React.JSX.Element {
         </button>
       )}
 
-      {/* Collapsible sessions section — was the left <aside>; now sits at
-          the top of the chat panel matching the VS Code layout. */}
-      <section
-        className="border-b border-border bg-card/10"
-        data-testid="chat-sessions-section"
-      >
-        <button
-          type="button"
-          onClick={() => setSessionsOpen((o) => !o)}
-          aria-expanded={sessionsOpen}
-          className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-accent/20"
-          data-testid="chat-sessions-toggle"
-        >
-          <span className="flex items-center gap-2">
-            <Sparkles className="h-3 w-3 opacity-50" aria-hidden />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Conversas
-            </span>
-            <span className="rounded bg-muted/40 px-1 text-[10px] tabular-nums text-muted-foreground">
-              {conversations.length}
-            </span>
-          </span>
-          <span className="text-[10px] text-muted-foreground">
-            {sessionsOpen ? "fechar" : "abrir"}
-          </span>
-        </button>
-        {sessionsOpen && (
-          <div
-            className="max-h-[240px] overflow-y-auto"
-            data-testid="chat-sessions-body"
+      <div className="flex min-h-0 flex-1">
+        {sidebarOpen && (
+          <aside
+            className="flex w-64 shrink-0 flex-col border-r border-border bg-card/20"
+            data-testid="chat-view-sidebar"
           >
-            <ChatSidebar onOpenSettings={() => setSettingsOpen(true)} />
-          </div>
+            <ChatSidebar
+              onOpenSettings={() => setSettingsOpen(true)}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </aside>
         )}
-      </section>
 
-      {/* Thread + input — main chat surface */}
-      <div
-        className="flex min-h-0 flex-1 flex-col"
-        data-testid="chat-view-main"
-      >
-        <ChatThread />
-        <ChatInput
-          asrLocale={i18n.language.startsWith("pt") ? "pt-BR" : "en-US"}
-          streaming={streaming.kind === "streaming"}
-          hasApiKey={config.hasApiKey}
-          onSend={(t) => void handleSend(t)}
-          onStop={() => void abortStreaming()}
-        />
+        <div
+          className="flex min-w-0 flex-1 flex-col"
+          data-testid="chat-view-main"
+        >
+          <ChatThread />
+          {showTip && (
+            <div
+              className="mx-3 mb-2 rounded border border-border/60 bg-card/40 px-3 py-2 text-[11px] text-muted-foreground"
+              data-testid="chat-input-tip"
+            >
+              <strong className="text-foreground/80">Tip:</strong>{" "}
+              {config.hasApiKey
+                ? "Pergunte algo sobre o vault — respostas citam [[ADR-XXX]] e trechos."
+                : "Adicione sua API key nas Configurações para começar a conversar."}
+            </div>
+          )}
+          <ChatInput
+            asrLocale={i18n.language.startsWith("pt") ? "pt-BR" : "en-US"}
+            streaming={streaming.kind === "streaming"}
+            hasApiKey={config.hasApiKey}
+            onSend={(t) => void handleSend(t)}
+            onStop={() => void abortStreaming()}
+          />
+        </div>
       </div>
+
+      <footer
+        className="flex items-center justify-between gap-3 border-t border-border bg-card/30 px-3 py-1 text-[11px] text-muted-foreground"
+        data-testid="chat-status-bar"
+      >
+        <div className="flex items-center gap-1">
+          <HardDrive className="h-3 w-3" aria-hidden />
+          <span>Local</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <ShieldCheck className="h-3 w-3" aria-hidden />
+          <span>Default permissions</span>
+        </div>
+      </footer>
 
       <ChatSettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
 
-      {/* Hidden — for test selectors */}
       <span className="sr-only" data-testid="chat-conv-count">
         {conversations.length} conversation(s) loaded
         {activeId ? "" : " (no active)"}
