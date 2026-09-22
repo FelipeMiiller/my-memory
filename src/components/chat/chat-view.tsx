@@ -69,24 +69,25 @@ export function ChatView(): React.JSX.Element {
 
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
+  const [windowWidth, setWindowWidth] = React.useState(() => window.innerWidth);
 
-  // Sidebar (conversations) auto-collapses when the window can't fit both
-  // the chat (min 400px) and the 256px sidebar. Priority is the chat.
-  // Once auto-collapsed, the sidebar stays closed even after the window
-  // grows again — the user has to explicitly reopen it via the header
-  // toggle (matches the principle that we never undo the user's last
-  // explicit collapse action with a silent re-open).
+  // Track window width so the sidebar can auto-collapse on narrow viewports
+  // (matches the VS Code chat layout: chat always wins, sidebar hides when
+  // there isn't enough room). See src/vs/workbench/browser/layout.ts for the
+  // reference — VS Code uses a per-part minimum width + grid system; this is
+  // a much-simplified single-axis version of the same idea.
   React.useEffect(() => {
-    const NARROW_BREAKPOINT_PX = 720; // 400 (chat min) + 256 (sidebar) + slack
     function handle(): void {
-      if (window.innerWidth < NARROW_BREAKPOINT_PX && sidebarOpen) {
-        setSidebarOpen(false);
-      }
+      setWindowWidth(window.innerWidth);
     }
-    handle();
     window.addEventListener("resize", handle);
     return () => window.removeEventListener("resize", handle);
-  }, [sidebarOpen]);
+  }, []);
+
+  // Effective sidebar visibility: user's choice AND window is wide enough.
+  // chat min = 400px, sidebar = 256px, slack = 32px → 688px threshold.
+  const NARROW_BREAKPOINT_PX = 688;
+  const sidebarVisible = sidebarOpen && windowWidth >= NARROW_BREAKPOINT_PX;
 
   React.useEffect(() => {
     void loadConversations();
@@ -268,7 +269,7 @@ export function ChatView(): React.JSX.Element {
           />
         </div>
 
-        {sidebarOpen && (
+        {sidebarVisible && (
           <aside
             className="flex w-64 shrink-0 flex-col border-l border-border bg-card/20"
             data-testid="chat-view-sidebar"
