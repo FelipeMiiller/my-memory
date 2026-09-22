@@ -22,7 +22,7 @@ const memAPI = {
       console.warn("[preload] mem:cli:run not yet wired (Phase 2)", err);
       return Promise.reject(new Error("mem:cli:run not implemented (Phase 2)"));
     }),
-  // Chat (ADR-051) — safe IPC surface; API keys NEVER cross this boundary.
+  // Chat (ADR-051, ADR-052) — safe IPC surface; API keys NEVER cross this boundary.
   chat: {
     send: (req: ChatSendRequest): Promise<ChatSendResponse> =>
       ipcRenderer.invoke(IPC_CHANNELS.MEM_CHAT_SEND, req),
@@ -34,6 +34,10 @@ const memAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.MEM_CHAT_CONFIG_SET, update),
     memSearch: (query: string, topK = 5): Promise<MemSearchResponse> =>
       ipcRenderer.invoke(IPC_CHANNELS.MEM_CHAT_MEM_SEARCH, { query, topK }),
+    getProviders: (): Promise<ChatProvidersResponse> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MEM_CHAT_PROVIDERS_GET),
+    discoverModels: (vendor: string): Promise<{ vendor: string; models: ChatModelSummary[] }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MEM_CHAT_MODELS_DISCOVER, { vendor }),
     // Streaming listeners — return an unsubscribe function.
     onDelta: (cb: (e: ChatDeltaEvent) => void): (() => void) => {
       const handler = (_e: IpcRendererEvent, payload: ChatDeltaEvent): void => cb(payload);
