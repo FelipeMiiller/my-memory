@@ -1,7 +1,7 @@
 import * as React from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChatMessage } from "./chat-message";
 import { useChatStore } from "@/lib/chat/store";
+import { ChatMessage } from "./chat-message";
 
 /**
  * ChatThread — auto-scrolling list of messages for the active conversation.
@@ -27,7 +27,11 @@ export function ChatThread(): React.JSX.Element {
     requestAnimationFrame(() => {
       viewport.scrollTop = viewport.scrollHeight;
     });
-  }, [conv?.messages.length, conv?.messages.map((m) => m.content.length).join(","), conv?.id]);
+  }, [
+    conv?.messages.length,
+    conv?.messages.map((m) => m.content.length).join(","),
+    conv?.id,
+  ]);
 
   if (!conv) {
     return (
@@ -48,9 +52,9 @@ export function ChatThread(): React.JSX.Element {
           <div className="m-auto max-w-md text-center text-sm text-muted-foreground">
             <p className="mb-1 font-medium">Nova conversa</p>
             <p>
-              Pergunte algo sobre o seu vault, peça ajuda com ADR ou peça um resumo de qualquer
-              nota. As respostas são geradas por LLM e podem usar contexto da sua memória local
-              (se ativado nas configurações).
+              Pergunte algo sobre o seu vault, peça ajuda com ADR ou peça um
+              resumo de qualquer nota. As respostas são geradas por LLM e podem
+              usar contexto da sua memória local (se ativado nas configurações).
             </p>
           </div>
         ) : (

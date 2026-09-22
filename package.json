@@ -1,7 +1,7 @@
 {
   "name": "my-memory",
   "productName": "Grafo de Memória",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "My-Memory Viewer — Electron + Vite + React 19 + shadcn/ui (LuanRoger/electron-shadcn template)",
   "license": "MIT",

@@ -1,11 +1,11 @@
 import type {
   ChatConfig,
   ChatConfigUpdate,
-  ChatSendRequest,
-  ChatSendResponse,
   ChatDeltaEvent,
   ChatDoneEvent,
   ChatErrorEvent,
+  ChatSendRequest,
+  ChatSendResponse,
   MemSearchResponse,
 } from "@/lib/chat/types";
 
@@ -29,7 +29,10 @@ declare global {
           abort: (requestId: string) => Promise<{ aborted: boolean }>;
           getConfig: () => Promise<ChatConfig>;
           setConfig: (update: ChatConfigUpdate) => Promise<ChatConfig>;
-          memSearch: (query: string, topK?: number) => Promise<MemSearchResponse>;
+          memSearch: (
+            query: string,
+            topK?: number,
+          ) => Promise<MemSearchResponse>;
           onDelta: (cb: (e: ChatDeltaEvent) => void) => () => void;
           onDone: (cb: (e: ChatDoneEvent) => void) => () => void;
           onError: (cb: (e: ChatErrorEvent) => void) => () => void;
@@ -41,7 +44,9 @@ declare global {
 export const chatApi = {
   send: (req: ChatSendRequest): Promise<ChatSendResponse> => {
     if (!globalThis.memAPI) {
-      return Promise.reject(new Error("memAPI not available — preload not loaded"));
+      return Promise.reject(
+        new Error("memAPI not available — preload not loaded"),
+      );
     }
     return globalThis.memAPI.chat.send(req);
   },

@@ -1,9 +1,9 @@
-import * as React from "react";
-import { Plus, Trash2, Settings } from "lucide-react";
+import { Plus, Settings, Trash2 } from "lucide-react";
+import type * as React from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/utils/tailwind";
 import { useChatStore } from "@/lib/chat/store";
+import { cn } from "@/utils/tailwind";
 
 /**
  * ChatSidebar — list of conversations + new chat button + settings trigger.
@@ -14,7 +14,9 @@ interface ChatSidebarProps {
   onOpenSettings: () => void;
 }
 
-export function ChatSidebar({ onOpenSettings }: ChatSidebarProps): React.JSX.Element {
+export function ChatSidebar({
+  onOpenSettings,
+}: ChatSidebarProps): React.JSX.Element {
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeConversationId);
   const createConversation = useChatStore((s) => s.createConversation);

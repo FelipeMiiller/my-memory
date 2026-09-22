@@ -1,14 +1,14 @@
-import * as React from "react";
 import { X } from "lucide-react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useChatStore } from "@/lib/chat/store";
 import {
   CHAT_MODELS,
-  type ChatProvider,
   type ChatConfigUpdate,
+  type ChatProvider,
 } from "@/lib/chat/types";
-import { useChatStore } from "@/lib/chat/store";
 
 /**
  * ChatSettingsModal — provider, model, API key (write-only), useMemory toggle.
@@ -22,7 +22,10 @@ interface ChatSettingsModalProps {
   onClose: () => void;
 }
 
-export function ChatSettingsModal({ open, onClose }: ChatSettingsModalProps): React.JSX.Element | null {
+export function ChatSettingsModal({
+  open,
+  onClose,
+}: ChatSettingsModalProps): React.JSX.Element | null {
   const config = useChatStore((s) => s.config);
   const setConfig = useChatStore((s) => s.setConfig);
   const loadConfig = useChatStore((s) => s.loadConfig);
@@ -76,15 +79,20 @@ export function ChatSettingsModal({ open, onClose }: ChatSettingsModalProps): Re
       <Card className="w-full max-w-md">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Configurações do Chat</CardTitle>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fechar">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Fechar"
+          >
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Provider
-            </label>
+            </span>
             <div className="flex gap-2">
               {(["anthropic", "openai"] as const).map((p) => (
                 <Button
@@ -105,10 +113,14 @@ export function ChatSettingsModal({ open, onClose }: ChatSettingsModalProps): Re
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <label
+              htmlFor="chat-settings-model"
+              className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+            >
               Modelo
             </label>
             <select
+              id="chat-settings-model"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               className="w-full rounded-md border border-input bg-input/20 px-2 py-1.5 text-sm"
@@ -123,7 +135,10 @@ export function ChatSettingsModal({ open, onClose }: ChatSettingsModalProps): Re
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <label
+              htmlFor="chat-settings-apikey"
+              className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+            >
               API Key
               {config.hasApiKey && (
                 <span className="ml-2 normal-case text-[10px] text-emerald-500">
@@ -132,6 +147,7 @@ export function ChatSettingsModal({ open, onClose }: ChatSettingsModalProps): Re
               )}
             </label>
             <Input
+              id="chat-settings-apikey"
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
@@ -144,7 +160,8 @@ export function ChatSettingsModal({ open, onClose }: ChatSettingsModalProps): Re
               data-testid="chat-settings-apikey"
             />
             <p className="text-[10px] text-muted-foreground">
-              Armazenada em chat-config.json no userData. Nunca exposta ao renderer.
+              Armazenada em chat-config.json no userData. Nunca exposta ao
+              renderer.
             </p>
           </div>
 
@@ -152,7 +169,9 @@ export function ChatSettingsModal({ open, onClose }: ChatSettingsModalProps): Re
             <div>
               <div className="text-sm font-medium">Usar memória do vault</div>
               <div className="text-[11px] text-muted-foreground">
-                Injeta contexto via <code className="font-mono">mem search</code> antes de cada envio.
+                Injeta contexto via{" "}
+                <code className="font-mono">mem search</code> antes de cada
+                envio.
               </div>
             </div>
             <input
@@ -168,7 +187,11 @@ export function ChatSettingsModal({ open, onClose }: ChatSettingsModalProps): Re
             <Button variant="ghost" onClick={onClose} disabled={saving}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={saving} data-testid="chat-settings-save">
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              data-testid="chat-settings-save"
+            >
               {saving ? "Salvando…" : "Salvar"}
             </Button>
           </div>

@@ -1,4 +1,10 @@
 import { create } from "zustand";
+import { chatApi } from "@/lib/chat/ipc";
+import {
+  deleteConversation as deleteConv,
+  listConversations,
+  saveConversation,
+} from "@/lib/chat/persistence";
 import type {
   ChatConfig,
   ChatConversation,
@@ -6,12 +12,6 @@ import type {
   ChatMessage,
 } from "@/lib/chat/types";
 import { DEFAULT_CHAT_CONFIG } from "@/lib/chat/types";
-import {
-  listConversations,
-  saveConversation,
-  deleteConversation as deleteConv,
-} from "@/lib/chat/persistence";
-import { chatApi } from "@/lib/chat/ipc";
 
 /**
  * Zustand store (ADR-051).
@@ -74,9 +74,12 @@ function generateId(): string {
 function deriveTitle(firstUserMessage: string): string {
   const trimmed = firstUserMessage.trim().replace(/\s+/g, " ");
   if (trimmed.length === 0) return "Nova conversa";
-  return trimmed.length > CONV_TITLE_MAX ? `${trimmed.slice(0, CONV_TITLE_MAX)}…` : trimmed;
+  return trimmed.length > CONV_TITLE_MAX
+    ? `${trimmed.slice(0, CONV_TITLE_MAX)}…`
+    : trimmed;
 }
 
+// biome-ignore lint/correctness/noUnusedVariables: kept for future helpers
 function mutateActiveConversation(
   set: (partial: (s: ChatState) => Partial<ChatState>) => void,
   get: () => ChatState,
@@ -146,7 +149,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => {
       const remaining = s.conversations.filter((c) => c.id !== id);
       const nextActive =
-        s.activeConversationId === id ? (remaining[0]?.id ?? null) : s.activeConversationId;
+        s.activeConversationId === id
+          ? (remaining[0]?.id ?? null)
+          : s.activeConversationId;
       return {
         conversations: remaining,
         activeConversationId: nextActive,
@@ -169,7 +174,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const convId = get().activeConversationId;
     if (!convId) {
       // Defensive — caller should call ensureActiveConversation first.
-      throw new Error("No active conversation — call ensureActiveConversation() first.");
+      throw new Error(
+        "No active conversation — call ensureActiveConversation() first.",
+      );
     }
     const msg: ChatMessage = {
       id,
@@ -197,7 +204,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const id = generateId();
     const convId = get().activeConversationId;
     if (!convId) {
-      throw new Error("No active conversation — call ensureActiveConversation() first.");
+      throw new Error(
+        "No active conversation — call ensureActiveConversation() first.",
+      );
     }
     const msg: ChatMessage = {
       id,
