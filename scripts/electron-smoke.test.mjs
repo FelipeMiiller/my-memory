@@ -1,30 +1,33 @@
 /**
- * Electron smoke test — Playwright Electron API.
+ * Electron Forge smoke test — Playwright Electron API.
  *
- * Phase 1.5 will add Playwright to package.json. Until then, this file
- * exists for spec compliance (VE-10). To run manually:
- *   1. npm install --save-dev playwright
- *   2. node scripts/electron-smoke.test.mjs
+ * Phase 1.5 will wire this into CI. To run manually:
+ *   1. npx playwright install chromium
+ *   2. npm run smoke
+ *
+ * Boots `electron-forge start` and asserts the window title contains
+ * "Grafo de Memória" + the Cytoscape canvas mounts.
  */
-import { test, expect, _electron as electron } from 'playwright';
+import { test, expect, _electron as electron } from "playwright";
 
-test('Electron app boots and shows tab Graf', async () => {
-  const app = await electron.launch({ args: ['.'] });
+test("Electron Forge app boots and shows Graf de Memória tab", async () => {
+  const app = await electron.launch({ args: [".", "--no-sandbox"] });
   const window = await app.firstWindow();
-  await window.waitForLoadState('domcontentloaded');
+  await window.waitForLoadState("domcontentloaded");
   const title = await window.title();
-  expect(title).toContain('Grafo de Memória');
-  await window.screenshot({ path: 'screenshot-qg-batch1.png' });
+  expect(title).toContain("Grafo de Memória");
+  await window.screenshot({ path: "screenshot-qg-forge.png" });
   await app.close();
 });
 
-test('monorepo scaffold: electron/ + viewer/ + package.json exist', async () => {
-  const { existsSync } = await import('node:fs');
-  const { resolve } = await import('node:path');
+test("monorepo scaffold: src/ + public/ + package.json + forge.config exist", async () => {
+  const { existsSync } = await import("node:fs");
+  const { resolve } = await import("node:path");
   const root = resolve(process.cwd());
-  expect(existsSync(resolve(root, 'electron'))).toBe(true);
-  expect(existsSync(resolve(root, 'viewer'))).toBe(true);
-  expect(existsSync(resolve(root, 'package.json'))).toBe(true);
-  expect(existsSync(resolve(root, 'viewer/src'))).toBe(true);
-  expect(existsSync(resolve(root, 'viewer/index.html'))).toBe(true);
+  expect(existsSync(resolve(root, "src"))).toBe(true);
+  expect(existsSync(resolve(root, "src/main.ts"))).toBe(true);
+  expect(existsSync(resolve(root, "src/preload.ts"))).toBe(true);
+  expect(existsSync(resolve(root, "public/data-central.json"))).toBe(true);
+  expect(existsSync(resolve(root, "package.json"))).toBe(true);
+  expect(existsSync(resolve(root, "forge.config.ts"))).toBe(true);
 });

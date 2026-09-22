@@ -1,27 +1,34 @@
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import path from 'node:path';
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import path from "node:path";
 
+// my-memory vitest config — Phase 1 MVP.
+//
+// Covers:
+//   - Electron main + preload unit tests (src/main.test.ts, src/preload.test.ts)
+//   - Renderer component tests (src tests .ts .tsx)
+//
+// Path alias `@/*` mirrors tsconfig.json.
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'viewer/src'),
-      '@components': path.resolve(__dirname, 'viewer/src/components'),
-      '@ui': path.resolve(__dirname, 'viewer/src/components/ui'),
-      '@lib': path.resolve(__dirname, 'viewer/src/lib'),
-      '@views': path.resolve(__dirname, 'viewer/src/views'),
-      '@styles': path.resolve(__dirname, 'viewer/src/styles'),
+      "@": path.resolve(__dirname, "src"),
     },
   },
   test: {
-    environment: 'jsdom',
-    include: [
-      'electron/**/*.test.ts',
-      'viewer/src/**/*.test.{ts,tsx}',
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}"],
+    exclude: [
+      "node_modules",
+      "dist",
+      "out",
+      ".vite",
+      "**/dist/**",
+      "**/out/**",
+      "src/tests/e2e/**",
     ],
-    exclude: ['node_modules', 'dist', 'viewer/dist', '**/dist/**'],
     globals: true,
-    setupFiles: ['./scripts/vitest.setup.ts'],
+    setupFiles: ["./scripts/vitest.setup.ts"],
   },
 });

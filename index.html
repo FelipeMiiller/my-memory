@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- my-memory viewer — Phase 1 MVP. i18n handles internationalization, no fixed html lang. -->
+<html class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Grafo de Memória [FelipeMiiller/my-memory]</title>
+    <meta
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173; font-src 'self' data:; object-src 'none'; frame-src 'none';"
+      http-equiv="Content-Security-Policy"
+    />
+    <link href="/src/styles/global.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="/src/renderer.ts" type="module"></script>
+  </body>
+</html>

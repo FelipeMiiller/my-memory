@@ -41,10 +41,13 @@ __pycache__/
 # package.json + package-lock.json VERSIONADOS (são as deps do viewer Electron).
 node_modules/
 
-# Build artifacts — viewer (Vite output) + electron (tsc output).
-# Recompile via `npm run build` quando precisar.
-viewer/dist/
-electron/dist/
+# Build artifacts — Electron Forge outputs + Vite + tsc.
+# Recompile via `npm run build` (electron-forge package) quando precisar.
+out/
+dist/
+.vite/
+**/out/**
+**/dist/**
 
 # Artefatos de smoke test / Playwright CLI (output de validação visual)
 screenshot-*.png
