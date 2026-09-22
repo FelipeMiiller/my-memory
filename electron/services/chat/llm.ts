@@ -1,22 +1,27 @@
+import { anthropic } from "@ai-sdk/anthropic";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import { streamText } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { streamText, type LanguageModel } from "ai";
 
 /**
- * LLM streaming wrapper (ADR-051).
+ * LLM streaming wrapper (ADR-051, ADR-052).
  *
- * Thin facade over Vercel AI SDK's `streamText` so the IPC layer doesn't
- * need to know provider-specific SDK shapes. The AI SDK handles the SSE
- * parsing, retries, and per-provider quirks; we just normalize the output
- * to `{onDelta(text), onDone(totalChars, latencyMs), onError(ChatError)}`.
+ * Dispatches to the right AI SDK provider client based on the model config's
+ * `vendor` + `apiType` (resolved by the caller from chatLanguageModels.json).
+ * Supports:
+ *   - anthropic (messages API) → @ai-sdk/anthropic
+ *   - openai (responses API)   → @ai-sdk/openai
+ *   - any OpenAI-compatible (chat-completions) → @ai-sdk/openai-compatible
  *
- * API key is required; we don't fall back to env vars here (the IPC layer
- * is responsible for loading the key from chat-config.json).
+ * The renderer NEVER touches the API keys. The IPC layer resolves the model
+ * config from chatLanguageModels.json + the user-provided key from
+ * chat-config.json, then passes both to this layer.
  */
 
 export interface StreamChatParams {
-  provider: ChatProvider;
-  model: string;
+  provider: ChatProviderConfig;
+  model: LanguageModelConfig;
   apiKey: string;
   system: string;
   messages: ReadonlyArray<{ role: "user" | "assistant" | "system"; content: string }>;
@@ -27,6 +32,41 @@ export interface StreamChatHandlers {
   onDelta: (text: string) => void;
   onDone: (info: { totalChars: number; latencyMs: number }) => void;
   onError: (err: ChatError) => void;
+}
+
+function buildModelClient(
+  provider: ChatProviderConfig,
+  model: LanguageModelConfig,
+  apiKey: string,
+): LanguageModel {
+  const apiType = model.apiType ?? provider.apiType ?? "chat-completions";
+  const baseUrl = provider.baseUrl;
+
+  // Anthropic native
+  if (
+    apiType === "messages" ||
+    provider.vendor === "anthropic" ||
+    baseUrl?.includes("anthropic.com")
+  ) {
+    // Use createAnthropic when baseUrl is overridden (proxy); default
+    // instance when calling Anthropic directly.
+    const factory = baseUrl ? createAnthropic({ apiKey, baseURL: baseUrl }) : anthropic;
+    return factory(model.id);
+  }
+
+  // OpenAI native (responses API)
+  if (provider.vendor === "openai" && !baseUrl) {
+    return createOpenAI({ apiKey })(model.id);
+  }
+
+  // OpenAI-compatible (Groq, OpenRouter, Ollama, custom endpoints, etc.)
+  const compat = createOpenAICompatible({
+    name: provider.name,
+    apiKey,
+    baseURL: baseUrl ?? "https://api.openai.com/v1",
+    headers: model.requestHeaders ?? {},
+  });
+  return compat(model.id);
 }
 
 export async function streamChat(
@@ -44,11 +84,7 @@ export async function streamChat(
   }
 
   try {
-    const providerClient =
-      params.provider === "anthropic"
-        ? createAnthropic({ apiKey: params.apiKey })
-        : createOpenAI({ apiKey: params.apiKey });
-    const modelClient = providerClient(params.model);
+    const modelClient = buildModelClient(params.provider, params.model, params.apiKey);
 
     const result = streamText({
       model: modelClient,
@@ -56,17 +92,13 @@ export async function streamChat(
       messages: [...params.messages],
       abortSignal: params.signal,
       onError: ({ error }) => {
-        // Map AI SDK errors to our typed shape.
-        const c = classifyError(error);
-        handlers.onError(c);
+        handlers.onError(classifyError(error));
       },
     });
 
     let totalChars = 0;
     for await (const chunk of result.textStream) {
-      if (params.signal.aborted) {
-        break;
-      }
+      if (params.signal.aborted) break;
       totalChars += chunk.length;
       handlers.onDelta(chunk);
     }
@@ -75,10 +107,7 @@ export async function streamChat(
       handlers.onDone({ totalChars, latencyMs: Date.now() - start });
     }
   } catch (err: unknown) {
-    if (params.signal.aborted) {
-      // Silent on abort — caller already knows.
-      return;
-    }
+    if (params.signal.aborted) return;
     handlers.onError(classifyError(err));
   }
 }
@@ -115,14 +144,9 @@ function classifyError(err: unknown): ChatError {
   return { kind: "unknown", message: sanitizeMessage(message) };
 }
 
-/**
- * Strips suspicious fragments (stack traces, paths, hex tokens) from error
- * messages before returning to the renderer. We keep the first 200 chars of
- * a readable sentence.
- */
 function sanitizeMessage(msg: string): string {
-  // Take only the first sentence or 200 chars, whichever is shorter.
   const sentenceMatch = msg.split(/[.\n]/).find((s) => s.trim().length > 0);
   const first = (sentenceMatch ?? msg).slice(0, 200).trim();
-  return first || "An error occurred. See main process logs for details.";
+  // Defensive: redact any token-like fragments (sk-ant-…, sk-…, ghp_…, etc.)
+  return first.replace(/(sk-|ghp_|gho_|sk-ant-)[a-zA-Z0-9_-]{10,}/g, "[REDACTED]") || "An error occurred.";
 }

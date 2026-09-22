@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "vendor": "anthropic",
+      "name": "Anthropic Claude",
+      "apiType": "messages",
+      "baseUrl": "https://api.anthropic.com",
+      "models": [
+        {
+          "id": "claude-opus-4-1",
+          "name": "Claude Opus 4.1",
+          "maxInputTokens": 200000,
+          "maxOutputTokens": 32000,
+          "vision": true,
+          "toolCalling": true,
+          "supportsReasoningEffort": ["low", "medium", "high"]
+        },
+        {
+          "id": "claude-sonnet-4-5",
+          "name": "Claude Sonnet 4.5",
+          "maxInputTokens": 200000,
+          "maxOutputTokens": 64000,
+          "vision": true,
+          "toolCalling": true,
+          "supportsReasoningEffort": ["low", "medium", "high"]
+        },
+        {
+          "id": "claude-haiku-4-5",
+          "name": "Claude Haiku 4.5",
+          "maxInputTokens": 200000,
+          "maxOutputTokens": 64000,
+          "vision": true,
+          "toolCalling": true
+        }
+      ]
+    },
+    {
+      "vendor": "openai",
+      "name": "OpenAI",
+      "apiType": "responses",
+      "baseUrl": "https://api.openai.com/v1",
+      "models": [
+        {
+          "id": "gpt-4o",
+          "name": "GPT-4o",
+          "maxInputTokens": 128000,
+          "maxOutputTokens": 16384,
+          "vision": true,
+          "toolCalling": true
+        },
+        {
+          "id": "gpt-4o-mini",
+          "name": "GPT-4o mini",
+          "maxInputTokens": 128000,
+          "maxOutputTokens": 16384,
+          "vision": true,
+          "toolCalling": true
+        },
+        {
+          "id": "o3",
+          "name": "o3",
+          "maxInputTokens": 200000,
+          "maxOutputTokens": 100000,
+          "toolCalling": true,
+          "supportsReasoningEffort": ["low", "medium", "high"]
+        },
+        {
+          "id": "o3-mini",
+          "name": "o3-mini",
+          "maxInputTokens": 200000,
+          "maxOutputTokens": 100000,
+          "toolCalling": true,
+          "supportsReasoningEffort": ["low", "medium", "high"]
+        }
+      ]
+    },
+    {
+      "vendor": "openrouter",
+      "name": "OpenRouter",
+      "apiType": "chat-completions",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "models": [],
+      "autoDiscover": true
+    },
+    {
+      "vendor": "groq",
+      "name": "Groq",
+      "apiType": "chat-completions",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "models": [],
+      "autoDiscover": true
+    },
+    {
+      "vendor": "ollama",
+      "name": "Ollama (local)",
+      "apiType": "chat-completions",
+      "baseUrl": "http://localhost:11434/v1",
+      "models": [],
+      "autoDiscover": true
+    }
+  ]
+}

@@ -1,18 +1,18 @@
 import * as React from "react";
-import { chatApi } from "@/lib/chat/ipc";
-import { buildSystemPrompt } from "@/lib/chat/prompts";
-import { useChatStore } from "@/lib/chat/store";
-import type { ChatMessage } from "@/lib/chat/types";
-import { ChatInput } from "./chat-input";
-import { ChatSettingsModal } from "./chat-settings-modal";
 import { ChatSidebar } from "./chat-sidebar";
 import { ChatThread } from "./chat-thread";
+import { ChatInput } from "./chat-input";
+import { ChatSettingsModal } from "./chat-settings-modal";
+import { useChatStore } from "@/lib/chat/store";
+import { chatApi } from "@/lib/chat/ipc";
+import { buildSystemPrompt } from "@/lib/chat/prompts";
+import type { ChatMessage, MemSearchResult } from "@/lib/chat/types";
 
 /**
- * ChatView — root of the Chat tab.
+ * ChatView — root of the Chat tab (ADR-051, ADR-052).
  *
- * Composes sidebar + thread + input + settings modal. Owns the streaming
- * orchestration: wires IPC listeners (onDelta/onDone/onError) to the store.
+ * Phase 2: providers come from chatLanguageModels.json (loaded on mount).
+ * Sends use { vendor, modelId } resolved from the active config.
  */
 
 export function ChatView(): React.JSX.Element {
@@ -23,36 +23,28 @@ export function ChatView(): React.JSX.Element {
   const error = useChatStore((s) => s.error);
   const loadConversations = useChatStore((s) => s.loadConversations);
   const loadConfig = useChatStore((s) => s.loadConfig);
-  const ensureActiveConversation = useChatStore(
-    (s) => s.ensureActiveConversation,
-  );
+  const loadProviders = useChatStore((s) => s.loadProviders);
+  const ensureActiveConversation = useChatStore((s) => s.ensureActiveConversation);
   const appendUserMessage = useChatStore((s) => s.appendUserMessage);
   const startAssistantMessage = useChatStore((s) => s.startAssistantMessage);
   const setStreamingRequestId = useChatStore((s) => s.setStreamingRequestId);
   const appendDelta = useChatStore((s) => s.appendDelta);
-  const finalizeAssistantMessage = useChatStore(
-    (s) => s.finalizeAssistantMessage,
-  );
+  const finalizeAssistantMessage = useChatStore((s) => s.finalizeAssistantMessage);
   const abortStreaming = useChatStore((s) => s.abortStreaming);
   const setError = useChatStore((s) => s.setError);
   const clearError = useChatStore((s) => s.clearError);
 
   const [settingsOpen, setSettingsOpen] = React.useState(false);
 
-  // Bootstrap: load conversations + config from persistent stores.
   React.useEffect(() => {
     void loadConversations();
     void loadConfig();
-  }, [loadConversations, loadConfig]);
+    void loadProviders();
+  }, [loadConversations, loadConfig, loadProviders]);
 
-  // Wire IPC streaming listeners once on mount.
   React.useEffect(() => {
-    const unsubDelta = chatApi.onDelta((e) => {
-      appendDelta(e.delta);
-    });
-    const unsubDone = chatApi.onDone(() => {
-      void finalizeAssistantMessage();
-    });
+    const unsubDelta = chatApi.onDelta((e) => appendDelta(e.delta));
+    const unsubDone = chatApi.onDone(() => void finalizeAssistantMessage());
     const unsubError = chatApi.onError((e) => {
       void finalizeAssistantMessage();
       setError(e.error);
@@ -64,24 +56,21 @@ export function ChatView(): React.JSX.Element {
     };
   }, [appendDelta, finalizeAssistantMessage, setError]);
 
+  const activeHasKey =
+    config.providers.find((p) => p.vendor === config.activeVendor)?.hasApiKey ?? false;
+
   async function handleSend(text: string): Promise<void> {
     try {
       await ensureActiveConversation();
       appendUserMessage(text);
       startAssistantMessage();
 
-      // Build messages array from the (now updated) conversation.
-      const conv = useChatStore
-        .getState()
-        .conversations.find(
-          (c) => c.id === useChatStore.getState().activeConversationId,
-        );
+      const conv = useChatStore.getState().conversations.find(
+        (c) => c.id === useChatStore.getState().activeConversationId,
+      );
       if (!conv) return;
 
-      // Run RAG search on the main process if enabled.
-      let ragResults: ReadonlyArray<
-        import("@/lib/chat/types").MemSearchResult
-      > = [];
+      let ragResults: ReadonlyArray<MemSearchResult> = [];
       if (config.useMemory) {
         try {
           const rag = await chatApi.memSearch(text, 5);
@@ -98,6 +87,8 @@ export function ChatView(): React.JSX.Element {
         conversationId: conv.id,
         messages,
         system,
+        vendor: config.activeVendor,
+        modelId: config.activeModelId,
       });
       setStreamingRequestId(requestId);
     } catch (err) {
@@ -109,20 +100,14 @@ export function ChatView(): React.JSX.Element {
 
   return (
     <div className="flex h-full w-full" data-testid="chat-view">
-      {/* Sidebar — narrow, fixed-width */}
       <aside className="w-64 shrink-0" data-testid="chat-view-sidebar">
         <ChatSidebar onOpenSettings={() => setSettingsOpen(true)} />
       </aside>
-
-      {/* Main chat area */}
-      <main
-        className="flex min-w-0 flex-1 flex-col"
-        data-testid="chat-view-main"
-      >
+      <main className="flex min-w-0 flex-1 flex-col" data-testid="chat-view-main">
         <div className="flex items-center justify-between border-b border-border bg-card/30 px-4 py-2">
           <div className="text-xs text-muted-foreground">
-            {config.provider} · {config.model} ·{" "}
-            {config.useMemory ? "com memória" : "sem memória"}
+            {config.activeVendor} · {config.activeModelId}
+            {config.useMemory ? " · com memória" : " · sem memória"}
           </div>
           {error && (
             <button
@@ -140,18 +125,12 @@ export function ChatView(): React.JSX.Element {
         <ChatThread />
         <ChatInput
           streaming={streaming.kind === "streaming"}
-          hasApiKey={config.hasApiKey}
+          hasApiKey={activeHasKey}
           onSend={(t) => void handleSend(t)}
           onStop={() => void abortStreaming()}
         />
       </main>
-
-      <ChatSettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
-
-      {/* Hidden — for test selectors */}
+      <ChatSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <span className="sr-only" data-testid="chat-conv-count">
         {conversations.length} conversation(s) loaded
         {activeId ? "" : " (no active)"}

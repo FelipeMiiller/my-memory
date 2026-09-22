@@ -3,36 +3,38 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 /**
- * Chat config persistence (ADR-051).
+ * Chat config persistence (ADR-051, ADR-052).
  *
- * Stores user-chosen provider, model, and API key as JSON in
- * `app.getPath('userData')/chat-config.json`. This file lives in the user
- * profile (NOT in the app bundle), survives app updates, and is .gitignored
- * by default. API keys never travel to the renderer.
+ * Stores per-vendor API keys + useMemory toggle. File lives in
+ * `app.getPath('userData')/chat-config.json`.
  *
- * Fail-safe: if the file is missing, malformed, or unreadable, we return
- * default config and log a warning. We never throw on read — the IPC handler
- * should return defaults so the UI can prompt the user to fill the key.
+ * Phase 2 (ADR-052): keys moved from a single `apiKey` field to a
+ * `apiKeys: Record<vendor, key>` map. Each vendor in
+ * chatLanguageModels.json can have its own key.
+ *
+ * Fail-safe: malformed file → defaults + warning, never throw.
  */
 
 const CONFIG_FILE = "chat-config.json";
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export interface PersistedChatConfig {
   schemaVersion: number;
-  provider: ChatProvider;
-  model: string;
-  apiKey: string;
+  /** @deprecated kept for migration only — use apiKeys[vendor] */
+  apiKey?: string;
+  apiKeys: Record<string, string>;
   useMemory: boolean;
+  activeVendor: string;
+  activeModelId: string;
   updatedAt: number;
 }
 
 export const DEFAULT_CONFIG: Omit<PersistedChatConfig, "updatedAt"> = {
   schemaVersion: SCHEMA_VERSION,
-  provider: "anthropic",
-  model: "claude-sonnet-4-5",
-  apiKey: "",
+  apiKeys: {},
   useMemory: true,
+  activeVendor: "anthropic",
+  activeModelId: "claude-sonnet-4-5",
 };
 
 function configPath(): string {
@@ -44,29 +46,9 @@ export async function loadConfig(): Promise<PersistedChatConfig> {
   try {
     const raw = await fs.readFile(file, "utf8");
     const parsed = JSON.parse(raw) as Partial<PersistedChatConfig>;
-    // Validate shape; fall back to defaults for any missing field.
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      typeof parsed.provider !== "string" ||
-      typeof parsed.model !== "string" ||
-      typeof parsed.apiKey !== "string" ||
-      typeof parsed.useMemory !== "boolean"
-    ) {
-      console.warn("[chat/config] malformed config — falling back to defaults");
-      return { ...DEFAULT_CONFIG, updatedAt: Date.now() };
-    }
-    return {
-      schemaVersion: SCHEMA_VERSION,
-      provider: parsed.provider,
-      model: parsed.model,
-      apiKey: parsed.apiKey,
-      useMemory: parsed.useMemory,
-      updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
-    };
+    return migrateAndValidate(parsed);
   } catch (err: unknown) {
     if (isNodeError(err) && err.code === "ENOENT") {
-      // First run — return defaults; do not write yet.
       return { ...DEFAULT_CONFIG, updatedAt: Date.now() };
     }
     console.warn("[chat/config] failed to read config — falling back to defaults", err);
@@ -74,14 +56,52 @@ export async function loadConfig(): Promise<PersistedChatConfig> {
   }
 }
 
+function migrateAndValidate(parsed: Partial<PersistedChatConfig>): PersistedChatConfig {
+  if (typeof parsed !== "object" || parsed === null) {
+    return { ...DEFAULT_CONFIG, updatedAt: Date.now() };
+  }
+  // Schema 1 → 2 migration: move single apiKey into apiKeys[activeVendor]
+  let apiKeys: Record<string, string> = {};
+  if (typeof parsed.apiKeys === "object" && parsed.apiKeys !== null) {
+    for (const [k, v] of Object.entries(parsed.apiKeys)) {
+      if (typeof k === "string" && typeof v === "string") {
+        apiKeys[k] = v;
+      }
+    }
+  } else if (typeof parsed.apiKey === "string" && parsed.apiKey.length > 0) {
+    const vendor = typeof parsed.activeVendor === "string" ? parsed.activeVendor : "anthropic";
+    apiKeys[vendor] = parsed.apiKey;
+  }
+
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    apiKeys,
+    useMemory: typeof parsed.useMemory === "boolean" ? parsed.useMemory : DEFAULT_CONFIG.useMemory,
+    activeVendor:
+      typeof parsed.activeVendor === "string" ? parsed.activeVendor : DEFAULT_CONFIG.activeVendor,
+    activeModelId:
+      typeof parsed.activeModelId === "string"
+        ? parsed.activeModelId
+        : DEFAULT_CONFIG.activeModelId,
+    updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
+  };
+}
+
+export interface ChatConfigUpdate {
+  apiKeys?: Record<string, string>;
+  useMemory?: boolean;
+  activeVendor?: string;
+  activeModelId?: string;
+}
+
 export async function saveConfig(update: ChatConfigUpdate): Promise<PersistedChatConfig> {
   const current = await loadConfig();
   const next: PersistedChatConfig = {
     schemaVersion: SCHEMA_VERSION,
-    provider: update.provider ?? current.provider,
-    model: update.model ?? current.model,
-    apiKey: update.apiKey !== undefined ? update.apiKey : current.apiKey,
+    apiKeys: update.apiKeys !== undefined ? { ...current.apiKeys, ...update.apiKeys } : current.apiKeys,
     useMemory: update.useMemory !== undefined ? update.useMemory : current.useMemory,
+    activeVendor: update.activeVendor ?? current.activeVendor,
+    activeModelId: update.activeModelId ?? current.activeModelId,
     updatedAt: Date.now(),
   };
   const file = configPath();
@@ -91,15 +111,22 @@ export async function saveConfig(update: ChatConfigUpdate): Promise<PersistedCha
 }
 
 /**
- * Returns the safe view of the config that the renderer is allowed to see.
- * NEVER includes the API key — only `hasApiKey: boolean`.
+ * Safe view for the renderer. Includes which provider is active + whether
+ * each provider has a key configured, but NEVER the key itself.
  */
-export function publicView(c: PersistedChatConfig): ChatConfig {
+export interface ChatConfigPublic {
+  activeVendor: string;
+  activeModelId: string;
+  useMemory: boolean;
+  providers: Array<{ vendor: string; hasApiKey: boolean }>;
+}
+
+export function publicView(c: PersistedChatConfig, knownVendors: readonly string[] = []): ChatConfigPublic {
   return {
-    provider: c.provider,
-    model: c.model,
+    activeVendor: c.activeVendor,
+    activeModelId: c.activeModelId,
     useMemory: c.useMemory,
-    hasApiKey: c.apiKey.length > 0,
+    providers: knownVendors.map((v) => ({ vendor: v, hasApiKey: (c.apiKeys[v] ?? "").length > 0 })),
   };
 }
 
