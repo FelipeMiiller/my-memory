@@ -2,7 +2,7 @@ import {
   HardDrive,
   ListFilter,
   MessageSquare,
-  PanelLeft,
+  PanelRight,
   Plus,
   Settings,
   ShieldCheck,
@@ -178,7 +178,7 @@ export function ChatView(): React.JSX.Element {
             data-testid="chat-header-toggle-sidebar"
             className="h-7 w-7"
           >
-            <PanelLeft className="h-3.5 w-3.5" />
+            <PanelRight className="h-3.5 w-3.5" />
           </Button>
           <Button
             variant="ghost"
@@ -230,18 +230,6 @@ export function ChatView(): React.JSX.Element {
       )}
 
       <div className="flex min-h-0 flex-1">
-        {sidebarOpen && (
-          <aside
-            className="flex w-64 shrink-0 flex-col border-r border-border bg-card/20"
-            data-testid="chat-view-sidebar"
-          >
-            <ChatSidebar
-              onOpenSettings={() => setSettingsOpen(true)}
-              onClose={() => setSidebarOpen(false)}
-            />
-          </aside>
-        )}
-
         <div
           className="flex min-w-0 flex-1 flex-col"
           data-testid="chat-view-main"
@@ -266,6 +254,18 @@ export function ChatView(): React.JSX.Element {
             onStop={() => void abortStreaming()}
           />
         </div>
+
+        {sidebarOpen && (
+          <aside
+            className="flex w-64 shrink-0 flex-col border-l border-border bg-card/20"
+            data-testid="chat-view-sidebar"
+          >
+            <ChatSidebar
+              onOpenSettings={() => setSettingsOpen(true)}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </aside>
+        )}
       </div>
 
       <footer
