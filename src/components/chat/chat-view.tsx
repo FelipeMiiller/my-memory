@@ -4,6 +4,7 @@ import { buildSystemPrompt } from "@/lib/chat/prompts";
 import { useChatStore } from "@/lib/chat/store";
 import type { ChatMessage } from "@/lib/chat/types";
 import { ChatInput } from "./chat-input";
+import { ChatModelPicker } from "./chat-model-picker";
 import { ChatSettingsModal } from "./chat-settings-modal";
 import { ChatSidebar } from "./chat-sidebar";
 import { ChatThread } from "./chat-thread";
@@ -119,10 +120,13 @@ export function ChatView(): React.JSX.Element {
         className="flex min-w-0 flex-1 flex-col"
         data-testid="chat-view-main"
       >
-        <div className="flex items-center justify-between border-b border-border bg-card/30 px-4 py-2">
-          <div className="text-xs text-muted-foreground">
-            {config.provider} · {config.model} ·{" "}
-            {config.useMemory ? "com memória" : "sem memória"}
+        <div className="flex items-center justify-between gap-2 border-b border-border bg-card/30 px-3 py-1.5">
+          <div className="flex items-center gap-2">
+            <ChatModelPicker />
+            <span className="text-[10px] text-muted-foreground">·</span>
+            <span className="text-[10px] text-muted-foreground">
+              {config.useMemory ? "com memória" : "sem memória"}
+            </span>
           </div>
           {error && (
             <button
