@@ -69,25 +69,6 @@ export function ChatView(): React.JSX.Element {
 
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
-  const [windowWidth, setWindowWidth] = React.useState(() => window.innerWidth);
-
-  // Track window width so the sidebar can auto-collapse on narrow viewports
-  // (matches the VS Code chat layout: chat always wins, sidebar hides when
-  // there isn't enough room). See src/vs/workbench/browser/layout.ts for the
-  // reference — VS Code uses a per-part minimum width + grid system; this is
-  // a much-simplified single-axis version of the same idea.
-  React.useEffect(() => {
-    function handle(): void {
-      setWindowWidth(window.innerWidth);
-    }
-    window.addEventListener("resize", handle);
-    return () => window.removeEventListener("resize", handle);
-  }, []);
-
-  // Effective sidebar visibility: user's choice AND window is wide enough.
-  // chat min = 400px, sidebar = 256px, slack = 32px → 688px threshold.
-  const NARROW_BREAKPOINT_PX = 688;
-  const sidebarVisible = sidebarOpen && windowWidth >= NARROW_BREAKPOINT_PX;
 
   React.useEffect(() => {
     void loadConversations();
@@ -245,7 +226,7 @@ export function ChatView(): React.JSX.Element {
 
       <div className="flex min-h-0 flex-1">
         <div
-          className="flex min-w-[400px] flex-1 shrink-0 flex-col"
+          className="flex min-w-0 flex-1 flex-col"
           data-testid="chat-view-main"
         >
           <ChatThread />
@@ -269,7 +250,7 @@ export function ChatView(): React.JSX.Element {
           />
         </div>
 
-        {sidebarVisible && (
+        {sidebarOpen && (
           <aside
             className="flex w-64 shrink-0 flex-col border-l border-border bg-card/20"
             data-testid="chat-view-sidebar"
