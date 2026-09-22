@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
+import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -8,28 +8,22 @@ import { useChatStore } from "@/lib/chat/store";
 import { cn } from "@/utils/tailwind";
 
 /**
- * ChatSidebar — left sidebar listing conversations (ADR-051 + M1 polish).
+ * ChatSidebar — list of conversations inside the chat sessions Sheet.
  *
  * VS Code Sessions-style layout (top → bottom) matching the photo:
- *   • Header row: "Conversas" title + [+] [⚙] [↻] [×] (new, settings,
- *     refresh, close-sidebar)
+ *   • Header row: "Conversas" title + [+] [↻] (new conversation, clear
+ *     search filter)
  *   • Search input
  *   • Flat list of sessions, title + relative-time subtitle
  *
- * The `onClose` callback is wired to the [×] in the header; the parent
- * (ChatView) collapses the <aside> entirely. To reopen, the parent shows
- * a `PanelLeft` toggle button in the chat header.
+ * Closing the panel is the Sheet's job: shadcn's SheetContent renders an
+ * own ✕ in the top-right corner and an overlay-click closes it. The chat
+ * header's `PanelLeft` toggle reopens it. Settings lives in the chat
+ * header (⚙ → ChatSettingsModal) — model config / API key / memory, no
+ * need for a second entry point here.
  */
 
-interface ChatSidebarProps {
-  onOpenSettings: () => void;
-  onClose?: () => void;
-}
-
-export function ChatSidebar({
-  onOpenSettings,
-  onClose,
-}: ChatSidebarProps): React.JSX.Element {
+export function ChatSidebar(): React.JSX.Element {
   const { t } = useTranslation();
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeConversationId);
@@ -52,7 +46,7 @@ export function ChatSidebar({
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {t("chat.sidebar.title")}
         </span>
-        <div className="flex items-center gap-0">
+        <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
@@ -66,16 +60,6 @@ export function ChatSidebar({
           <Button
             variant="ghost"
             size="icon"
-            onClick={onOpenSettings}
-            aria-label={t("chat.sidebar.settingsTitle")}
-            data-testid="chat-sidebar-settings"
-            className="h-6 w-6"
-          >
-            <Settings className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
             onClick={() => setSearch("")}
             aria-label="Limpar busca"
             data-testid="chat-sidebar-refresh"
@@ -83,18 +67,6 @@ export function ChatSidebar({
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              aria-label="Fechar painel de conversas"
-              data-testid="chat-sidebar-close"
-              className="h-6 w-6"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          )}
         </div>
       </div>
 

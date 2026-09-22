@@ -284,13 +284,7 @@ export function ChatView(): React.JSX.Element {
               Lista de conversas salvas neste workspace.
             </SheetDescription>
           </SheetHeader>
-          <ChatSidebar
-            onOpenSettings={() => {
-              setSettingsOpen(true);
-              setSidebarOpen(false);
-            }}
-            onClose={() => setSidebarOpen(false)}
-          />
+          <ChatSidebar />
         </SheetContent>
       </Sheet>
 
