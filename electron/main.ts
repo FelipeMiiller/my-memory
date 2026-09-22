@@ -77,6 +77,13 @@ function createMainWindow(): BrowserWindow {
   mainWindow.on("closed", () => {
     if (mainWindowRef === mainWindow) mainWindowRef = null;
   });
+  // Broadcast maximize changes so the renderer can swap the icon (restore vs maximize).
+  mainWindow.on("maximize", () => {
+    mainWindow.webContents.send("mem:window:maximize-changed", true);
+  });
+  mainWindow.on("unmaximize", () => {
+    mainWindow.webContents.send("mem:window:maximize-changed", false);
+  });
   return mainWindow;
 }
 
@@ -99,6 +106,7 @@ app.on("window-all-closed", () => {
 // Wire minimal IPC handlers — Phase 2 expands via ADR-049.
 import { ipcMain } from "electron/main";
 import { registerChatHandlers } from "@electron/ipc/chat";
+import { registerWindowHandlers } from "@electron/ipc/window";
 
 ipcMain.handle(IPC_CHANNELS.MEM_DATASET_LOAD, async () => {
   return Promise.reject(new Error("mem:dataset:load not implemented (Phase 2)"));
@@ -111,3 +119,6 @@ ipcMain.handle(IPC_CHANNELS.MEM_CLI_RUN, async () => {
 // Chat handlers (ADR-051) — registered last so they can capture the main window.
 let mainWindowRef: BrowserWindow | null = null;
 registerChatHandlers(() => mainWindowRef);
+
+// Window controls (ADR-053 / M1 polish) — custom title-bar buttons
+registerWindowHandlers(() => mainWindowRef);

@@ -22,6 +22,20 @@ const memAPI = {
       console.warn("[preload] mem:cli:run not yet wired (Phase 2)", err);
       return Promise.reject(new Error("mem:cli:run not implemented (Phase 2)"));
     }),
+  // Window controls (custom title-bar buttons)
+  window: {
+    minimize: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEM_WINDOW_MINIMIZE),
+    toggleMaximize: (): Promise<boolean> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MEM_WINDOW_MAXIMIZE_TOGGLE),
+    close: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEM_WINDOW_CLOSE),
+    isMaximized: (): Promise<boolean> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MEM_WINDOW_IS_MAXIMIZED),
+    onMaximizeChanged: (cb: (maximized: boolean) => void): (() => void) => {
+      const handler = (_e: IpcRendererEvent, maximized: boolean): void => cb(maximized);
+      ipcRenderer.on("mem:window:maximize-changed", handler);
+      return () => ipcRenderer.removeListener("mem:window:maximize-changed", handler);
+    },
+  },
   // Chat (ADR-051) — safe IPC surface; API keys NEVER cross this boundary.
   chat: {
     send: (req: ChatSendRequest): Promise<ChatSendResponse> =>

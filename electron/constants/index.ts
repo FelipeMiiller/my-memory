@@ -17,6 +17,11 @@ export const IPC_CHANNELS = {
   MEM_CHAT_DELTA: "mem:chat:delta",
   MEM_CHAT_DONE: "mem:chat:done",
   MEM_CHAT_ERROR: "mem:chat:error",
+  // Window controls (custom title-bar buttons; titleBarStyle: hidden)
+  MEM_WINDOW_MINIMIZE: "mem:window:minimize",
+  MEM_WINDOW_MAXIMIZE_TOGGLE: "mem:window:maximize-toggle",
+  MEM_WINDOW_CLOSE: "mem:window:close",
+  MEM_WINDOW_IS_MAXIMIZED: "mem:window:is-maximized",
 };
 
 export const ENVIRONMENT_VARIABLES = {

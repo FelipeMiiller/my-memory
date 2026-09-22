@@ -24,6 +24,13 @@ declare global {
         platform: NodeJS.Platform;
         loadDataset: () => Promise<unknown>;
         runCli: (args: string[]) => Promise<unknown>;
+        window: {
+          minimize: () => Promise<void>;
+          toggleMaximize: () => Promise<boolean>;
+          close: () => Promise<void>;
+          isMaximized: () => Promise<boolean>;
+          onMaximizeChanged: (cb: (maximized: boolean) => void) => () => void;
+        };
         chat: {
           send: (req: ChatSendRequest) => Promise<ChatSendResponse>;
           abort: (requestId: string) => Promise<{ aborted: boolean }>;
