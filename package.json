@@ -13,11 +13,11 @@
     "publish": "electron-forge publish",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p forge.env.d.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "smoke": "node scripts/electron-smoke.test.mjs",
+    "smoke": "electron-forge package && playwright test src/tests/e2e/example.test.ts --reporter=line",
     "build": "electron-forge package"
   },
   "overrides": {

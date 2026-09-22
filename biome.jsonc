@@ -9,6 +9,7 @@
   "files": {
     "ignoreUnknown": true,
     "includes": [
+      "**",
       "!**/node_modules",
       "!**/*.d.ts",
       "!**/dist",

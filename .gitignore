@@ -56,3 +56,4 @@ config-global.txt
 config-local.txt
 debug-*.cjs
 test-*.cjs
+test-results/
