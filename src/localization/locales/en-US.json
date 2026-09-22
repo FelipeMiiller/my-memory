@@ -10,12 +10,15 @@
     "code": "Code",
     "codeDesc": "Symbols and references (Phase 2)",
     "staleness": "Staleness",
-    "stalenessDesc": "Drift detection (Phase 2)"
+    "stalenessDesc": "Drift detection (Phase 2)",
+    "chat": "Chat",
+    "chatDesc": "LLM streaming + memory (ADR-051)"
   },
   "tab": {
     "graph": "Graph",
     "code": "Code",
-    "staleness": "Staleness"
+    "staleness": "Staleness",
+    "chat": "Chat"
   },
   "badge": {
     "dark": "Dark",

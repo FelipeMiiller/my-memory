@@ -17,6 +17,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { GraphView } from "@/components/graph";
+import { ChatView } from "@/components/chat";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { cn } from "@/utils/tailwind";
 
@@ -133,6 +134,13 @@ export default function Layout(): React.JSX.Element {
                     disabled
                     testId="sidebar-link-staleness"
                   />
+                  <SidebarLink
+                    label={t("nav.chat")}
+                    description={t("nav.chatDesc")}
+                    active={activeTab === "chat"}
+                    onClick={() => setActiveTab("chat")}
+                    testId="sidebar-link-chat"
+                  />
                 </nav>
               </ScrollArea>
               <div className="border-t border-border px-4 py-3 text-[11px] text-muted-foreground">
@@ -201,6 +209,10 @@ export default function Layout(): React.JSX.Element {
                         {t("phase2.stalenessTooltip")}
                       </TooltipContent>
                     </Tooltip>
+
+                    <TabsTrigger value="chat" data-testid="tab-trigger-chat">
+                      {t("tab.chat")}
+                    </TabsTrigger>
                   </TabsList>
                 </div>
 
@@ -234,6 +246,14 @@ export default function Layout(): React.JSX.Element {
                     description={t("phase2.staleness.description")}
                     placeholderKey="staleness"
                   />
+                </TabsContent>
+
+                <TabsContent
+                  value="chat"
+                  className="mt-0 flex-1 overflow-hidden"
+                  data-testid="tab-content-chat"
+                >
+                  <ChatView />
                 </TabsContent>
               </Tabs>
             </main>
