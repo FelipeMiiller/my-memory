@@ -6,8 +6,6 @@ import { cn } from "@/utils/tailwind";
 import { type AsrTranscriptMode, MicButton } from "./mic-button";
 
 interface ChatInputProps {
-  /** ChatModelPicker node — rendered in the input toolbar (VS Code style). */
-  modelPicker?: React.ReactNode;
   /** Optional locale hint forwarded to the ASR start request. */
   asrLocale?: string;
   disabled?: boolean;
@@ -18,7 +16,6 @@ interface ChatInputProps {
 }
 
 export function ChatInput({
-  modelPicker,
   asrLocale,
   disabled = false,
   streaming,
@@ -57,8 +54,6 @@ export function ChatInput({
   }
 
   function handleUserChange(e: React.ChangeEvent<HTMLTextAreaElement>): void {
-    // Any user keystroke clears the live ASR partial — they're now editing
-    // the committed text directly.
     setText(e.target.value);
     if (partial) setPartial("");
   }
@@ -67,7 +62,6 @@ export function ChatInput({
     if (mode === "partial") {
       setPartial(t);
     } else {
-      // Final: append the committed tail to `text` and clear the partial.
       setText((cur) => {
         const sep = cur.length > 0 && !cur.endsWith(" ") ? " " : "";
         return cur + sep + t;
@@ -110,42 +104,34 @@ export function ChatInput({
           {error}
         </p>
       )}
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div
-          className="flex min-w-0 items-center gap-1"
-          data-testid="chat-input-toolbar"
-        >
-          {modelPicker}
-        </div>
-        <div className="flex items-center gap-1">
-          <MicButton
-            onTranscript={handleTranscript}
-            onError={handleAsrError}
-            disabled={disabled || !hasApiKey}
-            locale={asrLocale}
-          />
-          {streaming ? (
-            <Button
-              onClick={onStop}
-              variant="destructive"
-              size="icon"
-              data-testid="chat-input-stop"
-              aria-label="Parar geração"
-            >
-              <Square className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={submit}
-              disabled={!canSend}
-              size="icon"
-              data-testid="chat-input-send"
-              aria-label="Enviar mensagem"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+      <div className="mt-2 flex items-center justify-end gap-1">
+        <MicButton
+          onTranscript={handleTranscript}
+          onError={handleAsrError}
+          disabled={disabled || !hasApiKey}
+          locale={asrLocale}
+        />
+        {streaming ? (
+          <Button
+            onClick={onStop}
+            variant="destructive"
+            size="icon"
+            data-testid="chat-input-stop"
+            aria-label="Parar geração"
+          >
+            <Square className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            onClick={submit}
+            disabled={!canSend}
+            size="icon"
+            data-testid="chat-input-send"
+            aria-label="Enviar mensagem"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );

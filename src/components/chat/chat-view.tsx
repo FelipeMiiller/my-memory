@@ -1,5 +1,13 @@
+import {
+  ListFilter,
+  MessageSquare,
+  Plus,
+  Settings,
+  Sparkles,
+} from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
 import { chatApi } from "@/lib/chat/ipc";
 import { buildSystemPrompt } from "@/lib/chat/prompts";
 import { useChatStore } from "@/lib/chat/store";
@@ -13,8 +21,22 @@ import { ChatThread } from "./chat-thread";
 /**
  * ChatView — root of the Chat tab.
  *
- * Composes sidebar + thread + input + settings modal. Owns the streaming
- * orchestration: wires IPC listeners (onDelta/onDone/onError) to the store.
+ * Layout (top → bottom) matches the VS Code chat-with-secondary-sidebar
+ * pattern shown in the photo:
+ *
+ *   ┌─ Chat header (title + 4 icon actions) ─────────────┐
+ *   │ Chat                  [+ new] [∨ model] [⚙] [☰]  │
+ *   ├─ Collapsible sessions section ─────────────────────┤
+ *   │ ▾ Conversas (count)                              │
+ *   │   ● ola · 1 mo ago                               │
+ *   │   ● feat: ... · 4 mos ago                        │
+ *   ├───────────────────────────────────────────────────┤
+ *   │ [thread — messages render here]                  │
+ *   ├───────────────────────────────────────────────────┤
+ *   │ Tip: ...                                         │
+ *   │ [textarea "Pergunte algo…"]                      │
+ *   │ [🎤] [▶]                                         │
+ *   └───────────────────────────────────────────────────┘
  */
 
 export function ChatView(): React.JSX.Element {
@@ -38,17 +60,17 @@ export function ChatView(): React.JSX.Element {
   const abortStreaming = useChatStore((s) => s.abortStreaming);
   const setError = useChatStore((s) => s.setError);
   const clearError = useChatStore((s) => s.clearError);
+  const createConversation = useChatStore((s) => s.createConversation);
   const { i18n } = useTranslation();
 
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [sessionsOpen, setSessionsOpen] = React.useState(true);
 
-  // Bootstrap: load conversations + config from persistent stores.
   React.useEffect(() => {
     void loadConversations();
     void loadConfig();
   }, [loadConversations, loadConfig]);
 
-  // Wire IPC streaming listeners once on mount.
   React.useEffect(() => {
     const unsubDelta = chatApi.onDelta((e) => {
       appendDelta(e.delta);
@@ -73,7 +95,6 @@ export function ChatView(): React.JSX.Element {
       appendUserMessage(text);
       startAssistantMessage();
 
-      // Build messages array from the (now updated) conversation.
       const conv = useChatStore
         .getState()
         .conversations.find(
@@ -81,21 +102,26 @@ export function ChatView(): React.JSX.Element {
         );
       if (!conv) return;
 
-      // Run RAG search on the main process if enabled.
       let ragResults: ReadonlyArray<
         import("@/lib/chat/types").MemSearchResult
       > = [];
       if (config.useMemory) {
         try {
-          const rag = await chatApi.memSearch(text, 5);
+          const rag = await chatApi.memSearch(text);
           ragResults = rag.results;
         } catch (err) {
           console.warn("[chat] RAG search failed:", err);
         }
       }
 
+      const messages: ReadonlyArray<ChatMessage> = conv.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt,
+      }));
+
       const system = buildSystemPrompt(config, ragResults);
-      const messages: ChatMessage[] = conv.messages;
 
       const { requestId } = await chatApi.send({
         conversationId: conv.id,
@@ -110,49 +136,125 @@ export function ChatView(): React.JSX.Element {
     }
   }
 
-  return (
-    <div className="flex h-full w-full" data-testid="chat-view">
-      {/* Sidebar — narrow, fixed-width */}
-      <aside className="w-64 shrink-0" data-testid="chat-view-sidebar">
-        <ChatSidebar onOpenSettings={() => setSettingsOpen(true)} />
-      </aside>
+  function handleNewConversation(): void {
+    void createConversation();
+  }
 
-      {/* Main chat area */}
-      <main
-        className="flex min-w-0 flex-1 flex-col"
+  return (
+    <div className="flex h-full w-full flex-col" data-testid="chat-view">
+      {/* Chat header: title + 4 icon actions */}
+      <header
+        className="flex items-center justify-between gap-2 border-b border-border bg-card/30 px-3 py-1.5"
+        data-testid="chat-view-header"
+      >
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-3.5 w-3.5 opacity-70" aria-hidden />
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Chat
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            · {config.useMemory ? "com memória" : "sem memória"}
+          </span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleNewConversation}
+            aria-label="Nova conversa"
+            data-testid="chat-header-new"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          {/* Compact model trigger — opens the same popover as the picker
+              previously did in the input toolbar. */}
+          <ChatModelPicker
+            compact
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Configurações do chat"
+            data-testid="chat-header-settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Mais ações"
+            data-testid="chat-header-menu"
+          >
+            <ListFilter className="h-4 w-4" />
+          </Button>
+        </div>
+      </header>
+
+      {error && (
+        <button
+          type="button"
+          onClick={() => clearError()}
+          className="border-b border-border bg-destructive/15 px-3 py-1 text-left text-[11px] text-destructive hover:bg-destructive/25"
+          data-testid="chat-error-banner"
+          title={error.message}
+        >
+          {error.kind}: {error.message.slice(0, 80)}
+          <span className="ml-2 opacity-60">×</span>
+        </button>
+      )}
+
+      {/* Collapsible sessions section — was the left <aside>; now sits at
+          the top of the chat panel matching the VS Code layout. */}
+      <section
+        className="border-b border-border bg-card/10"
+        data-testid="chat-sessions-section"
+      >
+        <button
+          type="button"
+          onClick={() => setSessionsOpen((o) => !o)}
+          aria-expanded={sessionsOpen}
+          className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-accent/20"
+          data-testid="chat-sessions-toggle"
+        >
+          <span className="flex items-center gap-2">
+            <Sparkles className="h-3 w-3 opacity-50" aria-hidden />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Conversas
+            </span>
+            <span className="rounded bg-muted/40 px-1 text-[10px] tabular-nums text-muted-foreground">
+              {conversations.length}
+            </span>
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            {sessionsOpen ? "fechar" : "abrir"}
+          </span>
+        </button>
+        {sessionsOpen && (
+          <div
+            className="max-h-[240px] overflow-y-auto"
+            data-testid="chat-sessions-body"
+          >
+            <ChatSidebar onOpenSettings={() => setSettingsOpen(true)} />
+          </div>
+        )}
+      </section>
+
+      {/* Thread + input — main chat surface */}
+      <div
+        className="flex min-h-0 flex-1 flex-col"
         data-testid="chat-view-main"
       >
-        <div className="flex items-center justify-between gap-2 border-b border-border bg-card/30 px-3 py-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">
-              {config.useMemory ? "com memória" : "sem memória"}
-            </span>
-          </div>
-          {error && (
-            <button
-              type="button"
-              onClick={() => clearError()}
-              className="rounded bg-destructive/15 px-2 py-0.5 text-[11px] text-destructive hover:bg-destructive/25"
-              data-testid="chat-error-banner"
-              title={error.message}
-            >
-              {error.kind}: {error.message.slice(0, 80)}
-              <span className="ml-2 opacity-60">×</span>
-            </button>
-          )}
-        </div>
         <ChatThread />
         <ChatInput
-          modelPicker={
-            <ChatModelPicker onOpenSettings={() => setSettingsOpen(true)} />
-          }
           asrLocale={i18n.language.startsWith("pt") ? "pt-BR" : "en-US"}
           streaming={streaming.kind === "streaming"}
           hasApiKey={config.hasApiKey}
           onSend={(t) => void handleSend(t)}
           onStop={() => void abortStreaming()}
         />
-      </main>
+      </div>
 
       <ChatSettingsModal
         open={settingsOpen}

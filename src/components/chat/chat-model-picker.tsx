@@ -42,10 +42,15 @@ import { cn } from "@/utils/tailwind";
 
 interface ChatModelPickerProps {
   onOpenSettings?: () => void;
+  /** When true, render the trigger as an icon-only button (for the chat
+   *  header). Otherwise the default "Provider · Model" label variant is
+   *  used (kept for back-compat / future re-introduction). */
+  compact?: boolean;
 }
 
 export function ChatModelPicker({
   onOpenSettings,
+  compact = false,
 }: ChatModelPickerProps = {}): React.JSX.Element {
   const { t } = useTranslation();
   const config = useChatStore((s) => s.config);
@@ -138,23 +143,31 @@ export function ChatModelPicker({
     >
       <Button
         variant="ghost"
-        size="sm"
+        size={compact ? "icon" : "sm"}
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="h-7 gap-1 px-2 text-xs"
+        className={cn(compact ? "h-8 w-8" : "h-7 gap-1 px-2 text-xs")}
         data-testid="chat-model-picker-button"
       >
-        <Sparkles className="h-3 w-3 opacity-70" />
-        <span className="font-medium">{providerDisplay}</span>
-        <span className="text-muted-foreground">·</span>
-        <span className="text-muted-foreground">{activeDisplay}</span>
-        <ChevronDown
-          className={cn(
-            "h-3 w-3 opacity-60 transition-transform",
-            open && "rotate-180",
-          )}
-        />
+        {compact ? (
+          <ChevronDown
+            className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
+          />
+        ) : (
+          <>
+            <Sparkles className="h-3 w-3 opacity-70" />
+            <span className="font-medium">{providerDisplay}</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{activeDisplay}</span>
+            <ChevronDown
+              className={cn(
+                "h-3 w-3 opacity-60 transition-transform",
+                open && "rotate-180",
+              )}
+            />
+          </>
+        )}
       </Button>
 
       {open && (
