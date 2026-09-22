@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { chatApi } from "@/lib/chat/ipc";
 import { buildSystemPrompt } from "@/lib/chat/prompts";
 import { useChatStore } from "@/lib/chat/store";
@@ -37,6 +38,7 @@ export function ChatView(): React.JSX.Element {
   const abortStreaming = useChatStore((s) => s.abortStreaming);
   const setError = useChatStore((s) => s.setError);
   const clearError = useChatStore((s) => s.clearError);
+  const { i18n } = useTranslation();
 
   const [settingsOpen, setSettingsOpen] = React.useState(false);
 
@@ -144,6 +146,7 @@ export function ChatView(): React.JSX.Element {
           modelPicker={
             <ChatModelPicker onOpenSettings={() => setSettingsOpen(true)} />
           }
+          asrLocale={i18n.language.startsWith("pt") ? "pt-BR" : "en-US"}
           streaming={streaming.kind === "streaming"}
           hasApiKey={config.hasApiKey}
           onSend={(t) => void handleSend(t)}

@@ -8,6 +8,11 @@
       "emptyMatch": "nenhum modelo corresponde",
       "upgradeLabel": "Requer chave de API",
       "noKeyBadge": "sem chave"
+    },
+    "input": {
+      "startDictation": "Ditar (Speech-to-Text) · Ctrl+I",
+      "stopDictation": "Parar ditado ({{seconds}}s)",
+      "dictateUnsupported": "Microfone indisponível neste build"
     }
   }
 }

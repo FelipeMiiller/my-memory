@@ -17,6 +17,15 @@ export const IPC_CHANNELS = {
   MEM_CHAT_DELTA: "mem:chat:delta",
   MEM_CHAT_DONE: "mem:chat:done",
   MEM_CHAT_ERROR: "mem:chat:error",
+  // ASR (Nemotron streaming, ADR-045) — UI + IPC + audio capture scaffold.
+  // Real model lives in Go backend (mymemoryd, `internal/asr/*`); this surface
+  // accepts PCM chunks and emits partial/final transcripts when ready.
+  MEM_ASR_START: "mem:asr:start",
+  MEM_ASR_CHUNK: "mem:asr:chunk",
+  MEM_ASR_STOP: "mem:asr:stop",
+  MEM_ASR_PARTIAL: "mem:asr:partial",
+  MEM_ASR_FINAL: "mem:asr:final",
+  MEM_ASR_ERROR: "mem:asr:error",
   // Window controls (custom title-bar buttons; titleBarStyle: hidden)
   MEM_WINDOW_MINIMIZE: "mem:window:minimize",
   MEM_WINDOW_MAXIMIZE_TOGGLE: "mem:window:maximize-toggle",

@@ -8,6 +8,11 @@
       "emptyMatch": "no models match",
       "upgradeLabel": "Requires API key",
       "noKeyBadge": "no key"
+    },
+    "input": {
+      "startDictation": "Dictate (Speech to Text) · Ctrl+I",
+      "stopDictation": "Stop dictation ({{seconds}}s)",
+      "dictateUnsupported": "Microphone unavailable in this build"
     }
   }
 }

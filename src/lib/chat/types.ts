@@ -158,6 +158,64 @@ export interface MemSearchResponse {
   results: ReadonlyArray<MemSearchResult>;
 }
 
+// ASR (Nemotron streaming, ADR-045) — renderer-side mirrors of the ambient
+// declarations in `electron/types.d.ts`. Keep both sides in sync.
+
+export interface AsrStartRequest {
+  /** Optional BCP-47 locale (e.g. "pt-BR", "en-US"). Defaults to "auto". */
+  locale?: string;
+  /** Correlation id from the upstream chat turn. */
+  conversationTurnId?: string;
+}
+
+export interface AsrStartResponse {
+  sessionId: string;
+}
+
+export interface AsrChunkRequest {
+  sessionId: string;
+  /** Int16 little-endian mono PCM at 16 kHz. */
+  pcm: Int16Array;
+  /** Sample rate in Hz. Always 16000 in this build. */
+  sampleRate: number;
+}
+
+export interface AsrStopRequest {
+  sessionId: string;
+}
+
+export interface AsrStopResponse {
+  finalized: boolean;
+}
+
+export interface AsrPartialEvent {
+  sessionId: string;
+  /** Interim transcript text. Replaces prior partial for the same session. */
+  transcript: string;
+  confidence?: number;
+}
+
+export interface AsrFinalEvent {
+  sessionId: string;
+  transcript: string;
+  durationMs: number;
+  locale: string;
+}
+
+export type AsrErrorKind =
+  | "model_missing"
+  | "model_loading"
+  | "permission_denied"
+  | "invalid_audio"
+  | "aborted"
+  | "unknown";
+
+export interface AsrErrorEvent {
+  sessionId: string;
+  kind: AsrErrorKind;
+  message: string;
+}
+
 // Renderer-side conversation grouping (persisted in IndexedDB).
 export interface ChatConversation {
   id: string;
