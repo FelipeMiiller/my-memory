@@ -1,11 +1,4 @@
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Search,
-  Settings,
-  Sparkles,
-} from "lucide-react";
+import { Check, ChevronRight, Search, Settings, Sparkles } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -151,21 +144,13 @@ export function ChatModelPicker({
         data-testid="chat-model-picker-button"
       >
         {compact ? (
-          <ChevronDown
-            className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
-          />
+          <Sparkles className="h-3.5 w-3.5 opacity-70" />
         ) : (
           <>
             <Sparkles className="h-3 w-3 opacity-70" />
             <span className="font-medium">{providerDisplay}</span>
             <span className="text-muted-foreground">·</span>
             <span className="text-muted-foreground">{activeDisplay}</span>
-            <ChevronDown
-              className={cn(
-                "h-3 w-3 opacity-60 transition-transform",
-                open && "rotate-180",
-              )}
-            />
           </>
         )}
       </Button>
