@@ -1,7 +1,7 @@
 import path from "node:path";
 import { app, BrowserWindow, shell } from "electron";
-import { IPC_CHANNELS, inDevelopment } from "@/constants";
-import { getBasePath } from "@/utils/path";
+import { IPC_CHANNELS, inDevelopment } from "@electron/constants";
+import { getBasePath } from "@electron/utils/path";
 
 /**
  * my-memory viewer — Electron main process.

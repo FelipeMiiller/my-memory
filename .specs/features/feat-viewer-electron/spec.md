@@ -1,5 +1,26 @@
 # Feature: feat-viewer-electron (Phase 1 — MVP)
 
+> **⚠️ SUPERSEDED by migration `0f09ad8` + restructure Electron Forge 7**
+>
+> This spec was written for the original `electron/` + `viewer/` monorepo
+> layout (ADR-048, Feb 2026). The codebase has since moved twice:
+>   - `0f09ad8 feat(viewer)!: migrate to LuanRoger/electron-shadcn template`
+>     flattened everything to `src/` with Electron Forge 7 + Vite 8 + React 19
+>     + shadcn v4 + Tailwind 4.
+>   - Restructure on 2026-09-22 split electron-side files back into a
+>     dedicated `electron/` folder (`main.ts`, `preload.ts`, `ipc/`,
+>     `constants/`, `utils/path.ts`, `types.d.ts`), keeping renderer code in
+>     `src/` flat. Aliases: `@/*` → `src/*`, `@electron/*` → `electron/*`.
+>
+> **Kept for historical reference only.** For active work see
+> `.specs/features/feat-viewer-electron-phase-2/tasks.md`.
+>
+> Most claims below (VE-01 through VE-16) are still substantively correct —
+> Electron + contextBridge + shadcn + Cytoscape + i18next — but file paths
+> (`viewer/`, `electron/main.test.ts`) no longer match the tree.
+
+## Problem Statement
+
 ## Problem Statement
 
 O viewer do my-memory (`graph-v2.html`, 49 KB, Cytoscape + Tailwind CDN) virou legado em 2026-09-21 quando Felipe pediu delete + rebuild com stack moderno. Os HTMLs viewers (incluindo screenshots e scripts Playwright de validação) foram movidos para `mavis-trash` (recuperáveis por 30 dias).

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS } from "@/constants";
+import { IPC_CHANNELS } from "@electron/constants";
 
 /**
  * Phase 1 (MVP) — minimal safe IPC surface.
