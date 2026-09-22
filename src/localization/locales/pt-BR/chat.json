@@ -15,15 +15,15 @@
       "dictateUnsupported": "Microfone indisponível neste build"
     },
     "sidebar": {
-      "title": "Sessões",
-      "searchPlaceholder": "Buscar sessões",
+      "title": "Conversas",
+      "searchPlaceholder": "Buscar conversas",
       "newConversation": "Nova conversa",
       "settingsTitle": "Configurações do chat",
-      "delete": "Excluir sessão",
+      "delete": "Excluir conversa",
       "newer": "Mais recentes",
       "older": "Antigas",
       "empty": "Nenhuma conversa ainda.\nClique em + para começar.",
-      "noMatch": "Nenhuma sessão corresponde à busca."
+      "noMatch": "Nenhuma conversa corresponde à busca."
     }
   }
 }
