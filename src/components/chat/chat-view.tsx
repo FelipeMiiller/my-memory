@@ -10,6 +10,13 @@ import {
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { chatApi } from "@/lib/chat/ipc";
 import { buildSystemPrompt } from "@/lib/chat/prompts";
 import { useChatStore } from "@/lib/chat/store";
@@ -249,19 +256,30 @@ export function ChatView(): React.JSX.Element {
             onStop={() => void abortStreaming()}
           />
         </div>
-
-        {sidebarOpen && (
-          <aside
-            className="flex w-64 shrink-0 flex-col border-l border-border bg-card/20"
-            data-testid="chat-view-sidebar"
-          >
-            <ChatSidebar
-              onOpenSettings={() => setSettingsOpen(true)}
-              onClose={() => setSidebarOpen(false)}
-            />
-          </aside>
-        )}
       </div>
+
+      {/* Conversations slide-in panel (shadcn Sheet on the right edge) */}
+      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <SheetContent
+          side="right"
+          className="w-80 gap-0 p-0 sm:max-w-sm"
+          data-testid="chat-sessions-sheet"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Conversas</SheetTitle>
+            <SheetDescription>
+              Lista de conversas salvas neste workspace.
+            </SheetDescription>
+          </SheetHeader>
+          <ChatSidebar
+            onOpenSettings={() => {
+              setSettingsOpen(true);
+              setSidebarOpen(false);
+            }}
+            onClose={() => setSidebarOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
 
       <footer
         className="flex items-center justify-between gap-3 border-t border-border bg-card/30 px-3 py-1 text-[11px] text-muted-foreground"
