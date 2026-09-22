@@ -46,7 +46,7 @@ export function ChatSidebar(): React.JSX.Element {
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {t("sidebar.title")}
         </span>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center pt-0.5 mr-6">
           <Button
             variant="ghost"
             size="icon"
@@ -55,7 +55,7 @@ export function ChatSidebar(): React.JSX.Element {
             data-testid="chat-sidebar-new"
             className="h-6 w-6"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-2 w-2" />
           </Button>
           <Button
             variant="ghost"
@@ -65,7 +65,7 @@ export function ChatSidebar(): React.JSX.Element {
             data-testid="chat-sidebar-refresh"
             className="h-6 w-6"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <RefreshCw className="h-2 w-2" />
           </Button>
         </div>
       </div>
