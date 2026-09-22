@@ -1,9 +1,15 @@
-# Viewer Desktop (Electron + React + Vite + shadcn/ui)
+# Viewer Desktop (Electron Forge 7 + React 19 + Vite 8 + shadcn v4 + Tailwind 4)
 
 > Phase 1 MVP — bundled Cytoscape rendering `data-central.json` sem dependências de CDN.
-> Decisão arquitetural: [ADR-048](adr/048-viewer-electron-react-vite-shadcn.md).
+> Decisões arquiteturais: [ADR-048](adr/048-viewer-electron-react-vite-shadcn.md) (stack) + [ADR-049](adr/049-viewer-restructure-electron-forge-and-src-split.md) (layout split).
 
-O Viewer Desktop é a substituição moderna do antigo `graph.html` / `graph-v2.html` (Cytoscape + Tailwind via CDN). Foi **deletado** em 2026-09-21 quando Felipe pediu rebuild com stack moderno (ADR-048).
+O Viewer Desktop é a substituição moderna dos antigos `graph.html` /
+`graph-v2.html` (Cytoscape + Tailwind via CDN). Foi **deletado** em
+2026-09-21 quando Felipe pediu rebuild com stack moderno (ADR-048).
+Em 2026-09-22, o codebase migrou do template
+[`LuanRoger/electron-shadcn`](https://github.com/LuanRoger/electron-shadcn)
+e depois foi separado em `electron/` + `src/` (ADR-049) para tornar o
+limite de processo visível no filesystem.
 
 ---
 
@@ -13,72 +19,120 @@ O Viewer Desktop é a substituição moderna do antigo `graph.html` / `graph-v2.
 
 | Ferramenta | Versão | Notas |
 | :--- | :--- | :--- |
-| **Node.js** | 20 LTS ou superior | Compatível com Electron 30 |
+| **Node.js** | 20 LTS ou superior | Compatível com Electron 44 |
 | **npm** | 10+ | Bundled com Node 20+ |
 | **Windows / Linux / macOS** | qualquer | Cross-platform via Electron |
-| **Plataforma alvo Electron** | Windows 10+/Linux com X11/macOS 11+ | Electron 30+ |
+| **Plataforma alvo Electron** | Windows 10+/Linux com X11/macOS 11+ | Electron 44 |
 
 ### Comandos
 
 ```bash
-# 1. Instalar dependências
+# 1. Instalar dependências (root único — single-package layout)
 npm ci
 
-# 2. Modo desenvolvimento (Vite + Electron + HMR)
-npm run dev
+# 2. Dev mode (Vite HMR + Electron Forge start)
+npx electron-forge start
+#   ou simplesmente:
+npm start
 
-# 3. Build production (gera viewer/dist + electron/dist)
-npm run build
+# 3. Build production (gera .vite/build/{main,preload}.js + .vite/renderer/main_window/)
+npx electron-forge package
+#   ou:
+npm run package
 
-# 4. Type check estrito (TypeScript strict)
+# 4. Build installers (squirrel/deb/rpm/zip; cross-platform)
+npx electron-forge make
+
+# 5. Type check estrito (TypeScript strict, electron/ + src/)
 npm run typecheck
 
-# 5. Test suite (vitest + jsdom)
+# 6. Test suite (vitest + jsdom)
 npm test
 
-# 6. Smoke tests Electron (Playwright — opcional)
+# 7. Smoke test Electron (Playwright E2E; roda electron-forge package antes)
 npm run smoke
 ```
+
+> **`npm run dev` foi removido.** O template LuanRoger usa `electron-forge start`
+> que inicia o Vite dev server + Electron automaticamente. Não há script
+> `dev` no `package.json`.
 
 ### Estrutura de Diretórios
 
 ```text
-viewer/
-├── index.html               # CSP meta tag (Phase 1 relaxado)
-├── public/
-│   └── data-central.json    # Dataset estático (gerado pelo mem graph export)
-├── src/
-│   ├── main.tsx             # React entry (i18n side-effect import)
-│   ├── App.tsx              # Mount <Layout />
-│   ├── components/
-│   │   ├── Layout.tsx       # Topbar + Sidebar + Tabs shell
-│   │   ├── LocaleSwitcher.tsx  # pt-BR / en-US dropdown
-│   │   └── ui/              # shadcn/ui primitives (button, card, tabs, ...)
-│   ├── i18n/
-│   │   ├── index.ts         # i18next bootstrap (reads localStorage)
-│   │   └── locales/
-│   │       ├── pt-BR.json   # default (per VE-16)
-│   │       └── en-US.json
-│   ├── lib/
-│   │   ├── cytoscape-init.ts # Cytoscape core + cose layout
-│   │   └── utils.ts         # cn() helper
-│   ├── views/
-│   │   └── GraphView.tsx    # Fetch + Cytoscape + Selected Node Panel
-│   └── styles/
-│       └── globals.css      # Tailwind base + shadcn HSL variables
-├── tailwind.config.ts
-├── postcss.config.mjs
-├── tsconfig.json
-└── vite.config.ts
-electron/
-├── main.ts                  # BrowserWindow + CSP + IPC handlers
-├── preload.ts                # contextBridge: window.memAPI
-├── tsconfig.json
-└── tsconfig.node.json
-scripts/
-├── dev.mjs                  # Vite + Electron orchestrator
-└── viewer-smoke.test.mjs    # Playwright smoke
+electron/                            ← Electron main process ONLY
+  main.ts                            BrowserWindow + CSP + IPC stubs
+  preload.ts                         contextBridge.memAPI (window.memAPI)
+  ipc/
+    context.ts                       IPCContext (Phase 1 no-op)
+    handler.ts                       rpcHandler stub
+    manager.ts                       IPC manager (Phase 1 no-op)
+    router.ts                        channel router stub
+  constants/
+    index.ts                         IPC_CHANNELS, LOCAL_STORAGE_KEYS, inDevelopment
+  utils/
+    path.ts                          getBasePath (ESM-safe dirname)
+  types.d.ts                         MAIN_WINDOW_VITE_* magic consts (VitePlugin)
+
+src/                                 ← Renderer (React 19, flat)
+  app.tsx                            React root component
+  renderer.ts                        Vite renderer entry (side-effect import)
+  components/
+    graph/
+      graph-view.tsx                 Cytoscape canvas + node tooltip
+      index.ts                       barrel export
+    locale-switcher.tsx              pt-BR / en-US dropdown
+    ui/                              shadcn v4 primitives (button, card, tabs, ...)
+  layouts/
+    layout.tsx                       Topbar + Sidebar + Tabs shell
+  lib/
+    cytoscape-init.ts                Cytoscape ESM init + cose layout
+  localization/
+    i18n.ts                          i18next bootstrap
+    langs.ts                         locale metadata
+    language.ts                      language helpers
+    locales/
+      pt-BR.json                     default (per VE-16)
+      en-US.json
+  styles/
+    global.css                       Tailwind 4 + shadcn HSL variables
+  tests/
+    unit/                            vitest (sum.test.ts + setup.ts)
+    e2e/                             playwright (example.test.ts = smoke)
+  types/
+    css.d.ts                         CSS module declarations
+  utils/
+    tailwind.ts                      cn() helper (clsx + tailwind-merge)
+
+forge.config.ts                      Electron Forge config (VitePlugin, makers, fuses)
+vite.main.config.mts                 Vite config — electron main process
+vite.preload.config.mts              Vite config — preload
+vite.renderer.config.mts             Vite config — renderer (React + Tailwind)
+playwright.config.ts                 Playwright config (testDir: ./src/tests/e2e)
+components.json                      shadcn v4 config (style: radix-mira)
+biome.jsonc                          biome lint+format config
+tsconfig.json                        TypeScript strict, paths: @/* e @electron/*
+
+scripts/                              Go release tooling (não relacionado ao viewer)
 ```
+
+### Path Aliases
+
+| Alias | Resolves to | Quem usa |
+| :--- | :--- | :--- |
+| `@/*` | `./src/*` | renderer (app.tsx, components/, layouts/, lib/, localization/) |
+| `@electron/*` | `./electron/*` | main, preload, ipc handlers |
+
+Aliases configurados em:
+- `tsconfig.json` (TypeScript IDE/check)
+- `vite.main.config.mts` (Vite resolve no build do main)
+- `vite.preload.config.mts` (Vite resolve no build do preload)
+
+Renderer (`src/components/...`, `src/app.tsx`, `src/layouts/layout.tsx`)
+só importa de `@/*`. Main + preload (`electron/main.ts`,
+`electron/preload.ts`, `electron/ipc/*`) só importa de `@electron/*`.
+Imports cruzando o limite de processo vão **sempre** via
+`window.memAPI` (preload) — nunca via path alias.
 
 ---
 
@@ -86,44 +140,41 @@ scripts/
 
 | Camada | Tecnologia | Versão | Por quê |
 | :--- | :--- | :--- | :--- |
-| **Runtime** | Electron | 30+ | Desktop cross-platform; IPC tipado |
-| **Renderer** | React | 18.3 | Componentização sólida + Hooks |
-| **Build** | Vite | 5.4 | HMR rápido; ESM nativo |
-| **TypeScript** | TypeScript | 5.6 strict | Type safety (ADR-002 philosophy) |
-| **Styling** | Tailwind CSS | 3.4 | Utility-first; bundled (zero-CDN) |
-| **Components** | shadcn/ui (Radix UI) | latest | Copy-paste; Radix a11y; Tailwind-styled |
+| **Forge** | Electron Forge | 7 | Makers (squirrel/deb/rpm/zip) + VitePlugin |
+| **Runtime** | Electron | 44.4 | Desktop cross-platform; IPC tipado |
+| **Renderer** | React | 19.3 | Componentização + Hooks + React Compiler |
+| **Build** | Vite | 8 | HMR rápido; ESM nativo |
+| **TypeScript** | TypeScript | 6 strict | Type safety (ADR-002 philosophy) |
+| **Styling** | Tailwind CSS | 4 (CSS-first) | `@tailwindcss/vite` plugin |
+| **Components** | shadcn v4 (Radix UI) | latest | Copy-paste; Radix a11y; Tailwind-styled |
 | **Graph** | Cytoscape | 3.30 | bundled ESM (zero-CDN) |
-| **i18n** | i18next + react-i18next | 23 / 15 | Default `pt-BR`, fallback `en-US` |
-| **Test** | Vitest + Testing Library | 2.1 / 16 | jsdom; user-event; @testing-library/jest-dom |
-| **Smoke** | Playwright | 1.x | E2E Electron + Vite dev (Phase 1.5) |
+| **i18n** | i18next + react-i18next | 26 / 17 | Default `pt-BR`, fallback `en-US` |
+| **Lint/Format** | Biome | 2.5 | Rust-based, fast (substitui ESLint+Prettier) |
+| **Unit Test** | Vitest | 5 | jsdom; user-event; @testing-library |
+| **E2E / Smoke** | Playwright | 1.63 | Electron API (`_electron.launch`) + Vite dev |
 
 ---
 
 ## Locale Switching
 
-O Viewer suporta **dois locales** carregados como bundles estáticos (sem CDN):
+O Viewer suporta **dois locales** carregados como bundles estáticos
+(sem CDN):
 
 - **`pt-BR`** (default) — usado quando `localStorage['mem.locale']` é null.
 - **`en-US`** — fallback quando uma chave falta em `pt-BR`.
 
 ### Mecanismo
 
-1. `viewer/src/i18n/index.ts` lê `localStorage['mem.locale']` no boot. Se null, usa `pt-BR`.
-2. `viewer/src/components/LocaleSwitcher.tsx` (topbar, botão com ícone `Globe`) abre um DropdownMenu shadcn com as opções:
+1. `src/localization/i18n.ts` lê `localStorage['mem.locale']` no boot. Se null, usa `pt-BR`.
+2. `src/components/locale-switcher.tsx` (topbar, dropdown shadcn) abre um menu com:
    - `Português (BR)` (`pt-BR`)
    - `English (US)` (`en-US`)
-3. Ao selecionar, persiste a escolha em `localStorage['mem.locale']` e chama `i18n.changeLanguage(code)`. Reload do app preserva a escolha.
-4. Todas as strings de UI são traduzidas via `useTranslation()`:
-   - `t('app.title')`, `t('app.subtitle')`
-   - `t('tab.graph')`, `t('tab.code')`, `t('tab.staleness')`
-   - `t('badge.dark')`, `t('badge.hub')`
-   - `t('phase2.coming_soon')`, `t('phase2.codeTooltip')`
-   - `t('graph.loading')`, `t('graph.error', { msg })`
-   - `t('inspector.id')`, `t('inspector.color')`, etc.
+3. Ao selecionar, persiste a escolha em `localStorage['mem.locale']` e chama `i18n.changeLanguage(code)`. Reload preserva.
+4. Strings traduzidas via `useTranslation()`: `t('tab.graph')`, `t('tab.code')`, `t('badge.dark')`, `t('phase2.coming_soon')`, etc.
 
 ### Adicionar nova string
 
-1. Adicione a chave em **ambos** os arquivos `viewer/src/i18n/locales/{pt-BR,en-US}.json`.
+1. Adicione a chave em **ambos** os arquivos `src/localization/locales/{pt-BR,en-US}.json`.
 2. Use `t('minha.chave')` no componente.
 3. Rode `npm test` — falha se a chave existe em um locale mas não no outro.
 
@@ -131,56 +182,52 @@ O Viewer suporta **dois locales** carregados como bundles estáticos (sem CDN):
 
 ## Phase 2 Roadmap
 
-| Feature | ADR | Status |
-| :--- | :--- | :--- |
-| IPC real com `mem.exe` (`window.memAPI.loadDataset()`, `runCli()`) | ADR-049 | pending |
-| Code symbols no grafo (`feat-code-ast` integration) | ADR-047 + ADR-051 | pending |
-| Staleness dashboard tab | ADR-031 + ADR-051 | pending |
-| Syntax highlight com **shiki** nos snippets | TBD | pending |
-| CSP strict enforcement (sem `'unsafe-inline'`, com nonce Vite) | ADR-049 | pending |
-| Dark/light theme toggle (`next-themes`) | Phase 2 UX | pending |
-| Triptych Node Inspector (3-coluna) | ADR-024 | pending |
-| Live search bar | Phase 2 UX | pending |
-| `electron-builder` release cross-platform (.exe/.dmg/.AppImage) | TBD | pending |
-| Auto-update via `electron-updater` | TBD | pending |
-| Code-signing Windows / notarização macOS | TBD | pending |
+Decomposed em `.specs/features/feat-viewer-electron-phase-2/tasks.md`.
+Ordem de execução recomendada:
+
+| # | Front | ADR | Status |
+| :--- | :--- | :--- | :--- |
+| F4 | CSP strict (remove `'unsafe-inline'` via Vite nonce) | **ADR-049 promotion** | pending |
+| F1 | Real IPC (`mem:dataset:load`, `mem:cli:run`, `mem:reveal` via `child_process.spawn`) | continuation | pending |
+| F2 | Code symbols no grafo (fan-in ADR-047) | ADR-047 + new ADR | pending |
+| F3 | Syntax highlight (Shiki) | new ADR | pending |
+| F5 | `electron-forge make` cross-platform (fix makers filtered em win32) | new ADR or PR | pending |
 
 ---
 
 ## Restrições de Phase 1
 
-- **`data-central.json` é estático**: copiado para `viewer/public/data-central.json` durante o build. Phase 2 substitui por IPC.
-- **CSP relaxado**: `script-src 'self' 'unsafe-inline' 'unsafe-eval'` em dev (HMR Vite). Phase 2 endurece com nonce.
-- **Sem auto-update**: installer cross-platform + signing são Phase 2 (electron-builder).
-- **Theme hardcoded dark**: toggle via `next-themes` virá em Phase 2.
+- **`data-central.json` é estático**: copiado para `public/data-central.json` durante o build, fetchado pelo renderer em runtime. Phase 2 substitui por IPC via `mem graph export`.
+- **CSP relaxado**: `script-src 'self' 'unsafe-inline' 'unsafe-eval'` em dev (HMR Vite + `unsafe-eval` para o Babel/React Compiler). Hardcoded em `electron/main.ts` via `session.webRequest.onHeadersReceived`. Phase 2 endurece com nonce (F4).
+- **IPC stubs**: `electron/main.ts` registra `ipcMain.handle(MEM_DATASET_LOAD, ...)` que rejeita com `"not implemented (Phase 2)"`. Renderer chama `window.memAPI.loadDataset()` que loga warning + rejeita. Phase 2 (F1) substitui por handlers reais que fazem `child_process.spawn('./mem.exe', [...])`.
+- **Sem auto-update**: `update-electron-app` está instalado mas sem wiring. Phase 2 (F5 ou depois) configura.
+- **Theme hardcoded dark**: `<html class="dark">` em `index.html`. Toggle via `next-themes` virá em Phase 2 (F5+).
+- **electron-forge `package` não produz `out/` em win32**: makers `MakerSquirrel/Deb/Rpm` filtrados em win32, `MakerZIP` restrito a `["darwin"]`. Bundles via `.vite/` funcionam; installer cross-platform é F5.
 
 ---
 
 ## Comandos úteis
 
 ```bash
-# Rodar o viewer Vite standalone (sem Electron)
-npm run viewer:dev
+# Rodar smoke test + screenshot (1 passed esperado, exit 0)
+npm run smoke
 
-# Build apenas do viewer (gera viewer/dist/index.html)
-npm run viewer:build
+# Rodar Electron standalone (assume build via `npm run package`)
+npm start
 
-# Build apenas do Electron main + preload (gera electron/dist/)
-npm run electron:build
-
-# Rodar Electron standalone (assume viewer dev server na porta 5173)
-npm run electron:dev
+# Build installers (Phase 2 F5)
+npm run make
 ```
 
 ---
 
 ## Referências
 
-- **[ADR-048](adr/048-viewer-electron-react-vite-shadcn.md)** — Decisão arquitetural (Accepted 2026-09-21).
-- **[ADR-049](README.md#adr-049-planejado--viewer-csp-strict)** — CSP strict (Phase 2).
-- **[ADR-050](README.md#adr-050)** — Threat Model OWASP LLM05 (markdown sanitizado, sem imagens remotas).
-- **[ADR-051](README.md#adr-051-planejado)** — Code symbols integration.
+- **[ADR-048](adr/048-viewer-electron-react-vite-shadcn.md)** — Stack original (Electron + React + Vite + shadcn/ui).
+- **[ADR-049](adr/049-viewer-restructure-electron-forge-and-src-split.md)** — Layout split (`electron/` ↔ `src/`) + path aliases.
 - **[ADR-037](adr/037-rewrite-viewer-com-vite-vanilla-ts.md)** — Superseded por ADR-048.
 - **[`LuanRoger/electron-shadcn`](https://github.com/LuanRoger/electron-shadcn)** — referência canônica (1.4.1, MIT) para Electron + shadcn/ui.
+- **`.specs/features/feat-viewer-electron-phase-2/tasks.md`** — Phase 2 sub-fronts (F1-F5).
 
-> Veja também a spec ativa em `.specs/features/feat-viewer-electron/spec.md` (16 ACs em EARS).
+> Veja também a spec ativa em `.specs/features/feat-viewer-electron/spec.md`
+> (marcada SUPERSEDED no topo após a migração de layout).
