@@ -9,8 +9,15 @@ import { useUiStore } from "@/lib/ui/use-ui-store";
 /**
  * TopBar — global navigation bar (ADR-053).
  *
- * Contains: window title + toggle buttons for each pane + locale switcher +
- * window controls (Windows / Linux). Replaces the tab strip from Phase 1.
+ * The whole bar is `-webkit-app-region: drag` so the user can grab it to
+ * move the window (required because `titleBarStyle: "hidden"` removes the
+ * native title bar on Windows / Linux). All interactive elements (buttons,
+ * locale switcher, window controls) override with `no-drag` so clicks still
+ * register.
+ *
+ * macOS keeps the system traffic lights via `titleBarStyle: "hiddenInset"`,
+ * so the entire bar is draggable there too (system reserves space for the
+ * traffic lights on the left).
  */
 
 export function TopBar(): React.JSX.Element {
@@ -18,14 +25,25 @@ export function TopBar(): React.JSX.Element {
   const layout = useUiStore((s) => s.layout);
   const togglePane = useUiStore((s) => s.togglePane);
 
+  // Inline style for `-webkit-app-region` (no Tailwind utility for it).
+  const dragRegionStyle: React.CSSProperties = { WebkitAppRegion: "drag" } as React.CSSProperties;
+  const noDragStyle: React.CSSProperties = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
+
   return (
-    <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card/40 px-3">
-      <div className="flex items-center gap-2">
+    <div
+      className="flex h-10 shrink-0 select-none items-center justify-between border-b border-border bg-card/40 px-3"
+      style={dragRegionStyle}
+      data-testid="topbar"
+    >
+      <div
+        className="flex items-center gap-2"
+        data-testid="topbar-drag-region-title"
+      >
         <span className="text-xs font-semibold tracking-tight">{t("app.title")}</span>
         <span className="text-[10px] text-muted-foreground">·</span>
         <span className="text-[10px] text-muted-foreground">{t("app.subtitle")}</span>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1" style={noDragStyle} data-testid="topbar-controls">
         <Button
           variant={layout.explorer.visible ? "secondary" : "ghost"}
           size="icon"
