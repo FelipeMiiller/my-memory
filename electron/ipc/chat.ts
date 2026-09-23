@@ -1,14 +1,13 @@
-import { ipcMain, type BrowserWindow } from "electron";
 import { randomUUID } from "node:crypto";
 import { IPC_CHANNELS } from "@electron/constants";
 import {
   loadConfig,
-  saveConfig,
   publicView,
-  type PersistedChatConfig,
+  saveConfig,
 } from "@electron/services/chat/config";
 import { streamChat } from "@electron/services/chat/llm";
 import { memSearch } from "@electron/services/chat/mem-search";
+import { type BrowserWindow, ipcMain } from "electron";
 
 /**
  * IPC handlers for chat (ADR-051).
@@ -33,16 +32,22 @@ const RAG_CONTEXT_MAX_CHARS = 8_000;
 
 const inflight = new Map<string, AbortController>();
 
-function validateSendRequest(req: unknown): ChatSendRequest | { error: ChatError } {
+function validateSendRequest(
+  req: unknown,
+): ChatSendRequest | { error: ChatError } {
   if (typeof req !== "object" || req === null) {
-    return { error: { kind: "invalid", message: "Payload must be an object." } };
+    return {
+      error: { kind: "invalid", message: "Payload must be an object." },
+    };
   }
   const r = req as Partial<ChatSendRequest>;
   if (typeof r.conversationId !== "string" || r.conversationId.length === 0) {
     return { error: { kind: "invalid", message: "conversationId missing." } };
   }
   if (!Array.isArray(r.messages) || r.messages.length === 0) {
-    return { error: { kind: "invalid", message: "messages[] must be non-empty." } };
+    return {
+      error: { kind: "invalid", message: "messages[] must be non-empty." },
+    };
   }
   if (r.messages.length > MAX_MESSAGES) {
     return {
@@ -58,7 +63,9 @@ function validateSendRequest(req: unknown): ChatSendRequest | { error: ChatError
     }
     const msg = m as Partial<ChatMessage>;
     if (typeof msg.id !== "string" || typeof msg.content !== "string") {
-      return { error: { kind: "invalid", message: "Message needs id + content." } };
+      return {
+        error: { kind: "invalid", message: "Message needs id + content." },
+      };
     }
     if (msg.content.length > MAX_CONTENT_LENGTH) {
       return {
@@ -68,7 +75,11 @@ function validateSendRequest(req: unknown): ChatSendRequest | { error: ChatError
         },
       };
     }
-    if (msg.role !== "user" && msg.role !== "assistant" && msg.role !== "system") {
+    if (
+      msg.role !== "user" &&
+      msg.role !== "assistant" &&
+      msg.role !== "system"
+    ) {
       return { error: { kind: "invalid", message: "Invalid role." } };
     }
   }
@@ -78,11 +89,16 @@ function validateSendRequest(req: unknown): ChatSendRequest | { error: ChatError
   return r as ChatSendRequest;
 }
 
-export function registerChatHandlers(getWindow: () => BrowserWindow | null): void {
-  ipcMain.handle(IPC_CHANNELS.MEM_CHAT_CONFIG_GET, async (): Promise<ChatConfig> => {
-    const c = await loadConfig();
-    return publicView(c);
-  });
+export function registerChatHandlers(
+  _getWindow: () => BrowserWindow | null,
+): void {
+  ipcMain.handle(
+    IPC_CHANNELS.MEM_CHAT_CONFIG_GET,
+    async (): Promise<ChatConfig> => {
+      const c = await loadConfig();
+      return publicView(c);
+    },
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.MEM_CHAT_CONFIG_SET,
@@ -125,10 +141,15 @@ export function registerChatHandlers(getWindow: () => BrowserWindow | null): voi
       // Build system prompt: base + optional RAG context.
       let system = req.system ?? "";
       if (config.useMemory && req.messages.length > 0) {
-        const lastUserMsg = [...req.messages].reverse().find((m) => m.role === "user");
+        const lastUserMsg = [...req.messages]
+          .reverse()
+          .find((m) => m.role === "user");
         if (lastUserMsg) {
           try {
-            const rag = await memSearch({ query: lastUserMsg.content, topK: RAG_TOP_K });
+            const rag = await memSearch({
+              query: lastUserMsg.content,
+              topK: RAG_TOP_K,
+            });
             const ragBlock = formatRagBlock(rag.results);
             if (ragBlock.length > 0) {
               system = `${system}${system ? "\n\n" : ""}${ragBlock}`;
@@ -217,7 +238,8 @@ function formatRagBlock(results: ReadonlyArray<MemSearchResult>): string {
   let chars = 0;
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
-    const snippet = r.snippet.length > 400 ? `${r.snippet.slice(0, 400)}…` : r.snippet;
+    const snippet =
+      r.snippet.length > 400 ? `${r.snippet.slice(0, 400)}…` : r.snippet;
     const line = `[${i + 1}] ${r.title} (${r.path}, score=${r.score.toFixed(3)})\n${snippet}\n`;
     if (chars + line.length > RAG_CONTEXT_MAX_CHARS) break;
     lines.push(line);

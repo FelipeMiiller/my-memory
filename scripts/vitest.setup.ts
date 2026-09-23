@@ -1,32 +1,13 @@
 import "@testing-library/jest-dom/vitest";
-import i18n from "i18next";
-import { initReactI18next } from "react-i18next";
-import ptBR from "../src/localization/locales/pt-BR.json";
-import enUS from "../src/localization/locales/en-US.json";
+import "../src/localization/i18n";
 
 /**
  * Vitest setup — runs once before any test file.
  *
  * 1. Registers `@testing-library/jest-dom` matchers (`toBeInTheDocument`, etc).
- * 2. Initialises i18next with the same locale bundles as the renderer so
- *    `useTranslation()` works inside `Layout`, `GraphView`, `LocaleSwitcher`,
- *    and `App` without each test having to mock react-i18next individually.
+ * 2. Side-effect imports the renderer's `i18n` bootstrapper, which already
+ *    wires up all namespaces (`common`, `topbar`, `graph`, `workspace`,
+ *    `chat`) for `pt-BR` and `en-US`. Importing the bootstrapper (instead of
+ *    duplicating the bundle wiring here) keeps tests in sync with the
+ *    renderer whenever a new locale or namespace lands.
  */
-
-void i18n
-  .use(initReactI18next)
-  .init({
-    resources: {
-      "pt-BR": { translation: ptBR },
-      "en-US": { translation: enUS },
-    },
-    lng: "pt-BR",
-    fallbackLng: "en-US",
-    supportedLngs: ["pt-BR", "en-US"],
-    interpolation: { escapeValue: false },
-    returnNull: false,
-  })
-  .catch((err: unknown) => {
-    // eslint-disable-next-line no-console
-    console.warn("[vitest.setup] i18next init failed", err);
-  });

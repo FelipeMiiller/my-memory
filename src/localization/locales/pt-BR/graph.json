@@ -1,0 +1,15 @@
+{
+  "loading": "Carregando data-central.json…",
+  "error": "Falha ao carregar dataset: {{msg}}",
+  "errorHint": "Verifique se data-central.json está no public/.",
+  "errorTitle": "Falha ao carregar dataset",
+  "summaryNodes": "{{count}} nodes",
+  "summaryEdges": "{{count}} edges",
+  "selected": "selecionado: {{label}}",
+  "id": "ID",
+  "color": "Cor",
+  "inDegree": "In-degree",
+  "outDegree": "Out-degree",
+  "pageRank": "PageRank",
+  "radius": "Raio (px)"
+}

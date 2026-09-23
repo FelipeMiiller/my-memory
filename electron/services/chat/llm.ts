@@ -19,7 +19,10 @@ export interface StreamChatParams {
   model: string;
   apiKey: string;
   system: string;
-  messages: ReadonlyArray<{ role: "user" | "assistant" | "system"; content: string }>;
+  messages: ReadonlyArray<{
+    role: "user" | "assistant" | "system";
+    content: string;
+  }>;
   signal: AbortSignal;
 }
 
@@ -101,7 +104,10 @@ function classifyError(err: unknown): ChatError {
     return { kind: "auth", message: sanitizeMessage(message) };
   }
   if (lower.includes("429") || lower.includes("rate limit")) {
-    return { kind: "rate_limit", message: "Rate limit reached. Try again in a moment." };
+    return {
+      kind: "rate_limit",
+      message: "Rate limit reached. Try again in a moment.",
+    };
   }
   if (
     lower.includes("econnrefused") ||
@@ -110,7 +116,10 @@ function classifyError(err: unknown): ChatError {
     lower.includes("network") ||
     lower.includes("fetch failed")
   ) {
-    return { kind: "network", message: "Network error. Check your connection." };
+    return {
+      kind: "network",
+      message: "Network error. Check your connection.",
+    };
   }
   return { kind: "unknown", message: sanitizeMessage(message) };
 }

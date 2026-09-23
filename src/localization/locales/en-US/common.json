@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "Grafo de Memória",
-    "subtitle": "my-memory · Phase 1 MVP"
+    "subtitle": "my-memory · v3 workspace"
   },
   "nav": {
     "title": "Navigation",
@@ -42,23 +42,6 @@
     "graphTabNotice": "Phase 1 ships only the {{tab}} tab with bundled Cytoscape reading the static data-central.json.",
     "codeTooltip": "Code symbols — Phase 2 (ADR-047/051)",
     "stalenessTooltip": "Staleness dashboard — Phase 2 (ADR-031/051)"
-  },
-  "graph": {
-    "loading": "Loading data-central.json…",
-    "error": "Failed to load dataset: {{msg}}",
-    "errorHint": "Check whether public/data-central.json exists.",
-    "errorTitle": "Failed to load dataset",
-    "summaryNodes": "{{count}} nodes",
-    "summaryEdges": "{{count}} edges",
-    "selected": "selected: {{label}}"
-  },
-  "inspector": {
-    "id": "ID",
-    "color": "Color",
-    "inDegree": "In-degree",
-    "outDegree": "Out-degree",
-    "pageRank": "PageRank",
-    "radius": "Radius (px)"
   },
   "footer": {
     "dataset": "Dataset:",

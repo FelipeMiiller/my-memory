@@ -14,6 +14,11 @@ export const CHAT_MODELS: Record<ChatProvider, readonly string[]> = {
   openai: ["gpt-4o", "gpt-4o-mini", "o3", "o3-mini"],
 } as const;
 
+export const CHAT_PROVIDER_NAMES: Record<ChatProvider, string> = {
+  anthropic: "Anthropic Claude",
+  openai: "OpenAI",
+} as const;
+
 export const DEFAULT_CHAT_CONFIG: ChatConfig = {
   provider: "anthropic",
   model: "claude-sonnet-4-5",
@@ -91,6 +96,64 @@ export interface MemSearchResult {
 export interface MemSearchResponse {
   query: string;
   results: ReadonlyArray<MemSearchResult>;
+}
+
+// ASR (Nemotron streaming, ADR-045) — renderer-side mirrors of the ambient
+// declarations in `electron/types.d.ts`. Keep both sides in sync.
+
+export interface AsrStartRequest {
+  /** Optional BCP-47 locale (e.g. "pt-BR", "en-US"). Defaults to "auto". */
+  locale?: string;
+  /** Correlation id from the upstream chat turn. */
+  conversationTurnId?: string;
+}
+
+export interface AsrStartResponse {
+  sessionId: string;
+}
+
+export interface AsrChunkRequest {
+  sessionId: string;
+  /** Int16 little-endian mono PCM at 16 kHz. */
+  pcm: Int16Array;
+  /** Sample rate in Hz. Always 16000 in this build. */
+  sampleRate: number;
+}
+
+export interface AsrStopRequest {
+  sessionId: string;
+}
+
+export interface AsrStopResponse {
+  finalized: boolean;
+}
+
+export interface AsrPartialEvent {
+  sessionId: string;
+  /** Interim transcript text. Replaces prior partial for the same session. */
+  transcript: string;
+  confidence?: number;
+}
+
+export interface AsrFinalEvent {
+  sessionId: string;
+  transcript: string;
+  durationMs: number;
+  locale: string;
+}
+
+export type AsrErrorKind =
+  | "model_missing"
+  | "model_loading"
+  | "permission_denied"
+  | "invalid_audio"
+  | "aborted"
+  | "unknown";
+
+export interface AsrErrorEvent {
+  sessionId: string;
+  kind: AsrErrorKind;
+  message: string;
 }
 
 // Renderer-side conversation grouping (persisted in IndexedDB).

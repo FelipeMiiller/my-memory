@@ -1,4 +1,8 @@
-import cytoscape, { type Core, type ElementsDefinition, type LayoutOptions } from "cytoscape";
+import cytoscape, {
+  type Core,
+  type ElementsDefinition,
+  type LayoutOptions,
+} from "cytoscape";
 
 /**
  * cytoscape-init.ts — minimal bundled Cytoscape bootstrapper.

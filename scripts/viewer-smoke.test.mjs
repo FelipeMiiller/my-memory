@@ -7,9 +7,11 @@
  * RUN: `npx playwright install chromium`
  *      `npm run test:e2e`
  */
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-test("Electron Forge renderer loads Graf de Memória title", async ({ page }) => {
+test("Electron Forge renderer loads Graf de Memória title", async ({
+  page,
+}) => {
   await page.goto("http://localhost:5173");
   await expect(page).toHaveTitle(/Grafo de Memória/);
   await expect(page.locator("#app")).toBeAttached();

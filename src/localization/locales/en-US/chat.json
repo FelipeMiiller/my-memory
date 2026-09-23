@@ -1,0 +1,17 @@
+{
+  "input": {
+    "startDictation": "Dictate (Speech to Text) · Ctrl+I",
+    "stopDictation": "Stop dictation ({{seconds}}s)",
+    "dictateUnsupported": "Microphone unavailable in this build"
+  },
+  "sidebar": {
+    "title": "Sessions",
+    "searchPlaceholder": "Search sessions",
+    "newConversation": "New conversation",
+    "delete": "Delete session",
+    "newer": "Newer",
+    "older": "Older",
+    "empty": "No conversations yet.\nClick + to start one.",
+    "noMatch": "No sessions match your search."
+  }
+}

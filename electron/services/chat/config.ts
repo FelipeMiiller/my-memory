@@ -1,6 +1,6 @@
-import { app } from "electron";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { app } from "electron";
 
 /**
  * Chat config persistence (ADR-051).
@@ -62,26 +62,33 @@ export async function loadConfig(): Promise<PersistedChatConfig> {
       model: parsed.model,
       apiKey: parsed.apiKey,
       useMemory: parsed.useMemory,
-      updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
+      updatedAt:
+        typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
     };
   } catch (err: unknown) {
     if (isNodeError(err) && err.code === "ENOENT") {
       // First run — return defaults; do not write yet.
       return { ...DEFAULT_CONFIG, updatedAt: Date.now() };
     }
-    console.warn("[chat/config] failed to read config — falling back to defaults", err);
+    console.warn(
+      "[chat/config] failed to read config — falling back to defaults",
+      err,
+    );
     return { ...DEFAULT_CONFIG, updatedAt: Date.now() };
   }
 }
 
-export async function saveConfig(update: ChatConfigUpdate): Promise<PersistedChatConfig> {
+export async function saveConfig(
+  update: ChatConfigUpdate,
+): Promise<PersistedChatConfig> {
   const current = await loadConfig();
   const next: PersistedChatConfig = {
     schemaVersion: SCHEMA_VERSION,
     provider: update.provider ?? current.provider,
     model: update.model ?? current.model,
     apiKey: update.apiKey !== undefined ? update.apiKey : current.apiKey,
-    useMemory: update.useMemory !== undefined ? update.useMemory : current.useMemory,
+    useMemory:
+      update.useMemory !== undefined ? update.useMemory : current.useMemory,
     updatedAt: Date.now(),
   };
   const file = configPath();

@@ -1,4 +1,12 @@
 import type {
+  AsrChunkRequest,
+  AsrErrorEvent,
+  AsrFinalEvent,
+  AsrPartialEvent,
+  AsrStartRequest,
+  AsrStartResponse,
+  AsrStopRequest,
+  AsrStopResponse,
   ChatConfig,
   ChatConfigUpdate,
   ChatDeltaEvent,
@@ -24,6 +32,13 @@ declare global {
         platform: NodeJS.Platform;
         loadDataset: () => Promise<unknown>;
         runCli: (args: string[]) => Promise<unknown>;
+        window: {
+          minimize: () => Promise<void>;
+          toggleMaximize: () => Promise<boolean>;
+          close: () => Promise<void>;
+          isMaximized: () => Promise<boolean>;
+          onMaximizeChanged: (cb: (maximized: boolean) => void) => () => void;
+        };
         chat: {
           send: (req: ChatSendRequest) => Promise<ChatSendResponse>;
           abort: (requestId: string) => Promise<{ aborted: boolean }>;
@@ -36,6 +51,14 @@ declare global {
           onDelta: (cb: (e: ChatDeltaEvent) => void) => () => void;
           onDone: (cb: (e: ChatDoneEvent) => void) => () => void;
           onError: (cb: (e: ChatErrorEvent) => void) => () => void;
+        };
+        asr: {
+          start: (req?: AsrStartRequest) => Promise<AsrStartResponse>;
+          chunk: (req: AsrChunkRequest) => Promise<{ accepted: boolean }>;
+          stop: (req: AsrStopRequest) => Promise<AsrStopResponse>;
+          onPartial: (cb: (e: AsrPartialEvent) => void) => () => void;
+          onFinal: (cb: (e: AsrFinalEvent) => void) => () => void;
+          onError: (cb: (e: AsrErrorEvent) => void) => () => void;
         };
       }
     | undefined;
@@ -83,5 +106,35 @@ export const chatApi = {
   },
   onError: (cb: (e: ChatErrorEvent) => void): (() => void) => {
     return globalThis.memAPI?.chat.onError(cb) ?? (() => {});
+  },
+};
+
+export const asrApi = {
+  start: (req?: AsrStartRequest): Promise<AsrStartResponse> => {
+    if (!globalThis.memAPI) {
+      return Promise.reject(new Error("memAPI not available"));
+    }
+    return globalThis.memAPI.asr.start(req);
+  },
+  chunk: (req: AsrChunkRequest): Promise<{ accepted: boolean }> => {
+    if (!globalThis.memAPI) {
+      return Promise.reject(new Error("memAPI not available"));
+    }
+    return globalThis.memAPI.asr.chunk(req);
+  },
+  stop: (req: AsrStopRequest): Promise<AsrStopResponse> => {
+    if (!globalThis.memAPI) {
+      return Promise.resolve({ finalized: false });
+    }
+    return globalThis.memAPI.asr.stop(req);
+  },
+  onPartial: (cb: (e: AsrPartialEvent) => void): (() => void) => {
+    return globalThis.memAPI?.asr.onPartial(cb) ?? (() => {});
+  },
+  onFinal: (cb: (e: AsrFinalEvent) => void): (() => void) => {
+    return globalThis.memAPI?.asr.onFinal(cb) ?? (() => {});
+  },
+  onError: (cb: (e: AsrErrorEvent) => void): (() => void) => {
+    return globalThis.memAPI?.asr.onError(cb) ?? (() => {});
   },
 };
