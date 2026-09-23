@@ -1,5 +1,5 @@
+import { Maximize2, Minus, Square, X } from "lucide-react";
 import * as React from "react";
-import { Minus, Square, X, Maximize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/tailwind";
@@ -28,7 +28,10 @@ export function WindowControls(): React.JSX.Element | null {
       try {
         const initial = await globalThis.memAPI?.window.isMaximized();
         if (!cancelled) setMaximized(Boolean(initial));
-        unsubscribe = globalThis.memAPI?.window.onMaximizeChanged((m: boolean) => setMaximized(m)) ?? null;
+        unsubscribe =
+          globalThis.memAPI?.window.onMaximizeChanged((m: boolean) =>
+            setMaximized(m),
+          ) ?? null;
       } catch (err) {
         console.warn("[window-controls] init failed:", err);
       }
@@ -69,14 +72,16 @@ export function WindowControls(): React.JSX.Element | null {
         variant="ghost"
         size="icon"
         onClick={() => void handleToggleMaximize()}
-        aria-label={
-          maximized ? t("restore") : t("maximize")
-        }
+        aria-label={maximized ? t("restore") : t("maximize")}
         title={maximized ? t("restore") : t("maximize")}
         data-testid="window-control-maximize"
         className="h-8 w-8 rounded-none"
       >
-        {maximized ? <Maximize2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+        {maximized ? (
+          <Maximize2 className="h-3.5 w-3.5" />
+        ) : (
+          <Square className="h-3.5 w-3.5" />
+        )}
       </Button>
       <Button
         variant="ghost"

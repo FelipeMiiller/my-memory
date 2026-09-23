@@ -1,16 +1,20 @@
+import { Check, Globe } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { STORAGE_KEY, DEFAULT_LOCALE, type SupportedLocale } from "@/localization/i18n";
+import {
+  DEFAULT_LOCALE,
+  STORAGE_KEY,
+  type SupportedLocale,
+} from "@/localization/i18n";
 
 /**
  * LocaleSwitcher.tsx — topbar control that:
@@ -35,7 +39,9 @@ const OPTIONS: ReadonlyArray<LocaleOption> = [
 export function LocaleSwitcher(): React.JSX.Element {
   const { t, i18n } = useTranslation("common");
   const [current, setCurrent] = React.useState<SupportedLocale>(
-    (i18n.resolvedLanguage ?? i18n.language ?? DEFAULT_LOCALE) as SupportedLocale,
+    (i18n.resolvedLanguage ??
+      i18n.language ??
+      DEFAULT_LOCALE) as SupportedLocale,
   );
 
   React.useEffect(() => {

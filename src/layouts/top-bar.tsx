@@ -1,9 +1,9 @@
-import * as React from "react";
-import { PanelLeft, MessageSquare, Terminal } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { LocaleSwitcher } from "@/components/locale-switcher";
-import { WindowControls } from "@/components/workspace/window-controls";
+import { MessageSquare, PanelLeft, Terminal } from "lucide-react";
+import type * as React from "react";
 import { useTranslation } from "react-i18next";
+import { LocaleSwitcher } from "@/components/locale-switcher";
+import { Button } from "@/components/ui/button";
+import { WindowControls } from "@/components/workspace/window-controls";
 import { useUiStore } from "@/lib/ui/use-ui-store";
 
 /**
@@ -26,8 +26,12 @@ export function TopBar(): React.JSX.Element {
   const togglePane = useUiStore((s) => s.togglePane);
 
   // Inline style for `-webkit-app-region` (no Tailwind utility for it).
-  const dragRegionStyle: React.CSSProperties = { WebkitAppRegion: "drag" } as React.CSSProperties;
-  const noDragStyle: React.CSSProperties = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
+  const dragRegionStyle: React.CSSProperties = {
+    WebkitAppRegion: "drag",
+  } as React.CSSProperties;
+  const noDragStyle: React.CSSProperties = {
+    WebkitAppRegion: "no-drag",
+  } as React.CSSProperties;
 
   return (
     <div
@@ -39,11 +43,19 @@ export function TopBar(): React.JSX.Element {
         className="flex items-center gap-2"
         data-testid="topbar-drag-region-title"
       >
-        <span className="text-xs font-semibold tracking-tight">{t("app.title")}</span>
+        <span className="text-xs font-semibold tracking-tight">
+          {t("app.title")}
+        </span>
         <span className="text-[10px] text-muted-foreground">·</span>
-        <span className="text-[10px] text-muted-foreground">{t("app.subtitle")}</span>
+        <span className="text-[10px] text-muted-foreground">
+          {t("app.subtitle")}
+        </span>
       </div>
-      <div className="flex items-center gap-1" style={noDragStyle} data-testid="topbar-controls">
+      <div
+        className="flex items-center gap-1"
+        style={noDragStyle}
+        data-testid="topbar-controls"
+      >
         <Button
           variant={layout.explorer.visible ? "secondary" : "ghost"}
           size="icon"

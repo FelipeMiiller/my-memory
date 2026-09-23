@@ -1,13 +1,13 @@
-import * as React from "react";
-import { useTranslation } from "react-i18next";
 import type { Core as CytoscapeCore, EventObject } from "cytoscape";
 import { AlertCircle, Loader2 } from "lucide-react";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  type GraphDataset,
   initCytoscape,
   pagerankToRadius,
-  type GraphDataset,
 } from "@/lib/cytoscape-init";
 
 /**
@@ -84,21 +84,21 @@ export function GraphView(): React.JSX.Element {
           const node = event.target;
           const data = node.data() as Record<string, unknown>;
           const selected: SelectedNode = {
-            id: String(data["id"] ?? ""),
-            label: String(data["label"] ?? ""),
+            id: String(data.id ?? ""),
+            label: String(data.label ?? ""),
             community_label:
-              typeof data["community_label"] === "string"
-                ? (data["community_label"] as string)
+              typeof data.community_label === "string"
+                ? (data.community_label as string)
                 : undefined,
             community_color:
-              typeof data["community_color"] === "string"
-                ? (data["community_color"] as string)
+              typeof data.community_color === "string"
+                ? (data.community_color as string)
                 : undefined,
-            in_degree: Number(data["in_degree"] ?? 0),
-            out_degree: Number(data["out_degree"] ?? 0),
-            pagerank: Number(data["pagerank"] ?? 0),
-            is_hub: Boolean(data["is_hub"]),
-            color: String(data["color"] ?? "#64748b"),
+            in_degree: Number(data.in_degree ?? 0),
+            out_degree: Number(data.out_degree ?? 0),
+            pagerank: Number(data.pagerank ?? 0),
+            is_hub: Boolean(data.is_hub),
+            color: String(data.color ?? "#64748b"),
           };
           setState({ kind: "ready", dataset, selected });
         };
@@ -139,6 +139,7 @@ export function GraphView(): React.JSX.Element {
       {/* Cytoscape container */}
       <div
         ref={containerRef}
+        role="img"
         className="h-full w-full"
         data-testid="cytoscape-container"
         aria-label="Knowledge graph canvas"
@@ -259,11 +260,7 @@ function SelectedNodePanel({
         />
         <Stat label={t("inDegree")} value={String(node.in_degree)} />
         <Stat label={t("outDegree")} value={String(node.out_degree)} />
-        <Stat
-          label={t("pageRank")}
-          value={node.pagerank.toFixed(4)}
-          mono
-        />
+        <Stat label={t("pageRank")} value={node.pagerank.toFixed(4)} mono />
         <Stat
           label={t("radius")}
           value={String(Math.round(pagerankToRadius(node.pagerank)))}

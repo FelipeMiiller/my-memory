@@ -4,7 +4,7 @@ Evolução do viewer Electron do MVP v2.0.0 (Chat tab) para um workspace AI-modu
 
 PR #7 contra `develop`. Branch: `feat/v3-workspace-architecture`.
 
-> **Update 2026-09-22 (M1 audit + T11 close):** branch agora com **33 commits** (5 novos: smoke test fix + retro tasks.md + retro validation.md + retro PR doc + vitest tests ChatSidebar/ChatInput). Decision do Felipe: push as-is (full audit trail); squash-merge no PR pode colapsar pra 1 commit em develop. Ver seção "Validação retroativa" abaixo.
+> **Update 2026-09-23 (AC-14 cleanup):** branch agora com **35 commits** (5 novos: AC-14 cleanup em 2 commits + retro PR doc update). 0 errors / 0 warnings / 0 infos no biome. Decision do Felipe: push as-is (full audit trail); squash-merge no PR pode colapsar pra 1 commit em develop. Ver seção "Validação retroativa" abaixo.
 
 ## O que entra
 
@@ -70,16 +70,15 @@ PR #7 contra `develop`. Branch: `feat/v3-workspace-architecture`.
 ### Dependencies
 - `+ @radix-ui/react-dialog@1.1.23` (shadcn Sheet)
 
-## Quality Gate (re-medido 2026-09-22 ~18:02 BRT)
+## Quality Gate (re-medido 2026-09-23 ~07:00 BRT — após AC-14 cleanup)
 
 | Gate | Resultado |
 |---|---|
 | `tsc --noEmit` | ✅ exit 0 |
-| `vitest run` | ✅ 1/1 PASS (2.45s) |
+| `vitest run` | ✅ 5/5 PASS (3.28s) — sum + chat-sidebar (3) + chat-input (1) |
 | `electron-forge package` | ✅ exit 0 (makers filtrados em win32; bundles `.vite/` funcionam) |
-| `npm run smoke` | ✅ 1/1 PASS (2.8s) — após fix do regression AC-13 abaixo |
-| `biome check .` | ⚠️ **106 errors / 17 warnings / 11 infos** — regressão +32 vs baseline 74 (AC-14 FAIL por decisão consciente, ver validation.md) |
-| `biome check src/` | ⚠️ 72 errors (subset viewer-relevant) |
+| `npm run smoke` | ✅ 1/1 PASS (2.7s) |
+| `biome check .` | ✅ **0 errors / 0 warnings / 0 infos** (cleanup completo: 137 issues resolvidos) |
 
 ### AC-13 fix (regressão encontrada neste audit)
 
@@ -89,7 +88,12 @@ O smoke test em `src/tests/e2e/example.test.ts:67` esperava `await page.waitForS
 
 ### AC-14 status
 
-**FAIL consciente — biome regressão +32.** Justificativa + follow-up proposto em [`validation.md`](features/feat-viewer-v3-m1-3-pane-layout/validation.md) §AC-14. Em resumo: tentar corrigir 32 erros de lint num PR de layout seria scope creep enorme. Proposta: `feat/biome-cleanup-baseline` dedicada (3-5 dias).
+**✅ PASS — cleanup completo 2026-09-23 ~07:00 BRT.** Detalhes em [`validation.md`](features/feat-viewer-v3-m1-3-pane-layout/validation.md) §AC-14. Resumo:
+
+- **Baseline pré-cleanup:** 106 errors / 17 warnings / 11 infos
+- **Pós-cleanup:** 0/0/0 (137 issues resolvidos)
+- **Estratégia:** auto-fix biome (77 files: organizeImports + useLiteralKeys + useImportType + formatação) + 4 fixes manuais (a11y lang, role, unused param, 8 stale `// biome-ignore`) + biome.jsonc (tailwindDirectives + exclude .worktrees)
+- **Validação:** tsc/vitest/smoke todos verdes após mudanças
 
 ## Validação visual
 
@@ -162,7 +166,6 @@ Ordem cronológica (mais recente → mais antigo):
 - **ADR-044** (writer atômico + outbox + reprojeção) — próximo ADR natural pós-ADR-043
 - **PR #6 merge** (chat-language-models) — afeta fonte de dados quando ChatModelPicker voltar no futuro
 - **M2 — React Query split + service layer** (ADR-054) — roadmap após M1 close
-- **feat/biome-cleanup-baseline** — reset do baseline pós-M1 + auto-fix + correções manuais
 
 ## Cross-references
 

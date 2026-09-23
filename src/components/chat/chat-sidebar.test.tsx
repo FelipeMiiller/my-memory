@@ -13,8 +13,8 @@
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { ChatSidebar } from "./chat-sidebar";
 import type { ChatConversation } from "@/lib/chat/types";
+import { ChatSidebar } from "./chat-sidebar";
 
 // Mock persistence so createConversation() doesn't try IndexedDB.
 vi.mock("@/lib/chat/persistence", () => ({
@@ -34,7 +34,9 @@ vi.mock("@/lib/chat/ipc", () => ({
 
 import { useChatStore } from "@/lib/chat/store";
 
-function makeConversation(partial: Partial<ChatConversation>): ChatConversation {
+function makeConversation(
+  partial: Partial<ChatConversation>,
+): ChatConversation {
   return {
     id: partial.id ?? crypto.randomUUID(),
     title: partial.title ?? "Sample conversation",
@@ -65,22 +67,14 @@ describe("ChatSidebar", () => {
     expect(screen.getByText("Conversas")).toBeInTheDocument();
 
     // Action buttons (data-testids from chat-sidebar.tsx).
-    expect(
-      screen.getByTestId("chat-sidebar-new"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("chat-sidebar-refresh"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("chat-sidebar-new")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-sidebar-refresh")).toBeInTheDocument();
 
     // Search input.
-    expect(
-      screen.getByTestId("chat-sidebar-search"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("chat-sidebar-search")).toBeInTheDocument();
 
     // Empty state when there are no conversations.
-    expect(
-      screen.getByText(/Nenhuma conversa ainda/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Nenhuma conversa ainda/i)).toBeInTheDocument();
   });
 
   test("clicking the new-conversation button creates a conversation", () => {
@@ -105,9 +99,15 @@ describe("ChatSidebar", () => {
     const base = Date.now();
     useChatStore.setState({
       conversations: [
-        makeConversation({ title: "Filtros no Postgres", updatedAt: base + 3000 }),
+        makeConversation({
+          title: "Filtros no Postgres",
+          updatedAt: base + 3000,
+        }),
         makeConversation({ title: "RRF vs BM25", updatedAt: base + 2000 }),
-        makeConversation({ title: "Árvore de decisão", updatedAt: base + 1000 }),
+        makeConversation({
+          title: "Árvore de decisão",
+          updatedAt: base + 1000,
+        }),
       ],
       activeConversationId: null,
     });
@@ -125,12 +125,8 @@ describe("ChatSidebar", () => {
     });
 
     expect(screen.getByText("RRF vs BM25")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Filtros no Postgres"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Árvore de decisão"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Filtros no Postgres")).not.toBeInTheDocument();
+    expect(screen.queryByText("Árvore de decisão")).not.toBeInTheDocument();
 
     // Empty needle restores full list.
     fireEvent.change(screen.getByTestId("chat-sidebar-search"), {

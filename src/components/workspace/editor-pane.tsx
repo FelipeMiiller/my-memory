@@ -1,5 +1,5 @@
-import * as React from "react";
 import { FilePlus2, Search } from "lucide-react";
+import type * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 

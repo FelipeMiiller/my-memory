@@ -1,5 +1,12 @@
+import {
+  ChevronDown,
+  ChevronRight,
+  Database,
+  FileText,
+  Folder,
+  Star,
+} from "lucide-react";
 import * as React from "react";
-import { Folder, FileText, ChevronRight, ChevronDown, Database, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/utils/tailwind";
 
@@ -117,7 +124,11 @@ const FEDERATED_REPOS: VaultMock[] = [
   },
 ];
 
-const ALL_VAULTS: VaultMock[] = [CENTRAL_VAULT, CURRENT_REPO, ...FEDERATED_REPOS];
+const ALL_VAULTS: VaultMock[] = [
+  CENTRAL_VAULT,
+  CURRENT_REPO,
+  ...FEDERATED_REPOS,
+];
 
 function VaultHeader({
   vault,
@@ -129,7 +140,11 @@ function VaultHeader({
   const isCentral = vault.kind === "central";
   const isCurrent = vault.kind === "current";
   const Icon = isCentral ? Star : Database;
-  const iconColor = isCentral ? "text-yellow-500" : isCurrent ? "text-emerald-500" : "text-blue-400";
+  const iconColor = isCentral
+    ? "text-yellow-500"
+    : isCurrent
+      ? "text-emerald-500"
+      : "text-blue-400";
   return (
     <div
       className={cn(
@@ -151,7 +166,13 @@ function VaultHeader({
   );
 }
 
-function VaultSection({ vault, label }: { vault: VaultMock; label: string }): React.JSX.Element {
+function VaultSection({
+  vault,
+  label: _label,
+}: {
+  vault: VaultMock;
+  label: string;
+}): React.JSX.Element {
   const [open, setOpen] = React.useState(true);
   return (
     <div className="border-b border-border/40">
@@ -170,7 +191,9 @@ function VaultSection({ vault, label }: { vault: VaultMock; label: string }): Re
           <ChevronRight className="h-3 w-3 shrink-0 opacity-60" />
         )}
         <span className="flex-1 truncate">{vault.name}</span>
-        <span className="text-[9px] text-muted-foreground">{vault.tree.length}</span>
+        <span className="text-[9px] text-muted-foreground">
+          {vault.tree.length}
+        </span>
       </button>
       {open && (
         <div className="pb-1">
@@ -183,7 +206,13 @@ function VaultSection({ vault, label }: { vault: VaultMock; label: string }): Re
   );
 }
 
-function Node({ node, depth }: { node: MockNode; depth: number }): React.JSX.Element {
+function Node({
+  node,
+  depth,
+}: {
+  node: MockNode;
+  depth: number;
+}): React.JSX.Element {
   const [open, setOpen] = React.useState(depth < 2);
   const isDir = node.type === "dir";
   return (
@@ -228,7 +257,10 @@ export function FileExplorerStub(): React.JSX.Element {
   const { t } = useTranslation("workspace");
 
   return (
-    <div className="flex h-full flex-col overflow-hidden" data-testid="file-explorer-stub">
+    <div
+      className="flex h-full flex-col overflow-hidden"
+      data-testid="file-explorer-stub"
+    >
       <VaultHeader vault={CURRENT_REPO} title={t("explorer.title")} />
       <div className="flex-1 overflow-auto">
         {ALL_VAULTS.map((vault) => {

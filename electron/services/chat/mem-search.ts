@@ -1,8 +1,8 @@
-import { app } from "electron";
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import path from "node:path";
 import fs from "node:fs/promises";
+import path from "node:path";
+import { promisify } from "node:util";
+import { app } from "electron";
 
 const execFileP = promisify(execFile);
 
@@ -27,7 +27,9 @@ export interface MemSearchOptions {
 const DEFAULT_TOP_K = 5;
 const EXEC_TIMEOUT_MS = 10_000;
 
-export async function memSearch(options: MemSearchOptions): Promise<MemSearchResponse> {
+export async function memSearch(
+  options: MemSearchOptions,
+): Promise<MemSearchResponse> {
   const topK = options.topK ?? DEFAULT_TOP_K;
   if (!options.query || options.query.trim().length === 0) {
     return { query: options.query, results: [] };
@@ -64,7 +66,10 @@ export async function memSearch(options: MemSearchOptions): Promise<MemSearchRes
   }
 }
 
-function parseMemSearchOutput(stdout: string, query: string): MemSearchResponse {
+function parseMemSearchOutput(
+  stdout: string,
+  query: string,
+): MemSearchResponse {
   try {
     // The CLI emits JSON either as a bare array or wrapped in {results: [...]}.
     // We handle both shapes defensively.
@@ -85,7 +90,9 @@ function parseMemSearchOutput(stdout: string, query: string): MemSearchResponse 
   }
 }
 
-function normalizeResults(arr: ReadonlyArray<unknown>): ReadonlyArray<MemSearchResult> {
+function normalizeResults(
+  arr: ReadonlyArray<unknown>,
+): ReadonlyArray<MemSearchResult> {
   const out: MemSearchResult[] = [];
   for (const item of arr) {
     if (typeof item !== "object" || item === null) continue;
@@ -115,9 +122,22 @@ async function resolveMemBinary(): Promise<string | null> {
 
   const userData = app.getPath("userData");
   const candidates = [
-    path.join(userData, "bin", process.platform === "win32" ? "mem.exe" : "mem"),
-    path.join(app.getAppPath(), "..", "..", "bin", process.platform === "win32" ? "mem.exe" : "mem"),
-    path.join(app.getAppPath(), process.platform === "win32" ? "mem.exe" : "mem"),
+    path.join(
+      userData,
+      "bin",
+      process.platform === "win32" ? "mem.exe" : "mem",
+    ),
+    path.join(
+      app.getAppPath(),
+      "..",
+      "..",
+      "bin",
+      process.platform === "win32" ? "mem.exe" : "mem",
+    ),
+    path.join(
+      app.getAppPath(),
+      process.platform === "win32" ? "mem.exe" : "mem",
+    ),
   ];
 
   for (const c of candidates) {

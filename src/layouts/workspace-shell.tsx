@@ -1,15 +1,19 @@
-import * as React from "react";
+import type * as React from "react";
+import { ChatView } from "@/components/chat";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { FileExplorerStub, EditorPane, DockPlaceholder } from "@/components/workspace";
-import { ChatView } from "@/components/chat";
-import { useUiStore, editorWidthPct } from "@/lib/ui/use-ui-store";
+import {
+  DockPlaceholder,
+  EditorPane,
+  FileExplorerStub,
+} from "@/components/workspace";
 import { useShortcut } from "@/hooks/use-shortcut";
-import { TopBar } from "./top-bar";
+import { editorWidthPct, useUiStore } from "@/lib/ui/use-ui-store";
 import { StatusBar } from "./status-bar";
+import { TopBar } from "./top-bar";
 
 /**
  * WorkspaceShell — 3-pane layout + dock (ADR-053, M1).
@@ -37,12 +41,21 @@ export function WorkspaceShell(): React.JSX.Element {
   useShortcut("Ctrl+`", { onMatch: () => togglePane("dock") });
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background" data-testid="workspace-shell">
+    <div
+      className="flex h-screen w-screen flex-col overflow-hidden bg-background"
+      data-testid="workspace-shell"
+    >
       <TopBar />
       <ResizablePanelGroup direction="vertical" className="flex-1">
-        <ResizablePanel defaultSize={layout.dock.visible ? 75 : 100} minSize={40}>
+        <ResizablePanel
+          defaultSize={layout.dock.visible ? 75 : 100}
+          minSize={40}
+        >
           {/* Horizontal 3-pane content */}
-          <ResizablePanelGroup direction="horizontal" autoSaveId="workspace-horizontal">
+          <ResizablePanelGroup
+            direction="horizontal"
+            autoSaveId="workspace-horizontal"
+          >
             {layout.explorer.visible && (
               <>
                 <ResizablePanel

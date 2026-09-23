@@ -26,12 +26,7 @@ describe("ChatInput", () => {
     const onStop = vi.fn();
 
     render(
-      <ChatInput
-        streaming={false}
-        hasApiKey
-        onSend={onSend}
-        onStop={onStop}
-      />,
+      <ChatInput streaming={false} hasApiKey onSend={onSend} onStop={onStop} />,
     );
 
     const textarea = screen.getByTestId(

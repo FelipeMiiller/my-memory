@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 /**
  * Layout UI state (ADR-053) — M1 do Roadmap v3.
@@ -54,19 +54,30 @@ export const useUiStore = create<UiState>()(
       togglePane: (pane) => {
         set((s) => {
           if (pane === "dock") {
-            return { layout: { ...s.layout, dock: { ...s.layout.dock, visible: !s.layout.dock.visible } } };
+            return {
+              layout: {
+                ...s.layout,
+                dock: { ...s.layout.dock, visible: !s.layout.dock.visible },
+              },
+            };
           }
           if (pane === "explorer") {
             return {
               layout: {
                 ...s.layout,
-                explorer: { ...s.layout.explorer, visible: !s.layout.explorer.visible },
+                explorer: {
+                  ...s.layout.explorer,
+                  visible: !s.layout.explorer.visible,
+                },
               },
             };
           }
           if (pane === "chat") {
             return {
-              layout: { ...s.layout, chat: { ...s.layout.chat, visible: !s.layout.chat.visible } },
+              layout: {
+                ...s.layout,
+                chat: { ...s.layout.chat, visible: !s.layout.chat.visible },
+              },
             };
           }
           return s;
@@ -76,14 +87,29 @@ export const useUiStore = create<UiState>()(
         const clamped = Math.max(10, Math.min(50, widthPct));
         set((s) => {
           if (pane === "explorer") {
-            return { layout: { ...s.layout, explorer: { ...s.layout.explorer, widthPct: clamped } } };
+            return {
+              layout: {
+                ...s.layout,
+                explorer: { ...s.layout.explorer, widthPct: clamped },
+              },
+            };
           }
-          return { layout: { ...s.layout, chat: { ...s.layout.chat, widthPct: clamped } } };
+          return {
+            layout: {
+              ...s.layout,
+              chat: { ...s.layout.chat, widthPct: clamped },
+            },
+          };
         });
       },
       resizeDock: (heightPct) => {
         const clamped = Math.max(10, Math.min(50, heightPct));
-        set((s) => ({ layout: { ...s.layout, dock: { ...s.layout.dock, heightPct: clamped } } }));
+        set((s) => ({
+          layout: {
+            ...s.layout,
+            dock: { ...s.layout.dock, heightPct: clamped },
+          },
+        }));
       },
       setFocusedPane: (pane) => set({ focusedPane: pane }),
       resetLayout: () => set({ layout: DEFAULT_LAYOUT }),

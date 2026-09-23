@@ -15,7 +15,6 @@ interface ChatMessageProps {
   streaming?: boolean;
 }
 
-// biome-ignore lint/suspicious/noRedeclare: false positive — TS type/value namespaces separate
 export function ChatMessage({
   message,
   streaming = false,
@@ -54,9 +53,7 @@ export function ChatMessage({
               Fontes ({message.sources.length})
             </summary>
             <ul className="mt-1 list-disc space-y-0.5 pl-4">
-              {/* biome-ignore lint/suspicious/noArrayIndexKey: static list */}
               {message.sources.map((s, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: static list
                 <li key={i}>
                   <code className="rounded bg-muted px-1 font-mono text-[10px]">
                     {s.path}
@@ -88,7 +85,6 @@ function MarkdownLite({ content }: { content: string }): React.JSX.Element {
   const blocks = content.split(/\n{2,}/);
   return (
     <div className="space-y-2">
-      {/* biome-ignore lint/suspicious/noArrayIndexKey: static block index */}
       {blocks.map((block, bi) => {
         // Fenced code block
         const fence = block.match(/^```(\w*)\n([\s\S]*?)\n?```$/);
@@ -124,9 +120,7 @@ function MarkdownLite({ content }: { content: string }): React.JSX.Element {
           const items = block.split(/\n/).filter((l) => l.match(/^\s*[-*]\s+/));
           return (
             <ul key={bi} className="list-disc space-y-0.5 pl-5">
-              {/* biome-ignore lint/suspicious/noArrayIndexKey: static list */}
               {items.map((it, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: static list
                 <li key={i}>{renderInline(it.replace(/^\s*[-*]\s+/, ""))}</li>
               ))}
             </ul>
@@ -150,7 +144,6 @@ function renderInline(input: string): React.ReactNode {
   const codeRe = /`([^`]+)`/g;
   let match: RegExpExecArray | null;
   let idx = 0;
-  // biome-ignore lint/suspicious/noAssignInExpressions: regex iteration idiom
   while ((match = codeRe.exec(input)) !== null) {
     if (match.index > cursor) {
       parts.push(renderBold(input.slice(cursor, match.index), idx++));
@@ -177,7 +170,6 @@ function renderBold(text: string, keyBase: number): React.ReactNode {
   let cursor = 0;
   let m: RegExpExecArray | null;
   let i = 0;
-  // biome-ignore lint/suspicious/noAssignInExpressions: regex iteration idiom
   while ((m = boldRe.exec(text)) !== null) {
     if (m.index > cursor) parts.push(text.slice(cursor, m.index));
     parts.push(<strong key={`b-${keyBase}-${i++}`}>{m[1]}</strong>);

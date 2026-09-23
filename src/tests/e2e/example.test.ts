@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import {
   type ElectronApplication,
   _electron as electron,
@@ -5,8 +7,6 @@ import {
   type Page,
   test,
 } from "@playwright/test";
-import { existsSync } from "node:fs";
-import path from "node:path";
 
 /**
  * E2E smoke — my-memory viewer (Electron Forge).

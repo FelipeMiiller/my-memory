@@ -1,5 +1,5 @@
-import { ipcMain, type BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "@electron/constants";
+import { type BrowserWindow, ipcMain } from "electron";
 
 /**
  * Window controls IPC (ADR-053 / M1 polish).
@@ -13,7 +13,9 @@ import { IPC_CHANNELS } from "@electron/constants";
  * `MEM_WINDOW_IS_MAXIMIZED` for the renderer to display the right glyph.
  */
 
-export function registerWindowHandlers(getWindow: () => BrowserWindow | null): void {
+export function registerWindowHandlers(
+  getWindow: () => BrowserWindow | null,
+): void {
   ipcMain.handle(IPC_CHANNELS.MEM_WINDOW_MINIMIZE, () => {
     const win = getWindow();
     if (!win) return false;

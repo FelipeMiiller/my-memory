@@ -39,7 +39,8 @@ function parseCombo(combo: string): {
     if (lower === "ctrl" || lower === "control" || lower === "cmd") ctrl = true;
     else if (lower === "shift") shift = true;
     else if (lower === "alt" || lower === "option") alt = true;
-    else if (lower === "meta" || lower === "super" || lower === "win") meta = true;
+    else if (lower === "meta" || lower === "super" || lower === "win")
+      meta = true;
     else key = p.length === 1 ? p.toLowerCase() : p;
   }
   return { key: key.toLowerCase(), ctrl, shift, alt, meta };
