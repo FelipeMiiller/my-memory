@@ -14,7 +14,8 @@
       "!**/*.d.ts",
       "!**/dist",
       "!**/out",
-      "!**/.vite"
+      "!**/.vite",
+      "!**/.worktrees"
     ]
   },
   "javascript": {
