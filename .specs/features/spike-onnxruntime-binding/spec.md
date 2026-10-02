@@ -1,24 +1,24 @@
 ---
 title: spike-onnxruntime-binding — CGO build + fixture strategy
 category: resource
-summary: Spike de validação para decidir entre seguir com `yalue/onnxruntime_go` (CGO in-process) ou pivotar pra GGUF/CrispASR (subprocess JSON-RPC) antes de atacar T4 do nemotron-asr-streaming. Decide também estratégia de fixture (~5 MB mock vs 670 MB modelo real) e modelo de deploy (build tag + download lazy). Roda em branch própria, independente do PR #8.
+summary: Spike de validação para decidir entre seguir com `yalue/onnxruntime_go` (CGO in-process) ou pivotar pra GGUF/CrispASR (subprocess JSON-RPC) antes de atacar T4 do nemotron-asr-streaming. Decide também estratégia de fixture (~5 MB mock vs 670 MB modelo real) e modelo de deploy (build tag + download lazy). Executa diretamente em `develop`.
 status: draft
 tags: [asr, spike, cgo, onnx, fixture, validation, pre-t4]
 ---
 
 # spike-onnxruntime-binding — CGO build + fixture strategy
 
-> **Tipo:** Spike de validação (não é feature). Decisões tomadas aqui alimentam `feat/asr-nemotron-real` quando reaberto pós-PR #8 merge.
+> **Tipo:** Spike de validação (não é feature). Decisões tomadas aqui alimentam T4-T9 de `nemotron-asr-streaming` direto em `develop`.
 
-> [!warning] Branch obrigatória: `spike/onnxruntime-binding` (a partir de `develop`)
-> O smoke test é um package novo (`internal/asr/spike/`) que importa só `onnxruntime_go` + stdlib — **não tem dependência de T1-T3**. Rodar o spike em cima de `feat/asr-nemotron-real` (head do PR #8) contamina o PR com artefatos do spike e quebra o requisito de independence definido nos Success Criteria.
+> [!warning] Roda direto em `develop` — sem branch de feature
+> Decisão do Felipe (2026-10-02): o repositório passa a ter **só `develop` e `main`**. Trabalho acontece em `develop`; a promoção para `main` é sempre `develop` → `main`. O PR #8 já foi mergeado em `develop`, então não há mais nada a isolar:
 >
 > ```bash
 > git checkout develop && git pull
-> git checkout -b spike/onnxruntime-binding
+> # ... executa o spike com commits atômicos diretamente em develop
 > ```
 >
-> O PR #8 faz merge em qualquer ordem — antes ou depois do spike.
+> O smoke test é um package novo (`internal/asr/spike/`) que importa só `onnxruntime_go` + stdlib, e o padrão de build tag (P3) garante que o gate padrão (`gofmt -l . && go build ./... && go test -count=1 ./...`) continua verde sem a tag `nemotron`. Isso mantém `develop` saudável durante o spike.
 
 ## Problem Statement
 
@@ -142,7 +142,7 @@ Sem essa evidência, atacar T4 vira implementação às cegas. O spike gera 5 en
 - [ ] Verdict publicado no slot correto de ADR: **amend em `docs/adr/045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md` §Deferral §Status atual** (preferido) **ou** ADR novo numerado **054** se o amend não couber. **NÃO** criar `045-*.md` — o slot 045 está ocupado e o ADR-046 reserva N+1 pro filho.
 - [ ] Decisão final registrada em `.specs/features/spike-onnxruntime-binding/validation.md`: "T4 GO" ou "T4 PIVOT TO GGUF/CRISPASR" + rationale + evidência bruta (log do smoke, `go list -m -versions`, tamanho da lib)
 - [ ] Seção `§spike-onnxruntime-binding` criada em `.specs/STATE.md` (a seção `§nemotron-asr-streaming` **não existe** — `grep -i "nemotron|asr|spike" .specs/STATE.md` retorna vazio)
-- [ ] PR #8 (`feat/asr-nemotron-real`) pode mergear independente do spike (T2 noop stub é suficiente)
+- [x] ~~PR #8 (`feat/asr-nemotron-real`) pode mergear independente do spike~~ — **resolvido 2026-10-02**: PR #8 mergeado em `develop` (merge commit `9cf40c2`) antes do spike, provando na prática que o T2 noop stub basta
 
 ## Cross-references
 
@@ -153,7 +153,7 @@ Sem essa evidência, atacar T4 vira implementação às cegas. O spike gera 5 en
 - [`docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md`](../../../docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md) — pattern CGO in-process existente (reuso do mesmo binding se viável)
 - `.github/workflows/ci.yml` job `codeast-cgo-on` (L197-226) — precedente de job CGO-on com build tag opcional
 - `internal/codeast/treesitter_enabled.go` — padrão de stub sob build tag a ser copiado
-- PR #8 https://github.com/FelipeMiiller/my-memory/pull/8 — foundation T1/T2/T3 merged-pending
+- PR #8 https://github.com/FelipeMiiller/my-memory/pull/8 — foundation T1/T2/T3, **mergeado em `develop` em 2026-10-02** (`9cf40c2`)
 
 ## Outputs (deliverables)
 
