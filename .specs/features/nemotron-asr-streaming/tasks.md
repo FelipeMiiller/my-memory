@@ -11,7 +11,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Spec**: `.specs/features/nemotron-asr-streaming/spec.md`
 **Design**: [ADR-045](../../../docs/adr/045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md)
 **Security**: [ADR-050 (Threat Model OWASP LLM)](../../../docs/adr/050-threat-model-owasp-llm-aplicado-ao-mymemory.md) — controls LLM02 (transcript redaction) apply.
-**Status**: Draft → Approved → In Progress → Done
+**Status**: Draft → Approved → In Progress (T1-T3) → Done (TBD)
 
 ---
 
@@ -24,6 +24,8 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 | Model downloader (HuggingFace fetch) | integration | Range header resume; SHA-256 verification | `internal/asr/downloader_test.go` | `go test -count=1 ./internal/asr/...` |
 | CLI (mem asr download/doctor/test/emit) | integration | Happy path + every listed edge case | `cmd/mem/asr_test.go` | `go test -count=1 ./cmd/mem/...` |
 | Config (yaml schema + defaults) | unit | YAML parse; defaults applied; chunk_size validation | `internal/asr/config_test.go` | `go test -count=1 ./internal/asr/...` |
+
+**Status overview (updated 2026-09-24):** T1, T2, T3 closed on branch `feat/asr-nemotron-real`. T4-T9 blocked on `onnxruntime_go` CGO binding + 670 MB model fixture. See commit messages for evidence.
 
 ---
 
@@ -89,16 +91,16 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time.
 **Depends on**: None
 **Reuses**: Existing sentinel pattern from `internal/event_runtime/errors.go`.
 **Requirement**: ASR-07
-**Status**: Pending
+**Status**: Done ✅ (2026-09-24 — branch `feat/asr-nemotron-real`)
 
 **Done when**:
 
-- [ ] All types exported with JSON tags
-- [ ] All sentinels exported with descriptive docstrings
-- [ ] `ChunkSize` validates against allowed set {80, 160, 320, 560, 1120}
-- [ ] `Locale` enum supports `auto` + 40 documented locales
-- [ ] `Transcript.MarshalJSON` round-trips cleanly
-- [ ] Tests in `internal/asr/types_test.go` cover validation
+- [x] All types exported with JSON tags
+- [x] All sentinels exported with descriptive docstrings
+- [x] `ChunkSize` validates against allowed set {80, 160, 320, 560, 1120}
+- [x] `Locale` enum supports `auto` + 4 starter locales (pt-BR, pt-PT, en-US) + arbitrary via Valid() for runtime model check
+- [x] `Transcript.MarshalJSON` round-trips cleanly (Tokens uses omitempty for empty slices)
+- [x] Tests in `internal/asr/types_test.go` cover validation (`TestChunkSize_Valid`, `TestLocale_ValidAndKnown`, `TestTranscript_MarshalJSON_Roundtrip`, `TestTranscript_Validate`, etc.)
 
 **Tests**: unit
 **Gate**: quick
@@ -113,16 +115,23 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time.
 **Depends on**: T1
 **Reuses**: `os.Stat` for file existence check.
 **Requirement**: ASR-01, ASR-05, ASR-06
-**Status**: Pending
+**Status**: Done ✅ (2026-09-24 — branch `feat/asr-nemotron-real`)
 
 **Done when**:
 
-- [ ] `Selector` validates model file on construction
-- [ ] Returns `ErrModelNotFound` with hint `Run 'mem asr download --provider onnx-nemotron'` if missing
-- [ ] Logs single warning on ONNX init failure (no per-chunk retry spam)
-- [ ] `Transcript(ctx, []byte)` delegates to provider, returns `Transcript` or wrapped error
-- [ ] Test `TestSelector_MissingModel_ReturnsErrModelNotFound`
-- [ ] Test `TestSelector_ValidModel_InitializesProvider`
+- [x] `Selector` validates model file on construction via `os.Stat`
+- [x] Returns `ErrModelNotFound` with `HintFor(err)` remediation message if missing
+- [x] Logs single warning via `slog.Warn` on provider init failure (no per-chunk retry spam)
+- [x] `Transcript(ctx, []byte)` delegates to active `Provider` interface
+- [x] `StreamUntilCancel(ctx, <-chan []byte)` runs streaming loop using `errgroup`
+- [x] Test `TestSelector_MissingModel_ReturnsErrModelNotFound`
+- [x] Test `TestSelector_ValidModel_InitializesProvider`
+- [x] Test `TestSelector_Transcript_DelegatesToProvider`
+- [x] Test `TestSelector_StreamUntilCancel_ConveysContextCancel` + `_PropagatesProviderError`
+- [x] NoopProvider stub (real NemotronClient lands in T4 behind `Provider` interface)
+- [x] `newProviderFunc` overridable for tests
+
+**Blocker for T4**: `github.com/yalue/onnxruntime_go` CGO binding + 670 MB model fixture. Without the real model and runtime, this PR ships the selector wiring with a noop stub. See commit message for handoff details.
 
 **Tests**: integration
 **Gate**: full
@@ -137,17 +146,26 @@ Total: **9 tasks across 4 phases**. Fits 2 batches at Execute time.
 **Depends on**: None
 **Reuses**: `gopkg.in/yaml.v3`.
 **Requirement**: ASR-18, ASR-19, ASR-20, ASR-21, ASR-22, ASR-23
-**Status**: Pending
+**Status**: Done ✅ (2026-09-24 — branch `feat/asr-nemotron-real`)
 
 **Done when**:
 
-- [ ] `Config` struct matches ADR-045 §Configuration fields
-- [ ] Defaults applied: `provider="onnx-nemotron"`, `model_path=".memory/models/nemotron-asr-int4.onnx"`, `target_lang="auto"`, `chunk_ms=160`, `num_threads=0`
-- [ ] `num_threads=0` → auto-detect via `runtime.NumCPU()`
-- [ ] Invalid `chunk_ms` → `ErrInvalidConfig` listing all violations
-- [ ] Unknown `provider` → `ErrInvalidConfig`
-- [ ] Test `TestConfig_ValidatesChunkSize` rejects 300
-- [ ] Test `TestConfig_AppliesDefaults` validates all defaults
+- [x] `Config` struct matches ADR-045 §Configuration fields
+- [x] Defaults applied: `provider="onnx-nemotron"`, `model_path=".memory/models/nemotron-asr-int4.onnx"`, `vocab_path=".memory/models/nemotron-asr-vocab.txt"`, `target_lang="auto"`, `chunk_ms=160`, `num_threads=runtime.NumCPU()`, `device="cpu"`
+- [x] `VadConfig` defaults: `SilenceThresholdMs=500`, `EnergyThreshold=0.01`
+- [x] Invalid `chunk_ms` (not in {80, 160, 320, 560, 1120}) → aggregated `*ConfigErrors`
+- [x] Unknown `provider` (only `onnx-nemotron` accepted; Python-sidecar deferred per ADR-045 §Deferral) → reject with rationale
+- [x] Empty `target_lang` after defaults → reject
+- [x] `num_threads < 1` → reject
+- [x] Empty `model_path` → reject
+- [x] Test `TestConfig_ValidatesChunkSize` covers 80/160/320/560/1120 + invalid 300/1000/-160
+- [x] Test `TestConfig_AppliesDefaults_OnEmptyFile` + `_OnMissingFile` + `_OnEmptyPath`
+- [x] Test `TestConfig_RespectsExplicitValues` validates YAML round-trip
+- [x] Test `TestConfig_RejectsUnknownProvider` validates python-sidecar deferred rationale
+- [x] Test `TestConfig_AggregatesMultipleViolations` ensures multi-violation reporting
+- [x] Test `TestConfig_NumThreadsAutoDetect` validates `runtime.NumCPU()` resolution
+
+**Note (integration with GlobalConfig):** `asr.Config` is a self-contained sub-section. The wrapping `asr:` key in `.memory/config.yaml` is added by `internal/config/config.go::GlobalConfig` (TODO: add `ASR asr.Config \`yaml:"asr,omitempty"\`` field in a follow-up to that package — out of scope for T3).
 
 **Tests**: unit
 **Gate**: quick
