@@ -1,20 +1,22 @@
 import * as React from "react";
 import { createRoot } from "react-dom/client";
-import Layout from "@/layouts/layout";
+import { WorkspaceShell } from "@/layouts/workspace-shell";
 import "@/localization/i18n";
 import "@/styles/global.css";
 
 /**
- * App.tsx — my-memory viewer entry point (Phase 1 MVP).
+ * App.tsx — my-memory viewer entry point (v3 workspace, ADR-053).
  *
- * Renders the full Layout (topbar + Resizable sidebar + Tabs).
- * Tab "Grafo" is the default active tab and mounts <GraphView /> which
- * loads ./data-central.json via fetch and renders Cytoscape.
+ * M1 of the Roadmap v3 introduces the 3-pane workspace shell. Chat moved
+ * from a top-level tab (Phase 1, v2.0.0) into the right pane.
  *
- * Phase 2 will replace fetch + state with `window.memAPI.loadDataset()` IPC.
+ * Phase 2 / Roadmap v3:
+ *   - File Explorer stub → real `mem:fs:list` in M3
+ *   - Editor pane placeholder → CodeMirror 6 in M3
+ *   - Dock placeholder → xterm.js + node-pty in M4
  */
 export default function App(): React.JSX.Element {
-  return <Layout />;
+  return <WorkspaceShell />;
 }
 
 const container = document.getElementById("app");

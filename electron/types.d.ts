@@ -98,3 +98,71 @@ interface MemSearchResponse {
   query: string;
   results: ReadonlyArray<MemSearchResult>;
 }
+
+// ASR (Nemotron streaming, ADR-045) — shared between main and renderer.
+//
+// Audio pipeline:
+//   1. Renderer calls getUserMedia({audio: {sampleRate: 16000, channelCount: 1}})
+//   2. Captures 16 kHz mono Float32, converts to Int16 PCM, batches into 160ms chunks
+//   3. Each chunk → `mem:asr:chunk` (Int16Array — structured-cloneable)
+//   4. Main emits `mem:asr:partial` per intermediate transcript and
+//      `mem:asr:final` on end-of-utterance (>500ms silence, ADR-045 §Configuration).
+//
+// The real Nemotron 3.5 ONNX client lives in `internal/asr/nemotron_onnx.go`.
+// These handlers are stubs until the model is downloaded (`mem asr download`).
+
+interface AsrStartRequest {
+  /** Optional BCP-47 locale (e.g. "pt-BR", "en-US"). Defaults to "auto". */
+  locale?: string;
+  /** Correlation id from the upstream chat turn — propagated into envelopes. */
+  conversationTurnId?: string;
+}
+
+interface AsrStartResponse {
+  sessionId: string;
+}
+
+interface AsrChunkRequest {
+  sessionId: string;
+  /** Int16 little-endian mono PCM at 16 kHz. Renderer batches 160ms (2560 samples). */
+  pcm: Int16Array;
+  /** Sample rate in Hz. Always 16000 in this build. */
+  sampleRate: number;
+}
+
+interface AsrStopRequest {
+  sessionId: string;
+}
+
+interface AsrStopResponse {
+  finalized: boolean;
+}
+
+interface AsrPartialEvent {
+  sessionId: string;
+  /** Interim transcript text. Replaces prior partial for the same session. */
+  transcript: string;
+  /** Confidence in [0, 1] when reported by the model; omit if unavailable. */
+  confidence?: number;
+}
+
+interface AsrFinalEvent {
+  sessionId: string;
+  transcript: string;
+  durationMs: number;
+  locale: string;
+}
+
+type AsrErrorKind =
+  | "model_missing"
+  | "model_loading"
+  | "permission_denied"
+  | "invalid_audio"
+  | "aborted"
+  | "unknown";
+
+interface AsrErrorEvent {
+  sessionId: string;
+  kind: AsrErrorKind;
+  message: string;
+}
