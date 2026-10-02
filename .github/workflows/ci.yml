@@ -241,13 +241,18 @@ jobs:
               codeast.LogTreesitterBootStatus()
           }
           EOF
-          cd /tmp && go mod init bootcheck >/dev/null 2>&1 || true
-          # Use the local module via replace directive
+          # Use the local module via replace directive.
+          # The bootstrap module MUST be initialised under the repo module path:
+          # Go evaluates the `internal/` visibility rule against the *importing
+          # module path*, not the filesystem location, so a bare `bootcheck`
+          # module is rejected with
+          #   "use of internal package .../internal/codeast not allowed"
+          # even when `replace` points at the local checkout.
           mkdir -p /tmp/bootcheck && cd /tmp/bootcheck
           cp /tmp/bootcheck.go main.go
-          go mod init bootcheck 2>/dev/null || true
+          go mod init github.com/FelipeMiiller/my-memory/bootcheck
           go mod edit -replace github.com/FelipeMiiller/my-memory=$GITHUB_WORKSPACE
-          go mod tidy 2>/dev/null || true
+          go mod tidy
           go run -tags treesitter .
 
   codeast-cgo-off:
@@ -296,9 +301,11 @@ jobs:
               codeast.LogTreesitterBootStatus()
           }
           EOF
-          go mod init bootcheck 2>/dev/null || true
+          # Module path must sit under the repo path for the same `internal/`
+          # import rule reason documented in the codeast-cgo-on job.
+          go mod init github.com/FelipeMiiller/my-memory/bootcheck_off
           go mod edit -replace github.com/FelipeMiiller/my-memory=$GITHUB_WORKSPACE
-          go mod tidy 2>/dev/null || true
+          go mod tidy
           go run .
 
   build-verification:
