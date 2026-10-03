@@ -310,6 +310,30 @@ if content != "" {
 | ISSUE-008 | 🟠 high | ✅ resolved (bc70c5f + 0137779) | 2026-09-17 |
 | ISSUE-009 | 🟡 medium | ✅ resolved (ADR-041, 4c19393) | 2026-09-18 |
 | ISSUE-010 | 🟠 high | ✅ resolved | 2026-09-18 |
+| ISSUE-011 | 🟡 medium | 🔵 open | 2026-10-03 |
+
+## ISSUE-011 — Teste flaky `TestSelector_StreamUntilCancel_ConveysContextCancel` (falha ~50%)
+- **Severidade:** 🟡 medium
+- **Status:** 🔵 open
+- **Achado em:** sessão 2026-10-03, quality gate pós-merge dos PRs #6 e #7
+- **Local:** `internal/asr/selector_test.go:166` e `internal/asr/selector.go:157-163`
+
+**Sintoma:** `go test -count=1 ./internal/asr/` falha de forma intermitente (3 de 6 runs observados). Passa isolado com `-run`. Não reprovou nos runners Linux do CI, mas falha ~50% das vezes no Windows.
+
+**Causa raiz:** corrida sorteada pelo `select` do Go. O teste chama `cancel()` *antes* de `StreamUntilCancel`, e uma goroutine fecha o canal `in` ao observar `ctx.Done()`. Com os dois casos prontos ao mesmo tempo, o `select` de `selector.go:157-163` escolhe uniformemente ao acaso:
+
+- caminho A — `<-gctx.Done()`: retorna `gctx.Err()`, teste **passa**
+- caminho B — `<-in` já fechado: retorna `nil`, teste **falha**
+
+O assert `errors.Is(err, context.Canceled)` só cobre o caminho A.
+
+**Impacto:** o CI pode ficar vermelho de forma intermitente e não-determinística, o que treina o time a ignorar falha de teste. Não é bug de produção: os dois caminhos são legítimos.
+
+**Correção proposta (sem ADR — é bug de teste):** tornar o teste determinístico em vez de sortear o desfecho. Duas opções:
+1. Cancelar *depois* de `StreamUntilCancel` estar em execução (sinalizar readiness), garantindo que só o cancelamento esteja pronto.
+2. Aceitar os dois desfechos (`context.Canceled` **ou** `nil` com `in` fechado) e adicionar caso separado que force o cancelamento para cobrir o caminho A de forma determinística.
+
+**Observação relacionada:** o drain `select { case <-out: default: }` nas linhas 188-194 do mesmo teste não verifica nada e pode ser removido.
 
 ---
 
