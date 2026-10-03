@@ -57,3 +57,6 @@ config-local.txt
 debug-*.cjs
 test-*.cjs
 test-results/
+
+# Git worktrees locais (contêm repositórios git aninhados — nunca commitar)
+.worktrees/

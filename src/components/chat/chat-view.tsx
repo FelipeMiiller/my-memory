@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { ChatSidebar } from "./chat-sidebar";
 import { ChatThread } from "./chat-thread";
 import { ChatInput } from "./chat-input";
@@ -16,6 +17,7 @@ import type { ChatMessage, MemSearchResult } from "@/lib/chat/types";
  */
 
 export function ChatView(): React.JSX.Element {
+  const { i18n } = useTranslation();
   const conversations = useChatStore((s) => s.conversations);
   const activeId = useChatStore((s) => s.activeConversationId);
   const config = useChatStore((s) => s.config);
@@ -101,7 +103,9 @@ export function ChatView(): React.JSX.Element {
   return (
     <div className="flex h-full w-full" data-testid="chat-view">
       <aside className="w-64 shrink-0" data-testid="chat-view-sidebar">
-        <ChatSidebar onOpenSettings={() => setSettingsOpen(true)} />
+        {/* Settings entry point lives in the chat header (⚙), by design —
+            see ChatSidebar docblock. No second trigger here. */}
+        <ChatSidebar />
       </aside>
       <main className="flex min-w-0 flex-1 flex-col" data-testid="chat-view-main">
         <div className="flex items-center justify-between border-b border-border bg-card/30 px-4 py-2">
@@ -124,6 +128,7 @@ export function ChatView(): React.JSX.Element {
         </div>
         <ChatThread />
         <ChatInput
+          asrLocale={i18n.language.startsWith("pt") ? "pt-BR" : "en-US"}
           streaming={streaming.kind === "streaming"}
           hasApiKey={activeHasKey}
           onSend={(t) => void handleSend(t)}

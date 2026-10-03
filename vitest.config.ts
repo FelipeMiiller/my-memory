@@ -1,6 +1,6 @@
-import { defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react";
 import path from "node:path";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
 
 // my-memory vitest config — Phase 1 MVP.
 //

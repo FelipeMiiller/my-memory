@@ -1,24 +1,30 @@
+import { Brain, Github, Moon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { Brain, Github, Moon } from "lucide-react";
+import { ChatView } from "@/components/chat";
+import { GraphView } from "@/components/graph";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  ResizablePanelGroup,
-  ResizablePanel,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
   ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { GraphView } from "@/components/graph";
-import { ChatView } from "@/components/chat";
-import { LocaleSwitcher } from "@/components/locale-switcher";
 import { cn } from "@/utils/tailwind";
 
 /**
@@ -61,9 +67,7 @@ export default function Layout(): React.JSX.Element {
               <Brain className="h-5 w-5" aria-hidden="true" />
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold">
-                {t("app.title")}
-              </span>
+              <span className="text-sm font-semibold">{t("app.title")}</span>
               <span className="text-xs text-muted-foreground">
                 {t("app.subtitle")}
               </span>
@@ -71,7 +75,11 @@ export default function Layout(): React.JSX.Element {
           </div>
 
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="gap-1" data-testid="theme-badge">
+            <Badge
+              variant="secondary"
+              className="gap-1"
+              data-testid="theme-badge"
+            >
               <Moon className="h-3 w-3" aria-hidden="true" />
               {t("badge.dark")}
             </Badge>
@@ -168,10 +176,7 @@ export default function Layout(): React.JSX.Element {
                 className="flex h-full flex-col"
               >
                 <div className="border-b border-border bg-card/30 px-4 py-3">
-                  <TabsList
-                    className="inline-flex h-9"
-                    data-testid="tabs-list"
-                  >
+                  <TabsList className="inline-flex h-9" data-testid="tabs-list">
                     <TabsTrigger value="graph" data-testid="tab-trigger-graph">
                       {t("tab.graph")}
                     </TabsTrigger>
@@ -188,9 +193,7 @@ export default function Layout(): React.JSX.Element {
                           </TabsTrigger>
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent>
-                        {t("phase2.codeTooltip")}
-                      </TooltipContent>
+                      <TooltipContent>{t("phase2.codeTooltip")}</TooltipContent>
                     </Tooltip>
 
                     <Tooltip>
@@ -291,7 +294,9 @@ function SidebarLink({
         "flex flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-sm transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         active && "bg-accent text-accent-foreground",
-        !active && !disabled && "hover:bg-accent/60 hover:text-accent-foreground",
+        !active &&
+          !disabled &&
+          "hover:bg-accent/60 hover:text-accent-foreground",
         disabled && "cursor-not-allowed opacity-50",
       )}
     >
@@ -323,9 +328,7 @@ function PhasePlaceholder({
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-muted-foreground">
         <p>{description}</p>
-        <p>
-          {t("phase2.graphTabNotice", { tab: t("tab.graph") })}
-        </p>
+        <p>{t("phase2.graphTabNotice", { tab: t("tab.graph") })}</p>
       </CardContent>
     </Card>
   );
