@@ -7,12 +7,14 @@ export const IPC_CHANNELS = {
   MEM_DATASET_LOAD: "mem:dataset:load",
   MEM_CLI_RUN: "mem:cli:run",
   MEM_REVEAL: "mem:reveal",
-  // Chat (ADR-051) — request/response via invoke, streaming via events
+  // Chat (ADR-051, ADR-052) — request/response via invoke, streaming via events
   MEM_CHAT_SEND: "mem:chat:send",
   MEM_CHAT_ABORT: "mem:chat:abort",
   MEM_CHAT_CONFIG_GET: "mem:chat:config:get",
   MEM_CHAT_CONFIG_SET: "mem:chat:config:set",
   MEM_CHAT_MEM_SEARCH: "mem:chat:mem-search",
+  MEM_CHAT_PROVIDERS_GET: "mem:chat:providers:get",
+  MEM_CHAT_MODELS_DISCOVER: "mem:chat:models:discover",
   // Events (one-way, main → renderer)
   MEM_CHAT_DELTA: "mem:chat:delta",
   MEM_CHAT_DONE: "mem:chat:done",

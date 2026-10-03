@@ -1,43 +1,66 @@
 /**
  * Chat types — renderer side.
  *
- * Mirrors the ambient declarations in `electron/types.d.ts`.
- * Keep both files in sync. If they drift, tsc will not catch it (these are
- * structural shapes), so the E2E test in src/tests/e2e/chat.test.ts should
- * import both sides and assert shape compatibility.
+ * Mirrors the ambient declarations in `electron/types.d.ts`. Keep in sync.
  */
 
 export type ChatProvider = "anthropic" | "openai";
 
-export const CHAT_MODELS: Record<ChatProvider, readonly string[]> = {
-  anthropic: ["claude-opus-4-1", "claude-sonnet-4-5", "claude-haiku-4-5"],
-  openai: ["gpt-4o", "gpt-4o-mini", "o3", "o3-mini"],
-} as const;
+export type ApiType = "chat-completions" | "responses" | "messages";
+export type ReasoningEffort = "low" | "medium" | "high";
 
-export const CHAT_PROVIDER_NAMES: Record<ChatProvider, string> = {
-  anthropic: "Anthropic Claude",
-  openai: "OpenAI",
-} as const;
+export interface LanguageModelConfig {
+  id: string;
+  name: string;
+  url?: string;
+  apiType?: ApiType;
+  toolCalling?: boolean;
+  vision?: boolean;
+  thinking?: boolean;
+  streaming?: boolean;
+  maxInputTokens?: number;
+  maxOutputTokens?: number;
+  supportsReasoningEffort?: ReasoningEffort[];
+  zeroDataRetentionEnabled?: boolean;
+  requestHeaders?: Record<string, string>;
+}
 
-export const DEFAULT_CHAT_CONFIG: ChatConfig = {
-  provider: "anthropic",
-  model: "claude-sonnet-4-5",
-  useMemory: true,
-  hasApiKey: false,
-};
+export interface ChatProviderConfig {
+  vendor: string;
+  name: string;
+  apiType?: ApiType;
+  baseUrl?: string;
+  models: LanguageModelConfig[];
+  autoDiscover?: boolean;
+}
 
+export interface ChatLanguageModelsConfig {
+  schemaVersion: 1;
+  providers: ChatProviderConfig[];
+}
+
+export interface ChatModelSummary {
+  id: string;
+  name?: string;
+}
+
+export interface ChatProvidersResponse {
+  providers: ChatProviderConfig[];
+}
+
+/** Renderer-safe view of chat config — never includes apiKeys. */
 export interface ChatConfig {
-  provider: ChatProvider;
-  model: string;
+  activeVendor: string;
+  activeModelId: string;
   useMemory: boolean;
-  hasApiKey: boolean;
+  providers: Array<{ vendor: string; hasApiKey: boolean }>;
 }
 
 export interface ChatConfigUpdate {
-  provider?: ChatProvider;
-  model?: string;
-  apiKey?: string;
+  apiKeys?: Record<string, string>;
   useMemory?: boolean;
+  activeVendor?: string;
+  activeModelId?: string;
 }
 
 export interface ChatMessage {
@@ -52,6 +75,8 @@ export interface ChatSendRequest {
   conversationId: string;
   messages: ReadonlyArray<ChatMessage>;
   system?: string;
+  vendor: string;
+  modelId: string;
 }
 
 export interface ChatSendResponse {
@@ -69,12 +94,7 @@ export interface ChatDoneEvent {
   latencyMs: number;
 }
 
-export type ChatErrorKind =
-  | "auth"
-  | "rate_limit"
-  | "network"
-  | "invalid"
-  | "unknown";
+export type ChatErrorKind = "auth" | "rate_limit" | "network" | "invalid" | "unknown";
 
 export interface ChatError {
   kind: ChatErrorKind;
@@ -96,6 +116,14 @@ export interface MemSearchResult {
 export interface MemSearchResponse {
   query: string;
   results: ReadonlyArray<MemSearchResult>;
+}
+
+export interface ChatConversation {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: ChatMessage[];
 }
 
 // ASR (Nemotron streaming, ADR-045) — renderer-side mirrors of the ambient
@@ -154,13 +182,4 @@ export interface AsrErrorEvent {
   sessionId: string;
   kind: AsrErrorKind;
   message: string;
-}
-
-// Renderer-side conversation grouping (persisted in IndexedDB).
-export interface ChatConversation {
-  id: string;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-  messages: ChatMessage[];
 }

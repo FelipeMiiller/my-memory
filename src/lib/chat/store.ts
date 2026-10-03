@@ -1,28 +1,25 @@
 import { create } from "zustand";
-import { chatApi } from "@/lib/chat/ipc";
-import {
-  deleteConversation as deleteConv,
-  listConversations,
-  saveConversation,
-} from "@/lib/chat/persistence";
 import type {
   ChatConfig,
   ChatConversation,
   ChatError,
   ChatMessage,
+  ChatProviderConfig,
+  LanguageModelConfig,
 } from "@/lib/chat/types";
-import { DEFAULT_CHAT_CONFIG } from "@/lib/chat/types";
+import {
+  listConversations,
+  saveConversation,
+  deleteConversation as deleteConv,
+} from "@/lib/chat/persistence";
+import { chatApi } from "@/lib/chat/ipc";
 
 /**
- * Zustand store (ADR-051).
+ * Zustand store (ADR-051, ADR-052).
  *
- * Single source of truth for chat UI state. Persists conversations to
- * IndexedDB on every mutation. Holds the streaming requestId and the
- * in-flight assistant message id.
- *
- * Notes:
- * - API keys NEVER live here. Only `config.hasApiKey: boolean` (set by main).
- * - Streaming state is a small tagged union so React components can pattern-match.
+ * Phase 2: providers come from chatLanguageModels.json (dynamic). Store
+ * tracks activeVendor + activeModelId. Active provider's `hasApiKey` is
+ * derived from config.providers list (set by main, never the key itself).
  */
 
 export type StreamingState =
@@ -35,17 +32,18 @@ interface ChatState {
   activeConversationId: string | null;
   streaming: StreamingState;
   config: ChatConfig;
+  providers: ChatProviderConfig[];
   error: ChatError | null;
 
-  // Conversations
   loadConversations: () => Promise<void>;
+  loadProviders: () => Promise<void>;
+  discoverModels: (vendor: string) => Promise<void>;
   createConversation: () => Promise<string>;
   ensureActiveConversation: () => Promise<string>;
   selectConversation: (id: string) => void;
   deleteConversation: (id: string) => Promise<void>;
   renameConversation: (id: string, title: string) => Promise<void>;
 
-  // Messages
   appendUserMessage: (text: string) => string;
   startAssistantMessage: () => string;
   setStreamingRequestId: (requestId: string) => void;
@@ -53,16 +51,20 @@ interface ChatState {
   finalizeAssistantMessage: () => Promise<void>;
   abortStreaming: () => Promise<void>;
 
-  // Config
   loadConfig: () => Promise<void>;
   setConfig: (update: Partial<ChatConfig>) => Promise<void>;
 
-  // Errors
   setError: (e: ChatError | null) => void;
   clearError: () => void;
 }
 
 const CONV_TITLE_MAX = 60;
+const FALLBACK_CONFIG: ChatConfig = {
+  activeVendor: "anthropic",
+  activeModelId: "claude-sonnet-4-5",
+  useMemory: true,
+  providers: [],
+};
 
 function generateId(): string {
   return (
@@ -74,23 +76,7 @@ function generateId(): string {
 function deriveTitle(firstUserMessage: string): string {
   const trimmed = firstUserMessage.trim().replace(/\s+/g, " ");
   if (trimmed.length === 0) return "Nova conversa";
-  return trimmed.length > CONV_TITLE_MAX
-    ? `${trimmed.slice(0, CONV_TITLE_MAX)}…`
-    : trimmed;
-}
-
-// biome-ignore lint/correctness/noUnusedVariables: kept for future helpers
-function mutateActiveConversation(
-  set: (partial: (s: ChatState) => Partial<ChatState>) => void,
-  get: () => ChatState,
-  fn: (c: ChatConversation) => ChatConversation,
-): void {
-  const id = get().activeConversationId;
-  if (!id) return;
-  set((s) => ({
-    conversations: s.conversations.map((c) => (c.id === id ? fn(c) : c)),
-  }));
-  void persistActive(get);
+  return trimmed.length > CONV_TITLE_MAX ? `${trimmed.slice(0, CONV_TITLE_MAX)}…` : trimmed;
 }
 
 async function persistActive(get: () => ChatState): Promise<void> {
@@ -104,12 +90,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   activeConversationId: null,
   streaming: { kind: "idle" },
-  config: DEFAULT_CHAT_CONFIG,
+  config: FALLBACK_CONFIG,
+  providers: [],
   error: null,
 
   loadConversations: async () => {
     const list = await listConversations();
     set({ conversations: list });
+  },
+
+  loadProviders: async () => {
+    try {
+      const res = await chatApi.getProviders();
+      set({ providers: res.providers });
+    } catch (err) {
+      console.warn("[chat/store] loadProviders failed:", err);
+    }
+  },
+
+  discoverModels: async (vendor) => {
+    try {
+      const res = await chatApi.discoverModels(vendor);
+      set((s) => ({
+        providers: s.providers.map((p) =>
+          p.vendor === vendor ? { ...p, models: res.models.map(toLanguageModelConfig) } : p,
+        ),
+      }));
+    } catch (err) {
+      console.warn(`[chat/store] discoverModels(${vendor}) failed:`, err);
+    }
   },
 
   createConversation: async () => {
@@ -138,10 +147,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectConversation: (id) => {
-    set({
-      activeConversationId: id,
-      streaming: { kind: "idle" },
-    });
+    set({ activeConversationId: id, streaming: { kind: "idle" } });
   },
 
   deleteConversation: async (id) => {
@@ -149,13 +155,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => {
       const remaining = s.conversations.filter((c) => c.id !== id);
       const nextActive =
-        s.activeConversationId === id
-          ? (remaining[0]?.id ?? null)
-          : s.activeConversationId;
-      return {
-        conversations: remaining,
-        activeConversationId: nextActive,
-      };
+        s.activeConversationId === id ? (remaining[0]?.id ?? null) : s.activeConversationId;
+      return { conversations: remaining, activeConversationId: nextActive };
     });
   },
 
@@ -163,21 +164,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const conv = get().conversations.find((c) => c.id === id);
     if (!conv) return;
     const updated: ChatConversation = { ...conv, title, updatedAt: Date.now() };
-    set((s) => ({
-      conversations: s.conversations.map((c) => (c.id === id ? updated : c)),
-    }));
+    set((s) => ({ conversations: s.conversations.map((c) => (c.id === id ? updated : c)) }));
     await saveConversation(updated);
   },
 
   appendUserMessage: (text) => {
     const id = generateId();
     const convId = get().activeConversationId;
-    if (!convId) {
-      // Defensive — caller should call ensureActiveConversation first.
-      throw new Error(
-        "No active conversation — call ensureActiveConversation() first.",
-      );
-    }
+    if (!convId) throw new Error("No active conversation — call ensureActiveConversation() first.");
     const msg: ChatMessage = {
       id,
       role: "user",
@@ -203,17 +197,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   startAssistantMessage: () => {
     const id = generateId();
     const convId = get().activeConversationId;
-    if (!convId) {
-      throw new Error(
-        "No active conversation — call ensureActiveConversation() first.",
-      );
-    }
-    const msg: ChatMessage = {
-      id,
-      role: "assistant",
-      content: "",
-      createdAt: Date.now(),
-    };
+    if (!convId) throw new Error("No active conversation — call ensureActiveConversation() first.");
+    const msg: ChatMessage = { id, role: "assistant", content: "", createdAt: Date.now() };
     set((s) => ({
       conversations: s.conversations.map((c) =>
         c.id === convId
@@ -226,12 +211,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   setStreamingRequestId: (requestId) => {
-    set((s) => {
-      if (s.streaming.kind !== "streaming") return s;
-      return {
-        streaming: { ...s.streaming, requestId },
-      };
-    });
+    set((s) => (s.streaming.kind !== "streaming" ? s : { streaming: { ...s.streaming, requestId } }));
   },
 
   appendDelta: (text) => {
@@ -244,9 +224,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             ? {
                 ...c,
                 messages: c.messages.map((m) =>
-                  m.id === assistantMessageId
-                    ? { ...m, content: m.content + text }
-                    : m,
+                  m.id === assistantMessageId ? { ...m, content: m.content + text } : m,
                 ),
               }
             : c,
@@ -271,7 +249,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         console.warn("[chat/store] abort failed:", err);
       }
     }
-    // Keep partial content; mark aborted then immediately return to idle.
     set({ streaming: { kind: "aborted", assistantMessageId } });
     await persistActive(get);
     set({ streaming: { kind: "idle" } });
@@ -288,7 +265,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setConfig: async (update) => {
     try {
-      const cfg = await chatApi.setConfig(update);
+      // Map the partial ChatConfig to ChatConfigUpdate shape for IPC.
+      const ipcUpdate = {
+        activeVendor: update.activeVendor,
+        activeModelId: update.activeModelId,
+        useMemory: update.useMemory,
+        apiKeys: (update as { apiKeys?: Record<string, string> }).apiKeys,
+      };
+      const cfg = await chatApi.setConfig(ipcUpdate);
       set({ config: cfg });
     } catch (err) {
       console.warn("[chat/store] setConfig failed:", err);
@@ -299,3 +283,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setError: (e) => set({ error: e }),
   clearError: () => set({ error: null }),
 }));
+
+function toLanguageModelConfig(s: { id: string; name?: string }): LanguageModelConfig {
+  return { id: s.id, name: s.name ?? s.id };
+}
