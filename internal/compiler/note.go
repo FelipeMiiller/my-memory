@@ -9,8 +9,130 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/FelipeMiiller/my-memory/internal/parser"
 )
+
+// stripBOM remove o Byte Order Mark (U+FEFF) do início de uma string.
+//
+// O PowerShell injeta BOM em pipes e em Set-Content no Windows, e
+// strings.TrimSpace NÃO remove U+FEFF porque unicode.IsSpace(U+FEFF) é false
+// (BOM é categoria Cf, não White_Space). Isso quebrava a detecção de
+// frontmatter em WriteAtomicNote e produzia frontmatter duplicado no arquivo.
+//
+// Ver ISSUE-013.
+func stripBOM(s string) string {
+	return strings.TrimPrefix(s, "\ufeff")
+}
+
+// splitFrontmatter separa um bloco YAML de abertura no início do conteúdo.
+// Retorna (blocoYaml, resto, true) quando existe frontmatter válido e
+// fechado por um segundo "---".
+func splitFrontmatter(content string) (string, string, bool) {
+	if !strings.HasPrefix(content, "---") {
+		return "", content, false
+	}
+	rest := content[3:]
+	rest = strings.TrimPrefix(rest, "\r")
+	rest = strings.TrimPrefix(rest, "\n")
+	if rest == "" {
+		return "", content, false
+	}
+	// Procura a linha de fechamento "---" (ignorando prefixo de '-').
+	for i, line := range strings.Split(rest, "\n") {
+		trimmed := strings.TrimRight(strings.TrimLeft(line, " \t"), "\r")
+		if strings.HasPrefix(trimmed, "---") {
+			before := rest
+			if i > 0 {
+				before = strings.Join(strings.Split(rest, "\n")[:i], "\n")
+			}
+			afterLines := strings.Split(rest, "\n")
+			after := ""
+			if i+1 < len(afterLines) {
+				after = strings.Join(afterLines[i+1:], "\n")
+			}
+			return before, strings.TrimLeft(after, "\r\n"), true
+		}
+	}
+	return "", content, false
+}
+
+// mergeStringLists uniona duas listas de strings normalizando o prefixo '#'
+// e removendo duplicatas, preservando a ordem (existentes primeiro).
+func mergeStringLists(existing any, incoming []string) []string {
+	out := []string{}
+	seen := map[string]bool{}
+	add := func(s string) {
+		s = strings.TrimPrefix(strings.TrimSpace(s), "#")
+		if s == "" || seen[s] {
+			return
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	switch v := existing.(type) {
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				add(s)
+			}
+		}
+	case []string:
+		for _, s := range v {
+			add(s)
+		}
+	case string:
+		add(v)
+	}
+	for _, s := range incoming {
+		add(s)
+	}
+	return out
+}
+
+// mergeFrontmatter aplica os argumentos explícitos da CLI sobre um frontmatter
+// já presente no conteúdo.
+//
+// Antes desta função, quando o conteúdo trazia frontmatter próprio os flags
+// --title/--tags/--type/--aliases eram silenciosamente descartados: o comando
+// reportava sucesso com os valores passados, mas gravava o frontmatter original
+// intacto. Isso quebra o fluxo "IA gera o markdown completo -> mem note create
+// --title X --tags Y".
+//
+// Chaves desconhecidas (category, summary, etc.) são preservadas.
+// Ver ISSUE-013.
+func mergeFrontmatter(fmText string, title, noteType string, tags, aliases []string, now time.Time) string {
+	fields := map[string]any{}
+	if err := yaml.Unmarshal([]byte(fmText), &fields); err != nil || len(fields) == 0 {
+		// Frontmatter não parseável: preserva o original em vez de destruir
+		// metadados que não entendemos.
+		return fmText
+	}
+
+	if s := strings.TrimSpace(title); s != "" {
+		fields["title"] = s
+	}
+	if s := strings.TrimSpace(noteType); s != "" && s != "concept" {
+		fields["type"] = s
+	}
+	if len(tags) > 0 {
+		fields["tags"] = mergeStringLists(fields["tags"], tags)
+	}
+	if len(aliases) > 0 {
+		fields["aliases"] = mergeStringLists(fields["aliases"], aliases)
+	}
+	if _, ok := fields["created_at"]; !ok {
+		fields["created_at"] = now.Format(time.RFC3339)
+	}
+	fields["updated_at"] = now.Format(time.RFC3339)
+
+	out, err := yaml.Marshal(fields)
+	if err != nil {
+		return fmText
+	}
+	return "---\n" + string(out) + "---\n"
+}
 
 // NoteResult consolida metadados e estatísticas de uma nota escrita
 type NoteResult struct {
@@ -134,13 +256,16 @@ func WriteAtomicNote(vaultRoot, requestedPath, title, content string, tags, alia
 	}
 
 	now := time.Now()
-	cleanContent := strings.TrimSpace(content)
+	cleanContent := strings.TrimSpace(stripBOM(content))
 
 	var fullBody strings.Builder
 
-	// Se o conteúdo já começar com frontmatter YAML, preservamos ou mesclamos
-	if strings.HasPrefix(cleanContent, "---\n") || strings.HasPrefix(cleanContent, "---\r\n") {
-		fullBody.WriteString(cleanContent)
+	// Se o conteúdo já tiver frontmatter, MESCLAMOS os argumentos explícitos da
+	// CLI sobre ele (preservando chaves desconhecidas) em vez de apenas
+	// preservá-lo e descartar --title/--tags/--type.
+	if fmText, body, ok := splitFrontmatter(cleanContent); ok {
+		fullBody.WriteString(mergeFrontmatter(fmText, title, noteType, tags, aliases, now))
+		fullBody.WriteString(body)
 	} else {
 		// Monta frontmatter padronizado
 		noteTitle := title

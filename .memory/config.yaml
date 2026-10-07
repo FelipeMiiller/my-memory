@@ -11,6 +11,15 @@ repo_id: "repo_e4c8f3b1a2d5"
 # Identificador / slug do repositório ou vault para escopo multi-tenant
 repository: "FelipeMiiller/my-memory"
 
+# Opt-out explícito do Postgres global (ADR-040).
+# Declarar engine=sqlite aqui faz o carregador descartar qualquer
+# postgres_url herdado de ~/.memory/config.yaml, mantendo este repo com o
+# próprio SQLite local (grafo + vetores).
+# Ver internal/config/config.go, camada 3 do cascade.
+storage:
+  engine: sqlite
+  sqlite_path: .memory/memory.db
+
 # Nome amigável do vault de conhecimento
 vault_name: "Knowledge Vault"
 

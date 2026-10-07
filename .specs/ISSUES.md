@@ -335,6 +335,53 @@ O assert `errors.Is(err, context.Canceled)` só cobre o caminho A.
 
 **Observação relacionada:** o drain `select { case <-out: default: }` nas linhas 188-194 do mesmo teste não verifica nada e pode ser removido.
 
+## ISSUE-012 — Testes de `cmd/mem` escreviam no config global real do usuário
+- **Severidade:** 🟠 high
+- **Status:** ✅ resolved (commit `fix(ci/compiler)` — ver seção "Resolução")
+- **Achado em:** sessão 2026-10-03, ao auditar `~/.memory/config.yaml` para a arquitetura central-vault/Postgres
+
+**Sintoma:** `~/.memory/config.yaml` acumulou **~160 entradas** de `repositories:` apontando para `C:\Users\Felipe\AppData\Local\Temp\TestRunInit*` — diretórios temporários de teste que já não existem.
+
+**Causa raiz:** `cmd/mem/init_test.go` tem dois testes (`TestRunInit`, `TestRunInit_IDEs`) que usam `t.TempDir()` mas **não definem `MY_MEMORY_GLOBAL_CONFIG_DIR`** antes de chamar `runInit()`, que por dentro chama `config.RegisterRepositoryInGlobalConfig()`. Sem a variável de ambiente, o registry escreve no `~/.memory/config.yaml` real. Cada `go test ./cmd/mem/...` local acrescentava **2 entradas**, acumulando ao longo de meses.
+
+Note que os testes de `internal/config` já faziam certo (`t.Setenv(config.GlobalConfigDirEnv, tmpDir)`) — o vazamento vinha só do pacote `cmd/mem`.
+
+**Impacto:** o catálogo global do usuário fica inutilizável (centenas de entradas mortas), e qualquer agente ou ferramenta que leia o config recebe lixo que nunca limpa sozinho.
+
+**Resolução:** criado `cmd/mem/main_test.go` com `TestMain` que define `MY_MEMORY_GLOBAL_CONFIG_DIR` para um temp dir válido a vida inteira do pacote de testes. Isolar uma vez no pacote é mais robusto do que lembrar de `t.Setenv` em cada teste novo. A configuração global do usuário foi limpa: de ~160 entradas para 1 (o repositório real).
+
+**Prevenção:** qualquer teste novo em `cmd/mem` que grave config global herda o isolamento automaticamente.
+
+## ISSUE-013 — BOM do Windows gerava frontmatter duplicado e descartava flags da CLI
+- **Severidade:** 🟠 high
+- **Status:** ✅ resolved
+- **Achado em:** sessão 2026-10-07, teste real do fluxo "IA da IDE → markdown → vault central"
+
+**Sintoma 1 — frontmatter duplicado.** `mem note create` alimentado por pipe do PowerShell produzia arquivo com **dois blocos de frontmatter** e caracteres BOM no meio do arquivo. O próprio docstring de `WriteAtomicNote` promete "UTF-8 sem BOM" (AGENTS.md regra 1).
+
+**Sintoma 2 — flags silenciosamente descartadas.** Passando `--title "X" --tags "a,b" --type summary` para conteúdo que já tinha frontmatter, o comando reportava sucesso mas gravava o frontmatter **original intacto**: título, tags e type passados desapareciam sem aviso nem erro.
+
+**Causa raiz:** em `internal/compiler/note.go`, a detecção de frontmatter existente era `strings.HasPrefix(cleanContent, "---")` após `strings.TrimSpace(content)`. Mas **`strings.TrimSpace` não remove U+FEFF** — BOM é categoria Unicode `Cf`, não `White_Space`, então `unicode.IsSpace(U+FEFF) == false`. O PowerShell 5.1 injeta BOM em todo pipe, a detecção falhava, caía no `else` e montava um segundo frontmatter por cima. Além disso o comentário dizia "preservamos ou mesclamos" mas a implementação só preservava — nunca mesclava.
+
+O mesmo bug existia em `internal/parser/frontmatter.go` (`ExtractFrontmatter`), com efeito mais grave: **qualquer nota gravada pelo PowerShell entrava no índice sem título, sem tags e sem categoria**.
+
+**Resolução:**
+- `stripBOM()` remove U+FEFF antes de qualquer trim em `note.go`.
+- `splitFrontmatter()` localiza o bloco de abertura e devolve (yaml, corpo).
+- `mergeFrontmatter()` aplica os argumentos explícitos da CLI sobre o frontmatter existente: `title`/`type` da CLI vencem, `tags`/`aliases` são **unidos** (união sem duplicatas, normalizando `#`), chaves desconhecidas (`category`, `summary`, ...) são **preservadas**, `created_at`/`updated_at` garantidos.
+- `parser.ExtractFrontmatter` passou a remover BOM também.
+
+**Evidência (teste com BOM forçado na entrada):**
+```yaml
+# entrada tinha BOM + frontmatter próprio; saída:
+category: resource            # preservada
+tags:
+    - tag-do-conteudo         # união, não substituição
+    - tag-da-cli              # flag da CLI preservada
+title: TITULO_DA_CLI          # flag da CLI venceu
+type: summary                 # flag da CLI aplicada
+```
+
 ---
 
 **Próxima revisão:** quando iniciar próxima sessão (sessão `mvs_b361ffb514ef434a8c0c0d9342dfede6`).

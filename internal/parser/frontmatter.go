@@ -20,7 +20,11 @@ type Frontmatter struct {
 // ExtractFrontmatter extrai o bloco YAML delimitado por --- no início do arquivo
 // Retorna a estrutura Frontmatter e o restante do corpo do Markdown
 func ExtractFrontmatter(content string) (*Frontmatter, string) {
-	trimmed := strings.TrimLeft(content, " \t\r\n")
+	// U+FEFF (BOM) não é removido por TrimLeft: unicode.IsSpace(U+FEFF) é false.
+	// Sem esta remoção, arquivos gravados pelo PowerShell no Windows chegam com
+	// BOM e o frontmatter não é detectado — a nota entra no índice sem título,
+	// sem tags e sem categoria. Ver ISSUE-013.
+	trimmed := strings.TrimLeft(strings.TrimPrefix(content, "\ufeff"), " \t\r\n")
 	if !strings.HasPrefix(trimmed, "---") {
 		return nil, content
 	}
