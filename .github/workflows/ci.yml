@@ -334,3 +334,43 @@ jobs:
           ls -lh bin/mem
           ./bin/mem version
           ./bin/mem version --json
+
+  # ---------------------------------------------------------------------------
+  # Frontend / Electron: TypeScript typecheck + unit tests
+  # ---------------------------------------------------------------------------
+  # Motivation: PR #6 (ADR-052) shipped a real type error for 10 days —
+  # `chat-view.tsx` passed `onOpenSettings` to a `ChatSidebar` that never
+  # declared that prop. Every existing job was Go-only (`lint` runs gofmt,
+  # go vet and a Python script), so nothing in CI ever invoked `tsc`.
+  # That silently let a broken PR look green.
+  #
+  # `tsc --noEmit` is the gate that would have caught it. `vitest` covers
+  # the renderer/store unit tests.
+  #
+  # Deliberately NOT running `biome check` here yet: it currently reports 4
+  # pre-existing rule violations (`useConst`, `useOptionalChain`,
+  # `noUnusedFunctionParameters`, `useLiteralKeys`) that predate this job.
+  # Adding it now would turn CI red on an unrelated cleanup. Tracked as
+  # follow-up before enabling lint enforcement.
+  frontend:
+    name: Frontend (typecheck + unit tests)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Node 20 is deprecated on GH Actions runners since 2025-09-19.
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Unit tests (vitest)
+        run: npm test
