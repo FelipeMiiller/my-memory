@@ -1355,16 +1355,15 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 	}
 
 	// Senha separada da URL (ADR-040): a URL fica legível/compartilhável e a
-	// credencial vem de storage.postgres_password ou das variáveis de ambiente.
-	// Se a URL já tiver senha embutida, ela manda — nada é sobrescrito.
+	// credencial vem de storage.postgres_password ou do ambiente. BuildDSN
+	// converte em campos discretos (host=... user=... password=...), então a
+	// senha nunca chega a ser colada de volta numa URL — nem em log de erro.
 	if pg != "" {
 		pgPass := cfg.Storage.PostgresPassword
 		if pgPass == "" {
 			pgPass = os.Getenv("MY_MEMORY_PG_PASSWORD")
 		}
-		if pgPass != "" {
-			pg = store.ComposeConnString(pg, pgPass)
-		}
+		pg = store.BuildDSN(pg, pgPass)
 	}
 
 	// ADR-040 EARS-7: log anti-split-brain quando Postgres é detectado de fonte

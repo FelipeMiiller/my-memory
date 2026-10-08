@@ -74,6 +74,33 @@ func maskPasswordQueryParam(s string) string {
 	return s[:start] + "***" + s[start+end:]
 }
 
+// sanitizeConnString mascara credenciais tanto em URL quanto em DSN key=value.
+// BuildDSN produz DSNs, então é esta função — não sanitizePostgresURL — que
+// protege os erros de conexão no caminho em uso.
+func sanitizeConnString(s string) string {
+	if strings.Contains(s, "://") {
+		return sanitizePostgresURL(s)
+	}
+	return maskDSNPassword(s)
+}
+
+// maskDSNPassword substitui o valor do campo `password=` por `***`, lida com
+// aspas simples e barra invertida do formato lib/pq.
+func maskDSNPassword(dsn string) string {
+	lower := strings.ToLower(dsn)
+	idx := strings.Index(lower, "password=")
+	if idx < 0 {
+		return dsn
+	}
+	start := idx + len("password=")
+	end := strings.IndexAny(dsn[start:], " \t")
+	valEnd := start + end
+	if end < 0 {
+		valEnd = len(dsn)
+	}
+	return dsn[:start] + "***" + dsn[valEnd:]
+}
+
 // fallbackSanitizeURL faz mascaramento via regex quando net/url falha.
 // Procura padrão `scheme://anything@host` e substitui `anything` por `***`.
 func fallbackSanitizeURL(rawURL string) string {

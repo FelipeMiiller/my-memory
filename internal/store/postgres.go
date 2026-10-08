@@ -77,52 +77,103 @@ CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING gin(to_tsvector('simpl
 
 var _ Store = (*PostgresStore)(nil)
 
-// ComposeConnString injeta a senha na URL de conexão quando ela ainda não tem
-// credencial embutida.
+// quoteDSNValue escapa um valor para o formato key=value do lib/pq.
+// Valores com espaço, aspas ou barra precisam de aspas simples e escape de
+// barra invertida.
+func quoteDSNValue(v string) string {
+	if v == "" {
+		return "''"
+	}
+	if !strings.ContainsAny(v, " '\\") {
+		return v
+	}
+	esc := strings.ReplaceAll(v, `\`, `\\`)
+	esc = strings.ReplaceAll(esc, `'`, `\'`)
+	return "'" + esc + "'"
+}
+
+// BuildDSN converte a URL de conexão em um DSN key=value do lib/pq com a
+// credencial como campo DISCRETO.
 //
-// Objetivo: manter `postgres_url` legível e compartilhável no config, com a
-// senha em campo separado (`postgres_password` / env MY_MEMORY_PG_PASSWORD).
+// Separar de verdade significa que usuário e senha nunca são colados numa URL:
+//   `host=... user=default password=...`
+// em vez de
+//   `postgres://default:SENHA@host/...`
 //
-// Regras:
-//   - URL vazia ou senha vazia → devolve a URL sem alteração
-//   - Formato DSN key=value (libpq) → devolve intacto, não é URL
-//   - URL já tem senha no userinfo → NÃO sobrescreve (a URL manda)
-//   - URL tem usuário sem senha → injeta a senha naquele usuário
-//   - URL não tem userinfo → adiciona ?password=... (formato aceito pelo lib/pq)
-func ComposeConnString(connStr, password string) string {
-	if connStr == "" || password == "" {
+// A senha não aparece dentro de nenhuma string de URL — nem em log, nem em
+// mensagem de erro, nem em stack trace. Se a URL já vier com senha embutida,
+// ela é EXTRAÍDA para um campo próprio em vez de propagada colada.
+func BuildDSN(connStr, password string) string {
+	if connStr == "" {
 		return connStr
 	}
-	// Formato DSN do libpq ("host=h port=5432 dbname=db") não é URL. url.Parse
-	// aceitaria como path relativo e corromperia a string, então bailamos antes.
+
+	// Já é DSN key=value: injeta a senha como campo, sem remontar nada.
 	if !strings.Contains(connStr, "://") {
-		return connStr
+		if password == "" {
+			return connStr
+		}
+		if dsnHasPassword(connStr) {
+			return connStr
+		}
+		return strings.TrimSpace(connStr) + " password=" + quoteDSNValue(password)
 	}
+
 	u, err := url.Parse(connStr)
 	if err != nil {
 		return connStr
 	}
 
+	var parts []string
+	if host := u.Hostname(); host != "" {
+		parts = append(parts, "host="+quoteDSNValue(host))
+	}
+	if port := u.Port(); port != "" {
+		parts = append(parts, "port="+quoteDSNValue(port))
+	}
+	if db := strings.TrimPrefix(u.Path, "/"); db != "" {
+		parts = append(parts, "dbname="+quoteDSNValue(db))
+	}
+
+	pw := password
 	if u.User != nil {
-		if _, has := u.User.Password(); has {
-			return connStr
+		if user := u.User.Username(); user != "" {
+			parts = append(parts, "user="+quoteDSNValue(user))
 		}
-		u.User = url.UserPassword(u.User.Username(), password)
-		return u.String()
+		if embedded, ok := u.User.Password(); ok && pw == "" {
+			pw = embedded
+		}
+	}
+	if pw != "" {
+		parts = append(parts, "password="+quoteDSNValue(pw))
 	}
 
 	q := u.Query()
-	if q.Get("password") != "" {
-		return connStr
+	for key, values := range q {
+		if strings.EqualFold(key, "password") {
+			continue // já tratado acima
+		}
+		for _, v := range values {
+			parts = append(parts, key+"="+quoteDSNValue(v))
+		}
 	}
-	q.Set("password", password)
-	u.RawQuery = q.Encode()
-	return u.String()
+
+	return strings.Join(parts, " ")
+}
+
+// dsnHasPassword informa se o DSN já declara o campo password.
+func dsnHasPassword(dsn string) bool {
+	for _, field := range strings.Fields(dsn) {
+		if strings.HasPrefix(strings.ToLower(field), "password=") {
+			return true
+		}
+	}
+	return false
 }
 
 // NewPostgresStore conecta e inicializa o schema do PostgreSQL
 func NewPostgresStore(connStr string) (*PostgresStore, error) {
-	masked := sanitizePostgresURL(connStr)
+	masked := sanitizeConnString(connStr)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao abrir conexao postgres (url=%s): %w", masked, err)

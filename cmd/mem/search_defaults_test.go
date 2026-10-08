@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/FelipeMiiller/my-memory/internal/config"
@@ -26,8 +27,13 @@ func TestResolveStorageAndRepo(t *testing.T) {
 	if db != "custom.db" {
 		t.Errorf("esperava db 'custom.db', obteve '%s'", db)
 	}
-	if pg != "postgres://config_url" {
-		t.Errorf("esperava pg 'postgres://config_url', obteve '%s'", pg)
+	// resolveStorageAndRepo devolve DSN key=value, não URL: a senha tem de ficar
+	// como campo discreto e nunca ser colada de volta numa URL.
+	if strings.Contains(pg, "://") {
+		t.Errorf("pg deveria ser DSN, não URL: %q", pg)
+	}
+	if !strings.Contains(pg, "host=config_url") {
+		t.Errorf("esperava host=config_url no DSN, obteve %q", pg)
 	}
 
 	// Cenário 2: Flags explícitas têm prioridade máxima sobre config
@@ -38,8 +44,28 @@ func TestResolveStorageAndRepo(t *testing.T) {
 	if dbFlag != "flag.db" {
 		t.Errorf("flag db deveria ter prioridade, obteve '%s'", dbFlag)
 	}
-	if pgFlag != "postgres://flag_url" {
-		t.Errorf("flag pg deveria ter prioridade, obteve '%s'", pgFlag)
+	if strings.Contains(pgFlag, "://") {
+		t.Errorf("pgFlag deveria ser DSN, não URL: %q", pgFlag)
+	}
+	if !strings.Contains(pgFlag, "host=flag_url") {
+		t.Errorf("flag pg deveria ter prioridade, obteve %q", pgFlag)
+	}
+
+	// Cenário 2b: a senha do config vira campo password e some da URL
+	cfgComSenha := &config.Config{
+		Version: 1,
+		Storage: config.StorageConfig{
+			Engine:           "postgres",
+			PostgresURL:      "postgres://u@h:5432/db?sslmode=require",
+			PostgresPassword: "SENHA_SECRETA",
+		},
+	}
+	_, _, pgSenha := resolveStorageAndRepo(cfgComSenha, "", "", "", "r")
+	if strings.Contains(pgSenha, "://") {
+		t.Errorf("pg não pode ser URL quando há senha: %q", pgSenha)
+	}
+	if !strings.Contains(pgSenha, "password=SENHA_SECRETA") {
+		t.Errorf("esperava campo password no DSN, obteve %q", pgSenha)
 	}
 
 	os.Setenv("MY_MEMORY_REPO", "env/repo")
