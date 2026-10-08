@@ -56,10 +56,6 @@ type StorageConfig struct {
 	Engine      string `yaml:"engine,omitempty" json:"engine,omitempty"`             // "sqlite" (default) ou "postgres"
 	SQLitePath  string `yaml:"sqlite_path,omitempty" json:"sqlite_path,omitempty"`   // Caminho do banco local (default: "memory.db")
 	PostgresURL string `yaml:"postgres_url,omitempty" json:"postgres_url,omitempty"` // URL de conexão PostgreSQL com pgvector
-	// Password da conexão Postgres, separada da URL de propósito: a URL fica
-	// legível e compartilhável, a credencial vive em variável de ambiente.
-	// Sugestão: postgres_url: "${MY_MEMORY_PG_URL}" + postgres_password: "${MY_MEMORY_PG_PASSWORD}".
-	PostgresPassword string `yaml:"postgres_password,omitempty" json:"postgres_password,omitempty"`
 }
 
 // EmbeddingConfig define os parâmetros do modelo de representação vetorial
@@ -304,7 +300,6 @@ func LoadConfig(path string) (*Config, error) {
 	// Expande variáveis de ambiente (${VAR}) e caminhos com til (~)
 	cfg.Storage.SQLitePath = ExpandPath(cfg.Storage.SQLitePath)
 	cfg.Storage.PostgresURL = os.ExpandEnv(cfg.Storage.PostgresURL)
-	cfg.Storage.PostgresPassword = os.ExpandEnv(cfg.Storage.PostgresPassword)
 	cfg.Embedding.URL = os.ExpandEnv(cfg.Embedding.URL)
 	cfg.Repository = os.ExpandEnv(cfg.Repository)
 	cfg.CentralVault.Path = ExpandPath(cfg.CentralVault.Path)
@@ -434,7 +429,6 @@ func LoadGlobalConfig() (*GlobalConfig, error) {
 	gcfg.CentralVault.Path = ExpandPath(gcfg.CentralVault.Path)
 	gcfg.Storage.SQLitePath = ExpandPath(gcfg.Storage.SQLitePath)
 	gcfg.Storage.PostgresURL = os.ExpandEnv(gcfg.Storage.PostgresURL)
-	gcfg.Storage.PostgresPassword = os.ExpandEnv(gcfg.Storage.PostgresPassword)
 
 	return &gcfg, nil
 }
@@ -542,9 +536,6 @@ func LoadCascadingConfig(repoDir string) (*Config, string, error) {
 		if globalCfg.Storage.PostgresURL != "" {
 			cfg.Storage.PostgresURL = globalCfg.Storage.PostgresURL
 		}
-		if globalCfg.Storage.PostgresPassword != "" {
-			cfg.Storage.PostgresPassword = globalCfg.Storage.PostgresPassword
-		}
 		if globalCfg.MCP.Port > 0 {
 			cfg.MCP.Port = globalCfg.MCP.Port
 		}
@@ -604,9 +595,6 @@ func LoadCascadingConfig(repoDir string) (*Config, string, error) {
 					if repoEntry.Storage.PostgresURL != "" {
 						cfg.Storage.PostgresURL = repoEntry.Storage.PostgresURL
 					}
-					if repoEntry.Storage.PostgresPassword != "" {
-						cfg.Storage.PostgresPassword = repoEntry.Storage.PostgresPassword
-					}
 					if repoEntry.Storage.SQLitePath != "" {
 						cfg.Storage.SQLitePath = repoEntry.Storage.SQLitePath
 					}
@@ -619,7 +607,6 @@ func LoadCascadingConfig(repoDir string) (*Config, string, error) {
 	// Expansão final de caminhos e envs
 	cfg.Storage.SQLitePath = ExpandPath(cfg.Storage.SQLitePath)
 	cfg.Storage.PostgresURL = os.ExpandEnv(cfg.Storage.PostgresURL)
-	cfg.Storage.PostgresPassword = os.ExpandEnv(cfg.Storage.PostgresPassword)
 	cfg.Embedding.URL = os.ExpandEnv(cfg.Embedding.URL)
 	cfg.Repository = os.ExpandEnv(cfg.Repository)
 	cfg.CentralVault.Path = ExpandPath(cfg.CentralVault.Path)
