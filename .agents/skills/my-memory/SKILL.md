@@ -15,6 +15,18 @@ description: Skill canônica de uso do My-Memory — ensina a configurar, inicia
 > - §1 Visão em 60 segundos
 > - §2 Instalação · §3 Inicialização · §4 Configuração · §5 Indexação · §6 Busca · §7 Grafo · §8 Visualização · §9 MCP · §10 Federação · §11 Criar Documentos · §12 Comandos · §13 Manutenção · §14 Troubleshooting · §15 Referências
 
+> [!tip]
+> **Chegou agora? Os 4 caminhos que resolvem 90 % dos casos:**
+>
+> | Quero… | Comando |
+> |---|---|
+> | Gravar conhecimento genérico no cofre central | `mem note create --vault "G:\My Drive\central-memory" --title "X" notas/x.md` |
+> | Fazer a IA da IDE gravar no cofre central | tool MCP `memory_write_note` (já registrada como `my-memory`) |
+> | Reindexar depois de editar notas | `mem index --force` |
+> | Conferir se está tudo saudável | `mem doctor` |
+>
+> O modelo de storage em uso é **Postgres no cofre central + SQLite por repositório** — ver §4.3.
+
 ---
 
 ## 1. Visão em 60 segundos
@@ -136,7 +148,9 @@ exclude:
 storage:
   engine: sqlite                    # sqlite | postgres
   sqlite_path: .memory/memory.db    # relativo à raiz do repo
-  # postgres_url: postgres://USER:PASSWORD@HOST:5432/DBNAME
+  # Credencial SEMPRE separada da URL — ver §4.3
+  # postgres_url: "${MY_MEMORY_PG_URL}"
+  # postgres_password: "${MY_MEMORY_PG_PASSWORD}"
 
 # Embeddings (Ollama local por default)
 embedding:
@@ -149,30 +163,65 @@ embedding:
 ### 4.2 Ordem de precedência (do mais prioritário ao menos)
 
 1. **Flag CLI explícita** — `--storage=postgres`, `--postgres <url>`, `--db <path>`
-2. **Variáveis de ambiente** — `MY_MEMORY_PG_URL`, `POSTGRES_URL`, `DATABASE_URL`, `MY_MEMORY_EMBED_URL`, etc.
+2. **Variáveis de ambiente** — `MY_MEMORY_PG_URL`, `MY_MEMORY_PG_PASSWORD`, `POSTGRES_URL`, `DATABASE_URL`, `MY_MEMORY_EMBED_URL`, etc.
 3. **`~/.memory/config.yaml` (global)** — source-of-truth da Federação / Central Vault (ADR-040)
 4. **`.memory/config.yaml` (local)** — escopo deste repo
 5. **Default implícito** — SQLite local em `.memory/memory.db`
 
-### 4.3 PostgreSQL opt-in (ADR-040)
+### 4.3 Modelo de duas camadas: Central Vault no Postgres, repos em SQLite
 
-Para trabalhar com **Central Vault** (multi-repo no Google Drive / OneDrive + Postgres):
+> [!important]
+> Este é o modelo em uso desde 2026-10-08. Uma única base de conhecimento genérica no Postgres, e cada repositório com seu SQLite local.
 
-```bash
-# .memory/.env  (local — opcional)
-MY_MEMORY_PG_URL=postgres://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require
+```
+┌─────────────────────────────────────────────────────────┐
+│  Vault central (Google Drive)  →  PostgreSQL + pgvector  │  ← conhecimento genérico
+│  repo_central                                            │
+└─────────────────────────────────────────────────────────┘
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ repo A       │  │ repo B       │  │ repo C       │  → cada um com seu
+│ .memory/     │  │ .memory/     │  │ .memory/     │    SQLite local
+│ memory.db    │  │ memory.db    │  │ memory.db    │
+└──────────────┘  └──────────────┘  └──────────────┘
 ```
 
-Ou no global:
+A regra que implementa isso está em `internal/config/config.go`: um repositório que declara `storage.engine: sqlite` **descarta o `postgres_url` herdado**. Ou seja, o global pode apontar para Postgres que todo repositório local continua em SQLite, sem nenhuma configuração adicional.
+
+**Config global** (`~/.memory/config.yaml`) — único lugar, fora do git:
 ```yaml
-# ~/.memory/config.yaml
+central_vault:
+    path: G:\My Drive\central-memory
+
 storage:
-  engine: postgres
-  postgres_url: postgres://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require
+    engine: postgres
+    postgres_url: "postgresql://default@HOST:5432/DBNAME?sslmode=require"
+    postgres_password: "${MY_MEMORY_PG_PASSWORD}"
 ```
+
+**Cada repositório** (`.memory/config.yaml`) — o opt-out explícito:
+```yaml
+storage:
+  engine: sqlite
+  sqlite_path: .memory/memory.db
+```
+
+**O vault central não declara `storage:`** — assim herda Postgres do global de propósito.
 
 > [!warning]
-> **Segredos:** nunca commite `.env`. O `.gitignore` do vault já bloqueia. Use env vars User-scope no Windows ou export no shell. Em mensagens de erro, URLs passam pelo `sanitizePostgresURL()` (logs ocultam `user:password` → `***@host`).
+> **Por que a credencial vai no arquivo e não em variável de ambiente.**
+> Clientes MCP (VS Code, Cursor, Claude Desktop, Windsurf) sobem o servidor como
+> processo filho e **só repassam o que está no bloco `env` do `mcp.json`** — os
+> configs gerados por `mem init --all` não têm esse bloco. Com a credencial só em
+> variável de ambiente, o MCP nasce sem ela, expande `${MY_MEMORY_PG_URL}` para
+> vazio e **cai no SQLite em silêncio**, sem erro nenhum.
+>
+> Por isso o `~/.memory/config.yaml` guarda URL e senha direto (arquivo fora do
+> git), ainda que separadas em dois campos.
+
+> [!tip]
+> `postgres_url` e `postgres_password` são campos independentes. A URL fica
+> legível e compartilhável; só a credencial é secreta. `sanitizePostgresURL()`
+> mascara as duas formas em log — `user:pass@host` **e** `?password=`.
 
 ### 4.4 Escolher embedder alternativo
 
@@ -382,10 +431,17 @@ O My-Memory expõe o cérebro via **Model Context Protocol** (stdio ou HTTP/SSE)
 ### 9.1 Subir o servidor MCP
 
 ```bash
-mem mcp                       # stdio (uso local pelo editor)
-mem mcp --port 38400          # HTTP/SSE (containers / rede)
-mem mcp --http 0.0.0.0:38400  # expose para rede
+mem mcp                                          # stdio — segue o CWD/config
+mem mcp --storage postgres --repo repo_central   # fixa o vault central
+mem mcp --port 38400                             # HTTP/SSE (containers / rede)
+mem mcp --http 0.0.0.0:38400                     # expõe para a rede
 ```
+
+> [!tip]
+> **`--storage postgres --repo repo_central` é a configuração recomendada para um
+> agente que trabalha na sua base genérica.** Sem esses flags o servidor resolve o
+> vault pelo diretório de trabalho: um agente aberto dentro de um repo qualquer vai
+> ler a memória daquele repo, e não a central.
 
 ### 9.2 Configurar em IDEs
 
@@ -395,7 +451,7 @@ mem mcp --http 0.0.0.0:38400  # expose para rede
   "mcpServers": {
     "my-memory": {
       "command": "mem",
-      "args": ["mcp"]
+      "args": ["mcp", "--storage", "postgres", "--repo", "repo_central"]
     }
   }
 }
@@ -408,26 +464,67 @@ mem mcp --http 0.0.0.0:38400  # expose para rede
     "my-memory": {
       "type": "stdio",
       "command": "mem",
-      "args": ["mcp"]
+      "args": ["mcp", "--storage", "postgres", "--repo", "repo_central"]
     }
   }
 }
 ```
 
+> [!warning]
+> **Se `mem` não está no PATH, use o caminho absoluto** do binário
+> (`C:\\repository\\my-memory\\bin\\mem.exe`). Cliente que não acha o executável
+> simplesmente não sobe o servidor — sem erro visível no editor.
+
 > [!tip]
 > `mem init --all` gera esses dois arquivos automaticamente.
 
-### 9.3 Tools MCP expostas
+### 9.3 Tools MCP expostas (19 no total)
+
+**Escrita — é assim que a IA escreve no seu cofre:**
 
 | Tool | Função |
 |---|---|
-| `memory_search` | Busca híbrida federada (RRF + decaimento opcional) |
-| `memory_get` | Lê conteúdo integral de uma nota por ID/caminho |
-| `memory_get_impact` | Raio de destruição de um nó |
-| `memory_compile_note` | `Compile-not-Retrieve` (ADR-018): sintetiza fontes em uma nota atômica |
-| `memory_export_context` | Empacota subgrafo respeitando orçamento de tokens |
+| `memory_write_note` | Grava/substitui nota atômica em Markdown, com frontmatter e conexões tipadas, indexando na hora |
+| `memory_append_section` | Anexa um bloco sob um cabeçalho existente, reindexando só aquele trecho |
+| `memory_compile_note` | **Compile-not-Retrieve** (ADR-018): recupera, sintetiza e grava uma nota consolidada |
+| `memory_export_canvas` | Exporta subgrafo em JSON Canvas 1.0 (abre no Obsidian Canvas) |
 
-### 9.4 Padrão Compile-not-Retrieve (ADR-018)
+**Leitura e análise:**
+
+| Tool | Função |
+|---|---|
+| `memory_search` | Busca híbrida RRF (BM25 + vetor + grafo), com decaimento e nível L0/L1/L2 |
+| `memory_code_search` / `memory_code_neighbors` | Busca e navegação em símbolos de código (ADR-047) |
+| `memory_get_neighbors` | Vizinhança no grafo via CTE recursivo |
+| `memory_get_hubs` / `memory_get_clusters` | Centralidade (degree/PageRank) e comunidades (LPA) |
+| `memory_get_insights` | Conexões latentes de alta similaridade sem link |
+| `memory_get_impact` | Raio de destruição e Risk Score antes de alterar algo |
+| `memory_inspect_node` | Triptych: in-links · núcleo · out-links |
+| `memory_find_path` | Menor caminho entre dois nós, com custo epistêmico |
+| `memory_pack_context` | Subgrafo empacotado dentro de um orçamento de tokens |
+| `memory_get_drift` | Divergência entre código recente e a documentação |
+| `memory_doctor` | Auditoria de integridade do grafo |
+| `memory_visualize_graph` | HTML interativo do grafo |
+| `memory_open_node` | Deep links Obsidian / VS Code / File |
+
+### 9.4 Fluxo típico: IA da IDE → memória central
+
+Quando você pede para a IA da IDE pesquisar algo e gerar um markdown:
+
+```
+1. IA pesquisa na web e escreve o markdown
+2. chama memory_write_note (ou `mem note create --vault ...`)
+3. My-Memory grava o .md no vault, gera o frontmatter e indexa no Postgres
+4. o arquivo aparece no Obsidian — sincronizado pelo Google Drive
+```
+
+```bash
+# equivalente pelo terminal, com corpo vindo do stdin
+cat nota-gerada.md | mem note create --vault "G:\My Drive\central-memory" \
+  --title "Título" --tags "ia,pesquisa" notas/assunto.md
+```
+
+### 9.5 Padrão Compile-not-Retrieve (ADR-018)
 
 Em vez de a IA reler dezenas de arquivos toda vez:
 1. IA pesquisa via `memory_search` sobre o tema
@@ -532,13 +629,30 @@ Trabalhamos com #memoria-autoconsciente e #fuzzy-resolver.
 > Source-of-truth — divergências devem ser resolvidas a favor deste callout.
 ```
 
-### 11.6 Comandos rápidos para criar
+### 11.6 Comandos para criar
 
 ```bash
+# Vault central (o padrão quando a IA cria conhecimento genérico)
+mem note create --vault "G:\My Drive\central-memory" \
+  --title "Título" --tags "ia,pesquisa" notas/assunto.md
+
+# Corpo vindo do stdin — o fluxo que uma IA da IDE usa
+cat nota-gerada.md | mem note create --vault "G:\My Drive\central-memory" \
+  --title "Título" notas/assunto.md
+
+# Dentro do próprio repo (sem --vault: usa o vault do diretório)
 mem note create docs/minha-nota.md --title "Título" --tags tag1,tag2
+
 mem note append docs/nota-existente.md --section "Nova Seção"
 mem compile --topic "Federação Postgres" --out docs/concepts/federacao-postgres.md
 ```
+
+> [!note]
+> **Se a nota já tiver frontmatter, as flags são MESCLADAS, não descartadas.**
+> `title` e `type` vindos da CLI vencem; `tags` e `aliases` são unidos sem
+> duplicar; e chaves que você não passou (`category`, `summary`, ...) são
+> preservadas. Nada é sobrescrito silenciosamente — antes isso acontecia e o
+> comando reportava sucesso gravando o frontmatter original intacto (ISSUE-013).
 
 > [!tip]
 > Use `mem compile --topic ...` quando quiser que a IA sintetize uma nota-base compilada a partir de várias fontes (ADR-018 — Compile-not-Retrieve).
@@ -634,12 +748,18 @@ Se é bug trivial/cosmético ou ajuste de copy → corrige direto, sem ADR (AGEN
 
 | Sintoma | Causa provável | Solução |
 |---|---|---|
-| `mem: command not found` | Binário não está no PATH | Rode `go build -o bin/mem.exe ./cmd/mem` ou re-rode o one-liner |
-| `.memory/` no CWD em vez de auto-scope | Versão < `ec1298b` | Atualize a CLI; ADR-004 fix aplica esta versão |
+| `mem: command not found` | Binário não está no PATH | Rode `go build -o bin/mem.exe ./cmd/mem` ou re-rode o one-liner. No `mcp.json`, use o caminho absoluto |
+| **MCP cai no SQLite sem erro** | Cliente não passa `env`; `${MY_MEMORY_PG_URL}` expande para vazio | Grave URL+senha direto em `~/.memory/config.yaml` (fora do git) — ver §4.3 |
+| Env var nova não surte efeito | Processo já estava aberto quando a variável foi criada | Reabra o terminal / a IDE |
+| `Ollama indisponível` ao indexar | Ollama não instalado ou parado | `ollama serve` + `ollama pull nomic-embed-text`. Sem isso o índice fica **só em FTS léxica**, sem vetores |
+| Nota criada com frontmatter duplicado | BOM (U+FEFF) no conteúdo de entrada — `TrimSpace` não remove BOM | Corrigido em `internal/compiler/note.go` (ISSUE-013). Em shell POSIX use `cat`, não `echo` com heredoc no PowerShell |
+| `--title`/`--tags` não têm efeito | Conteúdo já tinha frontmatter e a CLI só preservava | Corrigido: agora mescla (ISSUE-013). Ver §11.6 |
+| `~/.memory/config.yaml` cheio de repos `TestRunInit_*` | Testes escreviam no config global real | Corrigido com `TestMain` em `cmd/mem` (ISSUE-012). Limpe o arquivo e reexecute os testes |
+| `.memory/` no CWD em vez de auto-scope | Versão < `ec1298b` | Atualize a CLI |
 | Embeddings lentos / erro Ollama | Ollama não está rodando | `ollama serve` ou defina `MY_MEMORY_EMBED_BASE_URL` remoto |
 | Dead links aparecem em `mem doctor` | Tag genérica órfã (ISSUE-001) | Remova tag ou crie stub `docs/concepts/<tag>.md` (ADR-041) |
 | Drift reporta 100 % CRITICAL | Calibração antiga (pré-ADR-039) | Atualize para versão pós-`bc70c5f`; pesos recalibrados |
-| Postgres URL vazia em log | `sanitizePostgresURL` não aplicado | Verifique versão — fix em `2361a92` |
+| Senha aparece em log de erro | Versão anterior ao mask de `?password=` | `sanitizePostgresURL` agora cobre as duas formas |
 | `mem search` não retorna nada | Vault recém-criado sem `mem index` | Rode `mem index` primeiro |
 | Wikilink não vira aresta | `[texto](./path.md)` em vez de `[[path]]` | Use SEMPRE `[[wikilink]]` para refs internas |
 
@@ -692,4 +812,4 @@ Se é bug trivial/cosmético ou ajuste de copy → corrige direto, sem ADR (AGEN
 
 ---
 
-> **Mantida por:** Felipe Miiller · **Slug:** `my-memory` · **Status:** Canônica · **Última atualização:** mantém sincronizada com `docs/CLI_GUIDE.md` a cada PR.
+> **Mantida por:** Felipe Miiller · **Slug:** `my-memory` · **Status:** Canônica · **Última atualização:** 2026-10-08 — modelo de duas camadas (Postgres central + SQLite por repo), credencial separada da URL, MCP fixado no cofre central, fluxo de criação via `--vault`/stdin.
