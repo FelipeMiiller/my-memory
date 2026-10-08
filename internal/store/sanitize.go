@@ -7,12 +7,16 @@ import (
 
 // sanitizePostgresURL mascara credenciais em URLs PostgreSQL antes de logar.
 // Substitui `user:password@host` por `***@host` para evitar vazamento de credenciais
-// em logs, mensagens de erro e stack traces.
+// em logs, mensagens de erro e stack traces. Também mascara `?password=` na query,
+// que é o formato usado quando a credencial vem separada da URL.
 //
 // Exemplos:
 //
 //	postgres://user:s3cr3t@db.host:5432/mydb?sslmode=require
 //	  → postgres://***@db.host:5432/mydb?sslmode=require
+//
+//	postgres://db.host:5432/mydb?password=s3cr3t&sslmode=require
+//	  → postgres://db.host:5432/mydb?password=***&sslmode=require
 //
 //	postgres://localhost/db  (sem credenciais)
 //	  → postgres://localhost/db  (inalterada)
@@ -27,7 +31,7 @@ func sanitizePostgresURL(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.User == nil {
 		// Fallback: regex simples pra `scheme://user:pass@host`
-		return fallbackSanitizeURL(rawURL)
+		return maskPasswordQueryParam(fallbackSanitizeURL(rawURL))
 	}
 
 	host := parsed.Host
@@ -50,7 +54,24 @@ func sanitizePostgresURL(rawURL string) string {
 			}
 		}
 	}
-	return result
+	return maskPasswordQueryParam(result)
+}
+
+// maskPasswordQueryParam substitui o valor de `password=` na query por `***`.
+// Necessário porque ComposeConnString injeta a senha como query param quando a
+// URL não tem userinfo — sem isso a senha apareceria em erro de conexão.
+func maskPasswordQueryParam(s string) string {
+	const key = "password="
+	idx := strings.Index(s, key)
+	if idx < 0 {
+		return s
+	}
+	start := idx + len(key)
+	end := strings.IndexAny(s[start:], "&")
+	if end < 0 {
+		return s[:start] + "***"
+	}
+	return s[:start] + "***" + s[start+end:]
 }
 
 // fallbackSanitizeURL faz mascaramento via regex quando net/url falha.

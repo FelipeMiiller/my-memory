@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -75,6 +76,49 @@ CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING gin(to_tsvector('simpl
 `
 
 var _ Store = (*PostgresStore)(nil)
+
+// ComposeConnString injeta a senha na URL de conexão quando ela ainda não tem
+// credencial embutida.
+//
+// Objetivo: manter `postgres_url` legível e compartilhável no config, com a
+// senha em campo separado (`postgres_password` / env MY_MEMORY_PG_PASSWORD).
+//
+// Regras:
+//   - URL vazia ou senha vazia → devolve a URL sem alteração
+//   - Formato DSN key=value (libpq) → devolve intacto, não é URL
+//   - URL já tem senha no userinfo → NÃO sobrescreve (a URL manda)
+//   - URL tem usuário sem senha → injeta a senha naquele usuário
+//   - URL não tem userinfo → adiciona ?password=... (formato aceito pelo lib/pq)
+func ComposeConnString(connStr, password string) string {
+	if connStr == "" || password == "" {
+		return connStr
+	}
+	// Formato DSN do libpq ("host=h port=5432 dbname=db") não é URL. url.Parse
+	// aceitaria como path relativo e corromperia a string, então bailamos antes.
+	if !strings.Contains(connStr, "://") {
+		return connStr
+	}
+	u, err := url.Parse(connStr)
+	if err != nil {
+		return connStr
+	}
+
+	if u.User != nil {
+		if _, has := u.User.Password(); has {
+			return connStr
+		}
+		u.User = url.UserPassword(u.User.Username(), password)
+		return u.String()
+	}
+
+	q := u.Query()
+	if q.Get("password") != "" {
+		return connStr
+	}
+	q.Set("password", password)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
 
 // NewPostgresStore conecta e inicializa o schema do PostgreSQL
 func NewPostgresStore(connStr string) (*PostgresStore, error) {

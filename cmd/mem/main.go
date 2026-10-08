@@ -1354,6 +1354,19 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 		}
 	}
 
+	// Senha separada da URL (ADR-040): a URL fica legível/compartilhável e a
+	// credencial vem de storage.postgres_password ou das variáveis de ambiente.
+	// Se a URL já tiver senha embutida, ela manda — nada é sobrescrito.
+	if pg != "" {
+		pgPass := cfg.Storage.PostgresPassword
+		if pgPass == "" {
+			pgPass = os.Getenv("MY_MEMORY_PG_PASSWORD")
+		}
+		if pgPass != "" {
+			pg = store.ComposeConnString(pg, pgPass)
+		}
+	}
+
 	// ADR-040 EARS-7: log anti-split-brain quando Postgres é detectado de fonte
 	// não-flag (env var ou config global) e SQLite local já existe em disco.
 	// Avisa o usuário que o vault remoto vai ser usado e ignora o SQLite local.
