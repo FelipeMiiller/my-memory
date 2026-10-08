@@ -43,6 +43,8 @@
 - **AD-047**: Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem) (`docs/adr/047-code-ast-tree-sitter-multi-linguagem.md`) — Spec em `.specs/features/feat-code-ast/` (Specify + Tasks prontas; 11 tasks aguardando Execute)
 - **AD-050**: Threat Model — OWASP LLM Top 10 Aplicado ao MyMemory (Proposed, transversal) (`docs/adr/050-threat-model-owasp-llm-aplicado-ao-mymemory.md`)
 - **AD-051**: Chat LLM no Viewer — Provider Abstraction + IPC Streaming + RAG via `mem search` (Accepted) (`docs/adr/051-viewer-chat-llm-provider-and-ipc-streaming.md`) — Spec em `.specs/features/feat-viewer-chat/` (spec.md + tasks.md prontas; Execute iniciado em `feat/viewer-chat`)
+- **AD-035**: Embedder Embutido com Fallback ONNX MiniLM (Proposed desde 2026-09-16, nunca executado) (`docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md`) — Spec em `.specs/features/embedder-builtin-onnx-minilm/` (13 tasks, 5 fases). **T1 é gate de bloqueio**: o spike de binding (`.specs/features/spike-onnxruntime-binding/`) nunca foi executado e `onnxruntime` não está no `go.mod` — sem ele a feature inteira cai em PIVOT
+- **AD-040**: Config global única + SQLite auto-scope (vigente) — 2026-10-08: Postgres no cofre central (`repo_central`); sem Postgres, SQLite **único e central** em `~/.memory/memory.db` compartilhado por todos os repositórios (verificado: 2 repos coexistem, index de um não poda o outro, nem com `--force`); `MY_MEMORY_PG_URL` referenciado no config global porque clientes MCP não passam bloco `env`
 
 ## Handoff
 
