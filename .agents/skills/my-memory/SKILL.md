@@ -224,9 +224,18 @@ storage:
 > [Environment]::SetEnvironmentVariable('MY_MEMORY_PG_PASSWORD', '<senha>', 'User')
 > ```
 >
-> `postgres_url` e `postgres_password` são campos independentes, e
-> `sanitizePostgresURL()` mascara as duas formas em log — `user:pass@host` **e**
-> `?password=`.
+> `postgres_url` e `postgres_password` são campos independentes. Em tempo de
+> execução o `BuildDSN()` converte tudo em **DSN key=value do lib/pq**, com a
+> credencial como campo **discreto**:
+>
+> ```
+> host=... port=5432 dbname=... user=default password=... sslmode=require
+> ```
+>
+> ou seja, a senha **nunca** é colada de volta numa URL — nem em log, nem em
+> erro, nem em stack trace. Se a URL vier com credencial embutida (formato que o
+> Neon entrega e que o `MY_MEMORY_PG_URL` costuma ter), ela é extraída para o
+> campo `password=`. `sanitizeConnString()` mascara as duas formas em log.
 
 ### 4.4 Escolher embedder alternativo
 
