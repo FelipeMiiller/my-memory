@@ -14,7 +14,7 @@
 
 | Layer | Test file | Tasks cobertas | Tipo |
 |---|---|---|---|
-| Spike / binding | `internal/asr/spike/binding_smoke_test.go` | T1, T2 | integração (build tag `nemotron`) |
+| Spike / binding | `internal/embedder/binding_smoke_test.go` | T1, T2 | integração (build tag `onnx`) |
 | Tokenizer | `internal/embedder/tokenizer_test.go` | T6 | unit |
 | Inferência | `internal/embedder/builtin_test.go` | T7 | unit + integração ONNX |
 | Qualidade | `internal/embedder/builtin_bench_test.go` | T4 | benchmark com gate de abort |
@@ -37,7 +37,7 @@ python .agents/skills/tlc-spec-driven/scripts/validate_tasks.py .specs/features/
 # por task
 go build ./...
 go test -count=1 ./internal/embedder/...
-go test -tags nemotron -v ./internal/asr/spike/...   # só T1/T2
+go test -tags onnx -v ./internal/embedder/...   # só T1/T2
 go test -count=1 ./...
 
 # commit
@@ -75,15 +75,15 @@ Objetivo: `mem embed`, config, reindex do vault central e fechamento do ADR.
 
 #### T1: Spike de binding ONNX Runtime
 **Spec:** EMBED-001..004
-**Where:** `go.mod`, `internal/asr/spike/binding_smoke_test.go`
+**Where:** `go.mod`, `internal/embedder/binding_smoke_test.go`
 **Depends on:** —
-**What:** adicionar `github.com/yalue/onnxruntime_go`; smoke test sob build tag `nemotron` que compila, carrega o modelo e roda uma inferência real; registrar verdict T4 GO / PIVOT com erro literal em `.specs/features/spike-onnxruntime-binding/validation.md`.
-**Tests:** `go test -tags nemotron -v ./internal/asr/spike/...` — binding builda, sessão carrega, vetor sai com a dimensão do modelo.
-**Gate:** `go build -tags nemotron ./...` + teste verdes + `validation.md` escrito. **PIVOT aqui encerra a feature.**
+**What:** adicionar `github.com/yalue/onnxruntime_go`; smoke test sob build tag `onnx` que compila, carrega o modelo e roda uma inferência real; registrar verdict T4 GO / PIVOT com erro literal em `.specs/features/embedder-builtin-onnx-minilm/validation.md`.
+**Tests:** `go test -tags onnx -v ./internal/embedder/ -run TestBinding` — binding builda, sessão carrega, vetor sai com a dimensão do modelo.
+**Gate:** `go build -tags onnx ./...` + teste verdes + `validation.md` escrito. **PIVOT aqui encerra a feature.**
 
 #### T2: Auditoria de manutenção do binding
 **Spec:** EMBED-002
-**Where:** `.specs/features/spike-onnxruntime-binding/validation.md`
+**Where:** `.specs/features/embedder-builtin-onnx-minilm/validation.md`
 **Depends on:** T1
 **What:** `go list -m -versions github.com/yalue/onnxruntime_go`; verificar última release, issues abertas, atividade, licença. **Binding abandonado sem fork mantido ⇒ PIVOT por default.**
 **Tests:** sem teste automatizado — a evidência é o registro datado com URL em `validation.md`.

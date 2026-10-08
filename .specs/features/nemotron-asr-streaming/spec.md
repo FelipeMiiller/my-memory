@@ -1,6 +1,8 @@
 # Feature: nemotron-asr-streaming
 
-> **Status**: Specify phase — design document is [ADR-045](../../../docs/adr/045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md); this spec captures WHAT (testable requirements + acceptance criteria), not the architectural discussion (already done).
+> **Status**: ⛔ **Deferred** (2026-10-08) — o caminho ASR/Nemotron saiu do escopo por decisão do Felipe. O ADR-045 foi para `Deferred`. Foundation T1-T3 já está mergeada em `develop` e continua válida como stub (T2 `noop provider`); T4-T9 não serão executadas nesta fase. Ver [ADR-045](../../../docs/adr/045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md).
+
+> **Status original**: Specify phase — design document is [ADR-045](../../../docs/adr/045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md); this spec captures WHAT (testable requirements + acceptance criteria), not the architectural discussion (already done).
 
 ## Problem Statement
 

@@ -1,9 +1,22 @@
 # ADR-045: ASR Streaming Engine — Nemotron 3.5 (0.6B) Embutido via ONNX Runtime
 
 - **Date**: 2026-09-19
-- **Status**: Proposed
+- **Status**: Deferred
 - **Deciders**: Felipe Miiller, Mavis (orchestrator)
 - **Tags**: asr, voice, streaming, fastconformer, rnnt, nemotron, onnx-runtime, frugal, devx, language-pt-br
+
+> [!info] Adiado em 2026-10-08
+> Decisão do Felipe: **o caminho ASR/Nemotron está fora do escopo**. A linha de
+> memória (cofre central, Postgres, embedder embutido) é a prioridade; ASR não
+> entra nesta fase.
+>
+> Consequência: o spike `.specs/features/spike-onnxruntime-binding/` — que
+> existia só para validar o binding ONNX para o cliente Nemotron — **não é
+> executado aqui**. A validação de binding de que o ADR-035 precisa é feita pelo
+> próprio T1 do embedder, em `internal/embedder/`.
+>
+> Este ADR fica **Deferred**, não Rejected: se o ASR voltar à pauta, o raciocínio
+> aqui (ONNX in-process vs GGUF/CrispASR via subprocess) continua válido.
 
 ## Context and Problem Statement
 

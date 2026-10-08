@@ -1,7 +1,7 @@
 ---
 title: embedder-builtin-onnx-minilm — provider de embedding embutido
 category: resource
-summary: Implementa o ADR-035 (Status: Proposed): provider `builtin` de embeddings via all-MiniLM-L6-v2 quantizado INT8 em ONNX Runtime, com fallback automático quando o Ollama está offline. Elimina a dependência de instalar Ollama + 274 MB de modelo para ter busca semântica. O spike de binding (.specs/features/spike-onnxruntime-binding) é o gate de entrada — sem ele o plano inteiro descansa numa premissa não validada.
+summary: Implementa o ADR-035 (Status: Proposed): provider `builtin` de embeddings via all-MiniLM-L6-v2 quantizado INT8 em ONNX Runtime, com fallback automático quando o Ollama está offline. Elimina a dependência de instalar Ollama + 274 MB de modelo para ter busca semântica. O spike de binding é o gate de entrada — sem ele o plano inteiro descansa numa premissa não validada.
 status: draft
 tags: [embedding, onnx, minilm, cgo, fallback, adr-035, search]
 ---
@@ -11,9 +11,11 @@ tags: [embedding, onnx, minilm, cgo, fallback, adr-035, search]
 > **Tipo:** Feature. Executa o plano de implementação do [[ADR-035]] (que está com `Status: Proposed` desde 2026-09-16 e nunca foi executado).
 
 > [!warning] O plano inteiro depende de uma premissa não validada
-> O ADR-035 assume que `github.com/yalue/onnxruntime_go` compila em **Windows com CGO** e produz inferência utilizável. Isso **nunca foi testado** neste repositório: não há `onnxruntime` no `go.mod`, e o spike `.specs/features/spike-onnxruntime-binding/` que existe justamente para validar isso **nunca foi executado**.
+> O ADR-035 assume que `github.com/yalue/onnxruntime_go` compila em **Windows com CGO** e produz inferência utilizável. Isso **nunca foi testado** neste repositório: não há `onnxruntime` no `go.mod`, e nada nunca rodou uma inferência ONNX aqui.
 >
-> A primeira task desta spec é o spike. Se o binding não buildar em Windows, tudo o resto cai e o verdict é **PIVOT** (ver [Open Question 1](#open-questions)).
+> A primeira task desta spec é o spike de binding. Se o binding não buildar em Windows, tudo o resto cai e o verdict é **PIVOT** (ver [Open Question 1](#open-questions)).
+>
+> *Nota: o spike `.specs/features/spike-onnxruntime-binding/` existia para o mesmo binding mas no contexto ASR/Nemotron, que foi adiado em 2026-10-08 (ADR-045 → `Deferred`). A validação é feita aqui, no pacote do embedder.*
 
 ## Problem Statement
 
@@ -79,7 +81,7 @@ O ADR-035 mapeia as três consequências: dependência externa obrigatória, col
 3. WHEN o modelo de teste carrega e roda uma inferência THEN o sistema SHALL retornar vetor com a dimensão declarada pelo modelo. (event-driven)
 4. WHEN o spike conclui THEN o sistema SHALL produzir verdict **T4 GO** (binding viável) ou **PIVOT** (binding inviável), com o erro literal como evidência. (ubiquitous)
 
-**Independent Test:** `internal/asr/spike/binding_smoke_test.go` (reaproveitado de `.specs/features/spike-onnxruntime-binding`) com `go test -tags nemotron -v`.
+**Independent Test:** `internal/embedder/binding_smoke_test.go` sob build tag `onnx`, com `go test -tags onnx -v`.
 
 > [!note]
 > Reaproveitar o smoke test existente em vez de escrever um novo. O spec do spike já está revisado e corrigido.
@@ -172,7 +174,7 @@ Se a projeção for padding+zero, o vetor final tem metade das dimensões zerada
 
 ## Success Criteria
 
-- [ ] G0 decidido: **T4 GO** ou **PIVOT**, com evidência em `.specs/features/spike-onnxruntime-binding/validation.md`
+- [ ] G0 decidido: **T4 GO** ou **PIVOT**, com evidência em `.specs/features/embedder-builtin-onnx-minilm/validation.md`
 - [ ] Benchmark em PT-BR decide se `builtin` supera FTS5 (critério de abort definido)
 - [ ] `mem index` num vault sem Ollama produz **vetores não-nulos** nos chunks
 - [ ] `mem search --mode vector` retorna resultados **sem** Ollama instalado
@@ -183,7 +185,7 @@ Se a projeção for padding+zero, o vetor final tem metade das dimensões zerada
 ## Cross-references
 
 - [[ADR-035]] — a decisão que esta spec executa (Status: Proposed)
-- [`.specs/features/spike-onnxruntime-binding/`](../spike-onnxruntime-binding/spec.md) — G0, o gate de entrada
+- [`.specs/features/spike-onnxruntime-binding/`](../spike-onnxruntime-binding/spec.md) — **adiado** (ADR-045 → `Deferred`, 2026-10-08); o gate de binding migrou para T1 desta spec
 - [`internal/embedder/ollama.go`](../../../internal/embedder/ollama.go) — o provider atual, que precisa ganhar um irmão
 - [`internal/config/config.go`](../../../internal/config/config.go) — `EmbeddingConfig` (hoje só conhece `ollama`)
 - [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml) — job `codeast-cgo-on`, precedente de CGO no CI
@@ -191,7 +193,7 @@ Se a projeção for padding+zero, o vetor final tem metade das dimensões zerada
 
 ## Outputs
 
-1. `internal/asr/spike/` reutilizado (P0) + `validation.md` com verdict
+1. `internal/embedder/binding_smoke_test.go` + `validation.md` com verdict (P0)
 2. `internal/embedder/builtin.go` + `builtin_test.go` (P1)
 3. `internal/embedder/selector.go` + `selector_test.go` (P2)
 4. `internal/embedder/model_downloader.go` (P3)

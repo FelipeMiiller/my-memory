@@ -6,6 +6,18 @@ status: draft
 tags: [asr, spike, cgo, onnx, fixture, validation, pre-t4]
 ---
 
+> [!warning] ⛔ Spike ADIADO em 2026-10-08 — não executar
+> O caminho ASR/Nemotron saiu do escopo ([ADR-045](../../../docs/adr/045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md) → `Deferred`). Este spike existia para decidir o binding ONNX **no contexto do cliente Nemotron de ASR**, e por isso não é executado.
+>
+> A validação de binding de que o **embedder** precisa é feita pelo T1 de
+> [`.specs/features/embedder-builtin-onnx-minilm/`](../embedder-builtin-onnx-minilm/tasks.md),
+> no pacote `internal/embedder/`.
+>
+> Se o ASR voltar à pauta, este documento serve de referência — mas revalide as
+> decisões (fixture de 670 MB, streaming, evento `stt.partial`) antes de seguir.
+
+---
+
 # spike-onnxruntime-binding — CGO build + fixture strategy
 
 > **Tipo:** Spike de validação (não é feature). Decisões tomadas aqui alimentam T4-T9 de `nemotron-asr-streaming` direto em `develop`.
