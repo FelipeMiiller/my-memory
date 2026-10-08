@@ -207,21 +207,26 @@ storage:
 
 **O vault central não declara `storage:`** — assim herda Postgres do global de propósito.
 
-> [!warning]
-> **Por que a credencial vai no arquivo e não em variável de ambiente.**
-> Clientes MCP (VS Code, Cursor, Claude Desktop, Windsurf) sobem o servidor como
-> processo filho e **só repassam o que está no bloco `env` do `mcp.json`** — os
-> configs gerados por `mem init --all` não têm esse bloco. Com a credencial só em
-> variável de ambiente, o MCP nasce sem ela, expande `${MY_MEMORY_PG_URL}` para
-> vazio e **cai no SQLite em silêncio**, sem erro nenhum.
->
-> Por isso o `~/.memory/config.yaml` guarda URL e senha direto (arquivo fora do
-> git), ainda que separadas em dois campos.
-
 > [!tip]
-> `postgres_url` e `postgres_password` são campos independentes. A URL fica
-> legível e compartilhável; só a credencial é secreta. `sanitizePostgresURL()`
-> mascara as duas formas em log — `user:pass@host` **e** `?password=`.
+> **A URL no arquivo, a senha em variável de ambiente.** A URL não é segredo — é
+> legível, compartilhável, e precisa estar no arquivo porque os clientes MCP
+> sobem o servidor como processo filho e só repassam o bloco `env` do `mcp.json`,
+> que os configs gerados por `mem init --all` **não têm**. Se a URL também
+> vivesse só em variável de ambiente, o MCP nasceria sem ela e cairia no SQLite
+> em silêncio.
+>
+> Já a senha nunca toca o disco: fica em `MY_MEMORY_PG_PASSWORD`. O único custo
+> é que o processo precise herdar o ambiente — **feche e reabra a IDE** depois de
+> criar a variável, senão o servidor nasce sem ela.
+>
+> Configurar no Windows (escopo `User`, sobrevive a reinício):
+> ```powershell
+> [Environment]::SetEnvironmentVariable('MY_MEMORY_PG_PASSWORD', '<senha>', 'User')
+> ```
+>
+> `postgres_url` e `postgres_password` são campos independentes, e
+> `sanitizePostgresURL()` mascara as duas formas em log — `user:pass@host` **e**
+> `?password=`.
 
 ### 4.4 Escolher embedder alternativo
 
@@ -749,7 +754,7 @@ Se é bug trivial/cosmético ou ajuste de copy → corrige direto, sem ADR (AGEN
 | Sintoma | Causa provável | Solução |
 |---|---|---|
 | `mem: command not found` | Binário não está no PATH | Rode `go build -o bin/mem.exe ./cmd/mem` ou re-rode o one-liner. No `mcp.json`, use o caminho absoluto |
-| **MCP cai no SQLite sem erro** | Cliente não passa `env`; `${MY_MEMORY_PG_URL}` expande para vazio | Grave URL+senha direto em `~/.memory/config.yaml` (fora do git) — ver §4.3 |
+| **MCP cai no SQLite sem erro** | Cliente não passa `env`; a URL está só em variável e expande para vazio | Deixe a **URL** no `~/.memory/config.yaml` (ela não é segredo). Só a senha fica em env var — ver §4.3 |
 | Env var nova não surte efeito | Processo já estava aberto quando a variável foi criada | Reabra o terminal / a IDE |
 | `Ollama indisponível` ao indexar | Ollama não instalado ou parado | `ollama serve` + `ollama pull nomic-embed-text`. Sem isso o índice fica **só em FTS léxica**, sem vetores |
 | Nota criada com frontmatter duplicado | BOM (U+FEFF) no conteúdo de entrada — `TrimSpace` não remove BOM | Corrigido em `internal/compiler/note.go` (ISSUE-013). Em shell POSIX use `cat`, não `echo` com heredoc no PowerShell |
