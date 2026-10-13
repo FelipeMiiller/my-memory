@@ -157,7 +157,7 @@ embedding:
   provider: ollama
   base_url: http://localhost:11434  # MY_MEMORY_EMBED_URL
   model: nomic-embed-text          # MY_MEMORY_EMBED_MODEL
-  dimension: 768                   # MY_MEMORY_EMBED_DIM
+  dimension: 384                   # MY_MEMORY_EMBED_DIM
 ```
 
 ### 4.2 Ordem de precedência (do mais prioritário ao menos)
@@ -248,8 +248,8 @@ MY_MEMORY_EMBED_DIM=1536
 
 | Provider | Modelo | Dim | Quando usar |
 |---|---|---|---|
-| Ollama (default) | `nomic-embed-text` | 768 | Local-first, sem custo |
-| Ollama | `bge-m3` | 1024 | Multilíngue robusto |
+| **builtin (default)** | `paraphrase-multilingual-MiniLM-L12-v2` | **384** | in-process, sem serviço externo (ADR-035) |
+| ~~Ollama~~ | — | — | **removido do caminho vetorial** (T7): `nomic-embed-text` é 768d e não cabe no schema 384 |
 | OpenAI | `text-embedding-3-small` | 1536 | Quando Ollama não está disponível |
 | ONNX MiniLM (ADR-035) | `all-MiniLM-L6-v2` | 384 | Fallback embutido sem rede |
 

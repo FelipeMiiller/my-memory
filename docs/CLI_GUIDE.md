@@ -87,7 +87,7 @@ Percorre recursivamente os arquivos do vault respeitando as regras declarativas 
 * Poda automaticamente notas deletadas do disco (`PruneDeletedDocuments`). Use `--no-prune` para preservar registros ausentes.
 * Extrai os `[[wikilinks]]` e `#tags` inserindo as arestas de relacionamento no grafo.
 * Pula automaticamente diretórios de sistema (`.git`, `node_modules`, `vendor`, `.obsidian`, `.trash`, `.memory`) via `filepath.SkipDir`.
-* Gera os embeddings de 768 dimensões via Ollama (`nomic-embed-text`).
+* Gera os embeddings de 384 dimensões via Ollama (`nomic-embed-text`).
 * Insere no `sqlite-vec` (vetor completo) e no `chunks_turboquant` (comprimido em 4-bits).
 
 **Exemplo:**
@@ -766,7 +766,7 @@ embedding:
   provider: "ollama"
   model: "nomic-embed-text"
   url: "http://localhost:11434"
-  dimension: 768
+  dimension: 384
 
 # Preferências padrão de busca
 search:
@@ -963,7 +963,7 @@ Parâmetros suportados:
 
 O `mem index` e o `mem search --mode hybrid` tentam gerar embeddings via Ollama (`http://localhost:11434`). Se Ollama estiver offline ou a URL configurada em `.memory/config.yaml` for inalcançável:
 
-* **Indexação continua funcionando** — cada chunk é armazenado com vetor zero (`make([]float32, 768)`); FTS5 indexa normalmente e TurboQuant comprime perfeitamente (vetor zero comprime sem perda).
+* **Indexação continua funcionando** — cada chunk é armazenado com vetor zero (`make([]float32, 384)`); FTS5 indexa normalmente e TurboQuant comprime perfeitamente (vetor zero comprime sem perda).
 * **Aviso emitido em cada chunk**: `Ollama indisponível (<chunkID>); indexando em modo léxico FTS`.
 * **Search híbrido cai automaticamente em FTS-only** — você verá `Executando fallback para busca textual FTS` na saída.
 * **Resultados ainda funcionam**: FTS5 + RRF + expansão de grafo retornam resultados relevantes, só perdem o ranqueamento semântico.

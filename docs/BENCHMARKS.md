@@ -14,7 +14,7 @@ Este documento consolida as medições empíricas da suíte de micro-benchmarks 
 - **Memória RAM:** 64 GB DDR4
 - **Sistema Operacional:** Windows Server / Ubuntu Linux (GitHub Actions CI)
 - **Linguagem / Compilador:** Go 1.24+ (compilador nativo, flags padrão de otimização)
-- **Dimensão Vetorial Padrão:** 768 dimensões (`nomic-embed-text` / compatível com Ollama)
+- **Dimensão Vetorial Padrão:** 384 dimensões (`nomic-embed-text` / compatível com Ollama)
 
 ### 1.2. Protocolo de Medição
 As medições foram executadas através de duas abordagens complementares e reproduzíveis:
@@ -25,17 +25,17 @@ As medições foram executadas através de duas abordagens complementares e repr
 
 ## 📊 2. Resultados Consolidados
 
-### 2.1. TurboQuant 4-Bit vs Float32 (Vetores de 768 Dimensões)
+### 2.1. TurboQuant 4-Bit vs Float32 (Vetores de 384 Dimensões)
 
 | Operação | Dimensão | Latência | Throughput Estimado | Memória / Op | Alocs / Op | Compressão |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Quantização 4-bit** (`Quantize`) | 768 floats | **55.74 µs/op** | ~17.940 vetores/s | 3.504 B/op | 3 allocs/op | **8x menor** |
-| **Desquantização 4-bit** (`Dequantize`) | 768 floats | **52.11 µs/op** | ~19.190 vetores/s | 6.144 B/op | 2 allocs/op | - |
-| **Produto Escalar 4-bit** (`DotProduct`) | 768 floats | **1.09 µs/op** | **~917.000 ops/s** | **0 B/op** | **0 allocs/op** | **Zero allocs** |
-| **Produto Escalar Float32** (`Exact`) | 768 floats | **297.8 ns/op** | ~3.360.000 ops/s | **0 B/op** | **0 allocs/op** | Linha de base |
+| **Quantização 4-bit** (`Quantize`) | 384 floats | **55.74 µs/op** | ~17.940 vetores/s | 3.504 B/op | 3 allocs/op | **8x menor** |
+| **Desquantização 4-bit** (`Dequantize`) | 384 floats | **52.11 µs/op** | ~19.190 vetores/s | 6.144 B/op | 2 allocs/op | - |
+| **Produto Escalar 4-bit** (`DotProduct`) | 384 floats | **1.09 µs/op** | **~917.000 ops/s** | **0 B/op** | **0 allocs/op** | **Zero allocs** |
+| **Produto Escalar Float32** (`Exact`) | 384 floats | **297.8 ns/op** | ~3.360.000 ops/s | **0 B/op** | **0 allocs/op** | Linha de base |
 
 #### Destaques de Eficiência:
-- **Redução de Memória:** Vetores de 768 floats32 ocupam **3.072 bytes**; após quantização 4-bit ocupam apenas **384 bytes**, gerando **87,5% de economia de espaço em disco e RAM**.
+- **Redução de Memória:** Vetores de 384 floats32 ocupam **1.536 bytes**; após quantização 4-bit ocupam apenas **384 bytes**, gerando **87,5% de economia de espaço em disco e RAM**.
 - **Fidelidade Algorítmica:** Erro Médio Absoluto (MAE) no produto escalar de apenas **0.00338** (distribuição normalizada unitária), comprovando a conservação de distância pelas rotações ortogonais de Householder.
 - **Zero Alocações na Busca:** Tanto o produto escalar 4-bit quanto o float32 rodam com **0 bytes e 0 alocações por operação**, permitindo saturação máxima de cache L1/L2 de CPU.
 - **Custo do 4-bit vs Float32:** O produto escalar quantizado é ~3.66× mais lento que o float32 (1.09 µs vs 297.8 ns), mas oferece 8× de compressão — troca favorável para workloads onde memória é gargalo.
@@ -111,7 +111,7 @@ Avaliando: TurboQuant 4-bit, Reciprocal Rank Fusion (RRF), SHA-256 Hashing e Mar
  TurboQuant Quantize (4-bit)    | 2653       | 56.69 µs/op   | 3.4 KB/op   | 3/op      | -
  TurboQuant Dequantize (4-bit)  | 2861       | 52.59 µs/op   | 6.0 KB/op   | 2/op      | -
  TurboQuant Dot Product (4-bit) | 134110     | 1.12 µs/op    | 0 B/op      | 0/op      | -
- Float32 Dot Product (768-dim)  | 348052     | 432 ns/op     | 0 B/op      | 0/op      | -
+ Float32 Dot Product (384-dim)  | 348052     | 432 ns/op     | 0 B/op      | 0/op      | -
  RRF Fusão (100 itens)          | 1193       | 125.95 µs/op  | 76.7 KB/op  | 919/op    | -
  RRF Fusão (1.000 itens)        | 107        | 1.42 ms/op    | 805.1 KB/op | 10524/op  | -
  SHA-256 Hashing (64 KB)        | 727        | 207.00 µs/op  | 128 B/op    | 2/op      | 301.93 MB/s

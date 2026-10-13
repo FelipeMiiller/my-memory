@@ -99,7 +99,7 @@ embedding:
   provider: "ollama"
   model: "nomic-embed-text"
   url: "http://localhost:11434"
-  dimension: 768
+  dimension: 384
 ```
 Quando Ollama está rodando, cada chunk é vetorizado e indexado em `chunks_vec` (sqlite-vec). A busca híbrida combina FTS5 + RRF + distância vetorial.
 
@@ -114,7 +114,7 @@ if emb != nil {
     if err == nil { vec = v }
 }
 if vec == nil {
-    vec = make([]float32, 768)  // vetor zero
+    vec = make([]float32, 384)  // vetor zero
 }
 _ = db.InsertChunk(ctx, ..., chunkID, docID, c, i, vec)
 ```

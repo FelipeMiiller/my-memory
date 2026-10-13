@@ -60,7 +60,7 @@ O pipeline de leitura e indexação opera em 4 etapas estritas para garantir má
                                        ⏩ Pula Embedding                                                                  ⚙️ Processa:
                                        (0 ms de latência)                                                                 1. Parser [[wikilinks]]
                                                                                                                          2. Chunking 200/30
-                                                                                                                         3. Embedding Ollama (768d)
+                                                                                                                         3. Embedding Ollama (384d)
                                                                                                                          4. TurboQuant 4-bit (388B)
 ```
 
@@ -107,7 +107,7 @@ Lê blocos YAML de frontmatter (`title`, `type`, `tags`, `status`) e hashtags in
 
 ## 4. A Matemática do TurboQuant 4-bit (Google DeepMind, ICLR 2026)
 
-Embeddings gerados por Large Language Models (como `nomic-embed-text` com 768 dimensões) utilizam números de ponto flutuante de 32 bits (`float32`), totalizando **3.072 bytes por vetor**.
+Embeddings gerados por Large Language Models (como `nomic-embed-text` com 384 dimensões) utilizam números de ponto flutuante de 32 bits (`float32`), totalizando **1.536 bytes por vetor**.
 
 ### O Desafio da Quantização Linear
 Vetores latentes possuem **dimensões com outliers extremos** — canais esparsos onde a ativação é centenas de vezes maior que a média. Em uma quantização linear simples para 4-bit (16 níveis), a escala máxima $S = \max |x_i|$ explode para acomodar os outliers, e 99% das dimensões restantes são forçadas a colapsar em 0, destruindo a acurácia.
@@ -115,7 +115,7 @@ Vetores latentes possuem **dimensões com outliers extremos** — canais esparso
 ### A Solução TurboQuant: 3 Etapas Fundamentais
 
 ```
-Vetor Original float32 (768d, 3.072 bytes)
+Vetor Original float32 (384d, 1.536 bytes)
               │
               ▼
 [ 1. Rotação Ortogonal de Householder ] ──> y = R * x (Dissipa outliers na hiperesfera)
@@ -128,7 +128,7 @@ Vetor Original float32 (768d, 3.072 bytes)
 ```
 
 #### 1. Rotação Ortogonal com Matrizes de Householder
-Em vez de gastar memória armazenando uma matriz densa de rotação $768 \times 768$, o My-Memory computa $k = 32$ refletores unitários ortogonais de Householder:
+Em vez de gastar memória armazenando uma matriz densa de rotação $384 \times 384$, o My-Memory computa $k = 32$ refletores unitários ortogonais de Householder:
 $$H_i = I - 2 v_i v_i^T, \quad \text{onde } \|v_i\| = 1$$
 $$R = H_{32} \cdot H_{31} \dots H_1$$
 
@@ -136,7 +136,7 @@ Como cada matriz $H_i$ é estritamente ortogonal ($H_i^T H_i = I$), temos que:
 $$R^T R = I$$
 **Propriedade Crítica:** A rotação ortogonal preserva estritamente o produto interno e a distância euclidiana:
 $$\langle R a, R b \rangle = \langle a, b \rangle, \quad \|R a\| = \|a\|$$
-A rotação espalha a energia dos outliers de forma homogênea por todas as 768 dimensões.
+A rotação espalha a energia dos outliers de forma homogênea por todas as 384 dimensões.
 
 #### 2. Quantização Simétrica e Bit-Packing
 Após a rotação, o vetor resultante $y = R x$ apresenta distribuição quase perfeitamente gaussiana. Ele é quantizado em 15 níveis simétricos:
@@ -144,7 +144,7 @@ $$q_i = \text{clamp}\left( \text{round}\left( \frac{y_i}{S} \times 7 \right), -7
 Onde $S = \max_i |y_i|$. Os valores inteiros $[-7, +7]$ são deslocados para $[0, 14]$ (ocupando 4 bits) e empacotados aos pares em um único byte (`byte = u0 | (u1 << 4)`).
 
 #### 3. Economia de Armazenamento
-- **Original:** 768 floats $\times 4$ bytes = **3.072 bytes**.
+- **Original:** 384 floats $\times 4$ bytes = **1.536 bytes**.
 - **TurboQuant 4-bit:** 384 bytes de dados + 4 bytes de escala = **388 bytes**.
 - **Redução:** **87.4% de economia de RAM e disco**, mantendo correlação angular $> 99\%$.
 
@@ -220,7 +220,7 @@ O My-Memory suporta dois motores de dados através de interfaces abstratas limpa
 | Característica | SQLite Local (Padrão) | PostgreSQL (pgvector) |
 | :--- | :--- | :--- |
 | **Instalação** | Zero dependências (arquivo único `memory.db`) | Servidor PostgreSQL 15+ com extensão `pgvector` |
-| **Busca Vetorial** | Virtual table `sqlite-vec` (`vec0`) + TurboQuant | Tipo nativo `vector(768)` com índice HNSW/IVFFlat |
+| **Busca Vetorial** | Virtual table `sqlite-vec` (`vec0`) + TurboQuant | Tipo nativo `vector(384)` com índice HNSW/IVFFlat |
 | **Busca Léxica** | Tabela virtual `FTS5` (BM25 nativo) | Índices `tsvector` com dicionários em português/inglês |
 | **Escala** | Até centenas de milhares de notas em máquina local | Milhões de documentos corporativos distribuídos |
 | **Multi-Tenant** | Um arquivo `.db` por vault | Coluna `repository` particionada no mesmo banco |

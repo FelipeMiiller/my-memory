@@ -1575,6 +1575,12 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 		for i, c := range chunks {
 			chunkID := fmt.Sprintf("%s#%d", docID, i)
 			var vec []float32
+			if emb == nil && i == 0 {
+				// Antes este ramo era totalmente silencioso: o aviso só existia
+				// dentro do `if emb != nil`. Sem provider, a indexação caía para
+				// FTS5 e ninguém era avisado.
+				fmt.Printf("Aviso: sem provider de embedding; %s indexado em modo léxico FTS\n", docID)
+			}
 			if emb != nil {
 				v, err := emb.GenerateEmbedding(c)
 				if err == nil {
@@ -1587,7 +1593,13 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 				vec = make([]float32, 768)
 			}
 
-			_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)
+			if err := s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec); err != nil {
+				// Antes o erro era descartado com `_ =` e o chunk contava como
+				// indexado. Na migração para vector(384) isso escondeu a falha
+				// inteira: "[]" numa coluna de 384 dimensões falha, o erro
+				// sumia, e `✔ Indexado` aparecia com zero vetores gravados.
+				fmt.Printf("Aviso: falha ao gravar vetor de %q (%v); chunk fica sem embedding\n", docID, err)
+			}
 		}
 
 		indexedCount++
@@ -1735,6 +1747,12 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		for i, c := range chunks {
 			chunkID := fmt.Sprintf("%s#%d", docID, i)
 			var vec []float32
+			if emb == nil && i == 0 {
+				// Antes este ramo era totalmente silencioso: o aviso só existia
+				// dentro do `if emb != nil`. Sem provider, a indexação caía para
+				// FTS5 e ninguém era avisado.
+				fmt.Printf("Aviso: sem provider de embedding; %s indexado em modo léxico FTS\n", docID)
+			}
 			if emb != nil {
 				v, err := emb.GenerateEmbedding(c)
 				if err == nil {
@@ -1748,7 +1766,9 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 			}
 
 			// Inserção padrão (sqlite-vec + FTS5)
-			_ = db.InsertChunk(ctx, database, chunkID, docID, c, i, vec)
+			if err := db.InsertChunk(ctx, database, chunkID, docID, c, i, vec); err != nil {
+				fmt.Printf("Aviso: falha ao gravar vetor de %q (%v); chunk fica sem embedding\n", docID, err)
+			}
 
 			// Inserção TurboQuant (4-bit comprimido: 384 bytes)
 			cv, err := tq.Quantize(vec)

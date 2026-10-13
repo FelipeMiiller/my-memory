@@ -28,8 +28,8 @@ O **My-Memory** é uma engine de memória semântica e relacional local desenvol
         [ Parser de Wikilinks & Tags ]           [ Chunking de Texto ]
                     │                                     │
                     ▼                                     ▼
-           ( graph_nodes & edges )              [ Ollama Embedding ]
-                    │                           (nomic-embed-text 768d)
+           ( graph_nodes & edges )              [ Builtin Embedding ]
+                    │                           (MiniLM multilíngue 384d)
                     │                                     │
                     │                    ┌────────────────┴────────────────┐
                     │                    ▼                                 ▼
@@ -76,7 +76,7 @@ O **My-Memory** é uma engine de memória semântica e relacional local desenvol
 - `chunks_fts`: Tabela virtual nativa do SQLite com tokenizador Porter (stemming) e Unicode61 para busca exata por palavras-chave via BM25 (ou `tsvector` com GIN no PostgreSQL).
 
 ### 3. Busca Vetorial Nativa (`sqlite-vec` / `pgvector`)
-- `chunks_vec`: Tabela virtual do tipo `vec0` armazenando os vetores originais de 768 floats de 32 bits (ou coluna `vector(768)` no PostgreSQL).
+- `chunks_vec`: Tabela virtual do tipo `vec0` armazenando os vetores originais de 384 floats de 32 bits (ou coluna `vector(384)` no PostgreSQL).
 
 ### 4. Busca Vetorial Ultracompacta (`chunks_turboquant`)
 - `chunks_turboquant`: Armazena o vetor quantizado para 4-bits (384 bytes por chunk + float de escala). Permite economizar ~88% do espaço em disco.
@@ -235,7 +235,7 @@ Para conectar o conhecimento corporativo transversal (padrões de engenharia, RF
 3. **Persistência Estável no PostgreSQL**: Um único banco estável atende todos os repositórios, com separação determinística por `repo_id` (e `repo_central`).
 4. **Auto-Bootstrap de Cofre Virgem**: Cria automaticamente 11 pastas canônicas, templates Obsidian e o MOC `README.md` raiz.
 5. **Busca Federada com RRF**: Unifica resultados locais e centrais com marcação de proveniência (`[local]` e `[central]`) e tolerância a desconexão de nuvem.
-6. **Fallback FTS Não-Bloqueante** (commit [`33feb1d`](../../commit/33feb1d) — `fix(index): fallback to FTS chunk indexing when embedding generation is offline`): quando Ollama está offline, `mem index` continua indexando com vetor zero (`make([]float32, 768)`) e a busca híbrida cai automaticamente em FTS-only. O usuário é notificado via `Aviso: Ollama indisponível; indexando em modo léxico FTS` em cada chunk, e via `Executando fallback para busca textual FTS` no `mem search --mode hybrid`. O grafo, o FTS5 e o TurboQuant continuam 100% operacionais. Detalhes em [`docs/CENTRAL_VAULT.md`](CENTRAL_VAULT.md#4-modos-de-embedding-online-vs-fallback).
+6. **Fallback FTS Não-Bloqueante** (commit [`33feb1d`](../../commit/33feb1d) — `fix(index): fallback to FTS chunk indexing when embedding generation is offline`): quando Ollama está offline, `mem index` continua indexando com vetor zero (`make([]float32, 384)`) e a busca híbrida cai automaticamente em FTS-only. O usuário é notificado via `Aviso: Ollama indisponível; indexando em modo léxico FTS` em cada chunk, e via `Executando fallback para busca textual FTS` no `mem search --mode hybrid`. O grafo, o FTS5 e o TurboQuant continuam 100% operacionais. Detalhes em [`docs/CENTRAL_VAULT.md`](CENTRAL_VAULT.md#4-modos-de-embedding-online-vs-fallback).
 
 ---
 

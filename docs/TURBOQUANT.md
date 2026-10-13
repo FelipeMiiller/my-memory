@@ -1,4 +1,4 @@
-﻿# TurboQuant: Teoria e Implementação
+# TurboQuant: Teoria e Implementação
 
 O **TurboQuant** é uma técnica de quantização de representações vetoriais de alta dimensão apresentada pelo **Google DeepMind** (ICLR 2026, [arXiv:2504.19874](https://arxiv.org/abs/2504.19874)).
 
@@ -8,7 +8,7 @@ Originalmente desenvolvida para compressão do **KV Cache** de Grandes Modelos d
 
 ## 🔬 O Problema da Quantização Convencional
 
-Em vetores de embeddings (ex: 768 dimensões geradas por transformers), os dados apresentam **canais com outliers extremos** — dimensões específicas com magnitudes desproporcionalmente altas. 
+Em vetores de embeddings (ex: 384 dimensões geradas por transformers), os dados apresentam **canais com outliers extremos** — dimensões específicas com magnitudes desproporcionalmente altas. 
 
 Se aplicarmos quantização direta uniforme (como INT4 linear), esses outliers forçam a escala a aumentar, comprimindo 99% das outras dimensões em valores próximos a zero, destruindo a resolução e a similaridade de cosseno.
 
@@ -17,7 +17,7 @@ Se aplicarmos quantização direta uniforme (como INT4 linear), esses outliers f
 ## 🛠 Os Três Pilares da Solução TurboQuant
 
 ```
-Vetor Original (768 floats, 3072 bytes)
+Vetor Original (384 floats, 3072 bytes)
            │
            ▼
 [ 1. Rotação Ortogonal Aleatória (Householder) ]
@@ -37,7 +37,7 @@ Vetor Original (768 floats, 3072 bytes)
 ## 📐 Formulação Matemática no Código
 
 ### 1. Rotação Ortogonal com Reflexões de Householder (`rotation.go`)
-Para evitar armazenar uma matriz densa $768 \times 768$, utilizamos uma sequência de $k = 32$ refletores unitários de Householder:
+Para evitar armazenar uma matriz densa $384 \times 384$, utilizamos uma sequência de $k = 32$ refletores unitários de Householder:
 $$H_i = I - 2 v_i v_i^T, \quad \|v_i\| = 1$$
 $$R = H_k \cdot H_{k-1} \dots H_1$$
 
@@ -69,6 +69,6 @@ Para uma query $q$ e um vetor indexado $x$:
 
 | Formato | Dimensões | Tipo | Tamanho por Chunk | Redução |
 | :--- | :--- | :--- | :--- | :--- |
-| **Float32 Padrão** | 768 | `float32` | 3.072 bytes | Linha de Base |
-| **Int8 Clássico** | 768 | `int8` | 768 bytes | ~75.0% |
-| **TurboQuant 4-bit** | 768 | `4-bit packed` | **388 bytes** | **~87.4%** |
+| **Float32 Padrão** | 384 | `float32` | 1.536 bytes | Linha de Base |
+| **Int8 Clássico** | 384 | `int8` | 384 bytes | ~75.0% |
+| **TurboQuant 4-bit** | 384 | `4-bit packed` | **196 bytes** | **~87.4%** |

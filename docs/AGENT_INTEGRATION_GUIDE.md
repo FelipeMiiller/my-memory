@@ -122,16 +122,16 @@ MY_MEMORY_PG_URL=postgres://postgres:postgres@localhost:5432/my_memory?sslmode=d
 MY_MEMORY_EMBED_PROVIDER=ollama
 MY_MEMORY_EMBED_URL=http://localhost:11434
 MY_MEMORY_EMBED_MODEL=nomic-embed-text
-MY_MEMORY_EMBED_DIM=768
+MY_MEMORY_EMBED_DIM=384
 ```
 
 ### 💡 Exemplos de Modelos Suportados via Ollama:
 | Modelo | Dimensão | Configuração no `.env` |
 | :--- | :---: | :--- |
-| **Nomic Embed Text** (Padrão) | 768 | `MY_MEMORY_EMBED_MODEL=nomic-embed-text`<br>`MY_MEMORY_EMBED_DIM=768` |
+| **MiniLM multilíngue** (Padrão, embutido) | **384** | `MY_MEMORY_MINILM_MODEL_DIR`<br>`MY_MEMORY_ORT_LIB` |
 | **BAAI BGE-M3** (Multilíngue denso/esparso) | 1024 | `MY_MEMORY_EMBED_MODEL=bge-m3`<br>`MY_MEMORY_EMBED_DIM=1024` |
 | **Mixedbread mxbai-embed-large** | 1024 | `MY_MEMORY_EMBED_MODEL=mxbai-embed-large`<br>`MY_MEMORY_EMBED_DIM=1024` |
-| **All-MiniLM-L6-v2** (Super leve) | 384 | `MY_MEMORY_EMBED_MODEL=all-minilm`<br>`MY_MEMORY_EMBED_DIM=384` |
+| ~~All-MiniLM-L6-v2~~ | 384 | **descartado**: English-only (`language: en`), ruim para vault PT-BR |
 
 > [!NOTE]
 > O My-Memory também aceita aliases universais no `.env`: `EMBEDDING_URL`, `OLLAMA_HOST`, `EMBEDDING_MODEL` e `EMBEDDING_DIM`.
@@ -172,7 +172,7 @@ embedding:
   provider: "ollama"
   model: "nomic-embed-text"
   url: "http://localhost:11434"
-  dimension: 768
+  dimension: 384
 ```
 
 ---
