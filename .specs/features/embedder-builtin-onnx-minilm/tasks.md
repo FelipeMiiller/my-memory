@@ -14,7 +14,7 @@
 
 | Layer | Test file | Tasks | Tipo |
 |---|---|---|---|
-| Corpus | `internal/embedder/benchmark_corpus_testdata.txt` | T3 | fixture |
+| Corpus | `internal/embedder/benchmark_corpus_testdata.txt` + `corpus_test.go` | T3 | fixture + invariantes |
 | Tokenizer | `internal/embedder/tokenizer_test.go` | T4 | unit |
 | Inferência bruta | `internal/embedder/builtin_test.go` | T5 | integração ONNX |
 | Qualidade / projeção | `internal/embedder/projection_bench_test.go` | T6, T7 | benchmark com gate de abort |
@@ -99,13 +99,13 @@ Objetivo: `mem embed`, config, reindex do vault central e fechamento do ADR.
 ### Phase 2
 
 #### T3: Corpus de benchmark PT-BR
-**Status:** Pending
+**Status:** Done ✅ (2026-10-08 — 30 sin + 30 dis = 60 pares; 82% com diacríticos; guard de vocabulário compartilhado verde)
 **Spec:** EMBED-005, EMBED-007
-**Where:** `internal/embedder/benchmark_corpus_testdata.txt`
+**Where:** `internal/embedder/benchmark_corpus_testdata.txt`, `internal/embedder/corpus_test.go`
 **Depends on:** —
 **What:** ~30 pares sinônimo/mesma-intenção e 30 pares não-relacionados, em português com acentos e cedilha. Crítica: o corpus precisa ser de domínio técnico genérico, não do my-memory.
-**Tests:** o arquivo carrega, tem exatamente 30+30 pares, e nenhuma linha duplicada.
-**Gate:** `go test ./internal/embedder/ -run TestCorpusLoads` verde.
+**Tests:** `corpus_test.go` — `TestCorpusLoads` (30+30, sem duplicatas), `TestCorpusExercitaPortugues` (≥40 pares e ≥80% com diacríticos), `TestCorpusDissimilarNaoCompartilhaVocabulario` (par `dis` não pode compartilhar palavra de conteúdo entre os lados).
+**Gate:** `go test ./internal/embedder/ -run TestCorpus` verde. **PASSOU.**
 
 > [!note]
 > Material já baixado em `~/.memory/models/`:

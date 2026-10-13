@@ -1,0 +1,80 @@
+# Corpus de benchmark semântico — PT-BR
+#
+# Usado por internal/embedder/projection_bench_test.go (T6).
+#
+# Formato: <classe>\t<frase A>\t<frase B>
+#   sin = paráfrase / sinônimo  -> coseno(A,B) deve ser ALTO
+#   dis = topicamente distante -> coseno(A,B) deve ser BAIXO
+#
+# Critério de abort do provider builtin: mean(sin) - mean(dis) precisa
+# superar o FTS5 léxico. Se não superar, o provider é descartado.
+#
+# Regras de escrita (revisão T3):
+#   - sin: mesmo significado, palavras diferentes. Não pode ser cópia literal.
+#   - dis: NÃO pode compartilhar vocabulário com o outro lado do par.
+#     "cache" × "banco de dados" não é dissimilar se a frase A fala de cache.
+#   - todo par contém pelo menos um acento, cedilha ou til em PT-BR.
+#     Verificado por TestCorpusExercitaPortugues.
+#   - domínio: técnico genérico (dev/infra/banco). NÃO usar conteúdo do my-memory.
+
+sin	Como eu configuro o cache da aplicação?	Como configuro o cache da aplicação?
+sin	O que é um índice de banco de dados?	O que significa um índice de banco de dados?
+sin	Como redefinir uma senha que esqueci?	Como eu troco a senha que esqueci?
+sin	Quando devo escrever um teste unitário?	Quando vale a pena escrever um teste unitário?
+sin	O servidor devolveu um erro interno.	O servidor retornou um erro interno.
+sin	Como instalo as dependências do projeto?	Como eu instalo as dependências do projeto?
+sin	O que significa integração contínua?	O que é integração contínua em desenvolvimento?
+sin	Meu código tem um vazamento de memória.	Meu programa está perdendo memória.
+sin	Como comprimir um arquivo grande?	Como eu comprimo um arquivo grande?
+sin	O que é controle de versão?	O que significa controle de versão?
+sin	A consulta está lenta porque não há índice.	A consulta fica lenta porque falta um índice.
+sin	Como leio uma variável de ambiente?	Como eu leio uma variável de ambiente?
+sin	O que é uma condição de corrida?	O que significa condição de corrida em programas?
+sin	Como faço o deploy para produção?	Como publico a aplicação em produção?
+sin	O certificado expirou ontem.	O certificado venceu ontem.
+sin	O que é um endpoint de API?	O que significa endpoint de API?
+sin	Como mato um processo travado?	Como eu encerro um processo que travou?
+sin	A suíte de testes está falhando.	Os testes estão dando erro.
+sin	O que é um container Docker?	O que significa container Docker?
+sin	Como faço merge de dois ramos?	Como eu uno dois ramos no Git?
+sin	O usuário não tem permissão para acessar o arquivo.	O usuário foi negado o acesso ao arquivo.
+sin	O que é cache e por que ele ajuda?	O que é cache e qual a sua utilidade?
+sin	Como depuro um travamento do programa?	Como eu descubro a causa de um crash?
+sin	O que é uma máquina virtual?	O que significa máquina virtual?
+sin	A conexão de rede expirou por tempo esgotado.	A conexão de rede deu timeout.
+sin	Como crio um novo ramo no Git?	Como eu crio uma nova branch?
+sin	O que é uma migração de schema?	O que significa migração de schema de banco?
+sin	O uso de CPU está muito alto.	O consumo de processador está alto.
+sin	Como trato erros no código?	Como eu lido com falhas na execução?
+sin	O que é balanceamento de carga?	O que significa balanceamento de carga em servidores?
+
+dis	Como eu configuro o cache da aplicação?	Uma receita de bolo de chocolate com chocolate meio amargo.
+dis	O que é um índice de banco de dados?	A história do Império Romano.
+dis	Como redefinir uma senha que esqueci?	Como cultivar tomate em uma varanda pequena.
+dis	Quando devo escrever um teste unitário?	As melhores trilhas de caminhada na Patagônia.
+dis	O servidor devolveu um erro interno.	Um poema sobre o mar ao pôr do sol.
+dis	Como instalo as dependências do projeto?	Os benefícios nutricionais da dieta mediterrânea.
+dis	O que significa integração contínua?	Como tocar piano clássico.
+dis	Meu código tem um vazamento de memória?	Os hábitos de reprodução das tartarugas marinhas.
+dis	Como comprimir um arquivo grande?	A história do jazz em Nova Orleans.
+dis	O que é controle de versão?	Como fazer pão caseiro brasileiro tradicional.
+dis	A consulta está lenta porque não há índice.	A composição química da floresta amazônica.
+dis	Como leio uma variável de ambiente?	As regras do basquete.
+dis	O que é uma condição de corrida?	A arquitetura das catedrais medievais.
+dis	Como faço o deploy para produção?	Os padrões migratórios das borboletas-monarca.
+dis	O certificado expirou ontem.	Uma receita de sopa de lentilha.
+dis	O que é um endpoint de API?	A formação geológica do Grand Canyon.
+dis	Como mato um processo travado?	Como pintar em aquarela.
+dis	A suíte de testes está falhando.	O enredo de um romance romântico.
+dis	O que é um container Docker?	Os tipos de nuvem no céu.
+dis	Como faço merge de dois ramos?	O valor nutricional da banana.
+dis	O usuário não tem permissão para acessar o arquivo.	A história dos Jogos Olímpicos.
+dis	O que é cache e por que ele ajuda?	Como adestrar um filhote de cão.
+dis	Como depuro um travamento do programa?	A composição da música clássica.
+dis	O que é uma máquina virtual?	A dieta das leões-marinhas do Pacífico.
+dis	A conexão de rede expirou por tempo esgotado.	A evolução da imprensa tipográfica.
+dis	Como crio um novo ramo no Git?	Como fazer massa fresca.
+dis	O que é uma migração de schema?	O comportamento das abelhas durante o inverno.
+dis	O uso de CPU está muito alto.	Os museus mais visitados da Europa.
+dis	Como trato erros no código?	As regras de aberturas no xadrez.
+dis	O que é balanceamento de carga?	Como cuidar de plantas de interior.
