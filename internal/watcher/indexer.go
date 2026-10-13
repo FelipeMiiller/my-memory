@@ -30,7 +30,7 @@ type IndexResult struct {
 func IndexSingleFileSQLite(
 	ctx context.Context,
 	database *sql.DB,
-	emb *embedder.OllamaClient,
+	emb embedder.Embedder,
 	tq *turboquant.Quantizer,
 	filePath string,
 	force bool,
@@ -165,7 +165,7 @@ func PurgeSingleFileSQLite(ctx context.Context, database *sql.DB, filePath strin
 func IndexSingleFilePostgres(
 	ctx context.Context,
 	s *store.PostgresStore,
-	emb *embedder.OllamaClient,
+	emb embedder.Embedder,
 	targetRepo string,
 	filePath string,
 	force bool,

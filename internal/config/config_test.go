@@ -142,8 +142,11 @@ func TestLoadAndSaveConfig(t *testing.T) {
 	if loaded.Storage.Engine != "sqlite" {
 		t.Errorf("esperava storage engine 'sqlite', obteve '%s'", loaded.Storage.Engine)
 	}
-	if loaded.Embedding.Dimension != 768 {
-		t.Errorf("esperava dimension 768, obteve %d", loaded.Embedding.Dimension)
+	// 384 = dimensão nativa do paraphrase-multilingual-MiniLM-L12-v2.
+	// Schema migrado de 768 em 2026-10-08 (ADR-035, T7) para evitar a
+	// projeção 384→768 que o benchmark mostrou perder separação par a par.
+	if loaded.Embedding.Dimension != 384 {
+		t.Errorf("esperava dimension 384, obteve %d", loaded.Embedding.Dimension)
 	}
 }
 

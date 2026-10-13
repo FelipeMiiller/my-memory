@@ -19,7 +19,7 @@ import (
 )
 
 // runNoteCLI processa os subcomandos 'mem note create' e 'mem note append'
-func runNoteCLI(ctx context.Context, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, args []string) error {
+func runNoteCLI(ctx context.Context, emb embedder.Embedder, tq *turboquant.Quantizer, defaultRepo string, args []string) error {
 	if len(args) < 1 {
 		fmt.Println("Uso: mem note <create|append> [opções] <caminho>")
 		fmt.Println("  mem note create [--title \"T\"] [--tags \"t1,t2\"] [--type \"concept\"] [--overwrite] [--if-match <revision>] <caminho>")
@@ -276,7 +276,7 @@ func runNoteCLI(ctx context.Context, emb *embedder.OllamaClient, tq *turboquant.
 }
 
 // runCompileCLI processa o comando 'mem compile'
-func runCompileCLI(ctx context.Context, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, args []string) error {
+func runCompileCLI(ctx context.Context, emb embedder.Embedder, tq *turboquant.Quantizer, defaultRepo string, args []string) error {
 	cmd := flag.NewFlagSet("compile", flag.ExitOnError)
 	topic := cmd.String("topic", "", "Tópico ou termo de busca para compilar (obrigatório)")
 	outPath := cmd.String("out", "", "Caminho relativo de destino da nota gerada (obrigatório)")

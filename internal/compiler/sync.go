@@ -16,13 +16,13 @@ import (
 type SyncEngine struct {
 	SQLiteDB *sql.DB
 	PGStore  *store.PostgresStore
-	Emb      *embedder.OllamaClient
+	Emb      embedder.Embedder
 	TQ       *turboquant.Quantizer
 	RepoSlug string
 }
 
 // NewSyncEngine cria uma nova instância de SyncEngine
-func NewSyncEngine(database *sql.DB, pgStore *store.PostgresStore, emb *embedder.OllamaClient, tq *turboquant.Quantizer, repoSlug string) *SyncEngine {
+func NewSyncEngine(database *sql.DB, pgStore *store.PostgresStore, emb embedder.Embedder, tq *turboquant.Quantizer, repoSlug string) *SyncEngine {
 	return &SyncEngine{
 		SQLiteDB: database,
 		PGStore:  pgStore,

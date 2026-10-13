@@ -36,8 +36,6 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/watcher"
 )
 
-const EmbeddingDim = 768
-
 func main() {
 	if len(os.Args) < 2 {
 		printHelp()
@@ -1180,7 +1178,7 @@ Este repositório está integrado com o **My-Memory** como motor de memória sem
 
 func runWatch(
 	ctx context.Context,
-	emb *embedder.OllamaClient,
+	emb embedder.Embedder,
 	tq *turboquant.Quantizer,
 	cfg *config.Config,
 	targetRepo, dbPath, pgURL, rootDir string,
@@ -1368,28 +1366,19 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 	return repo, db, pg
 }
 
-func resolveEmbedder(cfg *config.Config) (*embedder.OllamaClient, *turboquant.Quantizer, int) {
-	embedURL := ""
-	embedModel := "nomic-embed-text"
-	dim := EmbeddingDim
-
-	if cfg != nil {
-		if cfg.Embedding.URL != "" {
-			embedURL = cfg.Embedding.URL
-		}
-		if cfg.Embedding.Model != "" {
-			embedModel = cfg.Embedding.Model
-		}
-		if cfg.Embedding.Dimension > 0 {
-			dim = cfg.Embedding.Dimension
-		}
-	}
-
-	if envURL := os.Getenv("MY_MEMORY_EMBED_URL"); envURL != "" {
-		embedURL = envURL
-	}
-	if envModel := os.Getenv("MY_MEMORY_EMBED_MODEL"); envModel != "" {
-		embedModel = envModel
+// resolveEmbedder devolve o provider vetorial e o quantizador.
+//
+// Desde 2026-10-13 (ADR-035, T7) o schema é 384d e o ÚNICO provider vetorial
+// é o `builtin` (paraphrase-multilingual-MiniLM-L12-v2). O provider Ollama foi
+// removido do caminho vetorial: `nomic-embed-text` é 768d e não caberia mais no
+// schema, e o único 384d fácil do Ollama (`all-minilm`) é English-only —
+// exatamente a armadilha que o benchmark do corpus PT-BR eliminou.
+//
+// Sem a tag `onnx` no build não há provider: a indexação cai para FTS5 léxico.
+func resolveEmbedder(cfg *config.Config) (embedder.Embedder, *turboquant.Quantizer, int) {
+	dim := embedder.EmbeddingDim
+	if cfg != nil && cfg.Embedding.Dimension > 0 {
+		dim = cfg.Embedding.Dimension
 	}
 	if envDim := os.Getenv("MY_MEMORY_EMBED_DIM"); envDim != "" {
 		if d, err := strconv.Atoi(envDim); err == nil && d > 0 {
@@ -1397,7 +1386,11 @@ func resolveEmbedder(cfg *config.Config) (*embedder.OllamaClient, *turboquant.Qu
 		}
 	}
 
-	emb := embedder.NewOllamaClient(embedURL, embedModel)
+	emb, err := newBuiltinEmbedder(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Aviso: %v; indexando em modo léxico FTS\n", err)
+		emb = nil
+	}
 	tq := turboquant.NewQuantizer(dim)
 	return emb, tq, dim
 }
@@ -1464,7 +1457,7 @@ func mergeStringLists(a, b []string) []string {
 	return out
 }
 
-func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
+func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.Embedder, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
 	if cfg == nil {
 		def := config.DefaultConfig()
 		cfg = &def
@@ -1621,7 +1614,7 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder
 	fmt.Printf("🎉 Concluído! %d documentos processados no PostgreSQL (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
 }
 
-func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, cfg *config.Config, rootDir string, force, prune bool) {
+func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer, cfg *config.Config, rootDir string, force, prune bool) {
 	if cfg == nil {
 		def := config.DefaultConfig()
 		cfg = &def
@@ -1788,7 +1781,7 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaC
 	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
 }
 
-func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedder.OllamaClient, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
+func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.Embedder, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
 	decayInfo := ""
 	if decayOpts.Enabled {
 		decayInfo = fmt.Sprintf(" [Decay: ativo (meia-vida: %.1fd, peso: %.2f)]", decayOpts.HalfLife, decayOpts.Weight)
@@ -1914,7 +1907,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb *embedde
 	}
 }
 
-func runSearchSQLite(ctx context.Context, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
+func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
 	vecSubmode := "sqlite-vec"
 	if useTurbo || !db.HasSqliteVec {
 		vecSubmode = "TurboQuant"
@@ -2078,7 +2071,7 @@ func rearrangeSearchArgs(args []string) []string {
 	return append(flags, nonFlags...)
 }
 
-func buildSQLiteSearchFunc(database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer) func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+func buildSQLiteSearchFunc(database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer) func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
 	return func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
 		limit := params.Limit
 		if limit <= 0 {
@@ -2158,7 +2151,7 @@ func buildSQLiteSearchFunc(database *sql.DB, emb *embedder.OllamaClient, tq *tur
 	}
 }
 
-func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb *embedder.OllamaClient, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool, cfg ...*config.Config) {
+func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer, defaultRepo string, httpAddr string, corsEnabled bool, cfg ...*config.Config) {
 	srv := mcp.NewServer("my-memory", "1.0.0", os.Stdin, os.Stdout, os.Stderr)
 
 	var mcpCfg *config.Config
@@ -2431,7 +2424,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 	} else if database != nil {
 
 		if tq == nil {
-			tq = turboquant.NewQuantizer(EmbeddingDim)
+			tq = turboquant.NewQuantizer(embedder.EmbeddingDim)
 		}
 		dbSearchFunc := buildSQLiteSearchFunc(database, emb, tq)
 		var effectiveSearchFunc mcp.AdvancedSearchFunc = dbSearchFunc
@@ -3042,7 +3035,7 @@ func runBenchmarks() {
 	fmt.Println("🚀 Executando suíte de micro-benchmarks do My-Memory...")
 	fmt.Println("Avaliando: TurboQuant 4-bit, Reciprocal Rank Fusion (RRF), SHA-256 Hashing e Markdown Parsing")
 
-	dim := EmbeddingDim
+	dim := embedder.EmbeddingDim
 	tq := turboquant.NewQuantizer(dim)
 
 	v1 := make([]float32, dim)

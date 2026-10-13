@@ -8,39 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"testing"
 )
 
-// stopWordsBenchmark são palavras funcionais que não carregam significado.
-var stopWordsBenchmark = map[string]bool{
-	"a": true, "o": true, "as": true, "os": true, "um": true, "uma": true,
-	"de": true, "da": true, "do": true, "das": true, "dos": true,
-	"em": true, "no": true, "na": true, "nos": true, "nas": true,
-	"para": true, "por": true, "com": true, "sem": true, "ate": true, "apos": true,
-	"que": true, "e": true, "ou": true, "mas": true, "se": true, "como": true,
-	"quando": true, "onde": true, "qual": true, "quais": true, "porque": true,
-	"eu": true, "meu": true, "minha": true, "me": true, "seu": true, "sua": true,
-	"ao": true, "aos": true, "pela": true, "pelo": true,
-	"nao": true, "sim": true, "mais": true, "menos": true, "muito": true,
-	"tambem": true, "entao": true, "depois": true, "antes": true, "ja": true,
-	"sempre": true, "nunca": true, "agora": true, "bem": true, "mal": true,
-	"so": true, "aqui": true, "la": true, "ali": true,
-}
-
-func tokenSet(s string) map[string]bool {
-	out := map[string]bool{}
-	fields := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
-		return !('a' <= r && r <= 'z' || 'à' <= r && r <= 'ü' || 'A' <= r && r <= 'Z')
-	})
-	for _, w := range fields {
-		if len(w) < 3 || stopWordsBenchmark[w] {
-			continue
-		}
-		out[w] = true
-	}
-	return out
-}
+// benchTargetDim é o alvo histórico da comparação 384→768. O schema real é
+// 384 desde o T7, então projetar 384→384 seria no-op; o benchmark continua
+// medindo a projeção porque é ela que se quer decidir.
+const benchTargetDim = 768
 
 // ---------- critérios de abort ----------
 
@@ -124,8 +98,8 @@ func TestProjectionBenchmark(t *testing.T) {
 	const seed = 42
 	resultados := []benchResult{
 		resultPara(t, c, "nativo 384d", nil),
-		resultPara(t, c, "projecao JL 384->768", func(v []float32) []float32 { return ProjectJL(v, schemaDim, seed) }),
-		resultPara(t, c, "padding+zero 384->768", func(v []float32) []float32 { return ProjectPadZero(v, schemaDim) }),
+		resultPara(t, c, "projecao JL 384->768", func(v []float32) []float32 { return ProjectJL(v, benchTargetDim, seed) }),
+		resultPara(t, c, "padding+zero 384->768", func(v []float32) []float32 { return ProjectPadZero(v, benchTargetDim) }),
 	}
 
 	// Baseline léxico: Jaccard de tokens sobre o mesmo corpus.
@@ -214,7 +188,7 @@ func TestProjectionJLPreservaSimilaridade(t *testing.T) {
 		if err != nil {
 			t.Fatalf("embed: %v", err)
 		}
-		return CosineSimilarity(ProjectJL(va, schemaDim, seed), ProjectJL(vb, schemaDim, seed))
+		return CosineSimilarity(ProjectJL(va, benchTargetDim, seed), ProjectJL(vb, benchTargetDim, seed))
 	}
 
 	var somaSin, somaDis float64
@@ -328,9 +302,9 @@ func TestProjectionDeterminismo(t *testing.T) {
 	for i := range v {
 		v[i] = float32(i%7) - 3
 	}
-	a := ProjectJL(v, schemaDim, 42)
-	b := ProjectJL(v, schemaDim, 42)
-	if len(a) != schemaDim {
+	a := ProjectJL(v, benchTargetDim, 42)
+	b := ProjectJL(v, benchTargetDim, 42)
+	if len(a) != benchTargetDim {
 		t.Fatalf("vetor projetado com %d dims, quer %d", len(a), schemaDim)
 	}
 	for i := range a {
@@ -338,7 +312,7 @@ func TestProjectionDeterminismo(t *testing.T) {
 			t.Fatalf("JL nao deterministico na pos %d: %v != %v", i, a[i], b[i])
 		}
 	}
-	c := ProjectJL(v, schemaDim, 43)
+	c := ProjectJL(v, benchTargetDim, 43)
 	same := true
 	for i := range a {
 		if a[i] != c[i] {
@@ -358,8 +332,8 @@ func TestProjectionNaoAlteraEntrada(t *testing.T) {
 	}
 	orig := make([]float32, len(v))
 	copy(orig, v)
-	ProjectJL(v, schemaDim, 42)
-	ProjectPadZero(v, schemaDim)
+	ProjectJL(v, benchTargetDim, 42)
+	ProjectPadZero(v, benchTargetDim)
 	for i := range v {
 		if v[i] != orig[i] {
 			t.Fatalf("projecao alterou o vetor de entrada na pos %d", i)

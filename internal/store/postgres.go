@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     document_id TEXT NOT NULL,
     chunk_index INT NOT NULL,
     content TEXT NOT NULL,
-    embedding vector(768),
+    embedding vector(384),
     PRIMARY KEY (repository, id),
     FOREIGN KEY (repository, document_id) REFERENCES documents(repository, id) ON DELETE CASCADE
 );

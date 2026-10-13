@@ -63,7 +63,7 @@ type EmbeddingConfig struct {
 	Provider  string `yaml:"provider,omitempty" json:"provider,omitempty"`   // "ollama" (default)
 	Model     string `yaml:"model,omitempty" json:"model,omitempty"`         // "nomic-embed-text" (default)
 	URL       string `yaml:"url,omitempty" json:"url,omitempty"`             // Endpoint do servidor (default: "http://localhost:11434")
-	Dimension int    `yaml:"dimension,omitempty" json:"dimension,omitempty"` // Dimensão dos vetores (default: 768)
+	Dimension int    `yaml:"dimension,omitempty" json:"dimension,omitempty"` // Dimensão dos vetores (default: 384 — nativo do MiniLM multilíngue, ADR-035)
 }
 
 // SearchConfig define as preferências padrão de busca no vault
@@ -131,7 +131,7 @@ func DefaultConfig() Config {
 			Provider:  "ollama",
 			Model:     "nomic-embed-text",
 			URL:       "http://localhost:11434",
-			Dimension: 768,
+			Dimension: 384,
 		},
 		Search: SearchConfig{
 			Mode:        "hybrid",
@@ -279,7 +279,7 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.Embedding.URL = "http://localhost:11434"
 	}
 	if cfg.Embedding.Dimension <= 0 {
-		cfg.Embedding.Dimension = 768
+		cfg.Embedding.Dimension = 384
 	}
 	if cfg.Search.Mode == "" {
 		cfg.Search.Mode = "hybrid"

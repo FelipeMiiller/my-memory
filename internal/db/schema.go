@@ -27,10 +27,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     tokenize = 'porter unicode61'
 );
 
--- Busca Vetorial via sqlite-vec padrão (dimensão 768 float32 = 3072 bytes)
+-- Busca Vetorial via sqlite-vec padrão (dimensão 384 float32 = 1536 bytes)
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(
     chunk_id TEXT PRIMARY KEY,
-    embedding float[768]
+    embedding float[384]
 );
 
 -- Busca Vetorial Ultracompacta via TurboQuant (4-bit = 384 bytes por chunk)
