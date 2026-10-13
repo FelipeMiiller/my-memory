@@ -125,13 +125,28 @@ Objetivo: `mem embed`, config, reindex do vault central e fechamento do ADR.
 > Dependência: `github.com/rostamlabs/rembed v0.3.0` (Apache-2.0, 11 stars, 0 forks, 1 autor, push em ago/2026). Baixa adoption — aceito por decisão explícita do Felipe em 2026-10-08, com o risco de normalizer errado registrado aqui.
 
 #### T5: BuiltinClient mínimo (vetor nativo 384d, sem projeção)
-**Status:** Pending
+**Status:** Done ✅ (2026-10-08 — 8 testes verdes, `build -tags onnx` OK, build padrão sem CGO intacto)
 **Spec:** EMBED-005, EMBED-006, EMBED-008
-**Where:** `internal/embedder/builtin.go`
+**Where:** `internal/embedder/builtin.go`, `internal/embedder/builtin_test.go`
 **Depends on:** T4
-**What:** carregar o modelo, criar sessão, mean pooling sobre tokens válidos, normalização L2. **Sem projeção ainda** — devolve os 384d nativos para servir de base ao benchmark da fase seguinte.
-**Tests:** inferência real devolve **384** floats; **nenhuma conexão de rede** (assert com listener fechado); determinismo bit-a-bit entre duas chamadas; erro nomeado quando modelo ou vocab faltam; vetor normalizado (norma L2 ≈ 1).
-**Gate:** `go test -tags onnx -count=1 ./internal/embedder/ -run TestBuiltin` verde + `go build -tags onnx ./...`.
+**What:** carrega o modelo, cria sessão, mean pooling sobre tokens válidos, normalização L2. **Sem projeção** — devolve os 384d nativos.
+**Tests:** gera 384 floats; norma L2 = 1.0; determinismo bit-a-bit; **sem rede** (transport HTTP global trocado por um que falha); texto vazio → erro explícito, nunca vetor zero; textos sem relação → vetores diferentes e não zerados; modelo ausente → erro nomeia `mem embed download`; ORT lib ausente → erro nomeia a biblioteca. Todos verdes.
+**Gate:** `go test -tags onnx ./internal/embedder/ -run TestBuiltin` verde + build padrão (CGO off) intacto. **PASSOU.**
+
+> [!note]
+> **Grounding do grafo, não assumido.** O modelo exportado pelo Xenova tem
+> **três** entradas: `input_ids`, `attention_mask` e `token_type_ids`. Sem a
+> terceira o runtime falha em `/embeddings/token_type_embeddings/Gather` com
+> `Missing Input: token_type_ids`. Descoberto rodando um probe antes de
+> escrever o código.
+>
+> **Sanidade semântica** (4 pares do corpus, antes da T6):
+> sin 0.9868 · sin 0.9446 · dis 0.1817 · dis 0.0968.
+> Separação ~0.94 vs ~0.10 confirma que a troca para modelo multilíngue
+> (ADR-035 revisado) foi correta — um modelo só-ingles não separaria
+> "índice" de "Império Romano" assim.
+>
+> Dependência: `github.com/yalue/onnxruntime_go v1.36.0`.
 
 ### Phase 3
 
