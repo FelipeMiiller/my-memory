@@ -107,14 +107,25 @@ Objetivo: `mem embed`, config, reindex do vault central e fechamento do ADR.
 **Tests:** o arquivo carrega, tem exatamente 30+30 pares, e nenhuma linha duplicada.
 **Gate:** `go test ./internal/embedder/ -run TestCorpusLoads` verde.
 
-#### T4: Tokenizer BPE wordpiece
+> [!note]
+> Material já baixado em `~/.memory/models/`:
+> `paraphrase-multilingual-MiniLM-L12-v2/` (`model_int8.onnx` 112,6 MB + `unigram.json` 14 MB)
+> `onnxruntime/onnxruntime.dll` (1.29.0)
+
+#### T4: Tokenizer SentencePiece Unigram
 **Status:** Pending
 **Spec:** EMBED-009
 **Where:** `internal/embedder/tokenizer.go`
 **Depends on:** T3
-**What:** carregar `vocab.txt` (BERT wordpiece), normalização (lowercase + strip accents), máscara de atenção, truncamento em 256 tokens (limite do MiniLM).
-**Tests:** vetores de entrada/saída do tokenizer; frase PT-BR com acento/cedilha gera tokens esperados (comparar com `bert-base-multilingual` ou tokenizer equivalente); truncamento de texto longo respeita 256 e não quebra.
+**What:** o modelo adotado é **Unigram**, não WordPiece (ver ADR-035). Implementar segmentação de **Viterbi** sobre `unigram.json` (formato HF tokenizers: `vocab: [[token, score], ...]`, `unk_id`), com byte-fallback para caracteres fora do vocabulário. Normalização: lowercase, strip de acentos conforme `tokenizer_config.json`, `tokenize_chinese_chars: true`. Adicionar `<s>` (CLS) e `</s>` (SEP); truncamento em **512** tokens.
+**Tests:** vetores de entrada/saída; frase PT-BR com acento/cedilha gera tokens esperados;unk char não quebra; truncamento respeita 512; Viterbi respeita a ordem dos scores (token mais longo vence em empate).
 **Gate:** `go test ./internal/embedder/ -run TestTokenizer` verde.
+
+> [!warning]
+> Esta task ficou **mais difícil** que o planejado. O ADR original assumia BERT
+> WordPiece (algoritmo guloso, ~50 linhas). Unigram exige Viterbi sobre o
+> grafo de substrings — ~150 linhas e precisa lidar com byte-fallback.
+> Ver a tabela de consequências no [ADR-035](../../../docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md).
 
 #### T5: BuiltinClient mínimo (vetor nativo 384d, sem projeção)
 **Status:** Pending

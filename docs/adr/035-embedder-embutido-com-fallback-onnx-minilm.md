@@ -1,4 +1,4 @@
-# ADR-035: Embedder Embutido com Fallback Automático (`builtin` / `all-MiniLM-L6-v2` via ONNX Runtime)
+# ADR-035: Embedder Embutido com Fallback Automático (`builtin` / `paraphrase-multilingual-MiniLM-L12-v2` via ONNX Runtime)
 
 - **Date**: 2026-09-16
 - **Status**: Proposed
@@ -34,7 +34,7 @@ Inspirado em projetos como `sentence-transformers/all-MiniLM-L6-v2` (modelo leve
 1. **Manter só Ollama + fallback FTS5 atual** (Descartado: caminho silencioso de degradação, requer instalação externa).
 2. **TF-IDF + SVD (LSA) puro Go** (Descartado para esta opção principal: zero dependência mas qualidade semântica limitada — capta coocorrência mas não semântica lexical treinada).
 3. **Hashing trick puro Go** (Descartado: pior que FTS5 em muitos cenários; só serviria como placeholder).
-4. **`all-MiniLM-L6-v2` quantizado INT8 via ONNX Runtime Go** (*Opção Escolhida* — razão: melhor relação qualidade/esforço para o perfil frugal).
+4. **`all-MiniLM-L6-v2` quantizado INT8 via ONNX Runtime Go** (*Opção Escolhida originalmente, **revista em 2026-10-08** — ver a correção no Decision Outcome: o modelo é **só-english** (`language: en`), apesar de este ADR afirmar o contrário. Trocado por `paraphrase-multilingual-MiniLM-L12-v2`.)
 5. **`bge-small-en-v1.5` quantizado via ONNX Runtime** (Alternativa: qualidade marginalmente superior, modelo ligeiramente maior; mantida como upgrade futuro).
 
 ## Pros and Cons of the Options
@@ -62,16 +62,17 @@ Inspirado em projetos como `sentence-transformers/all-MiniLM-L6-v2` (modelo leve
 - ❌ Colisões de hash degradam qualidade progressivamente com vocabulário crescente.
 - ❌ Serviria só como placeholder honesto, não como provider real.
 
-### `all-MiniLM-L6-v2` quantizado INT8 via ONNX Runtime Go ✅ Escolhida
+### `paraphrase-multilingual-MiniLM-L12-v2` quantizado INT8 via ONNX Runtime Go ✅ Escolhida (revisada em 2026-10-08)
 
-- ✅ Modelo leve (~22 MB não-quantizado, ~12 MB quantizado INT8).
-- ✅ Inferência CPU-friendly com ONNX Runtime otimizado para SIMD.
-- ✅ Qualidade semântica real — modelo treinado em pares (pergunta, resposta) multilíngue.
-- ✅ Licença Apache 2.0 — sem restrições.
-- ✅ Mantém schema do banco inalterado via projeção determinística 384d → 768d.
-- ❌ Binário aumenta ~15-30 MB (runtime ONNX compartilhado).
-- ❌ Cold start de ~1-2s na primeira inferência (warm-up na inicialização do CLI mitiga).
-- ❌ Qualidade ~85-90% do `nomic-embed-text` em benchmarks MTEB.
+- ✅ **50+ idiomas**, incluindo português — requisito do vault em PT-BR
+- ✅ Modelo leve (~118 M params; 112,6 MB int8, 22 MB de folga ainda é violento)
+- ✅ Inferência CPU-friendly com ONNX Runtime otimizado para SIMD
+- ✅ 384d nativo — igual ao modelo anterior, sem migração de schema
+- ✅ Licença Apache 2.0 — sem restrições
+- ⚠️ Tokenizer **SentencePiece Unigram**, não BERT WordPiece — exige Viterbi em Go puro
+- ❌ 5x maior que o `all-MiniLM-L6-v2` (112,6 MB vs 21,9 MB)
+- ❌ Cold start de ~1-2s na primeira inferência (warm-up na inicialização do CLI mitiga)
+- ❌ Qualidade ~85-90% do `nomic-embed-text` em benchmarks MTEB (a medir em PT-BR)
 
 ### `bge-small-en-v1.5` quantizado via ONNX Runtime
 
@@ -83,7 +84,46 @@ Inspirado em projetos como `sentence-transformers/all-MiniLM-L6-v2` (modelo leve
 
 ## Decision Outcome
 
-Adota-se a **Opção 4**: incluir `all-MiniLM-L6-v2` quantizado em INT8 como **provider `builtin`** do subsistema de embeddings, com **fallback automático** integrado.
+Adota-se a **Opção 4**: incluir um modelo de sentence-embedding quantizado em INT8 como **provider `builtin`** do subsistema de embeddings, com **fallback automático** integrado.
+
+> [!warning] Correção de 2026-10-08 — modelo trocado antes da implementação
+> A versão original deste ADR escolheu `all-MiniLM-L6-v2` (21,9 MB int8)
+> justificando-o como *"modelo treinado em pares (pergunta, resposta)
+> **multilíngue**"*.
+>
+> **Essa afirmação é factualmente incorreta.** A ficha do modelo no HuggingFace
+> declara `language: en`, e o pré-treino vem do `nreimers/MiniLM-L6-H384-uncased`,
+> também inglês. Para um vault em português, o modelo produz vetores de baixa
+> qualidade — provavelmente piores que FTS5 léxico.
+>
+> **Modelo adotado:** `paraphrase-multilingual-MiniLM-L12-v2` (50+ idiomas,
+> 384d nativo, 112,6 MB int8). Continua na mesma família
+> `sentence-transformers` e no mesmo tamanho nativo, 5x maior em download.
+>
+> Ver `.specs/features/embedder-builtin-onnx-minilm/validation.md` e o
+> benchmark em `projection_bench_test.go` para a evidência de qualidade.
+
+### Consequências da troca
+
+| | Antes (`all-MiniLM-L6-v2`) | Agora (`paraphrase-multilingual-MiniLM-L12-v2`) |
+|---|---|---|
+| Tamanho int8 | 21,9 MB | 112,6 MB |
+| Idiomas | inglês | **50+** (inclui PT-BR) |
+| Dimensão nativa | 384d | 384d (inalterada) |
+| Camadas | 6 | 12 |
+| Tokenizer | BERT WordPiece | **SentencePiece Unigram** (`unigram.json`) |
+| Max seq | 512 | 512 |
+
+> [!note]
+> A troca de tokenizer **WordPiece → Unigram** muda o plano de implementação da
+> T4 na spec: exige segmentação de Viterbi sobre o vocabulário em vez de
+> wordpiece guloso. É mais trabalho, não menos.
+
+### Requisitos de runtime descobertos no spike (T1)
+
+O binding `github.com/yalue/onnxruntime_go` (v1.36.0) **exige CGO** e
+`ONNX Runtime` na versão **1.29.0** (API version 29). Detalhes e evidências em
+`.specs/features/embedder-builtin-onnx-minilm/validation.md`.
 
 ### Topologia
 

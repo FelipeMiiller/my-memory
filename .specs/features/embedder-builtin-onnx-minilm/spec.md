@@ -58,7 +58,8 @@ O ADR-035 mapeia as três consequências: dependência externa obrigatória, col
 | `onnxruntime_go` empacota a lib nativa por `go build` ou exige `.dll` no PATH | ❌ não validada | Precisa de passo de setup ou ship da lib |
 | Projeção determinística 384d→768d preserva similaridade o suficiente | ⚠️ plausível (Johnson-Lindenstrauss), **não medida** | Precisa reavaliar o vetor ou mudar o schema |
 | O modelo quantizado INT8 mantém ≥85% da qualidade do `nomic-embed-text` | ❌ não medida (afirmado pelo ADR sem benchmark) | Provedor builtin pode ser pior que FTS5 |
-| HuggingFace `Xenova/all-MiniLM-L6-v2` tem ONNX INT8 disponível | ⚠️ a verificar | Trocar por `sentence-transformers` ou outro host |
+| HuggingFace `Xenova/all-MiniLM-L6-v2` tem ONNX INT8 disponível | ❌ **verificado: é só-english** | Trocado por `Xenova/paraphrase-multilingual-MiniLM-L12-v2` — 50+ idiomas, 112,6 MB int8 |
+| O tokenizer alvo é **Unigram** (`unigram.json`), não WordPiece | ✅ **verificado** | Exige segmentação de Viterbi em Go, não wordpiece guloso |
 | `embedding float[768]` é o schema nos dois backends | ✅ **verificado** (`internal/db/schema.go:31`, `internal/store/postgres.go:47`) | Nenhum — sem impacto |
 
 **Open questions (bloqueiam decisions):**
@@ -96,7 +97,7 @@ O ADR-035 mapeia as três consequências: dependência externa obrigatória, col
 2. WHEN a inferência falha THEN o sistema SHALL retornar erro nomeando a causa (modelo ausente, tokenizer ausente, sessão ONNX) — nunca um vetor zero silencioso. (unwanted-behavior)
 3. WHEN a dimensão nativa do modelo é 384 e o schema exige 768 THEN o sistema SHALL aplicar a projeção definida em [Open Question 2] e normalizar em L2. (event-driven)
 4. WHEN o mesmo texto é embedado duas vezes THEN o sistema SHALL produzir vetores idênticos bit a bit. (ubiquitous)
-5. WHEN o texto contém português com acento e cedilha THEN o sistema SHALL tokenizar corretamente (BPE com vocab do modelo). (ubiquitous)
+5. WHEN o texto contém português com acento e cedilha THEN o sistema SHALL tokenizar corretamente (SentencePiece Unigram, sem prefixo `query:`/`passage:` — ver [ADR-035](docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md)). (ubiquitous)
 
 **Independent Test:** `internal/embedder/builtin_test.go` — corpus de sentenças com sinônimos, comparando `cosine(embedding(A), embedding(B))` para par sinônimo vs par não-relacionado. **Se o par sinônimo não tiver score maior que o não-relacionado, o provider não serve.**
 
