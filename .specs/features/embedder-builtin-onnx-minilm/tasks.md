@@ -113,19 +113,16 @@ Objetivo: `mem embed`, config, reindex do vault central e fechamento do ADR.
 > `onnxruntime/onnxruntime.dll` (1.29.0)
 
 #### T4: Tokenizer SentencePiece Unigram
-**Status:** Pending
+**Status:** Done ✅ (2026-10-08 — via lib `github.com/rostamlabs/rembed/tokenizer/sentencepiece` v0.3.0)
 **Spec:** EMBED-009
-**Where:** `internal/embedder/tokenizer.go`
+**Where:** `internal/embedder/tokenizer.go`, `internal/embedder/tokenizer_test.go`
 **Depends on:** T3
-**What:** o modelo adotado é **Unigram**, não WordPiece (ver ADR-035). Implementar segmentação de **Viterbi** sobre `unigram.json` (formato HF tokenizers: `vocab: [[token, score], ...]`, `unk_id`), com byte-fallback para caracteres fora do vocabulário. Normalização: lowercase, strip de acentos conforme `tokenizer_config.json`, `tokenize_chinese_chars: true`. Adicionar `<s>` (CLS) e `</s>` (SEP); truncamento em **512** tokens.
-**Tests:** vetores de entrada/saída; frase PT-BR com acento/cedilha gera tokens esperados;unk char não quebra; truncamento respeita 512; Viterbi respeita a ordem dos scores (token mais longo vence em empate).
-**Gate:** `go test ./internal/embedder/ -run TestTokenizer` verde.
+**What:** o normalizador do modelo é um **charsmap pré-compilado** do SentencePiece (NMT-NFKC), não "lowercase + strip accents". Implementar isso à mão era o caminho para um tokenizer silenciosamente errado — sem referência para comparar, um caractere errado no charsmap degrada todo embedding sem erro. Delegado a `github.com/rostamlabs/rembed/tokenizer/sentencepiece`, que implementa exatamente a família XLM-R e tem testes pinados contra fixtures de referência do HF (`VocabSize()==250002 == len(tokenizer)` do HF). Wrapper cobre: caminho do modelo, limite 512, erros explícitos.
+**Tests:** `VocabSize == 250002`; `"olá mundo" -> [▁o lá ▁mundo]`; acentos/cedilha preservados; determinismo bit-a-bit; truncamento exato em 512 (8600 runes → 512); emoji/caractere raro/zero-width não quebram; texto vazio → 0 tokens sem erro; modelo ausente → erro que nomeia o arquivo e sugere `mem embed download`. Todos verdes.
+**Gate:** `go test ./internal/embedder/ -run TestTokenizer` verde. **PASSOU.**
 
-> [!warning]
-> Esta task ficou **mais difícil** que o planejado. O ADR original assumia BERT
-> WordPiece (algoritmo guloso, ~50 linhas). Unigram exige Viterbi sobre o
-> grafo de substrings — ~150 linhas e precisa lidar com byte-fallback.
-> Ver a tabela de consequências no [ADR-035](../../../docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md).
+> [!note]
+> Dependência: `github.com/rostamlabs/rembed v0.3.0` (Apache-2.0, 11 stars, 0 forks, 1 autor, push em ago/2026). Baixa adoption — aceito por decisão explícita do Felipe em 2026-10-08, com o risco de normalizer errado registrado aqui.
 
 #### T5: BuiltinClient mínimo (vetor nativo 384d, sem projeção)
 **Status:** Pending
