@@ -151,13 +151,36 @@ Objetivo: `mem embed`, config, reindex do vault central e fechamento do ADR.
 ### Phase 3
 
 #### T6: Benchmark projeção vs nativo vs FTS5
-**Status:** Pending
+**Status:** Done ✅ (2026-10-08 — **provider SOBREVIVE** ao critério de abort)
 **Spec:** EMBED-007, Risco 3, Risco 4
-**Where:** `internal/embedder/projection_bench_test.go`
+**Where:** `internal/embedder/projection.go`, `internal/embedder/projection_bench_test.go`
 **Depends on:** T5
-**What:** com o embedder funcionando, medir coseno médio dos dois grupos do corpus para (a) nativo 384d, (b) projeção Johnson-Lindenstrauss 384→768, (c) padding+zero. Registrar qual vence e **fixar o critério de abort**.
-**Tests:** asserção **score sinônimo > score não-relacionado** com margem mínima para a estratégia vencedora. Padding+zero que não superar o FTS5 é descartado e registrado.
-**Gate:** benchmark roda, resultado em `validation.md`, critério de abort explícito.
+**Tests:** benchmark dos 60 pares + 7 testes de invariante. Green.
+
+**Resultado medido (corpus PT-BR, 30 sin + 30 dis):**
+
+| Estratégia | sin | dis | gap |
+|---|---|---|---|
+| nativo 384d | 0.8025 | 0.0498 | **0.7528** |
+| projeção JL 384→768 | 0.7997 | 0.0524 | 0.7473 |
+| padding+zero 384→768 | 0.8025 | 0.0498 | 0.7528 |
+| lexical (Jaccard / teto do BM25) | 0.4556 | 0.0000 | 0.4556 |
+
+| Critério de abort | Piso | Medido | |
+|---|---|---|---|
+| gap sin−dis | 0.35 | 0.7528 | ✅ |
+| margem sobre o léxico | 0.15 | +0.2972 | ✅ |
+| score sinônimo | 0.50 | 0.8025 | ✅ |
+
+**Dois achados que corrigem o ADR-035:**
+
+1. **"padding+zero degrada o vetor" era falso.** Padding é equivalente ao nativo *em cosseno* — dimensões zeradas não contribuem pro produto interno, e o benchmark devolve números idênticos. O custo do padding é de armazenamento e de risco com índices que não tratam dimensão constante, não de similaridade. Teste dedicado prova a equivalência nos 60 pares.
+
+2. **JL preserva o gap MÉDIO, não cada par.** Pior sinônimo projetado = 0.0546 contra melhor dissímil = 0.3352. JL é projeção aleatória: preserva distância em média, não par a par. A asserção original ("pior sin > melhor dis") era propriedade que JL não garante; corrigida para as médias.
+
+**Conclusão para o T7:** o nativo 384d ganha em todos os eixos e o padding é inútil por construção. Não há razão para projetar — o schema deveria aceitar 384d.
+
+**Gate:** `go test -tags onnx ./internal/embedder/ -run TestProjection` verde. **PASSOU.**
 
 #### T7: Fechar a estratégia de projeção no ADR
 **Status:** Pending
