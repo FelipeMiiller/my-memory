@@ -201,77 +201,19 @@ func (s *PostgresStore) PruneDeletedDocuments(ctx context.Context, repo, rootDir
 		repo = "default"
 	}
 
-	activeMap := make(map[string]bool, len(activeDocIDs))
-	for _, id := range activeDocIDs {
-		activeMap[id] = true
-		activeMap[filepath.Clean(id)] = true
-		if abs, err := filepath.Abs(id); err == nil {
-			activeMap[abs] = true
-			activeMap[filepath.Clean(abs)] = true
-		}
-	}
+	active := buildActiveSet(activeDocIDs)
 
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, path FROM documents WHERE repository = $1
-	`, repo)
+	candidates, err := s.selectPrunableDocuments(ctx, repo, rootDir, active)
 	if err != nil {
-		return nil, fmt.Errorf("erro ao listar documentos para pruning: %w", err)
-	}
-	defer rows.Close()
-
-	var toPrune []string
-	cleanRoot := ""
-	if rootDir != "" {
-		if abs, err := filepath.Abs(rootDir); err == nil {
-			cleanRoot = strings.ToLower(filepath.Clean(abs))
-		} else {
-			cleanRoot = strings.ToLower(filepath.Clean(rootDir))
-		}
+		return nil, err
 	}
 
-	for rows.Next() {
-		var id, path string
-		if err := rows.Scan(&id, &path); err != nil {
+	pruned := make([]string, 0, len(candidates))
+	for _, ref := range candidates {
+		if err := s.deleteDocumentRows(ctx, repo, ref.ID); err != nil {
 			continue
 		}
-
-		cleanPath := path
-		if abs, err := filepath.Abs(path); err == nil {
-			cleanPath = abs
-		}
-		cleanPathLower := strings.ToLower(filepath.Clean(cleanPath))
-
-		if cleanRoot != "" {
-			if !strings.HasPrefix(cleanPathLower, cleanRoot) {
-				continue
-			}
-		}
-
-		cleanID := id
-		if abs, err := filepath.Abs(id); err == nil {
-			cleanID = abs
-		}
-
-		if !activeMap[id] && !activeMap[path] && !activeMap[cleanPath] && !activeMap[cleanID] {
-			toPrune = append(toPrune, id)
-		}
-	}
-
-	var pruned []string
-	for _, id := range toPrune {
-		tx, err := s.db.BeginTx(ctx, nil)
-		if err != nil {
-			continue
-		}
-
-		_, _ = tx.ExecContext(ctx, `DELETE FROM chunks WHERE repository = $1 AND document_id = $2`, repo, id)
-		_, _ = tx.ExecContext(ctx, `DELETE FROM graph_edges WHERE repository = $1 AND (source_id = $2 OR target_id = $2)`, repo, id)
-		_, _ = tx.ExecContext(ctx, `DELETE FROM documents WHERE repository = $1 AND id = $2`, repo, id)
-		_, _ = tx.ExecContext(ctx, `DELETE FROM graph_nodes WHERE repository = $1 AND id = $2`, repo, id)
-
-		if err := tx.Commit(); err == nil {
-			pruned = append(pruned, id)
-		}
+		pruned = append(pruned, ref.ID)
 	}
 
 	return pruned, nil
