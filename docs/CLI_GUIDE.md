@@ -223,6 +223,48 @@ curl -X POST http://localhost:38400/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_search","arguments":{"query":"arquitetura"}}}'
 ```
 
+#### Ferramenta `memory_reconcile` (PostgreSQL)
+
+Reconcilia o **vault (filesystem)** com o **índice PostgreSQL** sem precisar reindexar
+tudo — a limpeza antes só existia como efeito colateral de `mem index --prune`, que
+reconstrói o índice inteiro e regenera embeddings.
+
+| Argumento | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `dry_run` | boolean | **`true`** | Só relata os candidatos, sem escrever no banco. Só um `false` explícito executa as remoções. |
+| `repository` | string | repositório padrão do servidor | Repositório cujo índice será reconciliado. |
+| `root_dir` | string | raiz detectada pelo servidor | Vault a varrer. Precisa existir e ser um diretório. |
+| `confirm` | boolean | `false` | Força a aplicação quando há muito mais arquivo em disco do que documento no índice. |
+
+**Categorias do relatório:**
+
+| Categoria | Significado | Remove? |
+|---|---|---|
+| ✅ Presentes | No disco e no banco | Não |
+| 🗑️ Ausentes no disco | No banco, sem arquivo no disco | **Sim** (é o objetivo) |
+| 🆕 No disco, fora do banco | Arquivo indexável sem linha no banco | Não |
+| 🚫 Fora do índice por exclusão | Arquivo existe mas a configuração o exclui (ex.: `catalog-skills/**`) | **Nunca** |
+
+**Guardas de segurança** (a ferramenta apaga dados — todas abortam antes de qualquer escrita):
+
+1. `root_dir` inexistente, ilegível ou que não é um diretório → erro.
+2. Config do vault ausente → erro.
+3. **Varredura do disco com 0 arquivos indexáveis → erro.** Um vault não montado ou
+   um Google Drive desconectado não pode virar "o banco tem 316 documentos, portanto
+   apague 316".
+4. Se `NotIndexed > Present` em um vault com ≥ 50 documentos presentes, a remoção é
+   **suspensa** até vir `confirm=true`.
+5. Toda remoção é registrada em log com `id` e `path`.
+6. `catalog-skills/**` é material bruto: estar fora do índice é o estado correto, e
+   nunca entra na lista de remoção.
+
+**Exemplo (dry-run via endpoint HTTP):**
+```bash
+curl -X POST http://localhost:38400/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"memory_reconcile","arguments":{"repository":"central-memory","dry_run":true}}}'
+```
+
 ---
 
 ### 8. `mem export [--canvas <nota>] [--html <saida.html>] [--depth 1] [--out <arquivo>]`

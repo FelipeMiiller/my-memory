@@ -61,6 +61,10 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-035`](adr/035-embedder-embutido-com-fallback-onnx-minilm.md)** — Embedder Embutido com Fallback Automático (`builtin` / `all-MiniLM-L6-v2` via ONNX Runtime) — *Proposed*
 * **[`ADR-047`](adr/047-code-ast-tree-sitter-multi-linguagem.md)** — Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem, opt-in via `--tags treesitter`); habilita `mem code-index`, `mem code-search`, `mem code-graph`, `mem code-stats` + MCP tools `memory_code_search` e `memory_code_neighbors`
 
+### Higiene do índice (PostgreSQL)
+
+* **MCP tool [`memory_reconcile`](CLI_GUIDE.md#ferramenta-memory_reconcile-postgresql)** — reconcilia o vault (filesystem) com o índice sem reindexar tudo, removendo apenas documentos cujo arquivo sumiu do disco. `dry_run` é `true` por padrão e a operação aborta se o vault não existir ou se a varredura do disco retornar 0 arquivos. Detalhes em [`docs/CLI_GUIDE.md`](CLI_GUIDE.md) e no ISSUE-015 em [`.specs/ISSUES.md`](../.specs/ISSUES.md).
+
 
 
 ---

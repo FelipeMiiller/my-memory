@@ -422,6 +422,42 @@ type: summary                 # flag da CLI aplicada
 
 ---
 
+## ISSUE-015 — Não existia como pedir limpeza do índice sem reindexar tudo
+- **Severidade:** 🔥 high
+- **Status:** ✅ resolved (mecanismo entregue) — limpeza do `central-memory` legado depende de aval humano
+- **Achado em:** sessão 2026-10-17, via `mem doctor --repo central-memory` no vault `G:\My Drive\central-memory`
+
+**Sintoma.** O `mem doctor` reportava 316 documentos, 1420 chunks, 34 dead links, **218 notas órfãs** e Health Score **33/100**. As órfãs são quase todas de `catalog-skills\skills\**` — ~700 arquivos de material BRUTO indexados antes de a exclusão `catalog-skills/skills/**` existir no `.memory/config.yaml`.
+
+**Causa raiz (o que realmente estava faltando).** A única limpeza existente era `internal/store/postgres.go` → `PruneDeletedDocuments`, acoplada a `mem index --prune`: o conjunto `activeDocIDs` vinha de `cmd/mem/main.go` dos arquivos que passaram em `cfg.ShouldIndex()`, e tudo sob `rootDir` que não estivesse nele era apagado. Ou seja, **só rodava como efeito colateral de uma indexação completa**, que reconstrói o índice e regenera embeddings. Quem só queria limpar não tinha como pedir.
+
+**Resolução — a ferramenta é o mecanismo, não a limpeza.** Entregue a MCP tool `memory_reconcile` (`internal/mcp/reconcile_handlers.go`) sobre `store.Reconciler` (`internal/store/reconcile.go`), que compara o inventário do banco (`ListDocumentPaths`) com uma varredura de disco respeitando `cfg.ShouldIndex()`, e só então chama `PruneStaleDocuments`. As categorias de relatório são disjuntas:
+
+| Categoria | Significado | Remove? |
+|---|---|---|
+| Presentes | disco + banco | não |
+| Ausentes no disco | banco sem arquivo | **sim** |
+| No disco, fora do banco | arquivo indexável sem linha | não |
+| Fora do índice por exclusão | existe mas a config exclui | **nunca** |
+
+`catalog-skills/**` é material bruto: estar ausente do índice é o estado **correto**, então ele é reportado como "fora do índice por exclusão" e nunca entra na lista de remoção (proteção dupla: classificação no relatório + `ProtectedPrefixes` no prune).
+
+**Guardas de segurança implementadas e testadas** (`internal/store/reconcile_test.go`):
+1. `root_dir` inexistente / não é diretório / ausente → erro, zero DELETE.
+2. Config do vault ausente → erro, zero DELETE.
+3. **Varredura do disco com 0 arquivos indexáveis → erro, zero DELETE.** Este é o teste mais importante: sem ele, um vault não montado vira "o banco tem 316 documentos, portanto apague 316".
+4. `NotIndexed > Present` com ≥ 50 presentes → remoção suspensa até `confirm=true` (vault pequeno é tolerado).
+5. Toda remoção vai para o log com `id` e `path`.
+6. Dry-run não emite nenhum DELETE — verificado contra um vault real em `t.TempDir()` através do pipeline real do `database/sql` (driver registrador em `internal/store/reconcile_test.go`), não por mock da função.
+
+**Correção de comportamento descoberta durante os testes.** A extração do helper compartilhado de normalização de path endureceu duas coisas em `PruneDeletedDocuments`: (a) comparação por id/path passou a ser case-insensitive e a tolerar `\` vs `/`; (b) o recorte por `rootDir` passou a respeitar fronteira de segmento — antes `/repo/notes` casava com `/repo/notes2` por simples `HasPrefix` de string, o que podia apagar documento de vault vizinho.
+
+**Pendente — depende de aval humano.** A limpeza efetiva do `central-memory` legado **não** foi executada. Requer: (1) confirmar que os ~700 arquivos de `catalog-skills/skills/**` são mesmo material bruto descartável; (2) rodar `memory_reconcile` em dry-run contra o vault real; (3) só então aplicar com `dry_run=false`. Nenhuma operação foi feita no Neon nem no vault `G:\My Drive\central-memory` nesta sessão.
+
+**Commits:** ver `git log` em `develop` a partir de 2026-10-17 (`feat(mcp):`, `test(mcp):`, `docs:`).
+
+---
+
 **Próxima revisão:** quando iniciar próxima sessão (sessão `mvs_b361ffb514ef434a8c0c0d9342dfede6`).
 **Mantido por:** Mavis (Mavis orchestrator) + Felipe Miiller (review).
 **Localização:** `.specs/ISSUES.md` (commitado no repo).

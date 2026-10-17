@@ -202,6 +202,7 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 19 fer
 - `memory_get_insights`: Métricas globais da topologia da base de conhecimento (densidade, componentes, isolados).
 - `memory_inspect_node`: Inspeção cirúrgica de nós (in-links, out-links com sinalização cross-vault, chunks quantizados e status).
 - `memory_doctor`: Auditoria de integridade do grafo com detecção de dead links e notas órfãs.
+- `memory_reconcile`: Reconciliação do vault com o índice PostgreSQL sem reindexar — remove só documentos cujo arquivo sumiu do disco (`dry_run` por padrão, aborta se o vault não existir ou se a varredura do disco retornar 0 arquivos).
 - `memory_get_drift`: Auditoria de desvio semântico e divergência entre código e documentação.
 - `memory_write_note`: Criação de notas atômicas estruturadas com sincronização e indexação instantâneas.
 - `memory_append_section`: Adição atômica de seções a notas existentes com auto-linking e parsing.
