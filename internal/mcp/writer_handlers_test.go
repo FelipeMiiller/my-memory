@@ -24,6 +24,7 @@ func TestMCPWriterTools_List(t *testing.T) {
 		"memory_write_note",
 		"memory_append_section",
 		"memory_compile_note",
+		"memory_reconcile",
 	}
 
 	toolMap := make(map[string]bool)
