@@ -28,8 +28,8 @@ func TestEpoch_TrocaDeModeloDimensaoOuReceitaNaoColide(t *testing.T) {
 	base := Epoch()
 
 	for _, cenario := range []struct {
-		nome   string
-		epoch  string
+		nome    string
+		epoch   string
 		explica string
 	}{
 		{"dimensão diferente", ModelID + ":768:" + vectorRecipe, "EmbeddingDim mudou"},
