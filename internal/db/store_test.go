@@ -318,7 +318,7 @@ func TestSQLite_InsertDocumentWithMeta(t *testing.T) {
 	docID := "doc-meta"
 
 	// 1. Insert com metadados
-	err = InsertDocumentWithMeta(ctx, database, docID, "skills/deploy.md", "Deploy Skill", time.Now().Unix(), "hash1", "Micro-abstract de deploy", "skill")
+	err = InsertDocumentWithMeta(ctx, database, docID, "skills/deploy.md", "Deploy Skill", time.Now().Unix(), "hash1", "test-epoch", "Micro-abstract de deploy", "skill")
 	if err != nil {
 		t.Fatalf("InsertDocumentWithMeta falhou: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestSQLite_InsertDocumentWithMeta(t *testing.T) {
 	}
 
 	// 2. Atualização via conflito (upsert)
-	err = InsertDocumentWithMeta(ctx, database, docID, "skills/deploy.md", "Deploy Skill v2", time.Now().Unix(), "hash2", "Micro-abstract atualizado", "memory")
+	err = InsertDocumentWithMeta(ctx, database, docID, "skills/deploy.md", "Deploy Skill v2", time.Now().Unix(), "hash2", "test-epoch", "Micro-abstract atualizado", "memory")
 	if err != nil {
 		t.Fatalf("Upsert falhou: %v", err)
 	}

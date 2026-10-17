@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 )
 
@@ -76,6 +77,17 @@ func TestPostgresSchema_AbstractAndCategory(t *testing.T) {
 	}
 	if !strings.Contains(PostgresSchema, "ALTER TABLE documents ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'resource';") {
 		t.Fatalf("PostgresSchema deve conter migração retrocompatível para category")
+	}
+}
+
+func TestPostgresSchema_EmbedEpoch(t *testing.T) {
+	// Sem o embed_epoch, trocar o embedder deixaria o cache por content_hash
+	// decidir que nada mudou e os vetores antigos sobreviveriam.
+	if !strings.Contains(PostgresSchema, "embed_epoch TEXT") {
+		t.Fatalf("PostgresSchema deve conter coluna embed_epoch TEXT")
+	}
+	if !strings.Contains(PostgresSchema, "ALTER TABLE documents ADD COLUMN IF NOT EXISTS embed_epoch TEXT;") {
+		t.Fatalf("PostgresSchema deve conter migração retrocompatível para embed_epoch")
 	}
 }
 
@@ -154,7 +166,10 @@ func TestPostgresStore_Integration(t *testing.T) {
 	}
 
 	// 2. Chunks e busca vetorial + FTS
-	dummyVec := make([]float32, 768)
+	// A dimensão tem que ser a do schema (embedder.EmbeddingDim = 384). Ficar
+	// com o 768 antigo do nomic-embed-text fazia o teste falhar com
+	// "expected 384 dimensions, not 768" contra o Postgres real.
+	dummyVec := make([]float32, embedder.EmbeddingDim)
 	dummyVec[0] = 1.0
 	err = s.InsertChunk(ctx, repo, "doc-1#0", docID, "Conteúdo de teste sobre inteligência artificial e grafos", 0, dummyVec)
 	if err != nil {

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS documents (
     title TEXT,
     updated_at BIGINT NOT NULL,
     content_hash TEXT,
+    embed_epoch TEXT,
     abstract TEXT,
     category TEXT DEFAULT 'resource',
     PRIMARY KEY (repository, id)
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS documents (
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS abstract TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'resource';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS embed_epoch TEXT;
 
 CREATE TABLE IF NOT EXISTS chunks (
     id TEXT NOT NULL,
@@ -109,7 +111,7 @@ func FormatVector(vec []float32) string {
 	return sb.String()
 }
 
-func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, abstract, category string) error {
+func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, embedEpoch, abstract, category string) error {
 	if repo == "" {
 		repo = "default"
 	}
@@ -118,16 +120,17 @@ func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, pa
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO documents (id, repository, path, title, updated_at, content_hash, abstract, category)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO documents (id, repository, path, title, updated_at, content_hash, embed_epoch, abstract, category)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (repository, id) DO UPDATE SET
 			title = EXCLUDED.title,
 			path = EXCLUDED.path,
 			updated_at = EXCLUDED.updated_at,
 			content_hash = EXCLUDED.content_hash,
+			embed_epoch = EXCLUDED.embed_epoch,
 			abstract = EXCLUDED.abstract,
 			category = EXCLUDED.category
-	`, id, repo, path, title, updatedAt, contentHash, abstract, category)
+	`, id, repo, path, title, updatedAt, contentHash, embedEpoch, abstract, category)
 	if err != nil {
 		return err
 	}
@@ -142,26 +145,37 @@ func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, pa
 }
 
 func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error {
-	return s.InsertDocumentWithMeta(ctx, repo, id, path, title, updatedAt, contentHash, "", "resource")
+	return s.InsertDocumentWithMeta(ctx, repo, id, path, title, updatedAt, contentHash, "", "", "resource")
 }
 
-func (s *PostgresStore) GetDocumentHash(ctx context.Context, repo, id string) (string, error) {
+// GetDocumentIndexState devolve o par que decide se o cache incremental vale:
+// o hash do conteúdo e o epoch de embedding armazenados ("" quando ausentes).
+//
+// Só pular a reindexação quando **os dois** batem. Hash igual com epoch
+// diferente significa que o arquivo não mudou mas o que produziu o vetor mudou
+// — os vetores guardados não servem mais.
+func (s *PostgresStore) GetDocumentIndexState(ctx context.Context, repo, id string) (contentHash, embedEpoch string, err error) {
 	if repo == "" {
 		repo = "default"
 	}
 
-	var hash sql.NullString
-	err := s.db.QueryRowContext(ctx, `
-		SELECT content_hash FROM documents
+	var h, e sql.NullString
+	err = s.db.QueryRowContext(ctx, `
+		SELECT content_hash, embed_epoch FROM documents
 		WHERE repository = $1 AND id = $2
-	`, repo, id).Scan(&hash)
+	`, repo, id).Scan(&h, &e)
 	if err == sql.ErrNoRows {
-		return "", nil
+		return "", "", nil
 	}
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return hash.String, nil
+	return h.String, e.String, nil
+}
+
+func (s *PostgresStore) GetDocumentHash(ctx context.Context, repo, id string) (string, error) {
+	hash, _, err := s.GetDocumentIndexState(ctx, repo, id)
+	return hash, err
 }
 
 func (s *PostgresStore) DeleteDocumentData(ctx context.Context, repo, id string) error {

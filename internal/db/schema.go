@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS documents (
     title TEXT,
     updated_at INTEGER NOT NULL,
     content_hash TEXT,
+    embed_epoch TEXT,
     abstract TEXT,
     category TEXT DEFAULT 'resource'
 );
@@ -154,6 +155,7 @@ CREATE TABLE IF NOT EXISTS documents (
     title TEXT,
     updated_at INTEGER NOT NULL,
     content_hash TEXT,
+    embed_epoch TEXT,
     abstract TEXT,
     category TEXT DEFAULT 'resource'
 );

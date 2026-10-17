@@ -166,13 +166,13 @@ func TestSearch_CategoryFilter(t *testing.T) {
 	now := time.Now().Unix()
 
 	// Inserir documentos em categorias distintas usando InsertDocumentWithMeta
-	if err := InsertDocumentWithMeta(ctx, database, "doc_mem", "notes/mem.md", "Regras do Agente", now, "h1", "Regras e comportamentos do agente", "memory"); err != nil {
+	if err := InsertDocumentWithMeta(ctx, database, "doc_mem", "notes/mem.md", "Regras do Agente", now, "h1", "test-epoch", "Regras e comportamentos do agente", "memory"); err != nil {
 		t.Fatalf("falha ao inserir doc_mem: %v", err)
 	}
-	if err := InsertDocumentWithMeta(ctx, database, "doc_skill", "skills/run.md", "Comandos de Deploy", now, "h2", "Instruções de deploy em produção", "skill"); err != nil {
+	if err := InsertDocumentWithMeta(ctx, database, "doc_skill", "skills/run.md", "Comandos de Deploy", now, "h2", "test-epoch", "Instruções de deploy em produção", "skill"); err != nil {
 		t.Fatalf("falha ao inserir doc_skill: %v", err)
 	}
-	if err := InsertDocumentWithMeta(ctx, database, "doc_res", "docs/arch.md", "Arquitetura do Sistema", now, "h3", "Especificação técnica da arquitetura", "resource"); err != nil {
+	if err := InsertDocumentWithMeta(ctx, database, "doc_res", "docs/arch.md", "Arquitetura do Sistema", now, "h3", "test-epoch", "Especificação técnica da arquitetura", "resource"); err != nil {
 		t.Fatalf("falha ao inserir doc_res: %v", err)
 	}
 
@@ -250,10 +250,10 @@ func TestSearch_LevelL0Projection(t *testing.T) {
 	now := time.Now().Unix()
 
 	// Inserir documento com múltiplos chunks
-	if err := InsertDocumentWithMeta(ctx, database, "doc_multi", "notes/multi.md", "Multi Chunks Note", now, "h_multi", "Micro-abstract cirúrgico L0 para economia de tokens", "resource"); err != nil {
+	if err := InsertDocumentWithMeta(ctx, database, "doc_multi", "notes/multi.md", "Multi Chunks Note", now, "h_multi", "test-epoch", "Micro-abstract cirúrgico L0 para economia de tokens", "resource"); err != nil {
 		t.Fatalf("falha ao inserir doc_multi: %v", err)
 	}
-	if err := InsertDocumentWithMeta(ctx, database, "doc_single", "notes/single.md", "Single Note", now, "h_single", "Outro micro-abstract L0", "resource"); err != nil {
+	if err := InsertDocumentWithMeta(ctx, database, "doc_single", "notes/single.md", "Single Note", now, "h_single", "test-epoch", "Outro micro-abstract L0", "resource"); err != nil {
 		t.Fatalf("falha ao inserir doc_single: %v", err)
 	}
 

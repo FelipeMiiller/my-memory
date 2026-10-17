@@ -54,8 +54,8 @@ func TestRunPackCommand_SuccessAndJSON(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().Unix()
 
-	_ = db.InsertDocumentWithMeta(ctx, database, "doc-root", "docs/root.md", "Raiz Arquitetura", now, "h1", "Resumo Raiz", "resource")
-	_ = db.InsertDocumentWithMeta(ctx, database, "doc-sub", "docs/sub.md", "Subsistema", now, "h2", "Resumo Sub", "resource")
+	_ = db.InsertDocumentWithMeta(ctx, database, "doc-root", "docs/root.md", "Raiz Arquitetura", now, "h1", "test-epoch", "Resumo Raiz", "resource")
+	_ = db.InsertDocumentWithMeta(ctx, database, "doc-sub", "docs/sub.md", "Subsistema", now, "h2", "test-epoch", "Resumo Sub", "resource")
 	_ = db.InsertChunk(ctx, database, "c1", "doc-root", "Conteúdo estrutural da raiz.", 0, nil)
 	_ = db.InsertChunk(ctx, database, "c2", "doc-sub", "Conteúdo do subsistema conectado.", 0, nil)
 	_ = db.InsertEdgeWithProps(ctx, database, "doc-root", "doc-sub", "depends_on", "EXTRACTED", 1.0)

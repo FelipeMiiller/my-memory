@@ -53,6 +53,16 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN category TEXT DEFAULT 'resource'")
 	}
 
+	// Migração retrocompatível: embed_epoch identifica qual modelo/receita gerou
+	// os vetores gravados. Documentos antigos têm NULL e por isso não batem com
+	// o Epoch corrente — o cache força a reindexação uma única vez, o que é
+	// justamente o objetivo (healizar vetores de embedders antigos).
+	var epochColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'embed_epoch'").Scan(&epochColCount)
+	if epochColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN embed_epoch TEXT")
+	}
+
 	// Migração retrocompatível: adiciona colunas epistemic_status e weight em graph_edges se não existirem
 	var edgeColCount int
 	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('graph_edges') WHERE name = 'epistemic_status'").Scan(&edgeColCount)
@@ -87,21 +97,22 @@ type Document struct {
 	Category    string `json:"category,omitempty"`
 }
 
-// InsertDocumentWithMeta salva documento com content_hash, abstract (L0), category e seus nós no grafo
-func InsertDocumentWithMeta(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash, abstract, category string) error {
+// InsertDocumentWithMeta salva documento com content_hash, embed_epoch, abstract (L0), category e seus nós no grafo
+func InsertDocumentWithMeta(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash, embedEpoch, abstract, category string) error {
 	if category == "" {
 		category = "resource"
 	}
 	_, err := db.ExecContext(ctx, `
-		INSERT INTO documents (id, path, title, updated_at, content_hash, abstract, category)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO documents (id, path, title, updated_at, content_hash, embed_epoch, abstract, category)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			title = excluded.title,
 			updated_at = excluded.updated_at,
 			content_hash = excluded.content_hash,
+			embed_epoch = excluded.embed_epoch,
 			abstract = excluded.abstract,
 			category = excluded.category
-	`, id, path, title, updatedAt, contentHash, abstract, category)
+	`, id, path, title, updatedAt, contentHash, embedEpoch, abstract, category)
 	if err != nil {
 		return err
 	}
@@ -115,23 +126,34 @@ func InsertDocumentWithMeta(ctx context.Context, db *sql.DB, id, path, title str
 
 // InsertDocument salva documento com content_hash e seus nós no grafo (compatibilidade com chamadores legados)
 func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash string) error {
-	return InsertDocumentWithMeta(ctx, db, id, path, title, updatedAt, contentHash, "", "resource")
+	return InsertDocumentWithMeta(ctx, db, id, path, title, updatedAt, contentHash, "", "", "resource")
+}
+
+// GetDocumentIndexState devolve o par que decide se o cache incremental vale:
+// o hash do conteúdo e o epoch de embedding armazenados ("" quando ausentes).
+//
+// Só pular a reindexação quando **os dois** batem. Hash igual com epoch
+// diferente significa que o arquivo não mudou mas o que produziu o vetor mudou
+// — os vetores guardados não servem mais.
+func GetDocumentIndexState(ctx context.Context, db *sql.DB, id string) (contentHash, embedEpoch string, err error) {
+	var h, e sql.NullString
+	err = db.QueryRowContext(ctx, `
+		SELECT content_hash, embed_epoch FROM documents
+		WHERE id = ?
+	`, id).Scan(&h, &e)
+	if err == sql.ErrNoRows {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+	return h.String, e.String, nil
 }
 
 // GetDocumentHash retorna o hash SHA-256 de conteúdo armazenado de um documento (ou "" se não existir)
 func GetDocumentHash(ctx context.Context, db *sql.DB, id string) (string, error) {
-	var hash sql.NullString
-	err := db.QueryRowContext(ctx, `
-		SELECT content_hash FROM documents
-		WHERE id = ?
-	`, id).Scan(&hash)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return hash.String, nil
+	hash, _, err := GetDocumentIndexState(ctx, db, id)
+	return hash, err
 }
 
 // DeleteDocumentData remove chunks (relacional, FTS, vec, turboquant) e arestas originadas do documento

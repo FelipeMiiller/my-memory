@@ -1457,6 +1457,30 @@ func mergeStringLists(a, b []string) []string {
 	return out
 }
 
+// indexCacheHit decide se um documento pode ser pulado na indexação.
+//
+// Duas condições, porque são dois problemas diferentes:
+//
+//	content_hash — "o arquivo mudou?"
+//	embed_epoch  — "o que produziu o vetor ainda é a mesma coisa?"
+//
+// Hash igual com epoch diferente significa arquivo intacto e embedding de outra
+// geração: os vetores guardados não servem mais e precisam ser refeitos.
+//
+// epochGate é falso quando não há provider de embedding. Nesse caso o epoch
+// fica de fora da decisão de propósito: sem embedder não existe como regenerar
+// o vetor, então invalidar por epoch trocaria vetores reais por vetores zero —
+// seria o gate causando a perda que ele deveria evitar.
+func indexCacheHit(epochGate bool, storedHash, currentHash, storedEpoch, currentEpoch string) bool {
+	if storedHash == "" || storedHash != currentHash {
+		return false
+	}
+	if epochGate && storedEpoch != currentEpoch {
+		return false
+	}
+	return true
+}
+
 func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.Embedder, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
 	if cfg == nil {
 		def := config.DefaultConfig()
@@ -1467,6 +1491,13 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 	indexedCount := 0
 	cachedCount := 0
 	var activeDocIDs []string
+
+	// Epoch corrente: quem produz os vetores desta execução. Vazio quando não há
+	// provider (modo léxico), e nesse caso o gate abaixo compara "" com "".
+	currentEpoch := embedder.EpochFor(emb)
+	// Só há epoch a comparar quando existe provider. Sem ele, um epoch
+	// gravado nunca bateria e a reindexação trocaria vetores por zeros.
+	epochGate := emb != nil
 
 	// Pré-coleta títulos: banco + filesystem. Ver runIndexSQLite para rationale.
 	dbTitles, _ := s.ListDocumentTitles(ctx, targetRepo)
@@ -1527,10 +1558,16 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 		docID := path
 		currentHash := store.CalculateContentHash(contentBytes)
 
-		// Verificação de cache incremental via SHA-256
+		// Verificação de cache incremental via SHA-256 + embed_epoch.
+		// Pular exige os DOIS campos baterem: hash igual com epoch diferente
+		// significa arquivo intacto e vetor produzido por outro embedder.
+		//
+		// Sem provider (epochGate falso) o epoch NÃO invalida: sem embedder não
+		// existe como regenerar o vetor, e reindexar trocaria vetores reais por
+		// zeros — o gate por hash era justamente o que impedia essa destruição.
 		if !force {
-			storedHash, err := s.GetDocumentHash(ctx, targetRepo, docID)
-			if err == nil && storedHash != "" && storedHash == currentHash {
+			storedHash, storedEpoch, err := s.GetDocumentIndexState(ctx, targetRepo, docID)
+			if err == nil && indexCacheHit(epochGate, storedHash, currentHash, storedEpoch, currentEpoch) {
 				cachedCount++
 				fmt.Printf("⏩ [cached] %s (inalterado)\n", title)
 				return nil
@@ -1558,8 +1595,8 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 			abstract = parser.ExtractMicroAbstract(body, 160)
 		}
 
-		// 1. Salva documento com content_hash, abstract e category
-		if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
+		// 1. Salva documento com content_hash, embed_epoch, abstract e category
+		if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category); err != nil {
 			return err
 		}
 
@@ -1637,6 +1674,13 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 	cachedCount := 0
 	var activeDocIDs []string
 
+	// Epoch corrente: quem produz os vetores desta execução. Vazio quando não há
+	// provider (modo léxico), e nesse caso o gate abaixo compara "" com "".
+	currentEpoch := embedder.EpochFor(emb)
+	// Só há epoch a comparar quando existe provider. Sem ele, um epoch
+	// gravado nunca bateria e a reindexação trocaria vetores por zeros.
+	epochGate := emb != nil
+
 	// Pré-coleta títulos dos arquivos .md a serem indexados para o fuzzy resolve.
 	// Combinado com ListDocumentTitles do banco, forma a lista completa antes
 	// do walk — evita race onde um doc referencia outro que será indexado depois
@@ -1699,10 +1743,16 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		docID := path
 		currentHash := store.CalculateContentHash(contentBytes)
 
-		// Verificação de cache incremental via SHA-256
+		// Verificação de cache incremental via SHA-256 + embed_epoch.
+		// Pular exige os DOIS campos baterem: hash igual com epoch diferente
+		// significa arquivo intacto e vetor produzido por outro embedder.
+		//
+		// Sem provider (epochGate falso) o epoch NÃO invalida: sem embedder não
+		// existe como regenerar o vetor, e reindexar trocaria vetores reais por
+		// zeros — o gate por hash era justamente o que impedia essa destruição.
 		if !force {
-			storedHash, err := db.GetDocumentHash(ctx, database, docID)
-			if err == nil && storedHash != "" && storedHash == currentHash {
+			storedHash, storedEpoch, err := db.GetDocumentIndexState(ctx, database, docID)
+			if err == nil && indexCacheHit(epochGate, storedHash, currentHash, storedEpoch, currentEpoch) {
 				cachedCount++
 				fmt.Printf("⏩ [cached] %s (inalterado)\n", title)
 				return nil
@@ -1730,8 +1780,8 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 			abstract = parser.ExtractMicroAbstract(body, 160)
 		}
 
-		// 1. Salva documento com content_hash, abstract e category
-		if err := db.InsertDocumentWithMeta(ctx, database, docID, path, title, time.Now().Unix(), currentHash, abstract, category); err != nil {
+		// 1. Salva documento com content_hash, embed_epoch, abstract e category
+		if err := db.InsertDocumentWithMeta(ctx, database, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category); err != nil {
 			return err
 		}
 
