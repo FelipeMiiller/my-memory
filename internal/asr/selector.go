@@ -159,6 +159,15 @@ func (s *Selector) StreamUntilCancel(ctx context.Context, in <-chan []byte) (<-c
 				return gctx.Err()
 			case pcm, ok := <-in:
 				if !ok {
+					// `in` fechado e `ctx` cancelado chegam prontos ao mesmo
+					// tempo, e o `select` escolhe um caso aleatoriamente. Sem
+					// esta checagem, ~50% das execuções devolvem nil — dizendo
+					// ao chamador que o stream terminou limpo quando na verdade
+					// foi interrompido. Cancelamento é o motivo mais específico,
+					// então vence o fechamento do canal.
+					if err := gctx.Err(); err != nil {
+						return err
+					}
 					return nil
 				}
 				t, err := s.Transcript(gctx, pcm)
