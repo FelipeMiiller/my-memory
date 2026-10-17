@@ -2437,6 +2437,29 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			},
 		)
 
+		srv.SetReconcileHandler(func(ctx context.Context, req mcp.ReconcileRequest) (*mcp.ReconcileReport, error) {
+			repo := req.Repository
+			if repo == "" {
+				repo = defaultRepo
+			}
+
+			rootDir := req.RootDir
+			if rootDir == "" {
+				rootDir = vaultRoot
+			}
+
+			rep, err := store.NewReconciler(pgStore, pgStore, rootDir, mcpCfg).Reconcile(ctx, store.ReconcileRequest{
+				Repository: repo,
+				RootDir:    rootDir,
+				DryRun:     req.DryRunEnabled(),
+				Confirm:    req.Confirm,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return convertStoreReconcileReportToMCP(rep), nil
+		})
+
 		srv.SetGraphViewHandler(func(ctx context.Context, repo, rootNode string, maxDepth int) (*graphview.GraphView, error) {
 			if repo == "" {
 				repo = defaultRepo
@@ -3015,6 +3038,44 @@ func convertStoreDoctorReportToMCP(rep *store.DoctorReport) *mcp.DoctorReport {
 	for i, dc := range rep.DesyncedChunks {
 		mcpReport.DesyncedChunks[i] = mcp.DesyncedChunk{ChunkID: dc.ChunkID, DocumentID: dc.DocumentID, Issue: dc.Issue}
 	}
+	return mcpReport
+}
+
+func convertStoreReconcileReportToMCP(rep *store.ReconcileReport) *mcp.ReconcileReport {
+	if rep == nil {
+		return nil
+	}
+
+	mcpReport := &mcp.ReconcileReport{
+		Repository:        rep.Repository,
+		RootDir:           rep.RootDir,
+		DryRun:            rep.DryRun,
+		ScannedFiles:      rep.ScannedFiles,
+		ScannedExcluded:   rep.ScannedExcluded,
+		Present:           make([]mcp.ReconcileDocRef, len(rep.Present)),
+		MissingOnDisk:     make([]mcp.ReconcileDocRef, len(rep.MissingOnDisk)),
+		NotIndexed:        make([]mcp.ReconcileDocRef, len(rep.NotIndexed)),
+		ExcludedFromIndex: make([]mcp.ReconcileDocRef, len(rep.ExcludedFromIndex)),
+		Pruned:            make([]mcp.ReconcilePruned, len(rep.Pruned)),
+		Warnings:          make([]string, len(rep.Warnings)),
+		Blocked:           rep.Blocked,
+	}
+
+	convertDocs := func(src []store.DocumentRef, dst []mcp.ReconcileDocRef) {
+		for i, d := range src {
+			dst[i] = mcp.ReconcileDocRef{ID: d.ID, Path: d.Path, Title: d.Title}
+		}
+	}
+	convertDocs(rep.Present, mcpReport.Present)
+	convertDocs(rep.MissingOnDisk, mcpReport.MissingOnDisk)
+	convertDocs(rep.NotIndexed, mcpReport.NotIndexed)
+	convertDocs(rep.ExcludedFromIndex, mcpReport.ExcludedFromIndex)
+
+	for i, p := range rep.Pruned {
+		mcpReport.Pruned[i] = mcp.ReconcilePruned{ID: p.ID, Path: p.Path, DryRun: p.DryRun}
+	}
+	copy(mcpReport.Warnings, rep.Warnings)
+
 	return mcpReport
 }
 

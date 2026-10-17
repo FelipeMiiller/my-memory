@@ -580,6 +580,32 @@ var (
 		},
 	}
 
+	ToolMemoryReconcile = Tool{
+		Name:        "memory_reconcile",
+		Description: "Reconcilia o vault (filesystem) com o índice PostgreSQL sem reindexar: classifica documentos em presentes, ausentes no disco (candidatos à remoção), no disco fora do índice e fora do índice por exclusão de configuração. Remove em dry-run por padrão; aborta se o vault não existir ou se a varredura do disco retornar 0 arquivos",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"dry_run": map[string]any{
+					"type":        "boolean",
+					"description": "Se verdadeiro (padrão), apenas relata os candidatos sem escrever no banco. Só um false explícito executa as remoções.",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou nome do repositório cujo índice será reconciliado (opcional).",
+				},
+				"root_dir": map[string]any{
+					"type":        "string",
+					"description": "Raiz do vault a varrer (opcional). Se omitida, usa a raiz detectada pelo servidor. Precisa existir e ser um diretório, senão a operação é abortada.",
+				},
+				"confirm": map[string]any{
+					"type":        "boolean",
+					"description": "Força a aplicação mesmo quando há mais arquivos no disco fora do índice do que documentos presentes em um vault grande (padrão: false)",
+				},
+			},
+		},
+	}
+
 	ToolMemoryGetDrift = Tool{
 		Name:        "memory_get_drift",
 		Description: "Analisa o desvio semântico entre alterações recentes de código-fonte no Git e as notas/ADRs da base de memória, identificando documentação defasada e código órfão sem decisões arquiteturais vinculadas",
