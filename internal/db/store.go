@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
@@ -511,14 +512,16 @@ func FindSurprisingConnections(ctx context.Context, db *sql.DB, limit int, minSi
 		`)
 		if err == nil {
 			defer tqRows.Close()
-			tq := turboquant.NewQuantizer(768)
+			// A dimensão tem que ser a do schema. O literal 768 sobreviveu à
+			// migração 768 → 384 e fazia a descompressão usar o dim errado.
+			tq := turboquant.NewQuantizer(embedder.EmbeddingDim)
 			for tqRows.Next() {
 				var docID string
 				var scale float32
 				var data []byte
 				if err := tqRows.Scan(&docID, &scale, &data); err == nil && len(data) > 0 {
 					cv := &turboquant.CompressedVector{
-						Dim:   768,
+						Dim:   embedder.EmbeddingDim,
 						Scale: scale,
 						Data:  data,
 					}

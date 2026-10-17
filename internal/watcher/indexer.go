@@ -120,7 +120,10 @@ func IndexSingleFileSQLite(
 			}
 		}
 		if vec == nil {
-			vec = make([]float32, 768)
+			// embedder.EmbeddingDim, não literal: o fallback sem provider é o caminho
+			// mais exercitado em máquina sem Ollama/ONNX, e um literal divergente
+			// grava vetor de dimensão errada no schema.
+			vec = make([]float32, embedder.EmbeddingDim)
 		}
 
 		_ = db.InsertChunk(ctx, database, chunkID, docID, c, i, vec)
@@ -247,7 +250,10 @@ func IndexSingleFilePostgres(
 			}
 		}
 		if vec == nil {
-			vec = make([]float32, 768)
+			// embedder.EmbeddingDim, não literal: o fallback sem provider é o caminho
+			// mais exercitado em máquina sem Ollama/ONNX, e um literal divergente
+			// grava vetor de dimensão errada no schema.
+			vec = make([]float32, embedder.EmbeddingDim)
 		}
 
 		_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)

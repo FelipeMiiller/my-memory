@@ -1627,7 +1627,12 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 				}
 			}
 			if vec == nil {
-				vec = make([]float32, 768)
+				// A dimensão tem que ser a do schema (embedder.EmbeddingDim).
+				// O literal 768 aqui sobreviveu à migração 768 → 384: quando o
+				// embedding falha, o fallback gravava vetor de dimensão errada
+				// numa coluna 384 — que é justamente o caminho exercitado quando
+				// não há provider de embedding.
+				vec = make([]float32, embedder.EmbeddingDim)
 			}
 
 			if err := s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec); err != nil {
@@ -1812,7 +1817,12 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 				}
 			}
 			if vec == nil {
-				vec = make([]float32, 768)
+				// A dimensão tem que ser a do schema (embedder.EmbeddingDim).
+				// O literal 768 aqui sobreviveu à migração 768 → 384: quando o
+				// embedding falha, o fallback gravava vetor de dimensão errada
+				// numa coluna 384 — que é justamente o caminho exercitado quando
+				// não há provider de embedding.
+				vec = make([]float32, embedder.EmbeddingDim)
 			}
 
 			// Inserção padrão (sqlite-vec + FTS5)

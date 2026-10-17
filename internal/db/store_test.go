@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 )
 
@@ -36,14 +37,17 @@ func TestSQLiteStore_Lifecycle(t *testing.T) {
 	}
 
 	// 2. Chunks, FTS & TurboQuant
-	dummyVec := make([]float32, 768)
+	// A dimensão vem de embedder.EmbeddingDim, não de um literal: repetir o
+	// número aqui envelhece junto com o schema e quebra na migração seguinte
+	// (foi o que o job de SQLite do CI pegou em 2026-10-17).
+	dummyVec := make([]float32, embedder.EmbeddingDim)
 	dummyVec[0] = 0.5
 	err = InsertChunk(ctx, database, "test-doc#0", docID, "Texto de teste para FTS5 e sqlite-vec", 0, dummyVec)
 	if err != nil {
 		t.Fatalf("InsertChunk falhou: %v", err)
 	}
 
-	tq := turboquant.NewQuantizer(768)
+	tq := turboquant.NewQuantizer(embedder.EmbeddingDim)
 	qVec, err := tq.Quantize(dummyVec)
 	if err != nil {
 		t.Fatalf("Quantize falhou: %v", err)
