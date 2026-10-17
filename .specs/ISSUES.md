@@ -310,11 +310,12 @@ if content != "" {
 | ISSUE-008 | 🟠 high | ✅ resolved (bc70c5f + 0137779) | 2026-09-17 |
 | ISSUE-009 | 🟡 medium | ✅ resolved (ADR-041, 4c19393) | 2026-09-18 |
 | ISSUE-010 | 🟠 high | ✅ resolved | 2026-09-18 |
-| ISSUE-011 | 🟡 medium | 🔵 open | 2026-10-03 |
+| ISSUE-011 | 🟡 medium | ✅ resolved (2026-10-17) | 2026-10-03 |
+| ISSUE-014 | 🔴 high | ✅ resolved (2026-10-17) | 2026-10-17 |
 
 ## ISSUE-011 — Teste flaky `TestSelector_StreamUntilCancel_ConveysContextCancel` (falha ~50%)
 - **Severidade:** 🟡 medium
-- **Status:** 🔵 open
+- **Status:** ✅ resolved (2026-10-17)
 - **Achado em:** sessão 2026-10-03, quality gate pós-merge dos PRs #6 e #7
 - **Local:** `internal/asr/selector_test.go:166` e `internal/asr/selector.go:157-163`
 
@@ -327,13 +328,50 @@ if content != "" {
 
 O assert `errors.Is(err, context.Canceled)` só cobre o caminho A.
 
-**Impacto:** o CI pode ficar vermelho de forma intermitente e não-determinística, o que treina o time a ignorar falha de teste. Não é bug de produção: os dois caminhos são legítimos.
+**Impacto:** o CI pode ficar vermelho de forma intermitente e não-determinística, o que treina o time a ignorar falha de teste.
 
-**Correção proposta (sem ADR — é bug de teste):** tornar o teste determinístico em vez de sortear o desfecho. Duas opções:
-1. Cancelar *depois* de `StreamUntilCancel` estar em execução (sinalizar readiness), garantindo que só o cancelamento esteja pronto.
-2. Aceitar os dois desfechos (`context.Canceled` **ou** `nil` com `in` fechado) e adicionar caso separado que force o cancelamento para cobrir o caminho A de forma determinística.
+**Correção aplicada (2026-10-17) — no código de produção, não no teste.** A análise original classificou os dois caminhos como igualmente legítimos ("não é bug de produção") e propôs consertar o teste. Isso foi reavaliado e é incorreto: a assinatura é `StreamUntilCancel(ctx, in)` — o contrato é "stream até o chamador cancelar **ou** `in` fechar". Quando `ctx` está cancelado, devolver `nil` afirma ao chamador que o stream **terminou com sucesso**, quando na verdade foi interrompido no meio. É a mesma classe da armadilha 1 do `armadilhas-verificadas` (silêncio onde deveria haver sinal): o cancelamento é o motivo mais específico e precisa vencer.
 
-**Observação relacionada:** o drain `select { case <-out: default: }` nas linhas 188-194 do mesmo teste não verifica nada e pode ser removido.
+A correção desambigua o `select` no próprio `selector.go`:
+
+```go
+case pcm, ok := <-in:
+    if !ok {
+        // `in` fechado e `ctx` cancelado chegam prontos ao mesmo tempo, e o
+        // `select` escolhe um caso aleatoriamente. Sem esta checagem, ~50% das
+        // execuções devolvem nil.
+        if err := gctx.Err(); err != nil {
+            return err
+        }
+        return nil
+    }
+```
+
+Verificação: `go test ./internal/asr/... -run TestSelector_StreamUntilCancel_ConveysContextCancel -count=30` → **30/30 passando**. Antes da correção, 4 falhas em 10.
+
+Efeito colateral benéfico: o teste existente passou a ser um teste de regressão de verdade, sem precisar ser reescrito. As duas opções originais (sinalizar readiness no teste, ou aceitar os dois desfechos) teriam escondido a ambiguidade em vez de removê-la.
+
+**Observação registrada:** o drain `select { case <-out: default: }` nas linhas 188-194 do teste não verifica nada e pode ser removido em uma passada de limpeza.
+
+## ISSUE-014 — CI vermelho por 4 dias sem rodar nenhum teste
+- **Severidade:** 🔴 high
+- **Status:** ✅ resolved (2026-10-17)
+- **Achado em:** sessão 2026-10-17, ao auditar por que o `make([]float32, 768)` quebrado no teste de integração do Postgres sobreviveu à migração 768 → 384
+
+**Sintoma:** os dois últimos runs do `CI Pipeline` em `develop` terminaram em `failure` (2026-10-13 15:27 e 19:33). O último verde foi 2026-10-13 11:22 — **antes** do commit `f38477c` (schema 384d).
+
+**Causa raiz:** todos os jobs usavam `actions/setup-go` com `go-version: "1.25"`, enquanto o `go.mod` declara `go 1.26.1`. O setup-go instalava 1.25, o Go detectava a diretiva mais nova e baixava o toolchain como módulo (`golang.org/toolchain@v0.0.1-go1.26.1.linux-amd64`), que entrava no cache junto das dependências. O restore desse cache no runner falhava com:
+
+```
+! Failed to restore: "/usr/bin/tar" failed with error: exit code 2
+/usr/bin/tar: .../go1.26.1.linux-amd64/src/go/scanner/errors.go: Cannot open: File exists
+```
+
+A falha acontecia no job `lint`, **antes de qualquer teste rodar**. Como `unit-tests` e `database-tests` têm `needs: lint`, nenhum deles executou. O `768` quebrado do `internal/store/postgres_test.go` só apareceu dias depois, quando a suíte foi rodada localmente contra o Neon.
+
+**Resolução:** os 6 jobs com Go passaram a usar `go-version-file: "go.mod"`, fazendo o setup-go instalar exatamente a versão que o módulo pede — assim o toolchain nunca é baixado como módulo e não envenena o cache. Como a versão do Go entra na chave do cache, a mudança também invalida o cache corrompido. YAML validado; os 7 jobs foram preservados.
+
+**Lição registrada:** em `.agents/rules/always-test.md`, novos itens 8 ("regra que o CI não exercita é decorativa") e 9 ("teste flaky é teste quebrado"). Verificar `gh run list` ao encerrar tarefa, em vez de confiar na memória de que "rodou antes".
 
 ## ISSUE-012 — Testes de `cmd/mem` escreviam no config global real do usuário
 - **Severidade:** 🟠 high
