@@ -20,7 +20,14 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          # Lê a diretiva `go` do go.mod (1.26.1). Fixar uma versão aqui
+          # divergente faz o Go baixar o toolchain correto como módulo
+          # (golang.org/toolchain@v0.0.1-go1.26.1), e esse toolchain entra no
+          # cache junto com as dependências. O restore do cache então quebrava
+          # com `tar: Cannot open: File exists` no job de lint — antes de
+          # qualquer teste rodar. Como a versão faz parte da chave do cache,
+          # corrigir também invalida o cache envenenado.
+          go-version-file: "go.mod"
           cache: true
 
       - name: Check Formatting (gofmt)
@@ -59,7 +66,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: "go.mod"
           cache: true
 
       - name: Download Go Dependencies
@@ -149,7 +156,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: "go.mod"
           cache: true
 
       - name: Install CGO dependencies (SQLite & GCC)
@@ -208,7 +215,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: "go.mod"
           cache: true
 
       - name: Install C toolchain (gcc) for future real binding
@@ -269,7 +276,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: "go.mod"
           cache: true
 
       - name: Run Code AST No-Op Tests (default, no tag)
@@ -319,7 +326,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: "go.mod"
           cache: true
 
       - name: Install CGO dependencies (SQLite & GCC)
