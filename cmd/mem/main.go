@@ -667,6 +667,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "read":
+		if err := runReadCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "folders":
 		if err := runFoldersCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -861,6 +867,8 @@ func printHelp() {
 	fmt.Println("      Executa micro-benchmarks de performance (TurboQuant, RRF, SHA-256, Parsing) com resumo tabular")
 	fmt.Println("  mem files [--ext md] [--folder docs] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Lista os caminhos indexados em ordem alfabética, com filtro opcional de extensão ou pasta")
+	fmt.Println("  mem read <caminho> [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Imprime o Markdown bruto da nota a partir do índice, sem tocar o disco")
 	fmt.Println("  mem folders [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Lista as pastas do vault que contêm ao menos um documento indexado")
 	fmt.Println("  mem note <create|append> [opções] <caminho>")

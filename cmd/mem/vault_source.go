@@ -22,6 +22,11 @@ type vaultReader interface {
 	Close() error
 	// ListDocuments devolve todos os documentos do vault, ordenados por path.
 	ListDocuments(ctx context.Context) ([]store.VaultDocument, error)
+	// FindByPath resolve um caminho (exato ou basename) em candidatos, para
+	// que a desambiguação seja responsabilidade do comando.
+	FindByPath(ctx context.Context, query string) ([]store.VaultDocument, error)
+	// ReadContent devolve o Markdown bruto do documento remontando os chunks.
+	ReadContent(ctx context.Context, docID string) (string, error)
 }
 
 type sqliteVaultReader struct {
@@ -39,10 +44,26 @@ func (r *sqliteVaultReader) ListDocuments(ctx context.Context) ([]store.VaultDoc
 	return db.ListVaultDocuments(ctx, r.db)
 }
 
+func (r *sqliteVaultReader) FindByPath(ctx context.Context, query string) ([]store.VaultDocument, error) {
+	return db.FindVaultDocumentsByPath(ctx, r.db, query)
+}
+
+func (r *sqliteVaultReader) ReadContent(ctx context.Context, docID string) (string, error) {
+	return db.ReadVaultDocumentContent(ctx, r.db, docID)
+}
+
 func (r *postgresVaultReader) Close() error { return r.store.Close() }
 
 func (r *postgresVaultReader) ListDocuments(ctx context.Context) ([]store.VaultDocument, error) {
 	return r.store.ListVaultDocuments(ctx, r.repo)
+}
+
+func (r *postgresVaultReader) FindByPath(ctx context.Context, query string) ([]store.VaultDocument, error) {
+	return r.store.FindVaultDocumentsByPath(ctx, r.repo, query)
+}
+
+func (r *postgresVaultReader) ReadContent(ctx context.Context, docID string) (string, error) {
+	return r.store.ReadVaultDocumentContent(ctx, r.repo, docID)
 }
 
 // vaultFlags são as flags de storage compartilhadas por todos os comandos de
