@@ -312,6 +312,7 @@ if content != "" {
 | ISSUE-010 | 🟠 high | ✅ resolved | 2026-09-18 |
 | ISSUE-011 | 🟡 medium | ✅ resolved (2026-10-17) | 2026-10-03 |
 | ISSUE-014 | 🔴 high | ✅ resolved (2026-10-17) | 2026-10-17 |
+| ISSUE-016 | 🔴 high | ✅ resolved (2026-10-17) | 2026-10-17 |
 
 ## ISSUE-011 — Teste flaky `TestSelector_StreamUntilCancel_ConveysContextCancel` (falha ~50%)
 - **Severidade:** 🟡 medium
@@ -461,3 +462,60 @@ type: summary                 # flag da CLI aplicada
 **Próxima revisão:** quando iniciar próxima sessão (sessão `mvs_b361ffb514ef434a8c0c0d9342dfede6`).
 **Mantido por:** Mavis (Mavis orchestrator) + Felipe Miiller (review).
 **Localização:** `.specs/ISSUES.md` (commitado no repo).
+
+## ISSUE-016 — Testes de `cmd/mem` liam e escreviam no Postgres real do usuário (regressão da ISSUE-012)
+- **Severidade:** 🔴 high
+- **Status:** ✅ resolved (2026-10-17)
+- **Achado em:** sessão 2026-10-17, ao investigar 12 testes de `cmd/mem` falhando
+- **Mesma família da:** ISSUE-012 (teste tocando estado global do usuário) — lá foi o *config*, aqui é o *storage*
+
+**Sintoma.** 12 testes de `cmd/mem` falhavam, e o motivo era o mesmo em todos:
+
+```
+--- FAIL: TestClustersCLI_EmptyAndDegraded
+    Total de nós: 11 | Total de arestas: 30
+    1  C:\Users\Felipe\AppData\Local\Temp\TestRunCompileCLI2950196861\001\syntheses\microservices.md  6  synthesis
+--- FAIL: TestDoctor_EventsFlag_ReportsMetrics
+    🩺 Auditando integridade do grafo no PostgreSQL [001]...
+    Documentos: 11 | Chunks: 14 | Arestas: 30 | Nós: 11
+```
+
+Os nós lidos eram de diretórios temporários de teste **já deletados**, gravados no banco do usuário. A lista completa: `TestClustersCLI_EmptyAndDegraded`, `TestClustersCLI_WithSQLiteData`, `TestDoctor_EventsFlag_ReportsMetrics`, `TestDoctor_EventsFlag_WarnsWhenOldestUnackedTooOld`, `TestRunDriftCommand_JSONAndTerminal`, `TestCLI_EventsTail_PrintsJSONLines`, `TestCLI_EventsInspect_Found_PrintsEnvelope`, `TestCLI_ReplayDryRun_DoesNotApplyEffects`, `TestCLI_Trace_ReturnsAllEventsWithCorrelationID`, `TestCLI_LastSequence_PrintsMaxSequence`, `TestCLI_Stats_ReportsOldestUnacked`, `TestResolveStorageAndRepo`.
+
+**Causa raiz.** A ISSUE-012 já tinha criado `cmd/mem/main_test.go` com um `TestMain` que isola duas camadas: `MY_MEMORY_GLOBAL_CONFIG_DIR` para um temp dir, e `os.Unsetenv` de `MY_MEMORY_PG_URL`, `MY_MEMORY_PG_PASSWORD`, `POSTGRES_URL`, `DATABASE_URL`. **A camada de env não segurava**, por três motivos encadeados:
+
+1. **`cmd/mem/main.go:48` e `cmd/mem/main.go:1280`** chamam `config.FindAndLoadDotEnv(".")` em **todo** comando (via `resolveConfig()`). A função sobe do diretório de trabalho até a raiz do git procurando `.env`, e `internal/config/env.go:12` lista `.memory/.env` como **primeiro** candidato.
+2. **`internal/config/env.go:97`** — `LoadDotEnvFile` injeta as variáveis com `os.Setenv` sempre que `os.Getenv(key) == ""`. Como o `TestMain` tinha *apagado* a variável (não definido um valor sentinela), a condição era satisfeita e a URL real voltava para o ambiente do processo.
+3. O `.memory/.env` do próprio repositório contém `MY_MEMORY_PG_URL` e `DATABASE_URL` (são o `.env.example` versionado em `.memory/.env.example`, com a URL real preenchida). O arquivo achado era `C:\repository\my-memory\.memory\.env`.
+
+Daí para o roteamento: `resolveStorageAndRepo` (`cmd/mem/main.go:1344-1349`) lê `MY_MEMORY_PG_URL` **antes** de qualquer config, então `resolvedPG` vinha preenchido e o branch Postgres (`main.go:131`) ganhava do `--db <temp>/test.db` que o teste passava. **Por isso os testes liam o Postgres do usuário e ignoravam o banco temporário que acabavam de criar.**
+
+**Alcance do vazamento — por que metade dos testes falhava e a outra metade não.** Os 12 não são dois bugs:
+- **Em processo** (`TestClustersCLI_*`, `TestRunDriftCommand_*`, `TestResolveStorageAndRepo`): a chamada a `resolveConfig()` dentro do próprio teste repovoava o env antes de `resolveStorageAndRepo` ler. Por isso `TestClustersCLI_EmptyAndDegraded` falhava **mesmo rodando sozinho** (`-run`).
+- **Em subprocesso** (`TestDoctor_*`, `TestCLI_*`): `runMemDoctor`/`runMem` (`doctor_test.go:116`, `events_test.go:113`) executam `bin/mem.exe` com `cmd.Env == nil`, herdando `os.Environ()`. O `TestMain` rodava antes e tinha limpado as variáveis, mas **um teste em processo anterior já tinha repovulado o env do processo-pai** — os `mem.exe` nasciam com a URL real. Daí o vazamento em cascata, dependente de ordem.
+
+**Impacto.** Além de ler o banco do usuário, os testes que indexam (`TestRunNoteCLI_*`, `TestRunCompileCLI`) **gravavam** nele — daí os 11 documentos e os nós apontando para `TestRunCompileCLI*`/`TestRunNoteCLI*` no banco do desenvolvedor. Um `go test` é uma escrita no vault real.
+
+**Correção (2026-10-17).** Opt-out explícito da descoberta de `.env`, na raiz do problema:
+
+- `internal/config/env.go` — nova constante `SkipDotEnvEnv = "MY_MEMORY_SKIP_DOTENV"` e `DotEnvDisabled()`; `FindAndLoadDotEnv` retorna `os.ErrNotExist` sem tocar no disco nem no ambiente quando ligada.
+- `cmd/mem/main_test.go` — `TestMain` liga `MY_MEMORY_SKIP_DOTENV=1` (terceira camada de isolamento) e restaura o valor original ao final.
+
+A variável resolve os dois casos de uma vez porque é **herdada pelos `mem.exe`**: os subprocessos nascem com o opt-out ligado, então nunca encontram `.env` subindo do temp dir nem no ambiente.
+
+**Por que não bastou "definir um valor sentinela" nas variáveis de storage.** `LoadDotEnvFile` só escreve quando `os.Getenv(key) == ""`. Um sentinela não-vazio impediria a reinjeção, mas `resolveStorageAndRepo` o leria como uma URL e tentaria `store.NewPostgresStore(sentinela)`, falhando o teste com um erro de conexão em vez de rotear para SQLite. Isso exigiria um segundo entalhe no código de produção com um valor mágico — o opt-out é explícito e não depende de valor mágico.
+
+**Testes de regressão.**
+- `cmd/mem/storage_isolation_test.go:19` — `TestDotEnvDoesNotReinjectStorageEnvVar`: reproduz o estado pós-`TestMain` e afirma que `FindAndLoadDotEnv(".")` não repopula nenhuma das 4 variáveis de storage.
+- `cmd/mem/storage_isolation_test.go:42` — `TestResolveConfigAndStorage_NeverReachUserGlobalState`: roda a cadeia real do CLI (`resolveConfig()` → `resolveStorageAndRepo`) e falha se o storage resolver para Postgres ou para dentro de `os.UserHomeDir()`.
+- `internal/config/env_test.go:90` — `TestFindAndLoadDotEnv_SkipDotEnvEnv` e `TestDotEnvDisabled` cobrem o contrato do opt-out no pacote que o implementa.
+
+Os dois primeiros **falhavam antes da correção** (red confirmado: `MY_MEMORY_PG_URL foi repopulada por C:\repository\my-memory\.memory\.env (86 bytes)`).
+
+**Efeito colateral perigoso registrado.** Mover o `.env` da raiz para `.memory/.env` **piorou** o problema: `CandidateEnvFileNames[0]` é `.memory/.env`, então o arquivo agora é encontrado em **uma** aplicação de `filepath.Join` em vez de duas. A hipótese inicial da investigação (de que mover o arquivo resolveria) estava errada — por isso o teste de regressão importa mais que a mudança de arquivo.
+
+**Pendência fora do escopo deste fix (decisão do humano).** O banco real do usuário continua com o lixo acumulado — 11 documentos e 30 arestas de diretórios temporários de teste no Postgres, e `C:\Users\Felipe\.memory\memory.db` com 15.3 MB (última escrita 2026-10-13). **Nada foi apagado**: `~/.memory/memory.db` e `~/.memory/config.yaml` são estado real do usuário. A limpeza do Postgres (via `tmpdbtool -action=reset`, ferramenta de manutenção do dono do repo) e do SQLite central é decisão do Felipe.
+
+**Commits:** ver `git log` em `develop` a partir de 2026-10-17 (`fix(config):`, `test(ci):`, `docs:`).
+
+---

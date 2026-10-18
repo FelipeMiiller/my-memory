@@ -898,6 +898,36 @@ cp .memory/.env.example .memory/.env
 
 `.env` está no `.gitignore` — seguro contra commit acidental.
 
+> [!warning]
+> **Ordem de precedência dos arquivos `.env`:** a busca sobe do diretório de
+> trabalho até a raiz do Git e, em cada nível, testa **`.memory/.env` antes de
+> `.env`**. Ou seja, um `.memory/.env` na raiz do repositório vence um `.env`
+> na mesma pasta. Como `LoadDotEnvFile` injeta as variáveis com `os.Setenv`
+> **sempre que a variável ainda não está definida**, um `.env` encontrado aqui
+> sobrescreve um ambiente previamente limpo — é por isso que a suíte de testes
+> desliga a descoberta (ver abaixo).
+
+### Desligar a descoberta de `.env` (`MY_MEMORY_SKIP_DOTENV`)
+
+| Variável | Valores | Efeito |
+|---|---|---|
+| `MY_MEMORY_SKIP_DOTENV` | `1`, `true`, `yes`, `on` | `FindAndLoadDotEnv` não lê nenhum arquivo `.env` e não injeta nada no ambiente |
+
+Útil em **dois** cenários:
+
+1. **Testes automatizados** — `cmd/mem/main_test.go` liga a variável no
+   `TestMain`. Sem ela, o primeiro comando que chama `resolveConfig()`
+   reencontra o `.memory/.env` do repositório e repõe `MY_MEMORY_PG_URL` /
+   `DATABASE_URL` com a URL real, e todos os testes passam a ler o Postgres do
+   desenvolvedor em vez do banco temporário (ISSUE-016). Como a variável é
+   herdada pelos processos filhos, isolar só o processo de teste não basta —
+   os `mem.exe` executados pela suíte nasceriam com o vazamento.
+2. **Sandbox / CI** — para garantir que nenhum `.env` em um diretório ancestral
+   redirecione o storage, sem precisar reordenar o filesystem.
+
+Não afeta a precedência de `--storage=sqlite|postgres`: o opt-out só desliga a
+**descoberta de arquivos**, não as flags nem a config YAML.
+
 ### Sanitização automática de URLs em logs
 
 `internal/store/sanitize.go::sanitizePostgresURL` mascara `user:password@host` → `***@host` em mensagens de erro. Hostname ainda pode aparecer (vem do DNS resolver do Go), mas credenciais são protegidas.
