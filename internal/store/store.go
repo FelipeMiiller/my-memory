@@ -26,7 +26,8 @@ type Document struct {
 type DocumentMeta struct {
 	ID          string `json:"id"`
 	Path        string `json:"path"`
-	UpdatedAt   int64  `json:"updated_at"`
+	UpdatedAt   int64  `json:"updated_at"` // Instante da indexação do documento
+	MTime       int64  `json:"mtime"`      // Instante da última edição do arquivo (ADR-057); 0 = desconhecido
 	ContentHash string `json:"content_hash,omitempty"`
 }
 

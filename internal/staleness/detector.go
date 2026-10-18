@@ -230,8 +230,18 @@ func (d *Detector) computeStaleness(ctx context.Context) (*StalenessReport, erro
 			seenPaths[filepath.Clean(docMeta.Path)] = true
 			seenPaths[filepath.ToSlash(docMeta.Path)] = true
 
+			// ADR-057: a referência é o mtime persistido na indexação, não
+			// updated_at. updated_at é o instante em que NÓS indexamos — um
+			// arquivo editado antes de ser indexado sempre parece "no futuro",
+			// e qualquer edição posterior ficava invisível. Linha legada
+			// (mtime = 0) cai para updated_at em vez de virar falso positivo.
+			persistedMTime := docMeta.MTime
+			if persistedMTime <= 0 {
+				persistedMTime = docMeta.UpdatedAt
+			}
+
 			// Tolerância de 1 segundo para precisão de filesystem (FAT32/NTFS vs Unix timestamp)
-			if mtime > docMeta.UpdatedAt+1 {
+			if mtime > persistedMTime+1 {
 				staleFiles = append(staleFiles, displayPath)
 			}
 		}

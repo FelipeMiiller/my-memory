@@ -785,7 +785,7 @@ func ComputePageRank(ctx context.Context, db *sql.DB, damping float64, maxIter i
 
 // GetDocumentsMetadata recupera o mapa de caminhos para metadados de todos os documentos no SQLite
 func GetDocumentsMetadata(ctx context.Context, db *sql.DB) (map[string]store.DocumentMeta, error) {
-	rows, err := db.QueryContext(ctx, "SELECT id, path, updated_at, COALESCE(content_hash, '') FROM documents")
+	rows, err := db.QueryContext(ctx, "SELECT id, path, updated_at, COALESCE(mtime, 0), COALESCE(content_hash, '') FROM documents")
 	if err != nil {
 		return nil, fmt.Errorf("erro ao consultar metadados de documentos: %w", err)
 	}
@@ -794,7 +794,7 @@ func GetDocumentsMetadata(ctx context.Context, db *sql.DB) (map[string]store.Doc
 	metaMap := make(map[string]store.DocumentMeta)
 	for rows.Next() {
 		var meta store.DocumentMeta
-		if err := rows.Scan(&meta.ID, &meta.Path, &meta.UpdatedAt, &meta.ContentHash); err != nil {
+		if err := rows.Scan(&meta.ID, &meta.Path, &meta.UpdatedAt, &meta.MTime, &meta.ContentHash); err != nil {
 			return nil, fmt.Errorf("erro ao ler metadados do documento: %w", err)
 		}
 		cleanPath := filepath.Clean(meta.Path)

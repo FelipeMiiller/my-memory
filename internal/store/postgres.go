@@ -1245,7 +1245,7 @@ func (s *PostgresStore) FindPath(ctx context.Context, repo string, sourceQuery s
 
 // GetDocumentsMetadata recupera o mapa de caminhos para metadados de documentos para detecção de staleness
 func (s *PostgresStore) GetDocumentsMetadata(ctx context.Context, repo string) (map[string]DocumentMeta, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, path, updated_at, COALESCE(content_hash, '') FROM documents WHERE ($1 = '' OR repository = $1)", repo)
+	rows, err := s.db.QueryContext(ctx, "SELECT id, path, updated_at, COALESCE(mtime, 0), COALESCE(content_hash, '') FROM documents WHERE ($1 = '' OR repository = $1)", repo)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao consultar metadados de documentos no postgres: %w", err)
 	}
@@ -1254,7 +1254,7 @@ func (s *PostgresStore) GetDocumentsMetadata(ctx context.Context, repo string) (
 	metaMap := make(map[string]DocumentMeta)
 	for rows.Next() {
 		var meta DocumentMeta
-		if err := rows.Scan(&meta.ID, &meta.Path, &meta.UpdatedAt, &meta.ContentHash); err != nil {
+		if err := rows.Scan(&meta.ID, &meta.Path, &meta.UpdatedAt, &meta.MTime, &meta.ContentHash); err != nil {
 			return nil, fmt.Errorf("erro ao ler metadados do documento: %w", err)
 		}
 		cleanPath := filepath.Clean(meta.Path)
