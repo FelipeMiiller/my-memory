@@ -69,7 +69,14 @@ func resolveVaultDocument(ctx context.Context, reader vaultReader, query string)
 	if err != nil {
 		return store.VaultDocument{}, fmt.Errorf("falha ao buscar '%s' no índice: %w", query, err)
 	}
+	return resolveVaultDocumentFrom(candidates, query)
+}
 
+// resolveVaultDocumentFrom aplica a regra de escolha sobre candidatos já
+// buscado. Existe separado da consulta porque o servidor MCP tem os candidatos
+// na mão e precisa da mesma decisão — escolher entre duas notas com o mesmo
+// basename é regra de produto, não detalhe de SQL.
+func resolveVaultDocumentFrom(candidates []store.VaultDocument, query string) (store.VaultDocument, error) {
 	exact := make([]store.VaultDocument, 0, 1)
 	for _, doc := range candidates {
 		if vaultSlash(doc.Path) == query {

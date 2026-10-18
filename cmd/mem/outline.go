@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/FelipeMiiller/my-memory/internal/mcp"
 )
 
 // vaultHeading é um título ATX extraído do Markdown da nota.
@@ -84,6 +86,19 @@ func atxHeading(line string) (level int, text string, ok bool) {
 		return 0, "", false
 	}
 	return hashes, text, true
+}
+
+// vaultOutlineHeadings adapta o parser de títulos para a assinatura que o
+// servidor MCP consome. `mem outline` e memory_note_outline precisam concordar
+// sobre o que é um título: dois parsers divergiriam só para o agente e o humano
+// lerem estruturas diferentes do mesmo arquivo.
+func vaultOutlineHeadings(content string) []mcp.OutlineHeading {
+	parsed := parseVaultHeadings(content)
+	headings := make([]mcp.OutlineHeading, 0, len(parsed))
+	for _, heading := range parsed {
+		headings = append(headings, mcp.OutlineHeading{Level: heading.Level, Text: heading.Text})
+	}
+	return headings
 }
 
 // runOutlineCLI executa o subcomando mem outline direcionando para stdout

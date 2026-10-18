@@ -606,6 +606,89 @@ var (
 		},
 	}
 
+	// ADR-057: as quatro ferramentas abaixo são a superfície de leitura do vault
+	// (listar, ler, inspecionar estrutura, inspecionar metadados de arquivo) que
+	// `mem files`, `mem read`, `mem outline` e `mem file` oferecem no CLI. O
+	// agente que fala MCP não precisa shelling out para as mesmas respostas.
+	ToolMemoryListFiles = Tool{
+		Name:        "memory_list_files",
+		Description: "Lista os documentos indexados no vault em ordem alfabética de path, com filtros opcionais de extensão e pasta — use antes de ler ou de chamar memory_read_note quando você só sabe o nome do arquivo",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"ext": map[string]any{
+					"type":        "string",
+					"description": "Filtra por extensão do arquivo sem o ponto (ex: 'md'). Aceita 'md' e '.md' como o mesmo pedido.",
+				},
+				"folder": map[string]any{
+					"type":        "string",
+					"description": "Filtra por pasta relativa ao vault (ex: 'docs/adr'). Casa por segmento de caminho, então 'docs' pega 'docs/a.md' e 'vault/docs/b.md', mas não 'docs-old/c.md'.",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório para contextualizar a listagem (opcional). Se omitido, usa o repositório padrão ou global.",
+				},
+			},
+		},
+	}
+
+	ToolMemoryReadNote = Tool{
+		Name:        "memory_read_note",
+		Description: "Devolve o Markdown bruto de uma nota pelo caminho do vault, remontando os chunks indexados — use quando memory_search devolveu um trecho e você precisa do arquivo inteiro, com frontmatter e wikilinks intactos",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Caminho da nota no vault. O path exato vence sempre; sem match exato, o basename casa e a ambiguidade é reportada como erro, com os candidatos listados.",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório para contextualizar a leitura (opcional).",
+				},
+			},
+			"required": []string{"path"},
+		},
+	}
+
+	ToolMemoryNoteOutline = Tool{
+		Name:        "memory_note_outline",
+		Description: "Retorna a estrutura de títulos de uma nota com o nível de profundidade de cada heading, ignorando blocos de código cercados — use para localizar a seção certa de um arquivo longo sem ler o corpo inteiro",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Caminho da nota no vault. O path exato vence sempre; sem match exato, o basename casa e a ambiguidade é reportada como erro, com os candidatos listados.",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório para contextualizar a leitura (opcional).",
+				},
+			},
+			"required": []string{"path"},
+		},
+	}
+
+	ToolMemoryFileMetadata = Tool{
+		Name:        "memory_file_metadata",
+		Description: "Retorna os metadados de arquivo de uma nota indexada — path, title, size em bytes e mtime da última edição (ADR-057) — use para checar quando um documento foi editado pela última vez e se o índice está defasado em relação ao disco",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Caminho da nota no vault. O path exato vence sempre; sem match exato, o basename casa e a ambiguidade é reportada como erro, com os candidatos listados.",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório para contextualizar a leitura (opcional).",
+				},
+			},
+			"required": []string{"path"},
+		},
+	}
+
 	ToolMemoryGetDrift = Tool{
 		Name:        "memory_get_drift",
 		Description: "Analisa o desvio semântico entre alterações recentes de código-fonte no Git e as notas/ADRs da base de memória, identificando documentação defasada e código órfão sem decisões arquiteturais vinculadas",

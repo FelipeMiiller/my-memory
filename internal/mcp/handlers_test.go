@@ -815,6 +815,66 @@ func TestServer_ToolsCall_MemoryDoctor_WithFix(t *testing.T) {
 	}
 }
 
+// TestServer_ToolsCall_MemoryDoctor_ReportaMTimeFaltante fecha o item pendente
+// da ADR-057: sem o espelho de MissingMTimeCount, um agente que só fala MCP não
+// tem como saber que o vault foi indexado antes do metadado existir.
+func TestServer_ToolsCall_MemoryDoctor_ReportaMTimeFaltante(t *testing.T) {
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(""), &bytes.Buffer{}, nil)
+	srv.SetDoctorHandler(
+		func(ctx context.Context, repo string) (*DoctorReport, error) {
+			return &DoctorReport{
+				TotalDocuments:    4,
+				HealthScore:       95,
+				MissingMTimeCount: 3,
+				DeadLinks:         []DeadLink{},
+				OrphanNotes:       []OrphanNote{},
+				SelfLoops:         []SelfLoop{},
+			}, nil
+		},
+		nil,
+	)
+
+	handler := srv.toolHandlers["memory_doctor"]
+	if handler == nil {
+		t.Fatalf("memory_doctor sem executor após SetDoctorHandler")
+	}
+
+	callRes, callErr := handler(context.Background(), json.RawMessage(`{}`))
+	if callErr != nil {
+		t.Fatalf("erro inesperado: %v", callErr)
+	}
+
+	result, ok := callRes.(CallToolResult)
+	if !ok || len(result.Content) == 0 {
+		t.Fatalf("resultado inválido: %+v", callRes)
+	}
+
+	text := result.Content[0].Text
+	if !strings.Contains(text, "3") || !strings.Contains(text, "mtime") {
+		t.Errorf("esperava a contagem de documentos sem mtime no relatório do agente, obteve:\n%s", text)
+	}
+	if !strings.Contains(text, "mem index --force") {
+		t.Errorf("o relatório precisa dizer como corrigir, obteve:\n%s", text)
+	}
+}
+
+// TestFormatDoctorReport_SemMTimeNaoPolui: um vault saudável não deve ganhar
+// uma seção sobre metadados ausentes que nunca vai ter.
+func TestFormatDoctorReport_SemMTimeNaoPolui(t *testing.T) {
+	report := &DoctorReport{
+		TotalDocuments: 4,
+		HealthScore:    100,
+		DeadLinks:      []DeadLink{},
+		OrphanNotes:    []OrphanNote{},
+		SelfLoops:      []SelfLoop{},
+	}
+
+	text := FormatDoctorReport(report, 0)
+	if strings.Contains(text, "sem mtime") {
+		t.Errorf("vault com MissingMTimeCount = 0 não deveria mencionar mtime ausente:\n%s", text)
+	}
+}
+
 func TestToolMemorySearch_SchemaDecayProperties(t *testing.T) {
 	props, ok := ToolMemorySearch.InputSchema["properties"].(map[string]any)
 	if !ok {

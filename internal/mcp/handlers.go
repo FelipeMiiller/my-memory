@@ -123,16 +123,24 @@ type DesyncedChunk struct {
 }
 
 // DoctorReport agrega as métricas estruturais e anomalias de saúde do grafo
+//
+// Espelho parcial de store.DoctorReport: espelha o que o agente precisa para
+// decidir se reindexa, e não os avisos de ortografia, que são detalhe de
+// tokenização e não de integridade do grafo.
 type DoctorReport struct {
-	TotalDocuments int             `json:"total_documents"`
-	TotalChunks    int             `json:"total_chunks"`
-	TotalEdges     int             `json:"total_edges"`
-	TotalNodes     int             `json:"total_nodes"`
-	HealthScore    int             `json:"health_score"` // 0 a 100
-	DeadLinks      []DeadLink      `json:"dead_links"`
-	OrphanNotes    []OrphanNote    `json:"orphan_notes"`
-	SelfLoops      []SelfLoop      `json:"self_loops"`
-	DesyncedChunks []DesyncedChunk `json:"desynced_chunks"`
+	TotalDocuments int `json:"total_documents"`
+	TotalChunks    int `json:"total_chunks"`
+	TotalEdges     int `json:"total_edges"`
+	TotalNodes     int `json:"total_nodes"`
+	HealthScore    int `json:"health_score"` // 0 a 100
+	// ADR-057: documentos com mtime = 0 foram indexados antes de a coluna
+	// existir. Sem esta contagem o agente não tem como saber que o índice
+	// conhece a nota mas não sabe quando ela foi editada.
+	MissingMTimeCount int             `json:"missing_mtime_count"`
+	DeadLinks         []DeadLink      `json:"dead_links"`
+	OrphanNotes       []OrphanNote    `json:"orphan_notes"`
+	SelfLoops         []SelfLoop      `json:"self_loops"`
+	DesyncedChunks    []DesyncedChunk `json:"desynced_chunks"`
 }
 
 // DoctorDiagnoseFunc assinatura da função que diagnostica a saúde do grafo
@@ -789,6 +797,13 @@ func FormatDoctorReport(report *DoctorReport, fixedCount int) string {
 	sb.WriteString(fmt.Sprintf("# 🩺 Diagnóstico de Memória & Grafo (Health Score: %d/100)\n\n", report.HealthScore))
 	sb.WriteString(fmt.Sprintf("- **Documentos**: %d | **Chunks**: %d | **Arestas**: %d | **Nós**: %d\n",
 		report.TotalDocuments, report.TotalChunks, report.TotalEdges, report.TotalNodes))
+
+	// ADR-057: só aparece quando há contagem, para não poluir o relatório de um
+	// vault saudável com uma seção que sempre diria zero.
+	if report.MissingMTimeCount > 0 {
+		sb.WriteString(fmt.Sprintf("- ⏳ **Documentos sem mtime** (indexados antes do metadado existir): %d — rode 'mem index --force' para capturar\n",
+			report.MissingMTimeCount))
+	}
 
 	if fixedCount > 0 {
 		sb.WriteString(fmt.Sprintf("- 🛠 **Anomalias Reparadas**: %d arestas problemáticas removidas\n", fixedCount))

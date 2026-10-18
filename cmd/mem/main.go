@@ -2603,6 +2603,36 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			vaultName := mcpCfg.ResolveObsidianVault(repoRoot)
 			return drift.AnalyzeDrift(ctx, drift.NewOSGitRunner(), pgStore.DB(), repoRoot, vaultName, rangeStr, threshold, includeUncovered)
 		})
+
+		srv.SetVaultAccess(mcp.VaultAccess{
+			ListDocuments: func(ctx context.Context, repo, ext, folder string) ([]store.VaultDocument, error) {
+				if repo == "" {
+					repo = defaultRepo
+				}
+				docs, err := pgStore.ListVaultDocuments(ctx, repo)
+				if err != nil {
+					return nil, err
+				}
+				return filterVaultDocs(docs, ext, folder), nil
+			},
+			FindDocument: func(ctx context.Context, repo, path string) (store.VaultDocument, error) {
+				if repo == "" {
+					repo = defaultRepo
+				}
+				candidates, err := pgStore.FindVaultDocumentsByPath(ctx, repo, path)
+				if err != nil {
+					return store.VaultDocument{}, err
+				}
+				return resolveVaultDocumentFrom(candidates, path)
+			},
+			ReadContent: func(ctx context.Context, repo, docID string) (string, error) {
+				if repo == "" {
+					repo = defaultRepo
+				}
+				return pgStore.ReadVaultDocumentContent(ctx, repo, docID)
+			},
+			ParseHeadings: vaultOutlineHeadings,
+		})
 	} else if database != nil {
 
 		if tq == nil {
@@ -2751,6 +2781,27 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			repoRoot, _ := os.Getwd()
 			vaultName := mcpCfg.ResolveObsidianVault(repoRoot)
 			return drift.AnalyzeDrift(ctx, drift.NewOSGitRunner(), database, repoRoot, vaultName, rangeStr, threshold, includeUncovered)
+		})
+
+		srv.SetVaultAccess(mcp.VaultAccess{
+			ListDocuments: func(ctx context.Context, _, ext, folder string) ([]store.VaultDocument, error) {
+				docs, err := db.ListVaultDocuments(ctx, database)
+				if err != nil {
+					return nil, err
+				}
+				return filterVaultDocs(docs, ext, folder), nil
+			},
+			FindDocument: func(ctx context.Context, _, path string) (store.VaultDocument, error) {
+				candidates, err := db.FindVaultDocumentsByPath(ctx, database, path)
+				if err != nil {
+					return store.VaultDocument{}, err
+				}
+				return resolveVaultDocumentFrom(candidates, path)
+			},
+			ReadContent: func(ctx context.Context, _, docID string) (string, error) {
+				return db.ReadVaultDocumentContent(ctx, database, docID)
+			},
+			ParseHeadings: vaultOutlineHeadings,
 		})
 	}
 
@@ -3116,15 +3167,16 @@ func convertStoreDoctorReportToMCP(rep *store.DoctorReport) *mcp.DoctorReport {
 		return nil
 	}
 	mcpReport := &mcp.DoctorReport{
-		TotalDocuments: rep.TotalDocuments,
-		TotalChunks:    rep.TotalChunks,
-		TotalEdges:     rep.TotalEdges,
-		TotalNodes:     rep.TotalNodes,
-		HealthScore:    rep.HealthScore,
-		DeadLinks:      make([]mcp.DeadLink, len(rep.DeadLinks)),
-		OrphanNotes:    make([]mcp.OrphanNote, len(rep.OrphanNotes)),
-		SelfLoops:      make([]mcp.SelfLoop, len(rep.SelfLoops)),
-		DesyncedChunks: make([]mcp.DesyncedChunk, len(rep.DesyncedChunks)),
+		TotalDocuments:    rep.TotalDocuments,
+		TotalChunks:       rep.TotalChunks,
+		TotalEdges:        rep.TotalEdges,
+		TotalNodes:        rep.TotalNodes,
+		HealthScore:       rep.HealthScore,
+		MissingMTimeCount: rep.MissingMTimeCount,
+		DeadLinks:         make([]mcp.DeadLink, len(rep.DeadLinks)),
+		OrphanNotes:       make([]mcp.OrphanNote, len(rep.OrphanNotes)),
+		SelfLoops:         make([]mcp.SelfLoop, len(rep.SelfLoops)),
+		DesyncedChunks:    make([]mcp.DesyncedChunk, len(rep.DesyncedChunks)),
 	}
 	for i, dl := range rep.DeadLinks {
 		mcpReport.DeadLinks[i] = mcp.DeadLink{SourceID: dl.SourceID, TargetID: dl.TargetID, Relation: dl.Relation}

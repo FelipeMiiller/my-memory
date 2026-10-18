@@ -114,6 +114,13 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryReconcile, NewMemoryReconcileHandler(nil))
 	s.RegisterTool(ToolMemoryCodeSearch, NewMemoryCodeSearchHandler(nil))
 	s.RegisterTool(ToolMemoryCodeNeighbors, NewMemoryCodeNeighborsHandler(nil))
+	// ADR-057: superfície de leitura do vault, paridade com `mem files`,
+	// `mem read`, `mem outline` e `mem file`. Os executores entram depois, em
+	// SetVaultAccess, quando o engine do servidor está resolvido.
+	s.RegisterTool(ToolMemoryListFiles, NewMemoryListFilesHandler(nil))
+	s.RegisterTool(ToolMemoryReadNote, NewMemoryReadNoteHandler(nil, nil))
+	s.RegisterTool(ToolMemoryNoteOutline, NewMemoryNoteOutlineHandler(nil, nil, nil))
+	s.RegisterTool(ToolMemoryFileMetadata, NewMemoryFileMetadataHandler(nil))
 
 	return s
 }
