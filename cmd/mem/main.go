@@ -661,6 +661,18 @@ func main() {
 			}
 		}
 
+	case "files":
+		if err := runFilesCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "folders":
+		if err := runFoldersCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "note":
 		if err := runNoteCLI(ctx, emb, tq, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -847,6 +859,10 @@ func printHelp() {
 	fmt.Println("      Exporta o grafo para JSON Canvas 1.0 (.canvas) do Obsidian ou visualizador HTML standalone interativo")
 	fmt.Println("  mem bench")
 	fmt.Println("      Executa micro-benchmarks de performance (TurboQuant, RRF, SHA-256, Parsing) com resumo tabular")
+	fmt.Println("  mem files [--ext md] [--folder docs] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Lista os caminhos indexados em ordem alfabética, com filtro opcional de extensão ou pasta")
+	fmt.Println("  mem folders [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Lista as pastas do vault que contêm ao menos um documento indexado")
 	fmt.Println("  mem note <create|append> [opções] <caminho>")
 	fmt.Println("      Cria ou anexa seções em notas Markdown atômicas com frontmatter e sincronização imediata")
 	fmt.Println("  mem compile --topic \"<termo>\" --out \"<caminho.md>\" [--limit 5] [--mode hybrid|vector|fts]")
