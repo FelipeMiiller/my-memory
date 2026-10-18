@@ -1,0 +1,61 @@
+{
+  "name": "mymemory",
+  "version": "2.0.0",
+  "description": "Router skill for the MyMemory package. MyMemory turns a folder of Markdown into a searchable, linked knowledge graph: hybrid retrieval (BM25 exact terms + semantic vectors + graph traversal), Obsidian wikilinks and tags, a CLI (mem) and an MCP server exposing 20 tools. This package is split by capability into six focused skills - mymemory-cli, mymemory-mcp, mymemory-notes, mymemory-graph, mymemory-config and mymemory-knowledge-base - so an agent loads only the one that answers the task. Load the router when you need to find the right skill, or when you need the cross-cutting model: a note is only reachable if it is indexed, linked and described.",
+  "license": "MIT",
+  "package": "my-memory",
+  "triggers": [
+    "my-memory",
+    "mymemory",
+    "knowledge base",
+    "build a knowledge base",
+    "semantic search over notes",
+    "note graph",
+    "Obsidian vault",
+    "wikilink",
+    "dangling link",
+    "orphan note",
+    "central vault",
+    "hybrid search RRF",
+    "compile-not-retrieve"
+  ],
+  "skills": [
+    {
+      "name": "mymemory-cli",
+      "path": "../mymemory-cli/SKILL.md",
+      "summary": "Running the mem CLI from a shell or script."
+    },
+    {
+      "name": "mymemory-mcp",
+      "path": "../mymemory-mcp/SKILL.md",
+      "summary": "Wiring an MCP client and choosing between the 20 tools and the CLI."
+    },
+    {
+      "name": "mymemory-notes",
+      "path": "../mymemory-notes/SKILL.md",
+      "summary": "Authoring notes: frontmatter taxonomy, wikilinks, typed edges, tags."
+    },
+    {
+      "name": "mymemory-graph",
+      "path": "../mymemory-graph/SKILL.md",
+      "summary": "Graph queries and vault health: inspect, path, hubs, clusters, impact, drift, doctor."
+    },
+    {
+      "name": "mymemory-config",
+      "path": "../mymemory-config/SKILL.md",
+      "summary": "Config precedence, the global/local storage split, SQLite vs Postgres, central vault."
+    },
+    {
+      "name": "mymemory-knowledge-base",
+      "path": "../mymemory-knowledge-base/SKILL.md",
+      "summary": "Building a base of knowledge from many sources, with verified provenance."
+    }
+  ],
+  "files": [
+    "SKILL.md"
+  ],
+  "related": {
+    "note": "Generic Obsidian syntax lives in the obsidian-skills package (obsidian-markdown, json-canvas, obsidian-bases). This package only covers what is specific to a MyMemory index and note graph.",
+    "repository": "https://github.com/FelipeMiiller/my-memory"
+  }
+}

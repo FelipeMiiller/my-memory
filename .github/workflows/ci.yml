@@ -117,10 +117,55 @@ jobs:
       - name: Run CLI Tests
         run: go test -v -cover ./cmd/mem/...
 
+      # ---------------------------------------------------------------------------
+      # Cobertura de pacotes (lacuna fechada em 2026-10-18)
+      # ---------------------------------------------------------------------------
+      # Estes cinco pacotes NAMO apareciam em nenhum step e portanto nunca eram
+      # executados pelo CI, apesar de `go test ./...` local passar. Três deles
+      # estão ligados a comandos que o usuario executa (`mem up/down/profiles`,
+      # `mem events`, `mem federation`), o que torna o silêncio particularmente
+      # caro: um passo verde no CI nao dizia nada sobre eles.
+      - name: Run Supervisor Tests
+        run: go test -v -cover ./internal/supervisor/...
+
+      - name: Run Event Runtime Tests
+        run: go test -v -cover ./internal/event_runtime/...
+
+      - name: Run Federation Tests
+        run: go test -v -cover ./internal/federation/...
+
+      - name: Run Daemon Entrypoint Tests (mymemoryd)
+        run: go test -v -cover ./cmd/mymemoryd/...
+
+      - name: Run Code AST Benchmark Harness Tests
+        run: go test -v -cover ./bench/codeast/...
+
+      # Este step e o unico lugar onde a invariante "todo pacote roda na CI"
+      # e realmente executada. Sem ele, remover um step deste arquivo passaria
+      # build, vet e a suite inteira (ver internal/ci/ci.go).
+      - name: Run CI Coverage Invariant Tests
+        run: go test -v -cover ./internal/ci/...
+
+      # Invariante: todo pacote de `go list ./...` aparece em algum step de
+      # teste deste arquivo ou na tabela de exclusoes abaixo. Para reauditar:
+      #   go list ./... | sed 's|github.com/FelipeMiiller/my-memory||'
+      # e conferir pacote a pacote contra os `run:` deste workflow.
+      #
+      # Tabela de exclusoes: VAZIA. Nenhum pacote de `go list ./...` fica de
+      # fora hoje. Pacotes removidos na limpeza (internal/policy, internal/asr,
+      # internal/ipc/jsonrpc, internal/writer, internal/writer/projection) e o
+      # pacote raiz nao entram nesta lista por nao existirem mais — se um deles
+      # voltar ao `go list ./...`, precisa de step de teste de volta.
+      #
+      # Nao usar `go test ./...` como atalho aqui: o passo de cobertura
+      # (abaixo) precisa de uma lista explicita para produzir o
+      # coverage-profile, e um `./...` mascararia justamente a regressao que
+      # este comentario existe para impedir.
+
       - name: Run All Pure Tests with Coverage Report (Ubuntu)
         if: runner.os == 'Linux'
         run: |
-          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/... ./internal/store/... ./internal/canvas/... ./internal/repo/... ./internal/graph/... ./internal/graphview/... ./internal/embedder/... ./internal/compiler/... ./internal/config/... ./internal/watcher/... ./internal/autowire/... ./internal/deeplink/... ./internal/staleness/... ./internal/drift/... ./cmd/mem/...
+          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/... ./internal/store/... ./internal/canvas/... ./internal/repo/... ./internal/graph/... ./internal/graphview/... ./internal/embedder/... ./internal/compiler/... ./internal/config/... ./internal/watcher/... ./internal/autowire/... ./internal/deeplink/... ./internal/staleness/... ./internal/drift/... ./internal/supervisor/... ./internal/event_runtime/... ./internal/federation/... ./internal/ci/... ./cmd/mem/... ./cmd/mymemoryd/... ./bench/codeast/...
 
       - name: Upload Coverage Artifact (Ubuntu)
         if: runner.os == 'Linux'
@@ -341,43 +386,3 @@ jobs:
           ls -lh bin/mem
           ./bin/mem version
           ./bin/mem version --json
-
-  # ---------------------------------------------------------------------------
-  # Frontend / Electron: TypeScript typecheck + unit tests
-  # ---------------------------------------------------------------------------
-  # Motivation: PR #6 (ADR-052) shipped a real type error for 10 days —
-  # `chat-view.tsx` passed `onOpenSettings` to a `ChatSidebar` that never
-  # declared that prop. Every existing job was Go-only (`lint` runs gofmt,
-  # go vet and a Python script), so nothing in CI ever invoked `tsc`.
-  # That silently let a broken PR look green.
-  #
-  # `tsc --noEmit` is the gate that would have caught it. `vitest` covers
-  # the renderer/store unit tests.
-  #
-  # Deliberately NOT running `biome check` here yet: it currently reports 4
-  # pre-existing rule violations (`useConst`, `useOptionalChain`,
-  # `noUnusedFunctionParameters`, `useLiteralKeys`) that predate this job.
-  # Adding it now would turn CI red on an unrelated cleanup. Tracked as
-  # follow-up before enabling lint enforcement.
-  frontend:
-    name: Frontend (typecheck + unit tests)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          # Node 20 is deprecated on GH Actions runners since 2025-09-19.
-          node-version: "22"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: TypeScript typecheck (tsc --noEmit)
-        run: npm run typecheck
-
-      - name: Unit tests (vitest)
-        run: npm test

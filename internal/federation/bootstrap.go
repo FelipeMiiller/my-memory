@@ -309,11 +309,12 @@ func provisionMemoryIsolation(cleanPath string) error {
 				Engine:     "sqlite",
 				SQLitePath: "storage/memory.db",
 			},
+			// O provider vetorial é o "builtin" (internal/embedder): ONNX MiniLM multilíngue,
+			// dimensão nativa 384 — a mesma do schema `vector(384)` (ADR-035).
 			Embedding: config.EmbeddingConfig{
-				Provider:  "ollama",
-				Model:     "nomic-embed-text",
-				URL:       "http://localhost:11434",
-				Dimension: 768,
+				Provider:  "builtin",
+				Model:     "paraphrase-multilingual-MiniLM-L12-v2",
+				Dimension: 384,
 			},
 			Search: config.SearchConfig{
 				Mode:        "hybrid",

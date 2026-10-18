@@ -1,7 +1,7 @@
 # ADR-048: Viewer Desktop — Electron + React + Vite + shadcn/ui
 
 - **Date**: 2026-09-21
-- **Status**: Accepted
+- **Status**: Obsolete (viewer Electron removido do repositório em 2026-10-18)
 - **Deciders**: Felipe Miiller, Mavis (orchestrator)
 - **Supersedes**: ADR-037 (Rewrite do Viewer com Vite + Vanilla TypeScript — **Deferred**)
 - **Tags**: viewer, electron, react, vite, shadcn, typescript, tailwind, desktop, mvp

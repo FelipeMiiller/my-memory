@@ -1,13 +1,22 @@
 # ADR-035: Embedder Embutido com Fallback Automático (`builtin` / `paraphrase-multilingual-MiniLM-L12-v2` via ONNX Runtime)
 
 - **Date**: 2026-09-16
-- **Status**: Proposed
+- **Status**: Accepted (implementado — `internal/embedder/` entrega o provider embutido `paraphrase-multilingual-MiniLM-L12-v2` a 384 dimensões; `resolveEmbedder` em `cmd/mem/main.go` é autoritativo na dimensão)
 - **Deciders**: Felipe Miiller
 - **Tags**: embedding, semantic-search, fallback, cpu-only, onnx, minilm, frugal, devx
 
+> [!note]
+> **Leitura temporal**: a seção *Context* abaixo descreve o estado do repositório
+> **antes** desta migração (dependência de Ollama em `http://localhost:11434`,
+> modelo de 768 dimensões). Ela foi mantida intacta de propósito — é o
+> problema que motivou a decisão. O que é verdade **hoje**: o vetor tem 384
+> dimensões, o modelo é embutido, e `embedder.EmbeddingDim` (384) é a única
+> dimensão válida porque `internal/store/postgres.go` declara
+> `embedding vector(384)`.
+
 ## Context and Problem Statement
 
-Hoje, o `My-Memory` depende exclusivamente do [Ollama](https://ollama.com/) rodando em `http://localhost:11434` com o modelo `nomic-embed-text` (768 dimensões) para gerar embeddings vetoriais dos chunks indexados. O componente semântico é parte crítica do pipeline de busca híbrida (`mem search --mode hybrid`), do detector de *Surprising Connections* (`mem insights`), e do ranqueamento por PageRank semântico.
+Naquele momento, o `My-Memory` dependia exclusivamente do [Ollama](https://ollama.com/) rodando em `http://localhost:11434` com o modelo `nomic-embed-text` (768 dimensões) para gerar embeddings vetoriais dos chunks indexados. O componente semântico é parte crítica do pipeline de busca híbrida (`mem search --mode hybrid`), do detector de *Surprising Connections* (`mem insights`), e do ranqueamento por PageRank semântico.
 
 Esse acoplamento criou três problemas operacionais reais:
 

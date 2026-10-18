@@ -7,7 +7,7 @@
 
 ## Context and Problem Statement
 
-Vetores de embedding densos gerados por modelos de ponta (como `nomic-embed-text` de 768 dimensões) utilizam 32 bits por número em ponto flutuante (`float32`), totalizando 3.072 bytes por chunk de texto indexado.
+Vetores de embedding densos gerados por modelos de ponta (na época, um modelo de 768 dimensões servido pelo Ollama) utilizam 32 bits por número em ponto flutuante (`float32`), totalizando 3.072 bytes por chunk de texto indexado. Hoje, com o provider embutido a 384 dimensões (ADR-035), o mesmo cálculo dá 1.536 bytes por vetor e 196 bytes quantizado.
 
 Ao colocar o banco SQLite diretamente dentro do repositório do projeto, armazenar milhares de vetores em `float32` faz o tamanho do arquivo `.db` crescer rapidamente, tornando inviável commitar o banco ou indexar bases de código volumosas. Quantizações lineares ingênuas em 4 bits degradam severamente a busca devido a dimensões com outliers acentuados.
 

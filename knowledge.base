@@ -1,0 +1,106 @@
+# my-memory knowledge corpus — Obsidian Bases view
+#
+# Database-style views over this repository's Markdown knowledge base:
+# README.md, COMO_USAR.md, COMO_FUNCIONA.md, docs/**, docs/adr/*, .specs/**.
+#
+# REQUIRES the repository to be opened as an Obsidian vault (the folder containing
+# this file is the vault root). Obsidian only renders .base files inside a vault;
+# outside one this is just YAML. Most notes in this corpus carry no YAML frontmatter
+# — ADRs use a bold-list `- **Status**: Accepted` block instead — so the views lean
+# on file.* properties and computed formulas rather than assuming note properties.
+#
+# Scope is deliberate: docs/, .specs/, and the vault-root notes. Go sources, the
+# skills/ tooling and .agents/ rules are not knowledge documents.
+
+filters:
+  and:
+    - 'file.ext == "md"'
+    - or:
+        - file.inFolder("docs")
+        - file.inFolder(".specs")
+        - 'file.folder.isEmpty()'
+
+formulas:
+  title_or_name: 'if(title, title, file.basename)'
+  doc_area: 'if(file.inFolder("docs/adr"), "ADR", if(file.inFolder(".specs"), "Spec", if(file.folder.isEmpty(), "Root", "Docs")))'
+  adr_seq: 'if(/^\d{3}$/.matches(file.basename.slice(0, 3)), file.basename.slice(0, 3).number(), "")'
+  frontmatter: 'if(file.hasProperty("category"), "yes", "no")'
+  age_days: 'if(file.mtime, (now() - file.mtime).days.round(0), "")'
+  size_kb: '(file.size / 1024).round(1)'
+  out_links: 'if(file.links, file.links.length, 0)'
+
+properties:
+  formula.adr_seq:
+    displayName: "ADR #"
+  formula.age_days:
+    displayName: "Age (days)"
+  formula.doc_area:
+    displayName: "Area"
+  formula.frontmatter:
+    displayName: "Frontmatter"
+  formula.out_links:
+    displayName: "Out-links"
+  formula.size_kb:
+    displayName: "KB"
+  formula.title_or_name:
+    displayName: "Title"
+  file.folder:
+    displayName: "Folder"
+  summary:
+    displayName: "Summary"
+
+views:
+  - type: table
+    name: "Knowledge Index"
+    groupBy:
+      property: formula.doc_area
+      direction: ASC
+    order:
+      - formula.title_or_name
+      - category
+      - summary
+      - formula.frontmatter
+      - formula.age_days
+      - formula.size_kb
+    summaries:
+      formula.size_kb: Sum
+
+  - type: table
+    name: "Architecture Decisions"
+    filters:
+      and:
+        - file.inFolder("docs/adr")
+        - 'formula.adr_seq != ""'
+    order:
+      - formula.adr_seq
+      - file.name
+      - formula.title_or_name
+      - category
+      - formula.frontmatter
+      - formula.size_kb
+      - file.mtime
+
+  - type: cards
+    name: "Taxonomy Gaps"
+    filters:
+      not:
+        - file.hasProperty("category")
+    order:
+      - formula.title_or_name
+      - formula.doc_area
+      - file.folder
+      - formula.age_days
+      - formula.out_links
+
+  - type: list
+    name: "Unlinked Notes"
+    filters:
+      and:
+        - not:
+            - file.inFolder("docs/adr")
+        - '!file.links || file.links.isEmpty()'
+    order:
+      - formula.title_or_name
+      - file.folder
+      - formula.age_days
+      - formula.out_links

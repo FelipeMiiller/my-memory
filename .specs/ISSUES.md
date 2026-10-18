@@ -187,18 +187,19 @@ Decisão consciente: deixar como signal (não adicionar `.agents/rules/` ao excl
 
 ## ISSUE-007 — 18 .md files em `node_modules/playwright-core/` desnecessários no repo
 - **Severidade:** 🟢 low (artefatos de Playwright instalados pra validação visual)
-- **Status:** ✅ resolved (workaround aplicado + convenção documentada)
+- **Status:** ✅ resolved (moot — a dependência que o causava não existe mais)
 - **Achado em:** debug do fuzzy resolver (sessão 2026-09-17)
 - **Contexto:** `node_modules/playwright-core/lib/tools/skills/playwright-*/SKILL.md` e similares foram instalados durante a sessão post-release-v1.3.0-bugfixes para visual validation, mas o conteúdo é do próprio Playwright (não do my-memory).
-- **Resolução (workaround, sem ADR — bug trivial):**
+- **Encerramento (2026-10-18) — moot, sem ADR:** o Playwright era dependência do **viewer Electron**, e o viewer inteiro foi removido do repositório no commit `b477200` (`package.json`, `forge.config.ts`, configs vite/playwright e os testes e2e saíram junto — 112 arquivos, 27.858 linhas). Não existe mais `node_modules/playwright-core/` neste repositório, então os 18 arquivos `.md` que motivaram a issue não podem reaparecer. A questão está resolvida por remoção do vetor, não por convenção: o `.gitignore` continua excluindo `node_modules/`, e a convenção `npm install --no-save` continua válida para qualquer tooling futuro, mas deixa de ser load-bearing aqui.
+- **Histórico da resolução original (workaround):**
   - `.gitignore` já exclui `node_modules/` por padrão (entry raiz ou via `**/node_modules/`).
   - Convenção: futuras instalações Playwright usam `npm install --no-save` (evita persistir deps).
   - Verificação: `git ls-files | grep -i playwright-core | wc -l` → **0** (nenhum SKILL.md do Playwright commitado).
 
-**Validação empírica:**
+**Validação empírica (2026-10-18, após a reversão do viewer):**
 ```bash
-git ls-files | Select-String "playwright-core.*SKILL\.md"
-# (no output)
+git ls-files | Select-String "package.json|playwright"
+# (no output — nem package.json nem config do Playwright no repositório)
 ```
 
 ## ISSUE-009 — Indexer gera dead links sistemicamente: tag values viram graph nodes
@@ -306,13 +307,17 @@ if content != "" {
 | ISSUE-004 | 🟡 medium | ✅ resolved (ec1298b) | 2026-09-18 |
 | ISSUE-005 | 🟡 medium | ✅ resolved (bc70c5f + 0137779) | 2026-09-17 |
 | ISSUE-006 | 🟡 medium | 🔵 open | 2026-09-17 |
-| ISSUE-007 | 🟢 low | ⏸️ deferred | 2026-09-17 |
+| ISSUE-007 | 🟢 low | ✅ resolved (moot — dependência removida) | 2026-09-17 |
 | ISSUE-008 | 🟠 high | ✅ resolved (bc70c5f + 0137779) | 2026-09-17 |
 | ISSUE-009 | 🟡 medium | ✅ resolved (ADR-041, 4c19393) | 2026-09-18 |
 | ISSUE-010 | 🟠 high | ✅ resolved | 2026-09-18 |
 | ISSUE-011 | 🟡 medium | ✅ resolved (2026-10-17) | 2026-10-03 |
+| ISSUE-012 | 🟠 high | ✅ resolved (fix(ci/compiler)) | 2026-10-03 |
+| ISSUE-013 | 🟠 high | ✅ resolved | 2026-10-07 |
 | ISSUE-014 | 🔴 high | ✅ resolved (2026-10-17) | 2026-10-17 |
+| ISSUE-015 | 🔥 high | ✅ resolved (mecanismo entregue) | 2026-10-17 |
 | ISSUE-016 | 🔴 high | ✅ resolved (2026-10-17) | 2026-10-17 |
+| ISSUE-017 | 🟡 medium | ✅ resolved (mecanismo de prevenção entregue) | 2026-10-18 |
 
 ## ISSUE-011 — Teste flaky `TestSelector_StreamUntilCancel_ConveysContextCancel` (falha ~50%)
 - **Severidade:** 🟡 medium
@@ -519,3 +524,106 @@ Os dois primeiros **falhavam antes da correção** (red confirmado: `MY_MEMORY_P
 **Commits:** ver `git log` em `develop` a partir de 2026-10-17 (`fix(config):`, `test(ci):`, `docs:`).
 
 ---
+
+## ISSUE-017 — 158 termos sem acento no `central-memory`: a limpeza foi manual, a prevenção não existia
+- **Severidade:** 🟡 medium
+- **Status:** ✅ resolved (mecanismo de prevenção entregue; a limpeza do vault foi feita em paralelo)
+- **Achado em:** sessão 2026-10-18, auditoria do vault `G:\My Drive\central-memory`
+- **Família:** qualidade de conteúdo — não é regressão de código anterior
+
+**Sintoma.** 158 termos sem acento espalhados por 14 pastas (`performance` concentrava 94 deles). O vault é gerado por agentes de IA, que escrevem "sao", "tres", "configuracao" em prosa normal.
+
+**Por que não é cosmético.** "sao" e "são" tokenizam diferente no FTS5 e geram embeddings diferentes. Quem busca o termo escrito corretamente não acha o termo que está no documento — e quem busca o que está no documento vê a busca quebrada. O defeito é de recuperabilidade, não de estética.
+
+**Resolução, em duas partes:**
+
+1. **Limpeza** — os 158 termos foram corrigidos no vault, em paralelo, por outro agente.
+2. **Prevenção (esta issue)** — sem detector, o próximo lote de notas geradas reintroduz o problema em silêncio. Ninguém perceberia, porque texto sem acento parece texto normal num dashboard. O `mem doctor` ganhou a seção `Ortografia`.
+
+**Mecanismo (`internal/store/orthography.go`, novo).**
+
+- `FindUnaccentedTerms(content string) []TermFix` — função pura, sem banco e sem I/O.
+- `portugueseAccentFixes map[string]string` — **97 pares curados à mão**, com palavra completa como chave. Nunca derivado por regex.
+- `OrthographyAccumulator` — agrega por documento sem manter o texto indexado em memória.
+- Limites de palavra **Unicode** (`\pL`, `\pN`), e não o `\b` do RE2: o `\b` do RE2 é ASCII, então trata "é" como separador e faria "três" casar com "tres".
+
+**Ignora de propósito:** blocos de código (```` ``` ````), linhas indentadas com 4 espaços, code spans, URLs, `[[wikilinks]]` e chaves de frontmatter — exceto os **valores** de `title` e `summary`, que são texto humano e podem ter o mesmo defeito.
+
+**Reporta como aviso, nunca como erro.** A seção entra no relatório do `mem doctor` como aviso e **não** altera o Health Score: perder acento degrada a busca, mas não corrompe dado. Mexer na métrica é decisão de produto, não efeito colateral de um linter de texto.
+
+**Testes de regressão** (`internal/store/orthography_test.go`, 18 funções; o CI roda `./internal/store/...` em `ci.yml:85`, então o gate é exercitado e não decorativo).
+
+Os negativos importam mais que os positivos — um detector que "corrige" palavra válida é pior do que não existir:
+
+| Caso | Teste | O que prova |
+|---|---|---|
+| `esta` `sim` `limite` `media` `ate` `ha` em prosa | `IgnoresCorrectUnaccentedPortuguese` | palavra portuguesa válida não é sinalizada |
+| `NÃO` `ENTÃO` `três` `código` | `IgnoresAlreadyAccentedPortuguese` | texto já correto não vira ruído |
+| `cache` `index` `target` `build` `runtime` `commit` `slug` `timeout` | `IgnoresEnglishTechnicalTerms` | inglês técnico não entrou na lista |
+| `indices` `notas` | `IgnoresSubstrings` | o casamento é por palavra inteira |
+| `indicacoes` `Tresnao` `aposicao` `IndiceBuild` | `IgnoresTermsInsideLongerWords` | termo colado a letra não dispara |
+| ``` ```go ... ``` ```, 4 espaços, tab, `` `sao` `` | `IgnoresCodeFences`, `IgnoresIndentedCodeAndCodeSpans` | código não é prosa |
+| `[[configuracao]]`, URL, `[rótulo](url)` | `IgnoresWikilinksAndURLs` | identificador e endereço não são português |
+| `title:`/`summary:` contra `tags:`/`id:`/`aliases:` | `FrontmatterIgnoraChavesMasLeTitleESummary` | só o texto humano do frontmatter entra |
+| `"title": "..."` em JSON | `FrontmatterJSON` | o valor JSON é capturado entre aspas — senão as tags da mesma linha entram |
+| `FindUnaccentedTerms("")` | `EmptyInput` | entrada vazia não entra em panic |
+| 20 termos da lista curada em prosa | `DetectsCuratedList` | a lista inteira é exercitada termo a termo |
+
+**Decisões registradas, para não virarem surpresa depois:**
+
+- `indices` ficou **fora** do mapa de propósito: é plural de "índice" e aparece como identificador técnico. O resto da família (`variaveis`, `funcoes`, `versoes`...) está no mapa.
+- `PortugueseOrthographyIssue` ganhou um campo `Count` além dos três propostos: sem ele não há como dizer quais são os "N piores casos", que é o que a seção promete.
+- `so`, `sera`, `era`, `tera`, `fara` ficaram fora: têm leitura ambígua em português (o substantivo "sera", o futuro "será") e sinalizá-los exigiria análise de contexto, que não existe aqui.
+
+**Fora do escopo desta issue (registrado para não parecer esquecido):**
+
+- A ferramenta MCP `memory_doctor` **não** expõe a seção. `internal/mcp/handlers.go` tem um `DoctorReport` espelho, e alterá-lo é um change próprio.
+- O Health Score não foi tocado — por decisão, não por esquecimento.
+
+**Commits:** ver `git log` em `develop` a partir de 2026-10-18 (`feat(store):`, `docs:`).
+
+---
+
+## ISSUE-018 — `mem up` sobe um daemon que não faz nada
+
+- **Severidade:** 🟠 high
+- **Status:** 🔴 open (decisão do owner: manter o daemon e registrar a lacuna)
+- **Achado em:** sessão 2026-10-18, batch 4 da spec `.specs/features/repo-realignment/`
+- **Família:** código inalcançado — fundações prontas, wiring ausente
+
+**Sintoma.** `mem up` responde `ready`, o processo fica vivo, e nada acontece: nenhum worker é iniciado, nenhum evento é emitido, nenhum health check é publicado. Para quem usa, o supervisor parece quebrado; para quem lê o código, parece um daemon ocioso.
+
+**Evidência (`file:line`).**
+
+| Fato | Onde |
+|---|---|
+| `mem up` gera o binário `mymemoryd` e espera a linha de `ready` | `cmd/mem/up.go:81`, `cmd/mem/up.go:117` |
+| O entrypoint monta o Manager e chama `Run` | `cmd/mymemoryd/main.go:92`, `cmd/mymemoryd/main.go:102` |
+| `NewManager` recebe `nil` no parâmetro `*sql.DB` | `cmd/mymemoryd/main.go:92` |
+| `Run` só bloqueia em `ctx.Done()` — não inicia nenhum worker | `internal/supervisor/manager.go:162`–`166` |
+| Com `db == nil`, `emitEvent` retorna cedo: emissão é no-op permanente | `internal/supervisor/lifecycle.go:472`–`473` |
+
+**O que existe e está morto.** A camada de lifecycle inteira está implementada e coberta: `Start` (`internal/supervisor/lifecycle.go:61`), `Stop` (`internal/supervisor/lifecycle.go:125`), `Health` (`internal/supervisor/lifecycle.go:145`), `watchWorker` (`internal/supervisor/lifecycle.go:173`), `restartWorker` (`internal/supervisor/lifecycle.go:236`) e `StartAll` (`internal/supervisor/manager.go:234`). São **2.033 linhas de teste em 9 arquivos** (`internal/supervisor/*_test.go`) exercitando essa camada — verdes, mas sem nenhum caller de produção.
+
+**A correção é wiring, não fundação.** O que falta é um `Run` que carregue o manifesto de workers e chame `StartAll`, mais um `*sql.DB` real no lugar do `nil` de `cmd/mymemoryd/main.go:92`. Nenhuma assinatura pública precisa mudar, e nada da camada de lifecycle precisa ser reescrito — por isso a decisão foi manter em vez de remover.
+
+---
+
+## ISSUE-019 — `mem doctor` dá Health Score 100/100 num grafo vazio
+
+- **Severidade:** 🟡 medium
+- **Status:** 🔴 open
+- **Achado em:** sessão 2026-10-18 — tool MCP `memory_doctor` no vault `FelipeMiiller/my-memory`
+- **Relacionada:** `ISSUE-006` (Health Score persistentemente baixo), já aberta. Esta issue **não** a substitui e não a duplica — cross-referência.
+
+**Evidência (saída do próprio MCP do projeto).** `memory_doctor` com `repository: FelipeMiiller/my-memory` retornou:
+
+- **Health Score: 100/100**
+- 0 documents · 0 chunks · 0 edges · 0 nodes
+- banner de staleness: **8.094 arquivos modificados/novos**
+
+**Defeito 1 — grafo vazio pontua perfeito.** Em `internal/store/doctor.go:112` o score começa em `100`, e todas as penalidades (dead links, órfãs, self-loops, chunks dessincronizados) estão dentro do `if report.TotalDocuments > 0`, de `internal/store/doctor.go:113` a `internal/store/doctor.go:142`. Um vault nunca indexado sai com a nota máxima: a métrica deixa de distinguir "vault saudável" de "vault inexistente" — que é justamente o uso principal dela.
+
+**Defeito 2 — o vault deste repositório está efetivamente não indexado.** Os 8.094 arquivos modificados/novos do banner staleness, contra 0 documentos no grafo, são o mesmo fato visto de dois ângulos: a memória do próprio repositório não existe no banco. `mem index` no vault local resolve este; o Defeito 1 é a correção de código.
+
+**Por que não duplica `ISSUE-006`.** `ISSUE-006` trata o Health Score *persistentemente baixo* num vault indexado — é calibração de pesos. O caso daqui é o oposto e anterior na cadeia: score alto com grafo vazio, por uma guarda que pula o cálculo inteiro. As duas convivem; corrigir uma não arruma a outra.

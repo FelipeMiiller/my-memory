@@ -10,10 +10,8 @@ Obrigado por seu interesse em contribuir com o **My-Memory**! Este projeto combi
 
 - **Go**: Versão 1.22 ou superior.
 - **Compilador C (CGO)**: Necessário para compilar o driver SQLite3 e as extensões `sqlite-vec` (GCC no Linux/macOS ou MinGW-w64 no Windows).
-- **Ollama**: Rodando localmente com o modelo `nomic-embed-text`:
-  ```bash
-  ollama pull nomic-embed-text
-  ```
+- **Embedder embutido**: O modelo `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensões) roda dentro do processo `mem` via ONNX Runtime. Nenhum servidor de embeddings externo é necessário.
+  *Nota: builds com a tag `onnx` habilitam o provider vetorial. Sem ela, o binário funciona normalmente e indexa em modo léxico FTS5.*
 - **Git**: Com suporte a commits no padrão Conventional Commits.
 
 ---

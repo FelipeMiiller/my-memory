@@ -11,10 +11,11 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 	}
 
 	report := &DoctorReport{
-		DeadLinks:      []DeadLink{},
-		OrphanNotes:    []OrphanNote{},
-		SelfLoops:      []SelfLoop{},
-		DesyncedChunks: []DesyncedChunk{},
+		DeadLinks:         []DeadLink{},
+		OrphanNotes:       []OrphanNote{},
+		SelfLoops:         []SelfLoop{},
+		DesyncedChunks:    []DesyncedChunk{},
+		OrthographyIssues: []PortugueseOrthographyIssue{},
 	}
 
 	// 1. Contagens gerais
@@ -140,6 +141,51 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 		}
 	}
 	report.HealthScore = score
+
+	// 7. Aviso de ortografia (ISSUE-017). Fica DEPOIS do Health Score de propósito:
+	// "sao" e "são" tokenizam diferente e a busca falha, mas isso não é corrupção
+	// de dado — não pode virar penalidade sem decisão de produto.
+	acc := &OrthographyAccumulator{}
+	titleRows, err := s.db.QueryContext(ctx, `
+		SELECT id, title FROM documents
+		WHERE repository = $1 AND title IS NOT NULL
+	`, repo)
+	if err == nil {
+		for titleRows.Next() {
+			var id, title string
+			if err := titleRows.Scan(&id, &title); err == nil {
+				acc.Add(id, title)
+			}
+		}
+		titleRows.Close()
+	}
+	abstractRows, err := s.db.QueryContext(ctx, `
+		SELECT id, abstract FROM documents
+		WHERE repository = $1 AND abstract IS NOT NULL
+	`, repo)
+	if err == nil {
+		for abstractRows.Next() {
+			var id, abstract string
+			if err := abstractRows.Scan(&id, &abstract); err == nil {
+				acc.Add(id, abstract)
+			}
+		}
+		abstractRows.Close()
+	}
+	chunkRows, err := s.db.QueryContext(ctx, `
+		SELECT c.document_id, c.content FROM chunks c
+		WHERE c.repository = $1
+	`, repo)
+	if err == nil {
+		for chunkRows.Next() {
+			var documentID, content string
+			if err := chunkRows.Scan(&documentID, &content); err == nil {
+				acc.Add(documentID, content)
+			}
+		}
+		chunkRows.Close()
+	}
+	report.OrthographyDocuments, report.OrthographyIssues = acc.Report(OrthographyIssueLimit)
 
 	return report, nil
 }

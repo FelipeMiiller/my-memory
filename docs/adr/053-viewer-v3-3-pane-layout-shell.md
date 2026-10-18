@@ -1,7 +1,7 @@
 # ADR-053: Layout Shell 3-pane + Dock (M1 do Roadmap v3)
 
 - **Date**: 2026-09-22
-- **Status**: Proposed (vai virar Accepted quando M1 fechar)
+- **Status**: Obsolete (viewer Electron removido do repositório em 2026-10-18)
 - **Deciders**: Felipe Miiller, Mavis (orchestrator)
 - **Tags**: viewer, electron, layout, react, m1
 

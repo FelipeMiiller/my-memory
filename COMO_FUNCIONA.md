@@ -60,8 +60,8 @@ O pipeline de leitura e indexação opera em 4 etapas estritas para garantir má
                                        ⏩ Pula Embedding                                                                  ⚙️ Processa:
                                        (0 ms de latência)                                                                 1. Parser [[wikilinks]]
                                                                                                                          2. Chunking 200/30
-                                                                                                                         3. Embedding Ollama (384d)
-                                                                                                                         4. TurboQuant 4-bit (388B)
+                                                                                                                         3. Embedding Embutido (MiniLM, 384d)
+                                                                                                                         4. TurboQuant 4-bit (196B)
 ```
 
 ### 1. Poda Rápida de Diretórios (`filepath.WalkDir`)
@@ -94,11 +94,22 @@ O My-Memory não trata texto apenas como blocos planos; ele analisa sua estrutur
 Detecta links no padrão Obsidian `[[Nota]]` ou `[[Nota|Nome de Exibição]]`. Converte automaticamente referências relativas para identificadores canônicos no grafo.
 
 ### Arestas Epistêmicas e Conexões Tipadas
-Além de links comuns, o parser detecta conexões semânticas explícitas com pesos de relevância:
-- `[[rel:depends_on:modulo_x]]` (Peso 1.0)
-- `[[rel:implements:adr_010]]` (Peso 1.0)
-- `[[rel:derived_from:documento_y]]` (Peso 0.8)
-- `[[rel:see_also:conceito_z]]` (Peso 0.5)
+Além de links comuns, o parser detecta conexões semânticas explícitas com o prefixo `rel:`. O **nome da relação** precisa estar na lista reconhecida por `IsKnownRelation` (`internal/parser/wikilinks.go`):
+
+- `[[rel:depends_on:modulo_x]]`
+- `[[rel:implements:adr_010]]`
+- `[[rel:derived_from:documento_y]]`
+- `[[rel:related_to:conceito_z]]`
+
+> [!warning]
+> **Todas as arestas extraídas pesam 1.0.** O extrator fixa `1.0` de forma hardcoded para arestas
+> de wikilink, de tag e de relação do frontmatter (`internal/parser/wikilinks.go:273,279,287`).
+> Não existe forma de declarar uma aresta "mais fraca": se você precisa graduar proveniência,
+> codifique no nome da relação ou no corpo da nota, não em um peso numérico.
+>
+> Uma relação **não reconhecida** — como `[[rel:see_also:X]]`, que não consta da lista — não vira
+> aresta tipada válida; a aresta é gravada com esse nome de relação. Use `related_to` para uma
+> referência cruzada de baixa formalidade.
 
 ### Extração de Metadados e Tags
 Lê blocos YAML de frontmatter (`title`, `type`, `tags`, `status`) e hashtags inline (`#arquitetura`, `#auth`). Cada tag vira um nó e uma aresta no grafo conceitual.
@@ -107,7 +118,7 @@ Lê blocos YAML de frontmatter (`title`, `type`, `tags`, `status`) e hashtags in
 
 ## 4. A Matemática do TurboQuant 4-bit (Google DeepMind, ICLR 2026)
 
-Embeddings gerados por Large Language Models (como `nomic-embed-text` com 384 dimensões) utilizam números de ponto flutuante de 32 bits (`float32`), totalizando **1.536 bytes por vetor**.
+Embeddings gerados pelo modelo embutido `paraphrase-multilingual-MiniLM-L12-v2` (ADR-035) têm 384 dimensões e são representados com números de ponto flutuante de 32 bits (`float32`), totalizando **1.536 bytes por vetor**.
 
 ### O Desafio da Quantização Linear
 Vetores latentes possuem **dimensões com outliers extremos** — canais esparsos onde a ativação é centenas de vezes maior que a média. Em uma quantização linear simples para 4-bit (16 níveis), a escala máxima $S = \max |x_i|$ explode para acomodar os outliers, e 99% das dimensões restantes são forçadas a colapsar em 0, destruindo a acurácia.
@@ -124,7 +135,7 @@ Vetor Original float32 (384d, 1.536 bytes)
 [ 2. Quantização Escalar Simétrica 4-bit ] ──> 15 níveis inteiros [-7, +7]
               │
               ▼
-[ 3. Empacotamento de Bits (Bit-Packing) ] ──> 2 dimensões por byte = 384B + 4B scale = 388 bytes!
+[ 3. Empacotamento de Bits (Bit-Packing) ] ──> 2 dimensões por byte = 192B + 4B scale = 196 bytes!
 ```
 
 #### 1. Rotação Ortogonal com Matrizes de Householder
@@ -145,8 +156,8 @@ Onde $S = \max_i |y_i|$. Os valores inteiros $[-7, +7]$ são deslocados para $[0
 
 #### 3. Economia de Armazenamento
 - **Original:** 384 floats $\times 4$ bytes = **1.536 bytes**.
-- **TurboQuant 4-bit:** 384 bytes de dados + 4 bytes de escala = **388 bytes**.
-- **Redução:** **87.4% de economia de RAM e disco**, mantendo correlação angular $> 99\%$.
+- **TurboQuant 4-bit:** 192 bytes de dados + 4 bytes de escala = **196 bytes**.
+- **Redução:** **87.2% de economia de RAM e disco**, mantendo correlação angular $> 99\%$.
 
 ---
 

@@ -30,7 +30,7 @@ tags: [guide, cli, skill]
 
 O **My-Memory** unifica em uma única ferramenta:
 - **Busca Léxica (BM25 / FTS5):** Encontra termos exatos, nomes de classes e funções.
-- **Busca Vetorial com TurboQuant 4-bit:** Comprime vetores em 4-bit (384 bytes/chunk) preservando > 99% de precisão sem estourar memória.
+- **Busca Vetorial com TurboQuant 4-bit:** Comprime vetores em 4-bit (196 bytes/chunk) preservando > 99% de precisão sem estourar memória.
 - **Grafo de Conhecimento Obsidian:** Extrai automaticamente conexões de `[[wikilinks]]` e `#tags`.
 - **Servidor MCP:** Expõe todo esse cérebro para assistentes como Cursor, Claude Code, Antigravity e Copilot.
 
@@ -66,11 +66,10 @@ go build -o bin/mem.exe ./cmd/mem
 *(No Linux/macOS: `go build -o bin/mem ./cmd/mem`)*.
 
 ### Pré-requisitos Adicionais
-- **Ollama** (para embeddings vetoriais locais):
-  ```bash
-  ollama pull nomic-embed-text
-  ```
-  *(Opcional: você também pode usar PostgreSQL com pgvector ou modelos alternativos como `bge-m3`)*.
+Nenhum serviço externo é necessário para indexar: o modelo de embeddings **`paraphrase-multilingual-MiniLM-L12-v2`** (384 dimensões, ADR-035) roda embutido no processo `mem`.
+
+> [!TIP]
+> O provedor vetorial é opcional. Binários compilados sem a tag `onnx` funcionam normalmente e indexam em modo léxico FTS5 — apenas a busca semântica é desativada.
 
 ---
 
@@ -107,14 +106,28 @@ MY_MEMORY_PG_URL=postgres://usuario:senha@localhost:5432/meu_banco?sslmode=disab
 ```
 *(Quando esta variável está presente no `.env`, o My-Memory conecta **automaticamente ao PostgreSQL** em todos os comandos, sem precisar de flags adicionais)*.
 
-### C) Escolhendo o Modelo de Embeddings
-Por padrão, o My-Memory utiliza o modelo embutido **`nomic-embed-text`** na porta `11434` local.
-Se desejar usar outro modelo ou apontar para um servidor remoto, descomente no `.memory/.env`:
-```env
-MY_MEMORY_EMBED_URL=http://localhost:11434
-MY_MEMORY_EMBED_MODEL=bge-m3
-MY_MEMORY_EMBED_DIM=1024
+### C) Modelo de Embeddings
+O modelo é **fixo**: `paraphrase-multilingual-MiniLM-L12-v2`, embutido no binário, com vetores de **384 dimensões**. Não há modelo remoto para escolher e não é preciso instalar nenhum servidor de embeddings.
+
+A dimensão é ditada pelo schema do banco (`embedding vector(384)` no PostgreSQL, `vector(384)` no SQLite). Por isso, um bloco `embedding:` no `.memory/config.yaml` deve ser tratado assim:
+
+```yaml
+embedding:
+  provider: "builtin"   # único valor com efeito
+  # model: omitido — o modelo é fixo (paraphrase-multilingual-MiniLM-L12-v2)
+  # dimension: NÃO altere — fixo em 384 pelo schema
 ```
+
+Variáveis de ambiente legadas ainda são **aceitas e lidas**, mas **não têm efeito**:
+
+| Variável | Situação | Efeito |
+| :--- | :--- | :--- |
+| `MY_MEMORY_EMBED_URL` | Aceita, ignorada | Não aponta mais para nenhum servidor de embeddings. |
+| `MY_MEMORY_EMBED_MODEL` | Aceita, ignorada | O modelo é fixo pelo binário. |
+| `MY_MEMORY_EMBED_DIM` | Aceita, ignorada | A dimensão é fixa em 384 pelo schema do banco. |
+
+> [!WARNING]
+> Remova essas variáveis de um `.env` existente. Mantê-las não quebra a indexação, mas sugere um controle que não existe — e um `dimension: 768` no config, se reintroduzido, descreveria um vetor que a coluna do banco não consegue aceitar.
 
 ### D) Definindo quais pastas indexar
 No arquivo `.memory/config.yaml`, configure a lista `include`:

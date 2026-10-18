@@ -2,7 +2,8 @@
 
 ## Status
 
-**Accepted** (2026-09-22). Implementation commits:
+**Obsolete** (2026-10-18) — o viewer Electron foi removido do repositório.
+Aceito em 2026-09-22. Implementation commits:
 
 - `0f09ad8 feat(viewer)!: migrate to LuanRoger/electron-shadcn template` —
   collapses original `viewer/` + `electron/` monorepo into flat `src/`

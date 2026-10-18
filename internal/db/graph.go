@@ -210,10 +210,11 @@ func GetNodeNeighbors(ctx context.Context, db *sql.DB, nodeID string, maxDepth i
 // DiagnoseHealth audita a integridade topológica do grafo e tabelas relacionais do SQLite
 func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error) {
 	report := &store.DoctorReport{
-		DeadLinks:      []store.DeadLink{},
-		OrphanNotes:    []store.OrphanNote{},
-		SelfLoops:      []store.SelfLoop{},
-		DesyncedChunks: []store.DesyncedChunk{},
+		DeadLinks:         []store.DeadLink{},
+		OrphanNotes:       []store.OrphanNote{},
+		SelfLoops:         []store.SelfLoop{},
+		DesyncedChunks:    []store.DesyncedChunk{},
+		OrthographyIssues: []store.PortugueseOrthographyIssue{},
 	}
 
 	// 1. Contagens gerais
@@ -341,6 +342,48 @@ func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error
 		}
 	}
 	report.HealthScore = score
+
+	// 7. Aviso de ortografia (ISSUE-017). Fica DEPOIS do Health Score de propósito:
+	// "sao" e "são" tokenizam diferente e a busca falha, mas isso não é corrupção
+	// de dado — não pode virar penalidade sem decisão de produto.
+	acc := &store.OrthographyAccumulator{}
+	titleRows, err := db.QueryContext(ctx, `
+		SELECT id, title FROM documents WHERE title IS NOT NULL
+	`)
+	if err == nil {
+		for titleRows.Next() {
+			var id, title string
+			if err := titleRows.Scan(&id, &title); err == nil {
+				acc.Add(id, title)
+			}
+		}
+		titleRows.Close()
+	}
+	abstractRows, err := db.QueryContext(ctx, `
+		SELECT id, abstract FROM documents WHERE abstract IS NOT NULL
+	`)
+	if err == nil {
+		for abstractRows.Next() {
+			var id, abstract string
+			if err := abstractRows.Scan(&id, &abstract); err == nil {
+				acc.Add(id, abstract)
+			}
+		}
+		abstractRows.Close()
+	}
+	chunkRows, err := db.QueryContext(ctx, `
+		SELECT document_id, content FROM chunks
+	`)
+	if err == nil {
+		for chunkRows.Next() {
+			var documentID, content string
+			if err := chunkRows.Scan(&documentID, &content); err == nil {
+				acc.Add(documentID, content)
+			}
+		}
+		chunkRows.Close()
+	}
+	report.OrthographyDocuments, report.OrthographyIssues = acc.Report(store.OrthographyIssueLimit)
 
 	return report, nil
 }

@@ -119,6 +119,11 @@ type DoctorReport struct {
 	OrphanNotes    []OrphanNote    `json:"orphan_notes"`
 	SelfLoops      []SelfLoop      `json:"self_loops"`
 	DesyncedChunks []DesyncedChunk `json:"desynced_chunks"`
+	// Ortografia é um AVISO (ISSUE-017): termos sem acento que quebram a
+	// tokenização da busca. Não entra no cálculo do HealthScore — perda de
+	// acento não é corrupção de dado, é decisão de produto.
+	OrthographyDocuments int                          `json:"orthography_documents"`
+	OrthographyIssues    []PortugueseOrthographyIssue `json:"orthography_issues"`
 }
 
 // Store define o contrato agnóstico de armazenamento para SQLite e PostgreSQL

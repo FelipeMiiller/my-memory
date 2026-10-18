@@ -123,6 +123,49 @@ func TestBootstrapCentralVault_Idempotency(t *testing.T) {
 	}
 }
 
+// O vetor real do runtime é o embedder embutido (internal/embedder) com 384
+// dimensões — a coluna do Postgres é `vector(384)`. O vault central gerado não
+// pode declarar o provider `ollama`/`nomic-embed-text` nem a dimensão 768.
+func TestBootstrapCentralVault_EmbeddingDefaults(t *testing.T) {
+	tmpDir := t.TempDir()
+	vaultPath := filepath.Join(tmpDir, "central-vault")
+
+	if err := BootstrapCentralVault(vaultPath); err != nil {
+		t.Fatalf("erro ao executar BootstrapCentralVault: %v", err)
+	}
+
+	memCfgPath := filepath.Join(vaultPath, ".memory", "config.yaml")
+	raw, err := os.ReadFile(memCfgPath)
+	if err != nil {
+		t.Fatalf("erro ao ler .memory/config.yaml do cofre central: %v", err)
+	}
+	conteudo := string(raw)
+
+	cfg, err := config.LoadConfig(memCfgPath)
+	if err != nil {
+		t.Fatalf("erro ao carregar .memory/config.yaml do cofre central: %v", err)
+	}
+
+	if cfg.Embedding.Provider != "builtin" {
+		t.Errorf("esperava provider 'builtin', obteve '%s'", cfg.Embedding.Provider)
+	}
+	if cfg.Embedding.Model != "paraphrase-multilingual-MiniLM-L12-v2" {
+		t.Errorf("esperava o model embutido, obteve '%s'", cfg.Embedding.Model)
+	}
+	if cfg.Embedding.Dimension != 384 {
+		t.Errorf("esperava dimension 384, obteve %d", cfg.Embedding.Dimension)
+	}
+	if cfg.Embedding.URL != "" {
+		t.Errorf("provider embutido não tem endpoint HTTP; esperava url vazia, obteve '%s'", cfg.Embedding.URL)
+	}
+
+	for _, proibido := range []string{"nomic-embed-text", "localhost:11434", "11434", "dimension: 768"} {
+		if strings.Contains(conteudo, proibido) {
+			t.Errorf("config do cofre central ainda declara %q", proibido)
+		}
+	}
+}
+
 func TestBootstrapCentralVault_EmptyPath(t *testing.T) {
 	err := BootstrapCentralVault("")
 	if err == nil {

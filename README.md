@@ -32,8 +32,8 @@ O **My-Memory** resolve isso unificando **busca vetorial**, **grafo de conhecime
              [ Parser [[wikilinks]] & #tags ]            [ Chunking Semântico ]
                          │                                         │
                          ▼                                         ▼
-               ( graph_nodes & edges )                  [ Ollama Embeddings ]
-                         │                               (nomic-embed-text 768d)
+               ( graph_nodes & edges )                  [ Embeddings Embutidos ]
+                         │                             (MiniLM multilíngue, 384d)
                          │                                         │
                          │                         ┌───────────────┴───────────────┐
                          │                         ▼                               ▼
@@ -57,24 +57,23 @@ O **My-Memory** resolve isso unificando **busca vetorial**, **grafo de conhecime
 ```
 
 1. **📦 SQLite Unificado & PostgreSQL Opcional:** Sem dependências pesadas (sem Neo4j, sem Pinecone, sem Elasticsearch). Armazena documentos, tabela virtual `sqlite-vec`, índice léxico `FTS5 (BM25)` e conexões de grafo em um arquivo local único ou em PostgreSQL corporativo com `pgvector`.
-2. **🔬 TurboQuant (Google DeepMind, ICLR 2026):** Implementação pioneira em Go da quantização de 4-bits com 32 reflexões ortogonais de Householder ($R^T R = I$). Reduz o consumo vetorial em **~88%** (de 3.072 para 388 bytes por chunk) mantendo fidelidade $> 99\%$.
+2. **🔬 TurboQuant (Google DeepMind, ICLR 2026):** Implementação pioneira em Go da quantização de 4-bits com 32 reflexões ortogonais de Householder ($R^T R = I$). Reduz o consumo vetorial em **~87%** (de 1.536 para 196 bytes por chunk) mantendo fidelidade $> 99\%$.
 3. **🕸 Grafo Estilo Obsidian via SQL Recursivo:** Extrai conexões explícitas de notas (`[[links]]` e `#tags`), permitindo travessias relacionais, detecção de comunidades (LPA) e análise de raio de impacto em microssegundos.
 4. **🔌 Model Context Protocol (MCP) Nativo:** Conecta-se diretamente aos assistentes de codificação de IA via `stdio` (JSON-RPC 2.0) ou rede HTTP/SSE, expondo ferramentas de busca e expansão de contexto.
 5. **🏛️ Federação, Cofre Central e Wikilinks Cross-Vault:** Vincula um Cofre Central de padrões corporativos (Google Drive / OneDrive para Obsidian) a repositórios satélites com `repo_id` criptográfico imutável, catálogo global (`~/.memory/config.yaml`), zero-credentials no Git, busca híbrida federada via RRF e protocolo canônico universal `memory://<repo>/<path>` para resolução transparente de wikilinks cross-vault em editores e MCP.
 6. **🌳 Code AST Indexing (tree-sitter, opt-in via `-tags treesitter`):** Parser sintático multi-linguagem (Go, Python, TS/JS, Rust, Java, C/C++, Ruby, PHP, Shell, C#) com persistência de símbolos/arestas em `code_files`/`code_symbols`/`code_edges`, boost RRF 2× em `qualified_name` e ferramentas CLI/MCP dedicadas (`mem code-index`/`code-search`/`code-graph`/`code-stats`, `memory_code_search`/`memory_code_neighbors`). Build padrão (sem tag) continua CGO-free e mantém o pipeline Markdown 100% funcional (CA-14, ADR-047).
-7. **🖥 Viewer Desktop (Electron Forge 7 + React 19 + Vite 8 + shadcn v4 + Tailwind 4, Phase 1 MVP):** Desktop app cross-platform com Cytoscape bundled (zero-CDN), CSP strict via `session.webRequest.onHeadersReceived` em `electron/main.ts` + meta tag em `index.html`, locale switcher `pt-BR`/`en-US` persistido em `localStorage`. Layout 3-pane (Explorer / Editor / Chat) com `react-resizable-panels`, TopBar drag-region + window controls + pane toggles, shadcn `Sheet` constrained inside chat pane pra sessions list. i18n per-namespace (`common` / `topbar` / `graph` / `workspace` / `chat`) carregado de `src/localization/locales/{pt-BR,en-US}/*.json` — receita pra adicionar língua/namespace no docstring de `src/localization/i18n.ts`. ASR scaffold (ADR-045) com mic button + IPC pipeline, real Nemotron fica pros 9 tasks do spec `nemotron-asr-streaming`. Layout: `electron/` (main + preload + ipc + constants + utils/path + types.d.ts) + `src/` flat (renderer React). Aliases: `@/*` → `src/*`, `@electron/*` → `electron/*`. Decisões arquiteturais: [ADR-048](docs/adr/048-viewer-electron-react-vite-shadcn.md) (Electron + React + Vite + shadcn), [ADR-049](docs/adr/049-viewer-restructure-electron-forge-and-src-split.md) (restructure), [ADR-053](docs/adr/053-viewer-v3-3-pane-layout-shell.md) (3-pane shell) — veja [docs/VIEWER.md](docs/VIEWER.md) para setup e [`.specs/ROADMAP-v3-workspace-architecture.md`](.specs/ROADMAP-v3-workspace-architecture.md) para o roadmap M1-M7.
 
 ---
 
 ## 📊 Eficiência TurboQuant (Google DeepMind, ICLR 2026)
 
-Para um vetor de 768 dimensões (`nomic-embed-text`):
+Para um vetor de 384 dimensões (`paraphrase-multilingual-MiniLM-L12-v2`, provider embutido — ADR-035):
 
 | Formato | Precisão | Bytes / Chunk | Redução de Espaço | Fidelidade Angular |
 | :--- | :--- | :--- | :--- | :--- |
-| **Float32 Padrão** | 32-bit float | 3.072 bytes | Linha de Base | 100.0% |
-| **Int8 Clássico** | 8-bit int | 768 bytes | ~75.0% | ~95.0% (sensível a outliers) |
-| **TurboQuant 4-bit** | 4-bit packed | **388 bytes** | **~87.4%** | **> 99.0%** (ortogonalmente protegido) |
+| **Float32 Padrão** | 32-bit float | 1.536 bytes | Linha de Base | 100.0% |
+| **Int8 Clássico** | 8-bit int | 384 bytes | ~75.0% | ~95.0% (sensível a outliers) |
+| **TurboQuant 4-bit** | 4-bit packed | **196 bytes** | **~87.2%** | **> 99.0%** (ortogonalmente protegido) |
 
 ---
 
@@ -172,7 +171,7 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 | 📖 [**`COMO_USAR.md`**](COMO_USAR.md) | **Desenvolvedores** | Manual prático de comandos CLI, exemplos de busca, configuração de PostgreSQL/SQLite e monitoramento em tempo real. |
 | 🔍 [**`COMO_FUNCIONA.md`**](COMO_FUNCIONA.md) | **Engenheiros & Arquitetos** | Explicação profunda da arquitetura, matemática do TurboQuant, algoritmo RRF, CTEs recursivas e ciclo de vida do cache. |
 | 🤖 [**`AGENT_INTEGRATION_GUIDE.md`**](docs/AGENT_INTEGRATION_GUIDE.md) | **Agentes de IA & Integrações** | Como integrar o My-Memory com Cursor, Claude Code, Copilot e Antigravity via MCP e regras `AGENTS.md`. |
-| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 41 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
+| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 52 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR. |
 | 🧠 [**`docs/concepts/architecture.md`**](docs/concepts/architecture.md) | **Engenheiros** | Stub conceitual: visão arquitetural consolidada (camadas, decisões centrais, ADRs relacionados). |
 | 🧪 [**`docs/BENCHMARKS.md`**](docs/BENCHMARKS.md) | **Engenheiros de Performance** | Metodologia, resultados consolidados e como reproduzir benchmarks (TurboQuant, RRF, indexação, grafo). |
 | 🔗 [**`docs/REFERENCES.md`**](docs/REFERENCES.md) | **Pesquisadores & Curiosos** | Projetos de referência (CodeGraph, Cursor, etc.) e matriz de refinamento arquitetural. |
@@ -191,7 +190,7 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 
 ## 🤖 Ferramentas MCP para Assistentes de IA
 
-Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 19 ferramentas para o ecossistema de IA:
+Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 20 ferramentas para o ecossistema de IA:
 
 - `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional. Aceita `include_code: true` (default `false`, CA-12) para que `code_symbols` concorram no ranqueamento.
 - `memory_get_neighbors`: Expansão recursiva de nós e dependências conectadas via SQL recursivo (CTEs) com marcação `is_federated: true`.
@@ -230,18 +229,18 @@ my-memory/
 │   ├── db/             # Schemas SQLite, virtual tables sqlite-vec e queries recursivas CTE
 │   ├── deeplink/       # Integração e deep linking com editores (VS Code, Cursor, Obsidian)
 │   ├── drift/          # Análise de divergência semântica e staleness entre git e documentação
-│   ├── embedder/       # Cliente Ollama e resolução dinâmica de modelos de embedding
+│   ├── embedder/       # Provider embutido ONNX (paraphrase-multilingual-MiniLM-L12-v2, 384d) e resolução do embedder
 │   ├── federation/     # Federação multirrepositório, RRF e resolução de URIs canônicas memory://
 │   ├── graph/          # Algoritmos de grafo (LPA, modularidade Q, PageRank, Blast Radius, Inspector)
 │   ├── graphview/      # Visualizador interativo HTML/SVG standalone com física de forças
-│   ├── mcp/            # Servidor Model Context Protocol com 17 tools (stdio + HTTP/SSE)
+│   ├── mcp/            # Servidor Model Context Protocol com 20 tools (stdio + HTTP/SSE)
 │   ├── parser/         # Extração de wikilinks, tags, metadados e chunking
 │   ├── repo/           # Scanner de arquivos do repositório respeitando escopo e gitignore
 │   ├── staleness/      # Rastreamento de desatualização temporal de notas e links quebrados
 │   ├── store/          # Camada de armazenamento unificada e suporte a PostgreSQL com pgvector
 │   ├── turboquant/     # Rotações ortogonais de Householder e quantização de 4-bit
 │   └── watcher/        # File watcher em segundo plano com debouncing inteligente
-├── docs/               # Documentação técnica detalhada e 31 ADRs
+├── docs/               # Documentação técnica detalhada e 52 ADRs
 ├── COMO_USAR.md        # Manual prático passo a passo para o usuário
 ├── COMO_FUNCIONA.md    # Explicação detalhada da arquitetura e funcionamento interno
 ├── AGENTS.md           # Regras operacionais para Agentes de IA
@@ -252,7 +251,7 @@ my-memory/
 
 ## 🧪 Validação e Testes
 
-O My-Memory conta com cobertura de testes unitários e de integração em todos os 19 pacotes Go:
+O My-Memory conta com cobertura de testes unitários e de integração em todos os 24 pacotes Go:
 
 ```bash
 # Executar todos os testes do repositório

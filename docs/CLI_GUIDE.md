@@ -87,7 +87,7 @@ Percorre recursivamente os arquivos do vault respeitando as regras declarativas 
 * Poda automaticamente notas deletadas do disco (`PruneDeletedDocuments`). Use `--no-prune` para preservar registros ausentes.
 * Extrai os `[[wikilinks]]` e `#tags` inserindo as arestas de relacionamento no grafo.
 * Pula automaticamente diretórios de sistema (`.git`, `node_modules`, `vendor`, `.obsidian`, `.trash`, `.memory`) via `filepath.SkipDir`.
-* Gera os embeddings de 384 dimensões via Ollama (`nomic-embed-text`).
+* Gera os embeddings de 384 dimensões via provider embutido (`paraphrase-multilingual-MiniLM-L12-v2`, ADR-035).
 * Insere no `sqlite-vec` (vetor completo) e no `chunks_turboquant` (comprimido em 4-bits).
 
 **Exemplo:**
@@ -106,7 +106,7 @@ Percorre recursivamente os arquivos do vault respeitando as regras declarativas 
 ### 3. `mem watch [--debounce <ms>] [--interval <ms>] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]`
 Monitora continuamente alterações de arquivos Markdown no vault em tempo real:
 * **Detecção Automática**: Identifica criação, modificação e deleção de notas Markdown em segundo plano sem necessidade de CGO.
-* **Debouncing Amortecido**: Agrupa rajadas de salvamento contínuo (padrão: 500ms) executadas por editores de código e pelo Obsidian para evitar chamadas redundantes ao Ollama.
+* **Debouncing Amortecido**: Agrupa rajadas de salvamento contínuo (padrão: 500ms) executadas por editores de código e pelo Obsidian para evitar recomputar embeddings redundantes.
 * **Reindexação Cirúrgica**: Processa exclusivamente o arquivo alterado (documento, arestas, chunks e embeddings), sem reindexar o restante do vault.
 * **Purga Automática**: Deleta instantaneamente do índice notas que foram removidas do disco.
 * **Encerramento Gracioso**: Suporta encerramento seguro via `Ctrl+C` (`SIGINT`/`SIGTERM`).
@@ -142,7 +142,7 @@ Gerencia a instalação do Git Pre-Commit Hook para garantir integridade do índ
 
 ---
 
-### 5. `mem search "<pergunta>" [--level l0|l1|l2] [--category resource|memory|skill] [--mode hybrid|vector|fts] [--decay] [--half-life 30] [--decay-weight 0.3]`
+### 5. `mem search "<pergunta>" [--level l0|l1|l2] [--category resource|memory|skill] [--mode hybrid|vector|fts] [--links] [--decay] [--half-life 30] [--decay-weight 0.3]`
 Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato FTS5/tsvector, vetores semânticos k-NN, Progressive Context Loading e expansão de grafo:
 * `--level <l0|l1|l2>`: Define a densidade de contexto do resultado:
   * `l0`: Micro-abstract cirúrgico (1 a 2 frases, ~30-50 tokens) com deduplicação por documento e sem despejo de texto bruto (*Zero File Reads*).
@@ -153,6 +153,7 @@ Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato
 * `--decay`: Ativa o decaimento temporal exponencial ponderado (ADR-015) para priorizar notas mais recentes no ranking final.
 * `--half-life <dias>`: Tempo de meia-vida da curva em dias (padrão: 30.0 dias).
 * `--decay-weight <w>`: Peso do decaimento entre 0.0 (sem efeito) e 1.0 (decaimento máximo) com piso assintótico $(1 - w)$ (padrão: 0.3).
+* `--links`: exibe deep links acionáveis (Obsidian e VS Code) abaixo de cada resultado.
 * Realiza a **expansão de grafo** via SQL recursivo para trazer notas estruturalmente conectadas.
 
 **Exemplos:**
@@ -174,6 +175,9 @@ Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato
 
 # 6. Filtrando por repositório ou conectando ao PostgreSQL:
 ./bin/mem.exe search --postgres "postgres://user:pass@localhost:5432/memory?sslmode=disable" --repo "meu-org/meu-projeto" "fluxo de autenticacao"
+
+# 7. Exibindo deep links (Obsidian / VS Code) abaixo de cada resultado:
+./bin/mem.exe search --links "cache incremental"
 ```
 
 
@@ -283,13 +287,44 @@ Exporta o grafo relacional para **JSON Canvas 1.0 (`.canvas`)** do Obsidian ou p
 
 ---
 
-### 9. `mem doctor [--fix] [--db <caminho>] [--postgres <url>] [--repo <slug>]`
+### 9. `mem doctor [--fix] [--events] [--db <caminho>] [--postgres <url>] [--storage sqlite|postgres] [--repo <slug>]`
 Audita a saúde do grafo e tabelas relacionais de conhecimento:
 * Identifica **Dead Links** (wikilinks apontando para notas inexistentes).
 * Identifica **Notas Órfãs** (documentos sem conexões de entrada ou saída).
 * Identifica **Self-Loops** (notas apontando reflexivamente para si mesmas).
+* Identifica **Ortografia** (termos em português escrito sem acento — ISSUE-017, em [`.specs/ISSUES.md`](../.specs/ISSUES.md)).
 * Calcula o **Health Score** (0 a 100).
 * A flag `--fix` remove automaticamente conexões mortas e loops conhecidos.
+* A flag `--events` acrescenta uma seção **Events** com a saúde do `event_runtime` (ADR-043): tamanho do buffer, último `sequence_id` e erros de escrita.
+
+**Exemplo:**
+```bash
+./bin/mem.exe doctor
+# Auditando e reparando anomalias no grafo:
+./bin/mem.exe doctor --fix
+# Auditoria do grafo + saúde do event_runtime:
+./bin/mem.exe doctor --events
+```
+
+#### Seção Ortografia (aviso, ISSUE-017)
+
+Documentos gerados por agentes de IA costumam perder acento. Isso **não** é cosmético: `sao` e `são` tokenizam diferente no FTS5 e no embedding, então uma busca pelo termo correto não encontra o termo digitado.
+
+A verificação varre `title`, `abstract` e o conteúdo dos chunks e reporta os piores casos:
+
+```
+ [✍️  Ortografia / Termos sem Acento] (7 documentos afetados)
+  ⚠ Aviso: 'sao' e 'são' tokenizam diferente — a busca por um não acha o outro.
+  - 003-caching/redis.md: configuracao → configuração (5 trecho(s))
+  - performance/latencia.md: tres → três (3 trecho(s))
+  ↳ Aviso apenas: não afeta o Health Score.
+```
+
+ Características da detecção:
+* **A lista de correções é curada** (`internal/store/orthography.go`), não derivada por regex. Um detector genérico corromperia texto válido — `esta` (pronome), `ate`, `ha`, `media` (substantivo) e `sim` são corretos sem acento e **nunca** são reportados, assim como `cache`, `index`, `target` e demais termos técnicos em inglês.
+* Só há casamento de **palavra inteira**: `indices` e `notas` não disparam para `indice`.
+* São ignorados blocos de código (```` ``` ````), linhas indentadas com 4 espaços, code spans, URLs, `[[wikilinks]]` e chaves de frontmatter — exceto os **valores** de `title` e `summary`, que são texto humano.
+* É **apenas aviso**: não soma nem subtrai do Health Score. Perder acento degrada a busca, não corrompe dado — alterar a métrica é decisão de produto, não efeito colateral.
 
 **Exemplo:**
 ```bash
@@ -648,32 +683,39 @@ Atalho sobre `mem search` otimizado para o universo de símbolos de código. Apl
 
 ---
 
-### 26. `mem code-graph <symbol> [--depth=<N>] [--json]`
+### 26. `mem code-graph <symbol> [--depth=<N>] [--direction=in|out|both] [--db <arq>] [--repo <slug>]`
 
 Resolve um símbolo (`exact qualified_name` ou fallback `suffix .Name`) e devolve a vizinhança direcionada (in + out) até a profundidade solicitada, usando **CTE recursivo** sobre `code_edges` (ADR-004 / CA-08):
 
 * `--depth <N>`: profundidade máxima (padrão: 1, máximo: 5).
-* **`--json`**: emite payload estruturado com `{root, neighbors[]}` pronto para automações ou agentes MCP.
-* **Markdown table padrão**: colunas `direction | kind | symbol | file | line` com deep links `[[rel:code:<id>]]`.
+* `--direction <in|out|both>`: direção da travessia (padrão: `both`).
+* `--db <arq>` / `--repo <slug>`: filtra o banco ou o repositório consultado.
+* **Markdown table** (único formato de saída): colunas `direction | kind | symbol | file | line` com deep links `[[rel:code:<id>]]`.
+
+> [!NOTE]
+> Este comando **não** possui flag `--json`. A saída é sempre a tabela Markdown; para consumo programático, use `--direction`/`--depth` em conjunto com o filtro `--links` do `mem code-search`, ou leia `code_edges` diretamente.
 
 **Exemplos:**
 ```bash
 # Quem chama Parser.Parse e o que Parser.Parse chama:
 ./bin/mem-ast.exe code-graph internal/parser.Parser.Parse --depth 2
 
-# Subgrafo profundo para análise estática:
-./bin/mem-ast.exe code-graph db.DB.Query --depth 3 --json > graph_db_query.json
+# Subgrafo profundo, só na direção de chamadas de entrada:
+./bin/mem-ast.exe code-graph db.DB.Query --depth 3 --direction in
 ```
 
 ---
 
-### 27. `mem code-stats [--json]`
+### 27. `mem code-stats [--top=<N>] [--json] [--db <arq>] [--repo <slug>]`
 
 Agrega contadores de `code_files` e `code_symbols` em três visões complementares (CA-09):
 
 * **Distribuição por linguagem**: contagem de arquivos e símbolos por `language` detectado.
 * **Distribuição por kind**: histograma de `function`, `class`, `struct`, `interface`, etc.
 * **Arquivos órfãos**: lista `code_files` sem nenhum símbolo extraído (sinaliza arquivos de configuração, dados ou gramática não suportada).
+* `--top <N>`: limite de linhas por seção (padrão: 20).
+* `--json`: emite payload estruturado para painéis e dashboards.
+* `--db <arq>` / `--repo <slug>`: filtra o banco ou o repositório consultado.
 
 **Exemplos:**
 ```bash
@@ -682,7 +724,142 @@ Agrega contadores de `code_files` e `code_symbols` em três visões complementar
 
 # Saída JSON para painéis/dashboards:
 ./bin/mem-ast.exe code-stats --json
+
+# Top 50 por seção, restrito a um repositório:
+./bin/mem-ast.exe code-stats --top 50 --repo "meu-org/meu-projeto"
 ```
+
+---
+
+### 28. `mem up [--profile <nome>] [--memory-dir <dir>]`
+
+Sobe o **supervisor** `mymemoryd` em segundo plano, que mantém os workers de indexação do vault (ADR-042):
+
+* Lê o lock file em `<memory-dir>/supervisor.lock`.
+* Se já houver um lock fresco com PID vivo, imprime `Already running on PID <N>` e sai com código 0 — o comando é **idempotente**, nunca sobe um segundo supervisor.
+* Caso contrário, resolve o binário `mymemoryd` (ordem: flag explícita → env `MYMEMORYD_BIN` → irmão do `mem` → `PATH`), executa e espera a linha de *readiness* em stdout.
+* Falha em qualquer etapa (binário ausente, handshake incompleto) retorna código != 0 sem deixar lock para trás.
+
+* `--profile <nome>`: perfil de worker sob `<memory-dir>/profiles/` (padrão: `default`). Ver `mem profiles use`.
+* `--memory-dir <dir>`: raiz do vault onde vive o `supervisor.lock` (padrão: `.memory`).
+* Espera até **5 segundos** pela linha de readiness; expirar conta como falha.
+
+**Exemplos:**
+```bash
+# Sobe com o perfil default:
+./bin/mem.exe up
+
+# Sobe com um perfil de maior paralelismo:
+./bin/mem.exe up --profile full
+
+# Idempotente: rodar duas vezes não sobe dois supervisors:
+./bin/mem.exe up
+```
+
+---
+
+### 29. `mem down [--memory-dir <dir>]`
+
+Derruba o supervisor `mymemoryd` de forma limpa, com escalada de sinal:
+
+* Sem lock, ou com lock inválido/corrompido: imprime `Not running` e sai com código 0.
+* Envia **SIGTERM** ao PID e aguarda até **10 segundos** (`StopGrace`).
+* Se o processo ainda estiver vivo após a janela, escala para **SIGKILL**.
+* Sai com 0 assim que o supervisor termina, ou com 1 se o PID não puder ser sinalizado.
+
+* `--memory-dir <dir>`: raiz do vault onde vive o `supervisor.lock` (padrão: `.memory`).
+
+**Exemplo:**
+```bash
+./bin/mem.exe down
+```
+
+---
+
+### 30. `mem profiles <list|use> [<nome>] [--memory-dir <dir>]`
+
+Gerencia os **perfis de execução** dos workers (ADR-042):
+
+* `list`: lê todo `*.yaml` sob `<memory-dir>/profiles/` e imprime o nome do perfil junto com a contagem efetiva de workers, já resolvida a herança (quando há um perfil pai).
+* `use <nome>`: grava o perfil escolhido em `.memory/config.yaml` sob a chave `active_profile`, de modo que os próximos `mem up` o adotem sem precisar de `--profile`.
+* Sem subcomando ou com subcomando desconhecido, retorna código 2.
+
+* `--memory-dir <dir>`: raiz do vault onde vive `profiles/` (padrão: `.memory`).
+
+**Exemplos:**
+```bash
+# Lista os perfis disponíveis:
+./bin/mem.exe profiles list
+
+# Torna o perfil "full" o padrão dos próximos `mem up`:
+./bin/mem.exe profiles use full
+```
+
+---
+
+### 31. `mem logs [<worker_id>] [--limit <N>] [--memory-dir <dir>]`
+
+Lê o log JSON Lines do supervisor em `<memory-dir>/logs/supervisor.jsonl`:
+
+* Abre o arquivo e devolve as últimas entradas cujo payload menciona o `worker_id` solicitado.
+* Sem filtro de worker, imprime todas as entradas (útil para auditar o histórico de todos os workers).
+* Arquivo ausente: imprime `(no log file)` e sai com código 0 — não é erro.
+
+* `--limit <N>`: número máximo de entradas (padrão: `50`).
+* `--memory-dir <dir>`: raiz do vault onde vive `logs/` (padrão: `.memory`).
+
+**Exemplos:**
+```bash
+# Últimas 50 entradas de todos os workers:
+./bin/mem.exe logs
+
+# Filtrando por um worker específico:
+./bin/mem.exe logs worker-1 --limit 200
+```
+
+---
+
+### 32. `mem events <subcomando> [opções]`
+
+Inspeciona o `event_log` (JSON Lines) do **event runtime** e re-emite eventos para replay (ADR-043):
+
+**Subcomandos:** `tail`, `inspect`, `replay`, `trace`, `last-sequence`, `stats`.
+
+* `mem events tail [--limit <N>] [--session <id>] [--type <glob>]`: imprime os eventos mais recentes do buffer.
+  * `--limit <N>`: máximo de eventos impressos (padrão: `20`).
+  * `--session <id>`: filtra por `session_id`.
+  * `--type <padrão>`: filtra por `event_type` usando glob.
+* `mem events inspect <event_id>`: mostra o envelope completo de um evento.
+* `mem events replay [--dry-run] [--apply] [--yes]`: reprocessa eventos do buffer.
+  * `--dry-run` é o **padrão**: apenas imprime, não despacha para os assinantes.
+  * `--apply`: despacha de fato.
+  * `--yes`: dispensa o prompt de confirmação (usar junto com `--apply`).
+* `mem events trace <event_id>`: reconstrói a cadeia de causação de um evento.
+* `mem events last-sequence`: imprime o último `sequence_id` gravado.
+* `mem events stats`: contadores do buffer.
+
+> [!WARNING]
+> `mem events replay --apply` reemite eventos para os assinantes. Combine com `--yes` apenas em ambiente não-produtivo: a operação é idempotente por `event_id`, mas efeitos colaterais de handlers podem se repetir.
+
+**Exemplos:**
+```bash
+# Últimos 50 eventos do buffer:
+./bin/mem.exe events tail --limit 50
+
+# Só eventos de uma sessão:
+./bin/mem.exe events tail --session sess-abc123
+
+# Simulação de replay (não despacha nada):
+./bin/mem.exe events replay
+
+# Replay efetivo, sem prompt:
+./bin/mem.exe events replay --apply --yes
+```
+
+---
+
+> [!NOTE]
+> Não existe `mem uninstall` como comando de topo: a remoção do hook é a sub-ação `mem hook uninstall` (ver seção 4). O mesmo vale para `mem install`, que é um comando de topo próprio.
 
 ---
 
@@ -805,10 +982,8 @@ storage:
 
 # Embeddings
 embedding:
-  provider: "ollama"
-  model: "nomic-embed-text"
-  url: "http://localhost:11434"
-  dimension: 384
+  provider: "builtin"        # único valor com efeito (ADR-035)
+  # model, url e dimension são fixos: vetores de 384 dimensões pelo schema do banco
 
 # Preferências padrão de busca
 search:
@@ -1031,15 +1206,18 @@ Parâmetros suportados:
 * `--dry-run`: Simula a abertura e exibe comando de SO e URI gerada sem iniciar o editor.
 * `--json`: Retorna objeto JSON com campos `uri`, `vault`, `file`, `path`, `deep_link` e `is_federated: true`.
 
-### 4. Modo de Embedding: Online vs Fallback FTS
+### 4. Modo de Embedding: Vetorial vs Fallback FTS
 
-O `mem index` e o `mem search --mode hybrid` tentam gerar embeddings via Ollama (`http://localhost:11434`). Se Ollama estiver offline ou a URL configurada em `.memory/config.yaml` for inalcançável:
+O `mem index` e o `mem search --mode hybrid` usam o provider **embutido** `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensões, ADR-035). Não há endpoint remoto configurável. O fallback léxico dispara apenas quando esse provider não está disponível — binário compilado sem a tag `onnx`, ou artefatos do modelo ausentes:
 
-* **Indexação continua funcionando** — cada chunk é armazenado com vetor zero (`make([]float32, 384)`); FTS5 indexa normalmente e TurboQuant comprime perfeitamente (vetor zero comprime sem perda).
-* **Aviso emitido em cada chunk**: `Ollama indisponível (<chunkID>); indexando em modo léxico FTS`.
-* **Search híbrido cai automaticamente em FTS-only** — você verá `Executando fallback para busca textual FTS` na saída.
+* **Indexação continua funcionando** — cada chunk é armazenado com vetor zero (`make([]float32, embedder.EmbeddingDim)`); FTS5 indexa normalmente e TurboQuant comprime perfeitamente (vetor zero comprime sem perda).
+* **Aviso emitido**: `sem provider de embedding; <docID> indexado em modo léxico FTS`.
+* **Search híbrido cai automaticamente em FTS-only** — você verá `fallback para busca textual FTS` na saída.
 * **Resultados ainda funcionam**: FTS5 + RRF + expansão de grafo retornam resultados relevantes, só perdem o ranqueamento semântico.
-* Para voltar ao modo semântico completo: suba `ollama serve`, confirme `nomic-embed-text` disponível e reindexe o vault.
+* Para voltar ao modo semântico completo: recompile com `-tags onnx` (ou aponte `MY_MEMORY_MINILM_MODEL_DIR`/`MY_MEMORY_ORT_LIB` para os artefatos locais) e reindexe o vault.
+
+> [!NOTE]
+> O texto do aviso não cita mais nenhum provider: desde a migração para o embedder embutido (ADR-035) ele apenas descreve a falha (`falha ao gerar embedding`).
 
 Comportamento garantido pelo commit [`33feb1d`](../../commit/33feb1d) (`fix(index): fallback to FTS chunk indexing when embedding generation is offline`). Documentação completa em [`docs/CENTRAL_VAULT.md` — Seção 4](CENTRAL_VAULT.md#4-modos-de-embedding-online-vs-fallback).
 

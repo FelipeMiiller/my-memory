@@ -20,8 +20,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Storage.SQLitePath != "memory.db" {
 		t.Errorf("esperava sqlite path 'memory.db', obteve '%s'", cfg.Storage.SQLitePath)
 	}
-	if cfg.Embedding.Model != "nomic-embed-text" {
-		t.Errorf("esperava model 'nomic-embed-text', obteve '%s'", cfg.Embedding.Model)
+	if cfg.Embedding.Model != "paraphrase-multilingual-MiniLM-L12-v2" {
+		t.Errorf("esperava model 'paraphrase-multilingual-MiniLM-L12-v2', obteve '%s'", cfg.Embedding.Model)
 	}
 	if cfg.Search.Mode != "hybrid" {
 		t.Errorf("esperava search mode 'hybrid', obteve '%s'", cfg.Search.Mode)
@@ -147,6 +147,61 @@ func TestLoadAndSaveConfig(t *testing.T) {
 	// projeção 384→768 que o benchmark mostrou perder separação par a par.
 	if loaded.Embedding.Dimension != 384 {
 		t.Errorf("esperava dimension 384, obteve %d", loaded.Embedding.Dimension)
+	}
+}
+
+// TestDefaultConfigNaoDeclaraOllama trava o removedor do default Ollama:
+// o provider vetorial único é o `builtin` (ADR-035). `nomic-embed-text` é
+// 768d e não cabe no schema 384, então voltar a oferecê-lo como default
+// reintroduz a escolha que o ADR-035 eliminou.
+func TestDefaultConfigNaoDeclaraOllama(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.Embedding.Provider != "builtin" {
+		t.Errorf("esperava provider 'builtin', obteve '%s'", cfg.Embedding.Provider)
+	}
+	if strings.Contains(strings.ToLower(cfg.Embedding.Provider), "ollama") {
+		t.Errorf("provider default ainda cita ollama: '%s'", cfg.Embedding.Provider)
+	}
+	if strings.Contains(strings.ToLower(cfg.Embedding.Model), "nomic") {
+		t.Errorf("model default ainda é do ollama: '%s'", cfg.Embedding.Model)
+	}
+	if cfg.Embedding.URL != "" {
+		t.Errorf("provider embutido não tem endpoint HTTP; esperava url vazia, obteve '%s'", cfg.Embedding.URL)
+	}
+}
+
+// TestLoadConfigNaoPreencheOllamaVazio garante que um config sem `embedding:`
+// não volte a receber os valores do Ollama por backfill. O campo ficou
+// vazio de propósito: não há mais nada a preencher.
+func TestLoadConfigNaoPreencheOllamaVazio(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.yaml")
+
+	content := "version: 1\nrepository: acme/docs\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("erro ao carregar config: %v", err)
+	}
+
+	if cfg.Embedding.Model != "paraphrase-multilingual-MiniLM-L12-v2" {
+		t.Errorf("esperava o model embutido, obteve '%s'", cfg.Embedding.Model)
+	}
+	if strings.Contains(strings.ToLower(cfg.Embedding.Model), "nomic") {
+		t.Errorf("model recebeu backfill de ollama: '%s'", cfg.Embedding.Model)
+	}
+	if cfg.Embedding.URL != "" {
+		t.Errorf("url recebeu backfill de ollama: '%s'", cfg.Embedding.URL)
+	}
+	if cfg.Embedding.Provider != "builtin" {
+		t.Errorf("esperava provider 'builtin', obteve '%s'", cfg.Embedding.Provider)
+	}
+	if cfg.Embedding.Dimension != 384 {
+		t.Errorf("esperava dimension 384, obteve %d", cfg.Embedding.Dimension)
 	}
 }
 

@@ -14,7 +14,7 @@ Este documento consolida as medições empíricas da suíte de micro-benchmarks 
 - **Memória RAM:** 64 GB DDR4
 - **Sistema Operacional:** Windows Server / Ubuntu Linux (GitHub Actions CI)
 - **Linguagem / Compilador:** Go 1.24+ (compilador nativo, flags padrão de otimização)
-- **Dimensão Vetorial Padrão:** 384 dimensões (`nomic-embed-text` / compatível com Ollama)
+- **Dimensão Vetorial Padrão:** 384 dimensões (modelo embutido `paraphrase-multilingual-MiniLM-L12-v2`, ADR-035)
 
 ### 1.2. Protocolo de Medição
 As medições foram executadas através de duas abordagens complementares e reproduzíveis:
@@ -35,7 +35,7 @@ As medições foram executadas através de duas abordagens complementares e repr
 | **Produto Escalar Float32** (`Exact`) | 384 floats | **297.8 ns/op** | ~3.360.000 ops/s | **0 B/op** | **0 allocs/op** | Linha de base |
 
 #### Destaques de Eficiência:
-- **Redução de Memória:** Vetores de 384 floats32 ocupam **1.536 bytes**; após quantização 4-bit ocupam apenas **384 bytes**, gerando **87,5% de economia de espaço em disco e RAM**.
+- **Redução de Memória:** Vetores de 384 floats32 ocupam **1.536 bytes**; após quantização 4-bit ocupam apenas **196 bytes** (192 de nibbles empacotados + 4 do fator de escala `float32`, de `internal/turboquant/quantizer.go:59`), gerando **87,2% de economia de espaço em disco e RAM**.
 - **Fidelidade Algorítmica:** Erro Médio Absoluto (MAE) no produto escalar de apenas **0.00338** (distribuição normalizada unitária), comprovando a conservação de distância pelas rotações ortogonais de Householder.
 - **Zero Alocações na Busca:** Tanto o produto escalar 4-bit quanto o float32 rodam com **0 bytes e 0 alocações por operação**, permitindo saturação máxima de cache L1/L2 de CPU.
 - **Custo do 4-bit vs Float32:** O produto escalar quantizado é ~3.66× mais lento que o float32 (1.09 µs vs 297.8 ns), mas oferece 8× de compressão — troca favorável para workloads onde memória é gargalo.
@@ -67,7 +67,7 @@ O sistema de cache incremental do `my-memory` calcula hashes SHA-256 do conteúd
 | **1 MB** (Documento consolidado) | **3.31 ms/op** | **324.69 MB/s** | 128 B/op | 2 allocs/op |
 
 #### Conclusão:
-O throughput consistente acima de **295 MB/s** garante que repositórios com centenas de notas sejam verificados em milissegundos, evitando re-geração redundante de embeddings e chamadas caras a LLMs/Ollama.
+O throughput consistente acima de **295 MB/s** garante que repositórios com centenas de notas sejam verificados em milissegundos, evitando re-geração redundante de embeddings e inferências caras de LLM.
 
 ---
 

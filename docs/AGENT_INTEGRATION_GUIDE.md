@@ -116,25 +116,45 @@ Edite o arquivo `.memory/.env`:
 MY_MEMORY_PG_URL=postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable
 # MY_MEMORY_REPO=FelipeMiiller/my-memory
 
-# --- 2. IA de Indexação / Modelo de Embeddings ---
-# Substitui o modelo padrão embutido (nomic-embed-text na porta 11434 local).
-# Você pode utilizar qualquer modelo ou endpoint do Ollama (local ou remoto):
-MY_MEMORY_EMBED_PROVIDER=ollama
-MY_MEMORY_EMBED_URL=http://localhost:11434
-MY_MEMORY_EMBED_MODEL=nomic-embed-text
-MY_MEMORY_EMBED_DIM=384
+# --- 2. Provider de Embeddings (modelo embutido, ADR-035) ---
+# O modelo é o embutido paraphrase-multilingual-MiniLM-L12-v2 (384 dimensões).
+# Estas duas variáveis apontam para artefatos locais do runtime ONNX:
+# MY_MEMORY_MINILM_MODEL_DIR=/caminho/para/modelos
+# MY_MEMORY_ORT_LIB=/caminho/para/onnxruntime.dll
+
+# --- 3. Variáveis de embeddings LEGADAS (aceitas, sem efeito) ---
+#MY_MEMORY_EMBED_PROVIDER=ollama
+#MY_MEMORY_EMBED_URL=http://localhost:11434
+#MY_MEMORY_EMBED_MODEL=nomic-embed-text
+#MY_MEMORY_EMBED_DIM=384
 ```
 
-### 💡 Exemplos de Modelos Suportados via Ollama:
-| Modelo | Dimensão | Configuração no `.env` |
-| :--- | :---: | :--- |
-| **MiniLM multilíngue** (Padrão, embutido) | **384** | `MY_MEMORY_MINILM_MODEL_DIR`<br>`MY_MEMORY_ORT_LIB` |
-| **BAAI BGE-M3** (Multilíngue denso/esparso) | 1024 | `MY_MEMORY_EMBED_MODEL=bge-m3`<br>`MY_MEMORY_EMBED_DIM=1024` |
-| **Mixedbread mxbai-embed-large** | 1024 | `MY_MEMORY_EMBED_MODEL=mxbai-embed-large`<br>`MY_MEMORY_EMBED_DIM=1024` |
-| ~~All-MiniLM-L6-v2~~ | 384 | **descartado**: English-only (`language: en`), ruim para vault PT-BR |
+### ⚠️ Variáveis de embeddings legadas: aceitas, sem efeito
 
-> [!NOTE]
-> O My-Memory também aceita aliases universais no `.env`: `EMBEDDING_URL`, `OLLAMA_HOST`, `EMBEDDING_MODEL` e `EMBEDDING_DIM`.
+Desde a migração do provider **Ollama → embutido ONNX** (ADR-035), as quatro variáveis abaixo continuam sendo lidas do `.env`, mas **não influenciam nada** em tempo de execução. Elas foram mantidas no `.env.example` para compatibilidade com vaults já existentes.
+
+| Variável | Situação | Motivo |
+| :--- | :--- | :--- |
+| `MY_MEMORY_EMBED_PROVIDER` | **Inerte** | Não é lida por nenhum ponto do código. `resolveEmbedder` (`cmd/mem/main.go`) sempre constrói o provider embutido. |
+| `MY_MEMORY_EMBED_URL` | **Inerte** | Não aponta mais para servidor de embeddings algum. |
+| `MY_MEMORY_EMBED_MODEL` | **Inerte** | O modelo é fixo pelo binário. |
+| `MY_MEMORY_EMBED_DIM` | **Inerte** | A dimensão é fixa em 384 pelo schema do banco. `internal/store/postgres.go` declara `embedding vector(384)`: honrar um `dimension: 768` geraria um vetor que a coluna não aceita. |
+
+> [!WARNING]
+> Não reintroduza `dimension: 768` (nem `1024`) em `config.yaml` ou no `.env`: o valor é aceito, ignorado, e a intenção é enganosa — o vetor gravado terá sempre 384 dimensões.
+
+### 💡 Variáveis do provider embutido (efetivas)
+
+| Variável | Função |
+| :--- | :--- |
+| `MY_MEMORY_MINILM_MODEL_DIR` | Diretório com os artefatos do modelo (`model_int8.onnx`, `sentencepiece.bpe.model`). Alternativa a `mem embed download`. |
+| `MY_MEMORY_ORT_LIB` | Caminho da biblioteca `onnxruntime` quando ela não está no `PATH`. |
+
+Os aliases universais `EMBEDDING_URL`, `OLLAMA_HOST`, `EMBEDDING_MODEL` e `EMBEDDING_DIM` ainda são mapeados para as variáveis `MY_MEMORY_EMBED_*` em `internal/config/env.go` — mas, como acima, o destino é inerte.
+
+### 💡 Modelos
+
+O provider atual é o **`paraphrase-multilingual-MiniLM-L12-v2`** (384 dimensões), multilíngue — escolhido por desempenho adequado em PT-BR. O `all-MiniLM-L6-v2` foi descartado por ser English-only (`language: en`). Modelos externos de terceiros (BAAI BGE-M3, Mixedbread mxbai-embed-large) não são suportados: o schema do banco é `vector(384)` e não há mais caminho de rede para servi-los.
 
 ---
 
@@ -169,10 +189,10 @@ storage:
   postgres_url: "postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable"
 
 embedding:
-  provider: "ollama"
-  model: "nomic-embed-text"
-  url: "http://localhost:11434"
-  dimension: 384
+  provider: "builtin"             # único valor com efeito (ADR-035)
+  # model: omitido — o modelo é fixo (paraphrase-multilingual-MiniLM-L12-v2)
+  # url: omitido — o provider embutido não faz chamada de rede
+  # dimension: NÃO altere — fixo em 384 pelo schema do banco (vector(384))
 ```
 
 ---

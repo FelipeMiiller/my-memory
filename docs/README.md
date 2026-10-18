@@ -9,7 +9,7 @@ Este documento é o **mapa central de conhecimento** do projeto **My-Memory**. E
 | Documento | Foco | Descrição |
 | :--- | :--- | :--- |
 | **[`docs/ARCHITECTURE.md`](ARCHITECTURE.md)** | Arquitetura | Diagrama de fluxo de dados, DDL do SQLite, índices FTS5, vetores e consultas recursivas em grafo. |
-| **[`docs/CENTRAL_VAULT.md`](CENTRAL_VAULT.md)** | Cofre Central & Federação | Arquitetura do **Global Brain**, setup do `mem setup --central`, URIs `memory://`, fallback FTS quando Ollama está offline e ciclo de promoção do conhecimento. |
+| **[`docs/CENTRAL_VAULT.md`](CENTRAL_VAULT.md)** | Cofre Central & Federação | Arquitetura do **Global Brain**, setup do `mem setup --central`, URIs `memory://`, fallback FTS quando o provider de embeddings não está disponível e ciclo de promoção do conhecimento. |
 | **[`docs/TURBOQUANT.md`](TURBOQUANT.md)** | Matemática & Algoritmo | Teoria da quantização vetorial de 4-bit (Google DeepMind, ICLR 2026), rotações de Householder e produto escalar não-viesado. |
 | **[`docs/BENCHMARKS.md`](BENCHMARKS.md)** | Performance & Métricas | Relatório empírico de micro-benchmarks (TurboQuant 4-bit, RRF, hashing SHA-256 e parsing). |
 | **[`docs/CLI_GUIDE.md`](CLI_GUIDE.md)** | Operação | Manual prático de comandos da CLI (`mem index`, `mem search`, `mem bench`, `mem insights`). |
@@ -58,8 +58,25 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-032`](adr/032-instalador-universal-one-liner.md)** — Instalador Universal One-Liner para Windows, Linux e macOS
 * **[`ADR-033`](adr/033-federated-central-vault-and-repo-identity.md)** — Arquitetura Federada de Vault Central e Identidade Imutável de Repositório (`repo_id`)
 * **[`ADR-034`](adr/034-protocolo-canonico-federado-e-wikilinks-cross-vault.md)** — Protocolo Canônico Federado e Wikilinks Cross-Vault (`memory://`)
-* **[`ADR-035`](adr/035-embedder-embutido-com-fallback-onnx-minilm.md)** — Embedder Embutido com Fallback Automático (`builtin` / `all-MiniLM-L6-v2` via ONNX Runtime) — *Proposed*
+* **[`ADR-035`](adr/035-embedder-embutido-com-fallback-onnx-minilm.md)** — Embedder Embutido com Fallback Automático (`paraphrase-multilingual-MiniLM-L12-v2` via ONNX Runtime, 384d) — *Accepted*
+* **[`ADR-036`](adr/036-backlog-pos-release-v1.3.0-e-roadmap-v1.4.0.md)** — Consolidação Pós-Release v1.3.0: Backlog Técnico e Roadmap para v1.4.0 — *Accepted*
+* **[`ADR-037`](adr/037-rewrite-viewer-com-vite-vanilla-ts.md)** — ~~Rewrite do Viewer com Vite + Vanilla TypeScript~~ — *Obsoleta* (viewer removido do repositório)
+* **[`ADR-038`](adr/038-viewer-site-unico-dataset-fixo.md)** — ~~Viewer com Site Único e Dataset Fixo~~ — *Obsoleta* (viewer removido do repositório)
+* **[`ADR-039`](adr/039-calibracao-do-detector-de-drift-page-rank-e-match-de-path.md)** — Calibração do Detector de Drift (PageRank + match de path) — *Accepted*
+* **[`ADR-040`](adr/040-config-global-unica-storage-opt-in.md)** — Configuração única em `~/.memory/` + SQLite auto-scope por padrão (Postgres opt-in) — *Accepted*
+* **[`ADR-041`](adr/041-issue-009-tag-sem-casa-removida-do-grafo.md)** — Tags sem doc-casa são removidas do grafo (não viram dead links) — *Accepted*
+* **[`ADR-042`](adr/042-nucleo-local-mymemoryd-com-workers-sidecar-isolados.md)** — Núcleo Local `mymemoryd` com Workers Sidecar Isolados — *Proposed*
+* **[`ADR-043`](adr/043-envelope-de-eventos-canonico-event-runtime.md)** — Envelope de Eventos Canônico (`event_runtime`) — *Accepted*
+* **[`ADR-044`](adr/044-memory-writer-atomico-outbox-e-reprojecao-idempotente.md)** — Memory Writer Atômico, Outbox e Reprojeção Idempotente — *Accepted*
+* **[`ADR-045`](adr/045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md)** — ASR Streaming Engine (Nemotron 3.5 via ONNX Runtime) — *Deferred*
+* **[`ADR-046`](adr/046-deferred-until-padrao-para-fallbacks-opcionais-em-adrs.md)** — Padrão "Deferred Until" para Fallbacks Opcionais em ADRs — *Accepted*
 * **[`ADR-047`](adr/047-code-ast-tree-sitter-multi-linguagem.md)** — Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem, opt-in via `--tags treesitter`); habilita `mem code-index`, `mem code-search`, `mem code-graph`, `mem code-stats` + MCP tools `memory_code_search` e `memory_code_neighbors`
+* **[`ADR-048`](adr/048-viewer-electron-react-vite-shadcn.md)** — ~~Viewer Desktop — Electron + React + Vite + shadcn/ui~~ — *Obsoleta* (viewer removido do repositório)
+* **[`ADR-049`](adr/049-viewer-restructure-electron-forge-and-src-split.md)** — ~~Viewer Restructure — Electron Forge 7 + split `electron/` ↔ `src/`~~ — *Obsoleta* (viewer removido do repositório)
+* **[`ADR-050`](adr/050-threat-model-owasp-llm-aplicado-ao-mymemory.md)** — Threat Model — OWASP LLM Top 10 Aplicado ao MyMemory — *Proposed*
+* **[`ADR-051`](adr/051-viewer-chat-llm-provider-and-ipc-streaming.md)** — ~~Chat LLM no Viewer — Provider Abstraction + IPC Streaming~~ — *Obsoleta* (viewer removido do repositório)
+* **[`ADR-052`](adr/README.md#arquitecture-decision-records-adrs)** — *Slot reservado, sem arquivo*: citado por documentos do repositório, mas nenhum `052-*.md` existe. Ver a nota no [índice de ADRs](adr/README.md).
+* **[`ADR-053`](adr/053-viewer-v3-3-pane-layout-shell.md)** — ~~Layout Shell 3-pane + Dock~~ — *Obsoleta* (viewer removido do repositório)
 
 ### Higiene do índice (PostgreSQL)
 

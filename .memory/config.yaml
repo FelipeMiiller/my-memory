@@ -37,11 +37,12 @@ exclude:
   - ".memory/**"
 
 # Configurações do modelo de embeddings
+# O provider vetorial é o "builtin" (internal/embedder): ONNX MiniLM multilíngue,
+# dimensão nativa 384. O caminho Ollama saiu do código (ADR-035).
 embedding:
-  provider: "ollama"
-  model: "nomic-embed-text"
-  url: "http://localhost:11434"
-  dimension: 768
+  provider: "builtin"
+  model: "paraphrase-multilingual-MiniLM-L12-v2"
+  dimension: 384
 
 # Preferências padrão de busca e recuperação
 search:

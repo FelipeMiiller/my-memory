@@ -7,6 +7,122 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`memory_reconcile` (MCP tool, ISSUE-015)**: reconcilia o vault (filesystem)
+  com o índice PostgreSQL **sem reindexar tudo**. Remove apenas os documentos
+  cujo arquivo sumiu do disco. `dry_run` é `true` por padrão, e a operação
+  aborta se o vault não existir ou se a varredura do disco retornar 0 arquivos.
+  - `internal/store`: reconciliação vault↔postgres + guardas de segurança.
+  - Contrato da tool coberto por teste em `internal/mcp`.
+- **Seção Ortografia no `mem doctor` (ISSUE-017)**: detecta termos em
+  português escritos sem acento em `title`, `abstract` e conteúdo dos chunks.
+  É **apenas aviso** — não soma nem subtrai do Health Score.
+  - A lista de correções é curada (`internal/store/orthography.go`), não derivada
+    por regex: `esta` (pronome), `ate`, `ha`, `media`, `sim`, `cache`, `index` e
+    `target` são corretos sem acento e nunca são reportados.
+  - Ignora blocos de código, code spans, URLs, `[[wikilinks]]` e frontmatter —
+    exceto os **valores** de `title` e `summary`.
+- **`MY_MEMORY_SKIP_DOTENV` (ISSUE-016)**: desliga a descoberta automática de
+  `.env` ao subir a árvore de diretórios, impedindo que um `.memory/.env` do
+  projeto repusesse `MY_MEMORY_PG_URL`/`DATABASE_URL` por baixo dos testes.
+- **Provider de embeddings embutido (ADR-035)**: `BuiltinClient` com inferência
+  ONNX, tokenizer SentencePiece Unigram via `librembed`, e um corpus de
+  benchmark PT-BR com guardas de qualidade e critério de abort.
+- **`embed_epoch` como segundo eixo do cache incremental**: trocar de modelo ou
+  de receita de vetor invalida os vetores gravados mesmo sem mudança no arquivo.
+
+### Changed
+
+- **Migração do embedder: 768d → 384d, Ollama → builtin**. O vetor agora tem
+  **384 dimensões**, produzido pelo modelo embutido
+  `paraphrase-multilingual-MiniLM-L12-v2`. O Ollama saiu do caminho vetorial.
+  - `embedder.EmbeddingDim` (384) passou a ser a **única** dimensão válida:
+    `internal/store/postgres.go` declara `embedding vector(384)`, e aceitar um
+    `dimension: 768` do config produzia um quantizador do tamanho errado, que
+    quebrava ao ler o vetor de volta (e não cabia na coluna no Postgres).
+  - `mem init` passa a gerar `provider: "builtin"` no `.memory/config.yaml`.
+  - As variáveis `MY_MEMORY_EMBED_PROVIDER`, `MY_MEMORY_EMBED_URL`,
+    `MY_MEMORY_EMBED_MODEL` e `MY_MEMORY_EMBED_DIM` continuam sendo lidas do
+    `.env` por compatibilidade, mas **não têm efeito** — ver
+    `docs/AGENT_INTEGRATION_GUIDE.md`.
+- **Senha do PostgreSQL vira campo de DSN, nunca URL**: a URL canônica fica no
+  config e a senha em variável de ambiente, sanitizada nos logs.
+- **SQLite único e central em `~/.memory/memory.db`** quando não há Postgres no
+  cofre central, compartilhado por todos os repositórios.
+- **CI**: `setup-go` lê a versão declarada no `go.mod` em vez de fixar `1.25`.
+
+### Fixed
+
+- **Dimensão do vetor vem de `embedder.EmbeddingDim`**, não de um literal `768`
+  que sobreviveu à migração. Quando o embedding falhava, o fallback gravava
+  vetor de dimensão errada.
+- **BOM do Windows duplicava o frontmatter** e descartava as flags da CLI.
+- **`StreamUntilCancel`**: o cancelamento vence o fechamento do canal
+  (ISSUE-011). A assinatura promete "stream até o chamador cancelar *ou* `in`
+  fechar"; devolver `nil` num cancelamento afirmava que o stream terminou com
+  sucesso.
+- **Separador de caminho normalizado antes do `filepath.Clean`**.
+- **Sentinelas de estado global dos testes medem o arquivo certo**, e não o
+  diretório home inteiro.
+
+### Removed
+
+- **Viewer Electron removido do repositório**: removida toda a camada
+  TypeScript/Electron — `electron/**`, `src/**` (renderer React), `package.json`,
+  `package-lock.json`, `tsconfig.json`, `index.html`, `components.json`,
+  `biome.jsonc`, `forge.config.ts`, `forge.env.d.ts`,
+  `vite.{main,preload,renderer}.config.mts`, `vitest.config.ts`,
+  `playwright.config.ts`, `scripts/dev.mjs`, `scripts/vitest.setup.ts`,
+  `scripts/viewer-smoke.test.mjs`, `data-central.json` e
+  `resources/chatLanguageModels.default.json`.
+  - Docs: `docs/VIEWER.md` removido.
+  - Specs: `feat-viewer-electron`, `feat-viewer-electron-phase-2`,
+    `feat-viewer-chat`, `feat-viewer-v3-m1-3-pane-layout` e
+    `feat-chat-language-models` removidos (todos eram viewer-only).
+  - CI: job `frontend` (typecheck + unit tests) removido — rodava `npm ci`,
+    `npm run typecheck` e `npm test`, impossível sem `package.json`.
+  - ADRs `037`, `038`, `048`, `049`, `051` e `053` marcadas como **Obsolete**
+    (texto preservado como memória histórica, fora do índice ativo).
+  - O CLI Go (`cmd/`, `internal/`) não foi alterado. A visualização de grafo
+    disponível continua sendo a do CLI via `mem graph view` (ADR-020).
+- **Implementação de `mem replay` sem dispatch**: existia no código mas não era
+  roteada pelo switch de comandos.
+- **Scaffolding de ASR e transporte JSON-RPC do ADR-042**; o caminho
+  ASR/Nemotron foi adiado (ADR-045 passou a **Deferred**).
+- **Write-policy engine do ADR-044** e os pacotes de writer/projection que
+  ficaram inalcançáveis com ele.
+- Script `main.go` de Postgres na raiz do repositório e
+  `postgres_compose_test.go` obsoleto.
+
+### Documentation
+
+- **Nove comandos do CLI finalmente documentados**: `mem up`, `mem down`,
+  `mem logs`, `mem profiles`, `mem events` e os quatro `mem code-*`
+  (`code-index`, `code-search`, `code-graph`, `code-stats`). Todos já existiam
+  desde antes da v2.0.0 — o que faltava era a documentação, não o comando.
+- **`mem help` sincronizado com o dispatch**: `up`, `down`, `logs` e `profiles`
+  estavam ausentes de `printHelp()`. Um teste novo (`cmd/mem/help_test.go`)
+  extrai os `case` do switch de `main.go` e falha se algum não aparecer na ajuda
+  — ou se a ajuda inventar um comando que o dispatch não roteia.
+- **Flags documentadas conforme o registro real**: `mem code-graph` **não** tem
+  `--json` (tem `--depth`, `--direction`, `--db`, `--repo`); `mem code-stats`
+  tem `--top`, `--json`, `--db` e `--repo`. Documentados também
+  `mem doctor --events` e `mem search --links`.
+- **Narrativa do Ollama removida da documentação**: nenhuma guia mais manda
+  instalar `nomic-embed-text`, e o fallback léxico é descrito pelo que de fato
+  o dispara (build sem a tag `onnx` ou falha do provider embutido).
+- **Índice de ADRs corrigido**: as nove ADRs ausentes do índice (035, 036, 039,
+  040, 041, 042, 043, 044, 050) foram adicionadas com o status real; ADR-045
+  corrigida de Proposed para Deferred; ADR-035 promovida para **Accepted**.
+  O slot **ADR-052** está reservado e vazio — nenhum arquivo foi inventado.
+
+### CI
+
+- **Cobertura dos pacotes que o workflow nunca executava** (ISSUE-012).
+- `.gitattributes` (`* text=auto eol=lf`) adicionado para que o gate de `gofmt`
+  seja executável também no Windows.
+
 ## [2.0.0] — 2026-09-22
 
 ### Added

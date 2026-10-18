@@ -12,7 +12,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -856,6 +855,14 @@ func printHelp() {
 	fmt.Println("      Inicia servidor Model Context Protocol via stdio (padrão) ou via HTTP/SSE na porta indicada")
 	fmt.Println("  mem install [--target <ferramenta>] [--dry-run] [--workspace] [--global] [--force]")
 	fmt.Println("      Auto-wiring zero-touch: registra o servidor MCP em Claude Desktop, Cursor, VS Code e Windsurf")
+	fmt.Println("  mem up [--profile <nome>] [--memory-dir <dir>]")
+	fmt.Println("      Sobe o supervisor mymemoryd em segundo plano (idempotente; ADR-042)")
+	fmt.Println("  mem down [--memory-dir <dir>]")
+	fmt.Println("      Derruba o supervisor mymemoryd: SIGTERM, e SIGKILL após 10s de grace")
+	fmt.Println("  mem profiles <list|use> [<nome>] [--memory-dir <dir>]")
+	fmt.Println("      Lista perfis de execução dos workers ou define o active_profile do vault (ADR-042)")
+	fmt.Println("  mem logs [<worker_id>] [--limit <N>] [--memory-dir <dir>]")
+	fmt.Println("      Lê as entradas mais recentes do logs/supervisor.jsonl (ADR-042)")
 	fmt.Println("  mem setup [--central <pasta>] [--engine sqlite|postgres] [--postgres-url <url>] [--mcp-port <porta>] [--yes]")
 	fmt.Println("      Assistente interativo de configuração global (~/.memory/config.yaml) e vinculação de cofre central")
 	fmt.Println("  mem central <status|bootstrap> [opções]")
@@ -943,11 +950,12 @@ exclude:
   - ".memory/**"
 
 # Configurações do modelo de embeddings
+# O provider vetorial é o "builtin" (internal/embedder): ONNX MiniLM multilíngue,
+# dimensão nativa 384. O caminho Ollama saiu do código (ADR-035).
 embedding:
-  provider: "ollama"
-  model: "nomic-embed-text"
-  url: "http://localhost:11434"
-  dimension: 768
+  provider: "builtin"
+  model: "paraphrase-multilingual-MiniLM-L12-v2"
+  dimension: 384
 
 # Preferências padrão de busca e recuperação
 search:
@@ -1009,13 +1017,10 @@ watcher:
 MY_MEMORY_PG_URL=postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable
 # MY_MEMORY_REPO=FelipeMiiller/my-memory
 
-# --- Modelo de IA de Indexação / Embeddings (Opcional) ---
-# Por padrão, o My-Memory já utiliza o modelo embutido (nomic-embed-text na porta 11434, dim 768).
-# Para substituir por outro modelo (ex: bge-m3, mxbai-embed-large, all-minilm), descomente abaixo:
-# MY_MEMORY_EMBED_PROVIDER=ollama
-# MY_MEMORY_EMBED_URL=http://localhost:11434
-# MY_MEMORY_EMBED_MODEL=nomic-embed-text
-# MY_MEMORY_EMBED_DIM=768
+# --- Modelo de IA de Indexação / Embeddings ---
+# O My-Memory já usa o embedder embutido (ONNX MiniLM multilíngue, 384d).
+# Sem a tag de build "onnx" (CGO) não há provider vetorial e a indexação cai
+# para FTS5 léxico; trocar de modelo exige recompilar com essa tag.
 `
 			_ = os.WriteFile(envExamplePath, []byte(envExampleContent), 0644)
 		}
@@ -1375,16 +1380,14 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 // exatamente a armadilha que o benchmark do corpus PT-BR eliminou.
 //
 // Sem a tag `onnx` no build não há provider: a indexação cai para FTS5 léxico.
+//
+// A dimensão NÃO vem do config. Ela é a do schema (`vector(384)`) e a única que
+// o provider embutido produz: aceitar `embedding.dimension` do config — ou
+// MY_MEMORY_EMBED_DIM do ambiente — criava um quantizador do tamanho errado
+// (768) e devolvia um `dim` incompatível com a coluna, exatamente a migração
+// 768 → 384 que o ADR-035 consolidou.
 func resolveEmbedder(cfg *config.Config) (embedder.Embedder, *turboquant.Quantizer, int) {
 	dim := embedder.EmbeddingDim
-	if cfg != nil && cfg.Embedding.Dimension > 0 {
-		dim = cfg.Embedding.Dimension
-	}
-	if envDim := os.Getenv("MY_MEMORY_EMBED_DIM"); envDim != "" {
-		if d, err := strconv.Atoi(envDim); err == nil && d > 0 {
-			dim = d
-		}
-	}
 
 	emb, err := newBuiltinEmbedder(cfg)
 	if err != nil {
@@ -1623,7 +1626,7 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 				if err == nil {
 					vec = v
 				} else if i == 0 {
-					fmt.Printf("Aviso: Ollama indisponível (%s); indexando em modo léxico FTS\n", chunkID)
+					fmt.Printf("Aviso: falha ao gerar embedding (%s); indexando em modo léxico FTS\n", chunkID)
 				}
 			}
 			if vec == nil {
@@ -1813,7 +1816,7 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 				if err == nil {
 					vec = v
 				} else if i == 0 {
-					fmt.Printf("Aviso: Ollama indisponível (%s); indexando em modo léxico FTS\n", chunkID)
+					fmt.Printf("Aviso: falha ao gerar embedding (%s); indexando em modo léxico FTS\n", chunkID)
 				}
 			}
 			if vec == nil {
@@ -1883,7 +1886,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder
 	case "vector":
 		queryVec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
-			fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", embErr)
+			fmt.Printf("Erro ao gerar embedding da busca: %v\n", embErr)
 			return
 		}
 		results, err = s.SearchKNNWithOptions(ctx, targetRepo, queryVec, limit, searchOpts)
@@ -1891,7 +1894,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder
 		var queryVec []float32
 		vec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
-			fmt.Printf("Aviso: Ollama offline ou falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+			fmt.Printf("Aviso: falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
 		} else {
 			queryVec = vec
 		}
@@ -2013,7 +2016,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedde
 	case "vector":
 		queryVec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
-			fmt.Printf("Erro ao gerar embedding da busca (verifique se o Ollama está rodando): %v\n", embErr)
+			fmt.Printf("Erro ao gerar embedding da busca: %v\n", embErr)
 			return
 		}
 		if useTurbo || !db.HasSqliteVec {
@@ -2028,7 +2031,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedde
 		var queryVec []float32
 		vec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
-			fmt.Printf("Aviso: Ollama offline ou falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+			fmt.Printf("Aviso: falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
 		} else {
 			queryVec = vec
 		}
@@ -3005,6 +3008,21 @@ func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
 		for _, dc := range report.DesyncedChunks {
 			fmt.Printf("  - Chunk %s: %s\n", dc.ChunkID, dc.Issue)
 		}
+		fmt.Println(strings.Repeat("-", 90))
+	}
+
+	// Ortografia — AVISO (ISSUE-017). Não soma nem subtrai do Health Score.
+	if report.OrthographyDocuments > 0 {
+		fmt.Printf(" [✍️  Ortografia / Termos sem Acento] (%d documentos afetados)\n", report.OrthographyDocuments)
+		fmt.Println("  ⚠ Aviso: 'sao' e 'são' tokenizam diferente — a busca por um não acha o outro.")
+		for i, issue := range report.OrthographyIssues {
+			if i >= 15 {
+				fmt.Printf("  ... e mais %d casos ocultados\n", len(report.OrthographyIssues)-15)
+				break
+			}
+			fmt.Printf("  - %s: %s → %s (%d trecho(s))\n", issue.DocumentID, issue.Term, issue.Expected, issue.Count)
+		}
+		fmt.Println("  ↳ Aviso apenas: não afeta o Health Score.")
 		fmt.Println(strings.Repeat("-", 90))
 	}
 

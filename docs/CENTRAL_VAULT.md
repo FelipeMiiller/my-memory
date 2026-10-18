@@ -88,39 +88,38 @@ Eles passam a ser endereçáveis via `memory://<repo-slug>/...`.
 
 ---
 
-## 4. Modos de Embedding (online vs fallback)
+## 4. Modos de Embedding (vetorial vs fallback léxico)
 
-O `mem index` requer embeddings para o componente semântico da busca híbrida. Há dois modos:
+O `mem index` requer embeddings para o componente semântico da busca híbrida. O provider é o **modelo embutido** `paraphrase-multilingual-MiniLM-L12-v2` (ADR-035), com vetores de **384 dimensões** — não há servidor de embeddings remoto a configurar.
 
-### 4.1. Online (padrão com Ollama)
+### 4.1. Vetorial (padrão)
 ```yaml
 # .memory/config.yaml do projeto
 embedding:
-  provider: "ollama"
-  model: "nomic-embed-text"
-  url: "http://localhost:11434"
-  dimension: 384
+  provider: "builtin"
+  # model e dimension são fixos pelo schema do banco (vector(384))
 ```
-Quando Ollama está rodando, cada chunk é vetorizado e indexado em `chunks_vec` (sqlite-vec). A busca híbrida combina FTS5 + RRF + distância vetorial.
+Com o provider embutido disponível, cada chunk é vetorizado e indexado em `chunks_vec` (sqlite-vec). A busca híbrida combina FTS5 + RRF + distância vetorial.
 
-### 4.2. Fallback léxico FTS (Ollama offline / indisponível)
+### 4.2. Fallback léxico FTS (provider indisponível)
 
-Quando Ollama está offline, o `mem index` continua funcionando — cai num fallback léxico implementado pelo commit [`33feb1d`](../../commit/33feb1d) (`fix(index): fallback to FTS chunk indexing when embedding generation is offline`):
+O fallback existe, mas **não é mais disparado por um servidor externo ficar offline** — a migração para o provider embutido removeu essa dependência de rede. Ele dispara em dois casos reais:
+
+1. O binário foi compilado **sem a tag `onnx`**, então `newBuiltinEmbedder` não existe (`cmd/mem/builtin_embedder_disabled.go`);
+2. O modelo embutido falha ao gerar um vetor (artefatos ausentes, erro de inferência).
 
 ```go
-var vec []float32
-if emb != nil {
-    v, err := emb.GenerateEmbedding(c)
-    if err == nil { vec = v }
+// cmd/mem/main.go — resolveEmbedder()
+dim := embedder.EmbeddingDim          // 384, sempre
+emb, err := newBuiltinEmbedder(cfg)
+if err != nil {
+    fmt.Fprintf(os.Stderr, "Aviso: %v; indexando em modo léxico FTS\n", err)
+    emb = nil
 }
-if vec == nil {
-    vec = make([]float32, 384)  // vetor zero
-}
-_ = db.InsertChunk(ctx, ..., chunkID, docID, c, i, vec)
 ```
 
 Comportamento:
-- ⚠️ Aviso emitido: `Ollama indisponível (<chunkID>); indexando em modo léxico FTS`
+- ⚠️ Aviso emitido: `sem provider de embedding; <docID> indexado em modo léxico FTS`
 - ✅ Indexação **continua normalmente** no FTS5 + grafo + TurboQuant
 - ✅ Compressão TurboQuant funciona com vetor zero (perfeita, todos os coeficientes = 0)
 - ❌ Busca semântica fica degradada — `mem search --mode hybrid` cai em FTS-only
@@ -130,8 +129,11 @@ Comportamento:
 ```bash
 mem search --mode hybrid "qualquer coisa"
 # Saída esperada:
-# Aviso: Ollama offline ou falha ao gerar embedding (...); Executando fallback para busca textual FTS.
+# Aviso: sem provider de embedding; ... indexado em modo léxico FTS
 ```
+
+> [!NOTE]
+> O texto do aviso não cita mais nenhum provider: o que dispara é a falha do provider **embutido** (`falha ao gerar embedding`), e a mensagem em si é agnostica.
 
 ---
 
@@ -291,7 +293,7 @@ mem clusters --min-size 2
 | Sintoma | Causa provável | Solução |
 | --- | --- | --- |
 | `unable to open database file (14)` ao indexar | Path com caracteres especiais / falta de permissão | Verifique aspas, encoding e permissões de escrita |
-| Aviso `Ollama indisponível` em cada chunk | Ollama offline ou URL errada | Suba `ollama serve` ou verifique `embedding.url` em `.memory/config.yaml` |
+| Aviso `sem provider de embedding` em cada documento | Binário compilado sem a tag `onnx`, ou artefatos do modelo embutido ausentes | Recompile com `-tags onnx` (veja [ADR-035](adr/035-embedder-embutido-com-fallback-onnx-minilm.md)); sem ele o `mem index` segue em modo léxico FTS |
 | `mem open memory://...` não acha o nó | Repo satélite não registrado no catálogo global | Rode `mem init` no diretório do repo |
 | Drift mostra ADRs órfãos | ADRs ficaram desatualizados vs código novo | Atualize ADR, commite, reindexe |
 | `--db` mostra help em vez de erro | Argumento mal posicionado | `mem index --db <arq> <pasta>` (DB antes do path) |

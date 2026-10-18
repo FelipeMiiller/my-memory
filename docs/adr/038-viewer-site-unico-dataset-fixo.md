@@ -1,7 +1,7 @@
 # ADR-038: Viewer com Site Único e Dataset Fixo (B3 do ADR-036 Revertido)
 
 - **Date**: 2026-09-17
-- **Status**: Accepted
+- **Status**: Obsolete (viewer Electron removido do repositório em 2026-10-18)
 - **Deciders**: Felipe Miiller
 - **Tags**: viewer, graphview, product-decision, scope-reduction, deferred
 

@@ -10,7 +10,7 @@
 No projeto **My-Memory**, a recuperação de notas era realizada exclusivamente por distância vetorial densa (k-NN via `sqlite-vec`, `TurboQuant` ou `pgvector`), complementada pela expansão de nós vizinhos imediatos no grafo (ADR-005 e ADR-007).
 
 Entretanto, conforme documentado em referências como [`akitaonrails/ai-memory`](https://github.com/akitaonrails/ai-memory) e [`docs/REFERENCES.md`](../REFERENCES.md), a busca puramente vetorial apresenta deficiências estruturais bem conhecidas na literatura de Information Retrieval (IR):
-1. **Baixa precisão em termos léxicos exatos:** Nomes específicos de classes, funções (`InitDB`), identificadores de código, siglas técnicas e termos raros sofrem dispersão semântica no espaço de embeddings do Ollama (`nomic-embed-text`).
+1. **Baixa precisão em termos léxicos exatos:** Nomes específicos de classes, funções (`InitDB`), identificadores de código, siglas técnicas e termos raros sofrem dispersão semântica no espaço de embeddings do modelo semântico (na época servido pelo Ollama; hoje o provider embutido do ADR-035).
 2. **Dependência e fragilidade de pesos manuais (Linear Fusion):** Métodos de fusão linear que combinam score de cosseno e score BM25 (ex: $\alpha \cdot \text{BM25} + (1-\alpha) \cdot \text{Cosine}$) exigem calibração empírica minuciosa de pesos $\alpha$, os quais variam drasticamente conforme o tamanho dos textos e domínios de conhecimento.
 3. **Subutilização da topologia relacional do grafo:** As conexões explícitas escritas pelo usuário (`[[wikilinks]]`) eram apenas exibidas como metadados passivos no resultado, em vez de reforçar a pontuação dos trechos diretamente adjacentes no grafo de conhecimento.
 

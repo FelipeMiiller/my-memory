@@ -18,7 +18,7 @@ Este documento registra os projetos, artigos e ecossistemas de referência que f
   3. **Multi-formato de Exportação:**
      - Exportação para múltiplos destinos visuais: Obsidian (`.canvas`, pastas de vault), formato JSON persistente (`graph.json`) e visualização interativa em HTML/SVG.
   4. **Cache Incremental com Hashing SHA-256:**
-     - Indexar apenas arquivos novos ou alterados comparando o SHA-256 do conteúdo, evitando regenerar embeddings caros no Ollama/OpenAI.
+     - Indexar apenas arquivos novos ou alterados comparando o SHA-256 do conteúdo, evitando regenerar embeddings caros.
   5. **Gatilhos Automáticos (Git Hook & `--watch`):**
      - Manter o grafo atualizado automaticamente a cada `git commit` ou via file-watcher em segundo plano.
 

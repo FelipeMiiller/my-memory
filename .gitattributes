@@ -1,0 +1,12 @@
+# Normaliza o checkout para LF em todas as plataformas.
+#
+# Sem esta regra, `core.autocrlf=true` (padrao no Windows) grava CRLF no
+# working tree enquanto o blob no repositorio e' LF. O `gofmt -l .` passa a
+# entao listar ~239 arquivos que estao perfeitamente formatados: o gofmt ve as
+# CRLF do disco e nao o conteudo que esta no git. O gate de formatacao fica
+# impossivel de passar no Windows e deixa de sinalizar problema real.
+#
+# `text=auto` deixa o git detectar texto x binario; `eol=lf` garante que o
+# checkout usa LF. Os blobs ja estavam em LF, entao esta regra nao altera o
+# conteudo versionado - apenas o que chega no disco.
+* text=auto eol=lf

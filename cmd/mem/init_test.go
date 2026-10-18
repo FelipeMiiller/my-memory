@@ -107,3 +107,41 @@ func TestRunInit_IDEs(t *testing.T) {
 		t.Errorf("esperava arquivo %s gerado", cursorFile)
 	}
 }
+
+// wantEmbeddingBlock é o bloco `embedding:` que `mem init` tem que escrever.
+//
+// Trava o valor exato, não um substring frouxo: o bloco antigo dizia
+// `provider: "ollama"` / `nomic-embed-text` / `dimension: 768`, que o código
+// ignora (o único provider é o `builtin`, 384d) — todo vault nascia mentindo.
+const wantEmbeddingBlock = `# Configurações do modelo de embeddings
+# O provider vetorial é o "builtin" (internal/embedder): ONNX MiniLM multilíngue,
+# dimensão nativa 384. O caminho Ollama saiu do código (ADR-035).
+embedding:
+  provider: "builtin"
+  model: "paraphrase-multilingual-MiniLM-L12-v2"
+  dimension: 384`
+
+func TestRunInit_EmbeddingBlock(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if err := runInit(tmpDir, "test-owner/test-vault", "memory.db", false, false, false, false); err != nil {
+		t.Fatalf("erro ao executar runInit: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(tmpDir, ".memory", "config.yaml"))
+	if err != nil {
+		t.Fatalf("erro ao ler o config gerado: %v", err)
+	}
+	got := string(raw)
+
+	if !strings.Contains(got, wantEmbeddingBlock) {
+		t.Errorf("config gerado não contém o bloco `embedding:` esperado.\n--- quer ---\n%s\n--- tem ---\n%s", wantEmbeddingBlock, got)
+	}
+
+	// O caminho removido não pode voltar nem em comentário.
+	for _, forbidden := range []string{"nomic-embed-text", "11434", `provider: "ollama"`, "dimension: 768"} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("config gerado ainda contém %q, que descreve o provider Ollama removido", forbidden)
+		}
+	}
+}

@@ -42,9 +42,47 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-032](032-instalador-universal-one-liner.md)** | Instalador Universal One-Liner para Windows, Linux e macOS (`install.ps1` e `install.sh`) | Aceito | 2026-09-14 | `installer`, `one-liner`, `devx`, `release-automation`, `powershell`, `posix-shell`, `sha256`, `security` |
 | **[ADR-033](033-federated-central-vault-and-repo-identity.md)** | Arquitetura Federada de Vault Central e Identidade Imutável de Repositório (`repo_id`) | Aceito | 2026-09-15 | `federation`, `central-vault`, `repo-id`, `google-drive`, `multi-vault`, `postgresql`, `sqlite`, `bootstrap` |
 | **[ADR-034](034-protocolo-canonico-federado-e-wikilinks-cross-vault.md)** | Protocolo Canônico Federado e Wikilinks Cross-Vault (`memory://`) | Aceito | 2026-09-16 | `federation`, `cross-vault`, `canonical-uri`, `wikilinks`, `graph`, `parser`, `deeplink`, `mcp` |
-| **[ADR-037](037-rewrite-viewer-com-vite-vanilla-ts.md)** | Rewrite do Viewer com Vite + Vanilla TypeScript | **Superseded by ADR-048** | 2026-09-17 | `viewer`, `graphview`, `typescript`, `refactor`, `frontend-tooling`, `deferred` |
-| **[ADR-045](045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md)** | ASR Streaming Engine — Nemotron 3.5 (0.6B) Embutido via ONNX Runtime | Proposed | 2026-09-19 | `asr`, `voice`, `streaming`, `nemotron`, `onnx-runtime`, `frugal`, `language-pt-br` |
+| **[ADR-035](035-embedder-embutido-com-fallback-onnx-minilm.md)** | Embedder Embutido com Fallback Automático (`paraphrase-multilingual-MiniLM-L12-v2` via ONNX Runtime) | Aceito | 2026-09-16 | `embedding`, `semantic-search`, `onnx`, `minilm`, `frugal`, `cpu-only` |
+| **[ADR-036](036-backlog-pos-release-v1.3.0-e-roadmap-v1.4.0.md)** | Consolidação Pós-Release v1.3.0 — Backlog Técnico e Roadmap para v1.4.0 | Aceito | 2026-09-16 | `backlog`, `technical-debt`, `release-planning`, `embedder`, `multi-repo` |
+| **[ADR-039](039-calibracao-do-detector-de-drift-page-rank-e-match-de-path.md)** | Calibração do Detector de Drift (PageRank e Match de Path) | Aceito | 2026-09-17 | `semantic-drift`, `calibration`, `pagerank`, `path-matching`, `false-positive`, `ci-cd` |
+| **[ADR-040](040-config-global-unica-storage-opt-in.md)** | Configuração única em `~/.memory/` + SQLite auto-scope por padrão (Postgres opt-in) | Aceito | 2026-09-18 | `architecture`, `federation`, `config`, `storage`, `central-vault`, `pgvector` |
+| **[ADR-041](041-issue-009-tag-sem-casa-removida-do-grafo.md)** | Tags sem doc-casa são removidas do grafo (não viram dead links) | Aceito | 2026-09-18 | `architecture`, `parser`, `graph`, `dead-links`, `tag-resolution` |
+| **[ADR-042](042-nucleo-local-mymemoryd-com-workers-sidecar-isolados.md)** | Núcleo Local `mymemoryd` com Workers Sidecar Isolados | Proposed | 2026-09-19 | `runtime`, `supervision`, `sidecar`, `sandbox`, `mymemoryd` |
+| **[ADR-043](043-envelope-de-eventos-canonico-event-runtime.md)** | Envelope de Eventos Canônico (`event_runtime`) | Aceito | 2026-09-19 | `events`, `event-driven`, `envelope`, `outbox`, `replay`, `idempotency` |
+| **[ADR-044](044-memory-writer-atomico-outbox-e-reprojecao-idempotente.md)** | Memory Writer Atômico, Outbox e Reprojeção Idempotente | Aceito | 2026-09-19 | `writer`, `atomicity`, `outbox`, `idempotency`, `projection`, `crash-safety` |
+| **[ADR-045](045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md)** | ASR Streaming Engine — Nemotron 3.5 (0.6B) Embutido via ONNX Runtime | Deferred | 2026-09-19 | `asr`, `voice`, `streaming`, `nemotron`, `onnx-runtime`, `frugal`, `language-pt-br` |
 | **[ADR-046](046-deferred-until-padrao-para-fallbacks-opcionais-em-adrs.md)** | Padrão "Deferred Until" para Fallbacks Opcionais em ADRs | Aceito | 2026-09-19 | `methodology`, `architecture`, `yagni`, `adr-038`, `deferral`, `scope-reduction`, `cross-cutting` |
 | **[ADR-047](047-code-ast-tree-sitter-multi-linguagem.md)** | Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem) | Aceito | 2026-09-21 | `code-intelligence`, `tree-sitter`, `ast`, `multi-language`, `cgo`, `search`, `hybrid-ranking`, `code-graph` |
-| **[ADR-048](048-viewer-electron-react-vite-shadcn.md)** | Viewer Desktop — Electron + React + Vite + shadcn/ui | Aceito | 2026-09-21 | `viewer`, `electron`, `react`, `vite`, `shadcn`, `typescript`, `tailwind`, `desktop`, `mvp`, `i18n`, `pt-br`, `en-us` |
-| **[ADR-049](049-viewer-restructure-electron-forge-and-src-split.md)** | Viewer Restructure — Electron Forge 7 + `electron/` ↔ `src/` split | Aceito | 2026-09-22 | `viewer`, `electron`, `electron-forge`, `refactor`, `path-alias`, `process-boundary`, `desktop`, `luanshadcn` |
+| **[ADR-050](050-threat-model-owasp-llm-aplicado-ao-mymemory.md)** | Threat Model — OWASP LLM Top 10 Aplicado ao MyMemory | Proposed | 2026-09-19 | `security`, `threat-model`, `owasp`, `llm`, `sandbox`, `egress`, `policy`, `red-team` |
+
+---
+
+## 🗄️ ADRs Obsoletas — viewer Electron (removido em 2026-10-18)
+
+O viewer Electron foi removido do repositório por decisão de produto. O texto
+das ADRs abaixo é **mantido como memória histórica**, mas nenhuma delas
+representa mais o estado vigente do projeto.
+
+| Número | Título | Status | Data |
+| :--- | :--- | :--- | :--- |
+| [ADR-037](037-rewrite-viewer-com-vite-vanilla-ts.md) | Rewrite do Viewer com Vite + Vanilla TypeScript | Obsoleta (antes *Superseded by ADR-048*) | 2026-09-17 |
+| [ADR-038](038-viewer-site-unico-dataset-fixo.md) | Viewer com Site Único e Dataset Fixo (B3 do ADR-036 Revertido) | Obsoleta | 2026-09-17 |
+| [ADR-048](048-viewer-electron-react-vite-shadcn.md) | Viewer Desktop — Electron + React + Vite + shadcn/ui | Obsoleta | 2026-09-21 |
+| [ADR-049](049-viewer-restructure-electron-forge-and-src-split.md) | Viewer Restructure — Electron Forge 7 + `electron/` ↔ `src/` split | Obsoleta | 2026-09-22 |
+| [ADR-051](051-viewer-chat-llm-provider-and-ipc-streaming.md) | Chat LLM no Viewer — Provider Abstraction + IPC Streaming + RAG via `mem search` | Obsoleta | 2026-09-22 |
+| [ADR-053](053-viewer-v3-3-pane-layout-shell.md) | Layout Shell 3-pane + Dock (M1 do Roadmap v3) | Obsoleta | 2026-09-22 |
+
+> [!note]
+> **Slot ADR-052 reservado, sem arquivo.** O número 052 é citado por documentos
+> do repositório (a spec `feat-chat-language-models` e notas de handoff em
+> [`.specs/STATE.md`](../../.specs/STATE.md)), mas **não existe** nenhum
+> `docs/adr/052-*.md`. A decisão sobre a extensão multi-provider de chat foi
+> escrita junto do código que a implementava, e esse código foi removido com o
+> viewer em `b477200`. Nenhum ADR foi inventado para preencher o buraco: se a
+> decisão voltar a valer, escreva o `052-*.md` na primeira commit; enquanto isso,
+> trate qualquer referência a "ADR-052" como órfã.
+>
+> O `data-central.json` fixo do ADR-038 e o `resources/chatLanguageModels.default.json`
+> foram removidos junto com o viewer. A visualização de grafo
+> disponível hoje é a do CLI (`mem graph view`, ADR-020), que segue **Aceita**.
+

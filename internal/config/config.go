@@ -60,9 +60,9 @@ type StorageConfig struct {
 
 // EmbeddingConfig define os parâmetros do modelo de representação vetorial
 type EmbeddingConfig struct {
-	Provider  string `yaml:"provider,omitempty" json:"provider,omitempty"`   // "ollama" (default)
-	Model     string `yaml:"model,omitempty" json:"model,omitempty"`         // "nomic-embed-text" (default)
-	URL       string `yaml:"url,omitempty" json:"url,omitempty"`             // Endpoint do servidor (default: "http://localhost:11434")
+	Provider  string `yaml:"provider,omitempty" json:"provider,omitempty"`   // "builtin" (default) — único provider vetorial (ADR-035)
+	Model     string `yaml:"model,omitempty" json:"model,omitempty"`         // "paraphrase-multilingual-MiniLM-L12-v2" (default, embutido)
+	URL       string `yaml:"url,omitempty" json:"url,omitempty"`             // Endpoint HTTP de um embedder externo (vazio = provider embutido)
 	Dimension int    `yaml:"dimension,omitempty" json:"dimension,omitempty"` // Dimensão dos vetores (default: 384 — nativo do MiniLM multilíngue, ADR-035)
 }
 
@@ -128,9 +128,8 @@ func DefaultConfig() Config {
 			SQLitePath: "memory.db",
 		},
 		Embedding: EmbeddingConfig{
-			Provider:  "ollama",
-			Model:     "nomic-embed-text",
-			URL:       "http://localhost:11434",
+			Provider:  "builtin",
+			Model:     "paraphrase-multilingual-MiniLM-L12-v2",
 			Dimension: 384,
 		},
 		Search: SearchConfig{
@@ -271,12 +270,6 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.Storage.SQLitePath == "" {
 		cfg.Storage.SQLitePath = "memory.db"
-	}
-	if cfg.Embedding.Model == "" {
-		cfg.Embedding.Model = "nomic-embed-text"
-	}
-	if cfg.Embedding.URL == "" {
-		cfg.Embedding.URL = "http://localhost:11434"
 	}
 	if cfg.Embedding.Dimension <= 0 {
 		cfg.Embedding.Dimension = 384
