@@ -954,3 +954,38 @@ func PackContext(ctx context.Context, db *sql.DB, rootQuery string, opts graph.P
 
 	return graph.PackContext(packNodes, edges, canonicalRoot, opts)
 }
+
+// ListVaultDeadends devolve as notas que apontam para alguma coisa e não são
+// apontadas por ninguém — as folhas do grafo.
+//
+// A definição importa: uma nota sem nenhuma aresta (nem de entrada nem de
+// saída) NÃO é deadend, é órfã, e `mem doctor` já reporta isso. Deadend é só
+// a ponta de saída, o que a spec e o Obsidian chamam de dead end. Por isso os
+// dois NOT EXISTS são assimétricos — exigir o segundo transformaria toda nota
+// isolada em deadend e inflaria o relatório.
+func ListVaultDeadends(ctx context.Context, database *sql.DB) ([]store.VaultDocument, error) {
+	rows, err := database.QueryContext(ctx, `
+		SELECT d.id, d.path, COALESCE(d.title, ''), COALESCE(d.mtime, 0), COALESCE(d.size, 0)
+		FROM documents d
+		WHERE EXISTS (SELECT 1 FROM graph_edges e WHERE e.source_id = d.id)
+		  AND NOT EXISTS (SELECT 1 FROM graph_edges e WHERE e.target_id = d.id)
+		ORDER BY d.path ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar deadends: %w", err)
+	}
+	defer rows.Close()
+
+	docs := make([]store.VaultDocument, 0, 8)
+	for rows.Next() {
+		var doc store.VaultDocument
+		if err := rows.Scan(&doc.ID, &doc.Path, &doc.Title, &doc.MTime, &doc.Size); err != nil {
+			return nil, fmt.Errorf("erro ao escanear deadend: %w", err)
+		}
+		docs = append(docs, doc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("erro ao iterar deadends: %w", err)
+	}
+	return docs, nil
+}

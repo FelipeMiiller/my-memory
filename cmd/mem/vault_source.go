@@ -27,6 +27,8 @@ type vaultReader interface {
 	FindByPath(ctx context.Context, query string) ([]store.VaultDocument, error)
 	// ReadContent devolve o Markdown bruto do documento remontando os chunks.
 	ReadContent(ctx context.Context, docID string) (string, error)
+	// ListDeadends devolve as notas com aresta de saída e sem aresta de entrada.
+	ListDeadends(ctx context.Context) ([]store.VaultDocument, error)
 }
 
 type sqliteVaultReader struct {
@@ -52,6 +54,10 @@ func (r *sqliteVaultReader) ReadContent(ctx context.Context, docID string) (stri
 	return db.ReadVaultDocumentContent(ctx, r.db, docID)
 }
 
+func (r *sqliteVaultReader) ListDeadends(ctx context.Context) ([]store.VaultDocument, error) {
+	return db.ListVaultDeadends(ctx, r.db)
+}
+
 func (r *postgresVaultReader) Close() error { return r.store.Close() }
 
 func (r *postgresVaultReader) ListDocuments(ctx context.Context) ([]store.VaultDocument, error) {
@@ -64,6 +70,10 @@ func (r *postgresVaultReader) FindByPath(ctx context.Context, query string) ([]s
 
 func (r *postgresVaultReader) ReadContent(ctx context.Context, docID string) (string, error) {
 	return r.store.ReadVaultDocumentContent(ctx, r.repo, docID)
+}
+
+func (r *postgresVaultReader) ListDeadends(ctx context.Context) ([]store.VaultDocument, error) {
+	return r.store.ListVaultDeadends(ctx, r.repo)
 }
 
 // vaultFlags são as flags de storage compartilhadas por todos os comandos de

@@ -115,3 +115,32 @@ func (s *PostgresStore) ReadVaultDocumentContent(ctx context.Context, repo, docI
 	}
 	return JoinVaultChunks(chunks), nil
 }
+
+// ListVaultDeadends devolve as notas que têm ao menos uma aresta de saída e
+// nenhuma de entrada. Espelho PostgreSQL de db.ListVaultDeadends.
+func (s *PostgresStore) ListVaultDeadends(ctx context.Context, repo string) ([]VaultDocument, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT d.id, d.path, COALESCE(d.title, ''), COALESCE(d.mtime, 0), COALESCE(d.size, 0)
+		FROM documents d
+		WHERE EXISTS (SELECT 1 FROM graph_edges e WHERE e.repository = d.repository AND e.source_id = d.id)
+		  AND NOT EXISTS (SELECT 1 FROM graph_edges e WHERE e.repository = d.repository AND e.target_id = d.id)
+		ORDER BY d.path ASC
+	`, repo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar deadends no postgres: %w", err)
+	}
+	defer rows.Close()
+
+	docs := make([]VaultDocument, 0, 8)
+	for rows.Next() {
+		var doc VaultDocument
+		if err := rows.Scan(&doc.ID, &doc.Path, &doc.Title, &doc.MTime, &doc.Size); err != nil {
+			return nil, fmt.Errorf("erro ao escanear deadend: %w", err)
+		}
+		docs = append(docs, doc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("erro ao iterar deadends: %w", err)
+	}
+	return docs, nil
+}

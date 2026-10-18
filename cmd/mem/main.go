@@ -667,6 +667,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "deadends":
+		if err := runDeadendsCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "random":
 		if err := runRandomCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -887,6 +893,8 @@ func printHelp() {
 	fmt.Println("      Lista os caminhos indexados em ordem alfabética, com filtro opcional de extensão ou pasta")
 	fmt.Println("  mem read <caminho> [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Imprime o Markdown bruto da nota a partir do índice, sem tocar o disco")
+	fmt.Println("  mem deadends [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Lista as notas com aresta de saída e nenhuma de entrada (folhas do grafo)")
 	fmt.Println("  mem random [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Sorteia um documento indexado; falha se o índice estiver vazio")
 	fmt.Println("  mem outline <caminho> [--db <arq>] [--postgres <url>] [--repo <slug>]")
