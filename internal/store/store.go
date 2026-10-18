@@ -40,7 +40,8 @@ type SearchResult struct {
 	Score      float64             `json:"score,omitempty"`   // Pontuação acumulada de RRF
 	Sources    []string            `json:"sources,omitempty"` // Origens e posições (ex: ["fts:1", "vector:3"])
 	Neighbors  []string            `json:"neighbors,omitempty"`
-	UpdatedAt  int64               `json:"updated_at,omitempty"`
+	UpdatedAt  int64               `json:"updated_at,omitempty"` // Instante da INDEXAÇÃO do documento
+	MTime      int64               `json:"mtime,omitempty"`     // Instante da ÚLTIMA EDIÇÃO do arquivo (ADR-057); 0 = desconhecido
 	Abstract   string              `json:"abstract,omitempty"`
 	Category   string              `json:"category,omitempty"`
 	Links      *deeplink.DeepLinks `json:"links,omitempty"`

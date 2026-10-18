@@ -200,6 +200,9 @@ func FuseSearchResultsWithOptions(sources []RankedResultSource, k int, limit int
 				if res.UpdatedAt > meta.result.UpdatedAt {
 					meta.result.UpdatedAt = res.UpdatedAt
 				}
+				if res.MTime > meta.result.MTime {
+					meta.result.MTime = res.MTime
+				}
 				if meta.result.Abstract == "" && res.Abstract != "" {
 					meta.result.Abstract = res.Abstract
 				}
@@ -223,7 +226,17 @@ func FuseSearchResultsWithOptions(sources []RankedResultSource, k int, limit int
 		res := meta.result
 		decayMult := 1.0
 		if opts.Enabled {
-			decayMult = CalculateTimeDecay(res.UpdatedAt, opts.RefTime, opts.HalfLife, opts.Weight)
+			// ADR-057: o decaimento mede a idade da EDIÇÃO do autor, não a idade
+			// da indexação. updated_at é o instante em que nós indexamos, e um
+			// `mem index` completo dá a todos os documentos o mesmo valor — o que
+			// tornava o multiplicador convergir para 1.0 e --decay um no-op.
+			// mtime = 0 significa "linha legada, mtime desconhecido": nesse caso
+			// caímos para updated_at em vez de tratar o documento como eterno.
+			decayRef := res.MTime
+			if decayRef <= 0 {
+				decayRef = res.UpdatedAt
+			}
+			decayMult = CalculateTimeDecay(decayRef, opts.RefTime, opts.HalfLife, opts.Weight)
 		}
 		res.Score = meta.score * decayMult
 		res.Sources = meta.sources

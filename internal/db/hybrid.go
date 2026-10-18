@@ -25,6 +25,7 @@ func SearchFTSWithOptions(ctx context.Context, database *sql.DB, query string, l
 	cat := strings.TrimSpace(searchOpts.Category)
 	q := `
 	SELECT c.id, c.document_id, c.content, fts.rank, COALESCE(d.updated_at, 0),
+	       COALESCE(d.mtime, 0),
 	       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 	FROM chunks_fts fts
 	JOIN chunks c ON c.id = fts.chunk_id
@@ -45,7 +46,7 @@ func SearchFTSWithOptions(ctx context.Context, database *sql.DB, query string, l
 	for rows.Next() {
 		var r SearchResult
 		var rank float64
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &rank, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &rank, &r.UpdatedAt, &r.MTime, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 		// Distância invertida/normalizada baseada no rank BM25
@@ -126,6 +127,7 @@ func SearchHybridRRFWithOptions(ctx context.Context, database *sql.DB, q *turboq
 		for _, n := range neighbors {
 			rows, err := database.QueryContext(ctx, `
 				SELECT c.id, c.document_id, c.content, COALESCE(d.updated_at, 0),
+				       COALESCE(d.mtime, 0),
 				       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 				FROM chunks c
 				LEFT JOIN documents d ON d.id = c.document_id
@@ -140,7 +142,7 @@ func SearchHybridRRFWithOptions(ctx context.Context, database *sql.DB, q *turboq
 
 			for rows.Next() {
 				var gr SearchResult
-				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Content, &gr.UpdatedAt, &gr.Abstract, &gr.Category); err == nil {
+				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Content, &gr.UpdatedAt, &gr.MTime, &gr.Abstract, &gr.Category); err == nil {
 					if !seenChunks[gr.ChunkID] {
 						seenChunks[gr.ChunkID] = true
 						graphResults = append(graphResults, gr)
@@ -174,6 +176,7 @@ func toStoreResults(items []SearchResult) []store.SearchResult {
 			Sources:    it.Sources,
 			Neighbors:  it.Neighbors,
 			UpdatedAt:  it.UpdatedAt,
+			MTime:      it.MTime,
 			Abstract:   it.Abstract,
 			Category:   it.Category,
 		}
@@ -193,6 +196,7 @@ func fromStoreResults(items []store.SearchResult) []SearchResult {
 			Sources:    it.Sources,
 			Neighbors:  it.Neighbors,
 			UpdatedAt:  it.UpdatedAt,
+			MTime:      it.MTime,
 			Abstract:   it.Abstract,
 			Category:   it.Category,
 		}

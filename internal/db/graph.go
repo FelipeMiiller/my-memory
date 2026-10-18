@@ -22,7 +22,8 @@ type SearchResult struct {
 	Score      float64             `json:"score,omitempty"`
 	Sources    []string            `json:"sources,omitempty"`
 	Neighbors  []string            `json:"neighbors,omitempty"` // Conexões descobertas no grafo
-	UpdatedAt  int64               `json:"updated_at,omitempty"`
+	UpdatedAt  int64               `json:"updated_at,omitempty"` // Instante da indexação
+	MTime      int64               `json:"mtime,omitempty"`     // Instante da última edição do arquivo (ADR-057); 0 = desconhecido
 	Abstract   string              `json:"abstract,omitempty"`
 	Category   string              `json:"category,omitempty"`
 	Links      *deeplink.DeepLinks `json:"links,omitempty"`
@@ -47,6 +48,7 @@ func SearchKNNWithOptions(ctx context.Context, db *sql.DB, queryVec []float32, l
 	cat := strings.TrimSpace(searchOpts.Category)
 	query := `
 	SELECT c.id, c.document_id, c.content, v.distance, COALESCE(d.updated_at, 0),
+	       COALESCE(d.mtime, 0),
 	       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 	FROM chunks_vec v
 	JOIN chunks c ON c.id = v.chunk_id
@@ -65,7 +67,7 @@ func SearchKNNWithOptions(ctx context.Context, db *sql.DB, queryVec []float32, l
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Distance, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Distance, &r.UpdatedAt, &r.MTime, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 
@@ -92,6 +94,7 @@ func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.
 
 	rows, err := db.QueryContext(ctx, `
 		SELECT tq.chunk_id, c.document_id, c.content, tq.scale, tq.data, COALESCE(d.updated_at, 0),
+		       COALESCE(d.mtime, 0),
 		       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 		FROM chunks_turboquant tq
 		JOIN chunks c ON c.id = tq.chunk_id
@@ -109,6 +112,7 @@ func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.
 		content    string
 		score      float32
 		updatedAt  int64
+		mtime      int64
 		abstract   string
 		category   string
 	}
@@ -119,9 +123,10 @@ func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.
 		var scale float32
 		var data []byte
 		var updatedAt int64
+		var mtime int64
 		var abstract, category string
 
-		if err := rows.Scan(&chunkID, &docID, &content, &scale, &data, &updatedAt, &abstract, &category); err != nil {
+		if err := rows.Scan(&chunkID, &docID, &content, &scale, &data, &updatedAt, &mtime, &abstract, &category); err != nil {
 			continue
 		}
 
@@ -138,6 +143,7 @@ func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.
 			content:    content,
 			score:      dot,
 			updatedAt:  updatedAt,
+			mtime:      mtime,
 			abstract:   abstract,
 			category:   category,
 		})
@@ -165,6 +171,7 @@ func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.
 			Distance:   dist,
 			Neighbors:  neighbors,
 			UpdatedAt:  it.updatedAt,
+			MTime:      it.mtime,
 			Abstract:   it.abstract,
 			Category:   it.category,
 		})
