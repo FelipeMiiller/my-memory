@@ -150,7 +150,7 @@ Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato
   * `l2`: Detalhes completos e conteúdo integral.
 * `--category <resource|memory|skill>`: Filtra por taxonomia de conhecimento (recursos técnicos, memórias de regras/hábitos ou habilidades operacionais).
 * `--mode`: Escolhe entre `hybrid` (padrão, fusão RRF), `vector` (apenas semântico k-NN) ou `fts` (apenas texto exato).
-* `--decay`: Ativa o decaimento temporal exponencial ponderado (ADR-015) para priorizar notas mais recentes no ranking final.
+* `--decay`: Ativa o decaimento temporal exponencial ponderado (ADR-015) para priorizar notas **mais recentemente editadas** no ranking final. A ordenação temporal usa o `mtime` do arquivo, não o instante da indexação (ADR-057) — um `mem index` em vault inteiro não iguala mais o score temporal de todas as notas.
 * `--half-life <dias>`: Tempo de meia-vida da curva em dias (padrão: 30.0 dias).
 * `--decay-weight <w>`: Peso do decaimento entre 0.0 (sem efeito) e 1.0 (decaimento máximo) com piso assintótico $(1 - w)$ (padrão: 0.3).
 * `--links`: exibe deep links acionáveis (Obsidian e VS Code) abaixo de cada resultado.
@@ -858,6 +858,150 @@ Inspeciona o `event_log` (JSON Lines) do **event runtime** e re-emite eventos pa
 
 ---
 
+### 33. Leitura do vault: `mem files`, `mem folders`, `mem read`, `mem outline`, `mem wordcount`, `mem random`, `mem deadends`, `mem file`, `mem recents`
+
+Nove comandos de leitura do vault (ADR-057), todos consultando **o índice** e nunca o
+filesystem. É o que faz eles funcionarem num vault federado cujo conteúdo só existe no
+PostgreSQL, sem cópia local do arquivo.
+
+Todos aceitam as flags de seleção de engine, resolvidas na ordem da seção
+[Storage](#-seleção-de-storage-adr-040): `--db <caminho>`, `--postgres <url>`,
+`--storage sqlite|postgres` e `--repo <slug>`.
+
+| Comando | O que devolve |
+| --- | --- |
+| `mem files` | Todos os caminhos indexados, em ordem alfabética |
+| `mem folders` | Todas as pastas que contêm ao menos um documento indexado |
+| `mem read <caminho>` | O Markdown bruto da nota |
+| `mem outline <caminho>` | A hierarquia de títulos da nota, com o nível de cada um |
+| `mem wordcount <caminho>` | Contagem de palavras e de caracteres da nota |
+| `mem random [--json]` | Uma nota sorteada do índice |
+| `mem deadends` | Notas com aresta de saída e nenhuma de entrada |
+| `mem file <caminho>` | Metadados de arquivo: path, título, tamanho e mtime |
+| `mem recents [--limit <N>]` | Documentos ordenados por mtime, do mais novo ao mais antigo |
+
+**Argumento de caminho.** Os comandos que recebem `<caminho>` (`read`, `outline`,
+`wordcount`, `file`) aceitam o caminho completo ou apenas o basename. O path exato
+vence sempre; sem match exato, o basename casa — e se mais de uma nota tiver esse
+nome, o comando **reporta a ambiguidade** listando os candidatos, em vez de escolher
+um deles silenciosamente.
+
+#### `mem files [--ext <ext>] [--folder <pasta>]`
+
+* `--ext`: filtra por extensão, sem o ponto (`md` e `.md` são o mesmo pedido).
+* `--folder`: filtra por pasta relativa ao vault, casando por segmento de caminho —
+  `docs` pega `docs/a.md` e `vault/docs/b.md`, mas **não** pega `docs-old/c.md`.
+
+Extensão ou pasta desconhecida não é erro: o comando sai com zero e lista vazia, como
+no Obsidian. "Nenhum arquivo com essa extensão" é uma resposta válida sobre o vault,
+não uma falha.
+
+```bash
+# Todos os documentos, em ordem alfabética:
+./bin/mem.exe files
+
+# Só as ADRs:
+./bin/mem.exe files --folder docs/adr
+
+# Só Markdown dentro de docs/:
+./bin/mem.exe files --ext md --folder docs
+```
+
+#### `mem folders`
+
+Lista as pastas que contêm documentos indexados. As pastas saem do próprio índice: uma
+pasta apagada do disco depois da indexação continua listada enquanto o documento
+estiver lá.
+
+```bash
+./bin/mem.exe folders
+```
+
+#### `mem read <caminho>`
+
+Imprime o Markdown bruto da nota. O texto vem de `chunks.content` remontado na ordem
+do índice, nunca do disco — por isso a saída bate byte a byte com o que foi indexado.
+Caminho ausente do índice sai com código diferente de zero nomeando o caminho pedido.
+
+```bash
+./bin/mem.exe read docs/adr/057-mtime-e-metadados-de-arquivo-no-indice.md
+
+# Basename único resolve:
+./bin/mem.exe read 057-mtime-e-metadados-de-arquivo-no-indice.md
+
+# Em vault federado, lendo do Postgres:
+./bin/mem.exe read --postgres "postgres://user:pass@localhost:5432/memory?sslmode=disable" concepts/auth.md
+```
+
+#### `mem outline <caminho>`
+
+Imprime a estrutura de títulos da nota, um por linha, indentada dois espaços por nível
+abaixo do primeiro. Só o estilo ATX (`# Título`) é lido, e blocos cercados por ``` são
+ignorados: um `# comentário` dentro de um exemplo de código não é título da nota.
+Uma nota sem títulos imprime nada e sai com zero.
+
+```bash
+./bin/mem.exe outline docs/adr/057-mtime-e-metadados-de-arquivo-no-indice.md
+```
+
+#### `mem wordcount <caminho>`
+
+Imprime o tamanho da nota em palavras e caracteres. Caractere é ponto de código, não
+byte: uma nota em português tem acentos, e contar byte daria um número que não
+corresponde ao que o editor mostra.
+
+```bash
+./bin/mem.exe wordcount docs/adr/057-mtime-e-metadados-de-arquivo-no-indice.md
+```
+
+#### `mem random [--json]`
+
+Imprime o caminho e o título de uma nota sorteada. Com `--json`, devolve um único
+objeto JSON com pelo menos `path` e `title`. Índice vazio sai com código diferente de
+zero dizendo que o índice está vazio — nunca um resultado silenciosamente vazio.
+
+```bash
+./bin/mem.exe random
+./bin/mem.exe random --json
+```
+
+#### `mem deadends`
+
+Lista as notas que têm ao menos uma aresta de saída e nenhuma de entrada: são os
+caminhos que começam na sua base de conhecimento e não terminam em nada. Uma nota
+totalmente isolada **não** aparece, que é a definição do Obsidian.
+
+```bash
+./bin/mem.exe deadends
+```
+
+#### `mem file <caminho>`
+
+Reporta os metadados de arquivo de uma nota: caminho, título, tamanho em bytes e o
+`mtime` da última edição (ADR-057). É o comando que responde "quando essa nota foi
+editada pela última vez?".
+
+```bash
+./bin/mem.exe file docs/adr/057-mtime-e-metadados-de-arquivo-no-indice.md
+```
+
+#### `mem recents [--limit <N>]`
+
+Lista os documentos ordenados por `mtime`, do mais recente ao mais antigo. Documento
+com `mtime = 0` — indexado antes de a coluna existir — vai para o **fim** da lista, e
+não para o começo.
+
+```bash
+./bin/mem.exe recents --limit 10
+```
+
+> [!NOTE]
+> Estas nove capacidades também estão expostas via MCP, sem shelling out:
+> `memory_list_files`, `memory_read_note`, `memory_note_outline` e
+> `memory_file_metadata`.
+
+---
+
 > [!NOTE]
 > Não existe `mem uninstall` como comando de topo: a remoção do hook é a sub-ação `mem hook uninstall` (ver seção 4). O mesmo vale para `mem install`, que é um comando de topo próprio.
 
@@ -990,7 +1134,7 @@ search:
   mode: "hybrid"            # "hybrid", "vector" ou "fts"
   limit: 5
   k: 60
-  decay: false              # Decaimento temporal ativado
+  decay: false              # Decaimento temporal por data de edição do arquivo
   half_life: 30.0           # Meia-vida em dias
   decay_weight: 0.3         # Peso do decaimento
   use_turbo: false          # TurboQuant 4-bit

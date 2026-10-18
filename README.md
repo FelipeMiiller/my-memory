@@ -190,9 +190,9 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 
 ## 🤖 Ferramentas MCP para Assistentes de IA
 
-Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 20 ferramentas para o ecossistema de IA:
+Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 24 ferramentas para o ecossistema de IA:
 
-- `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional. Aceita `include_code: true` (default `false`, CA-12) para que `code_symbols` concorram no ranqueamento.
+- `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional, que ordena por **tempo de edição** do arquivo (ADR-057). Aceita `include_code: true` (default `false`, CA-12) para que `code_symbols` concorram no ranqueamento.
 - `memory_get_neighbors`: Expansão recursiva de nós e dependências conectadas via SQL recursivo (CTEs) com marcação `is_federated: true`.
 - `memory_find_path`: Descoberta do caminho mais curto entre duas notas via BFS bidirecional com pesos epistêmicos.
 - `memory_get_impact`: Análise de raio de destruição (*Blast Radius*) e dependentes reversos com risk scoring.
@@ -200,7 +200,11 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 20 fer
 - `memory_get_hubs`: Identificação de God Nodes e nós líderes por grau ou PageRank ponderado.
 - `memory_get_insights`: Métricas globais da topologia da base de conhecimento (densidade, componentes, isolados).
 - `memory_inspect_node`: Inspeção cirúrgica de nós (in-links, out-links com sinalização cross-vault, chunks quantizados e status).
-- `memory_doctor`: Auditoria de integridade do grafo com detecção de dead links e notas órfãs.
+- `memory_doctor`: Auditoria de integridade do grafo com detecção de dead links e notas órfãs. Também reporta quantos documentos foram indexados antes do metadado `mtime` existir.
+- `memory_list_files` *(ADR-057)*: Lista os documentos indexados em ordem alfabética, com filtros opcionais de extensão e pasta.
+- `memory_read_note` *(ADR-057)*: Devolve o Markdown bruto de uma nota pelo caminho do vault, sem fragmentar em chunks.
+- `memory_note_outline` *(ADR-057)*: Retorna a estrutura de títulos de uma nota com o nível de cada heading, ignorando blocos de código.
+- `memory_file_metadata` *(ADR-057)*: Retorna path, title, size em bytes e `mtime` da última edição de uma nota.
 - `memory_reconcile`: Reconciliação do vault com o índice PostgreSQL sem reindexar — remove só documentos cujo arquivo sumiu do disco (`dry_run` por padrão, aborta se o vault não existir ou se a varredura do disco retornar 0 arquivos).
 - `memory_get_drift`: Auditoria de desvio semântico e divergência entre código e documentação.
 - `memory_write_note`: Criação de notas atômicas estruturadas com sincronização e indexação instantâneas.
@@ -233,7 +237,7 @@ my-memory/
 │   ├── federation/     # Federação multirrepositório, RRF e resolução de URIs canônicas memory://
 │   ├── graph/          # Algoritmos de grafo (LPA, modularidade Q, PageRank, Blast Radius, Inspector)
 │   ├── graphview/      # Visualizador interativo HTML/SVG standalone com física de forças
-│   ├── mcp/            # Servidor Model Context Protocol com 20 tools (stdio + HTTP/SSE)
+│   ├── mcp/            # Servidor Model Context Protocol com 24 tools (stdio + HTTP/SSE)
 │   ├── parser/         # Extração de wikilinks, tags, metadados e chunking
 │   ├── repo/           # Scanner de arquivos do repositório respeitando escopo e gitignore
 │   ├── staleness/      # Rastreamento de desatualização temporal de notas e links quebrados

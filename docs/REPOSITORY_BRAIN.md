@@ -138,7 +138,7 @@ Iniciado previamente via `mem mcp --port 38400 [--host 0.0.0.0]`:
 ```
 
 A IA ganha acesso automático a ferramentas com escopo de repositório:
-* `memory_search(query, mode?, limit?, repository?, decay?, half_life?, decay_weight?)`: Recupera os chunks de maior relevância semântica, léxica ou híbrida (RRF), com suporte a decaimento temporal exponencial (ADR-015).
+* `memory_search(query, mode?, limit?, repository?, decay?, half_life?, decay_weight?)`: Recupera os chunks de maior relevância semântica, léxica ou híbrida (RRF), com suporte a decaimento temporal exponencial (ADR-015). O decaimento ordena por **tempo de edição** do arquivo (`mtime`), não por instante de indexação (ADR-057).
 * `memory_get_neighbors(node_id, max_depth?, repository?)`: Retorna nós vizinhos e dependências conectadas no grafo via SQL recursivo.
 * `memory_get_clusters(min_size?, repository?)`: Detecta e lista comunidades/clusters temáticos densos no grafo via LPA ponderado e Modularidade Newman-Girvan \(Q\) (ADR-022).
 * `memory_write_note(path, content, title?, tags?, aliases?, note_type?, relations?, overwrite?, repository?)`: Cria ou atualiza notas atômicas no vault com frontmatter e conexões tipadas, disparando indexação cirúrgica imediata.

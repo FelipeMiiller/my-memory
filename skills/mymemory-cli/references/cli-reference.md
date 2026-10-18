@@ -63,7 +63,7 @@ mem index --postgres "postgres://USER:PASS@HOST:5432/DB"
 ```bash
 mem search --mode fts "CalculateContentHash"
 mem search --mode vector "how ranking works"
-mem search --decay --half-life 14 "recent decision"
+mem search --decay --half-life 14 "recent decision"  # ranks by file edit time (mtime), not index time
 mem search --level l0 "config"
 mem search --category skill "note creation"
 ```

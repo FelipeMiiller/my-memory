@@ -1,12 +1,12 @@
 ---
 name: mymemory-mcp
-description: Configure and use the MyMemory MCP server, which exposes the 20 `memory_*` tools for hybrid search, graph traversal, note authoring, and drift detection to any MCP-capable agent. Use when wiring an MCP client to the vault, choosing between an MCP tool and shelling out to the `mem` CLI, or mapping an intent such as "search the vault", "write a note", "what breaks if I change this note" onto a `memory_*` tool.
+description: Configure and use the MyMemory MCP server, which exposes the 24 `memory_*` tools for hybrid search, graph traversal, note authoring, and drift detection to any MCP-capable agent. Use when wiring an MCP client to the vault, choosing between an MCP tool and shelling out to the `mem` CLI, or mapping an intent such as "search the vault", "write a note", "what breaks if I change this note" onto a `memory_*` tool.
 ---
 
 # MyMemory MCP Server
 
 `mem mcp` starts a Model Context Protocol server over the same index the CLI uses. It exposes
-**20 tools** to the agent so retrieval and note authoring happen as structured tool calls instead
+**24 tools** to the agent so retrieval and note authoring happen as structured tool calls instead
 of shell output that has to be re-parsed.
 
 ## Configure a client
@@ -99,7 +99,7 @@ compiled note on later interactions instead of re-querying N sources.
 
 ## Reference
 
-- [mcp-tools.md](references/mcp-tools.md) — all 20 tools with arguments, defaults, suggested flows
+- [mcp-tools.md](references/mcp-tools.md) — all 24 tools with arguments, defaults, suggested flows
   and gotchas
 
 ## Gotchas

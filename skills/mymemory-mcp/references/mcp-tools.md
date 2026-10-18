@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-The MyMemory MCP server exposes **20 tools**. Start the server with:
+The MyMemory MCP server exposes **24 tools**. Start the server with:
 
 ```bash
 mem mcp                                # stdio, resolves vault from working directory
@@ -46,7 +46,7 @@ k-NN vectors, and graph expansion.
 | `limit` | integer | `5` | Maximum results. |
 | `k` | integer | `60` | RRF smoothing constant. |
 | `repository` | string | — | Slug or name; omit to search the default/global repository. |
-| `decay` | boolean | `false` | Exponential temporal decay toward recent notes. |
+| `decay` | boolean | `false` | Exponential temporal decay toward **recently edited** notes — ranks by the file's `mtime`, not by when it was indexed (ADR-057). |
 | `half_life` | number | `30` | Half-life in days. |
 | `decay_weight` | number | `0.3` | `0.0` = no effect, `1.0` = maximum decay. |
 | `detail_level` | enum | `l1` | `l0` micro-abstract (~30-50 tokens, zero file reads) · `l1` overview with metadata + relevant excerpt · `l2` full detail. |
@@ -69,6 +69,57 @@ Neighbouring notes in the relational graph from a `node_id`, via recursive CTE.
 ### `memory_code_neighbors`
 
 Sub-graph (in/out edges) around a `code_symbol`, up to `depth` hops.
+
+### `memory_list_files`
+
+Every indexed document path, alphabetical, with optional `ext` and `folder` filters. Reads
+the index, never the filesystem, so it works on a Postgres-only vault.
+
+| Argument | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ext` | string | — | Extension without the dot. `md` and `.md` are the same request. |
+| `folder` | string | — | Vault-relative folder, matched on path segment: `docs` catches `docs/a.md` and `vault/docs/b.md`, but not `docs-old/c.md`. |
+| `repository` | string | — | Slug or name; omit for the default/global repository. |
+
+A filter that matches nothing returns an empty list, not an error — the same answer
+Obsidian gives.
+
+### `memory_read_note`
+
+The note's raw Markdown, reassembled from the indexed chunks. Use it when
+`memory_search` returned an excerpt and you need the whole file, frontmatter and
+wikilinks intact.
+
+| Argument | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `path` | string | — | Required. Full path or basename; an exact path always wins. |
+| `repository` | string | — | Slug or name; omit for the default/global repository. |
+
+### `memory_note_outline`
+
+The note's heading tree with each heading's depth, skipping fenced code blocks. Use it
+to locate the right section of a long file without reading the body.
+
+| Argument | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `path` | string | — | Required. Same resolution rules as `memory_read_note`. |
+| `repository` | string | — | Slug or name; omit for the default/global repository. |
+
+### `memory_file_metadata`
+
+File metadata for one indexed note: `path`, `title`, `size` in bytes and the `mtime` of
+its last edit (ADR-057). Use it to answer "when was this last edited?".
+
+| Argument | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `path` | string | — | Required. Same resolution rules as `memory_read_note`. |
+| `repository` | string | — | Slug or name; omit for the default/global repository. |
+
+> [!note]
+> All four return a **tool error**, not an empty string, when the path is absent from the
+> index — and report the ambiguity, listing the candidates, when a basename matches more
+> than one note. A `mtime` of `0` means the note was indexed before file metadata existed;
+> the tool says so instead of printing a 1970 date.
 
 ---
 

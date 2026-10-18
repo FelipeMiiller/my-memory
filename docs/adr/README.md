@@ -57,7 +57,22 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-054](054-escopo-de-paridade-com-o-obsidian.md)** | Escopo de paridade com o Obsidian é o vault, não o aplicativo | Aceito | 2026-10-18 | `scope`, `product`, `vault`, `obsidian`, `parity` |
 | **[ADR-055](055-semantica-de-tag-consultavel-sem-nos-mortos.md)** | Semântica de tag consultável sem nós mortos (adenda da ADR-041) | Proposed | 2026-10-18 | `graph`, `tags`, `adr-041`, `semantics` |
 | **[ADR-056](056-persistencia-de-propriedades-de-frontmatter.md)** | Persistência de propriedades de frontmatter em tabela consultável | Aceito | 2026-10-18 | `schema`, `frontmatter`, `properties`, `obsidian` |
-| **[ADR-057](057-mtime-e-metadados-de-arquivo-no-indice.md)** | mtime e metadados de arquivo no índice | Aceito | 2026-10-18 | `schema`, `metadata`, `staleness`, `obsidian` |
+| **[ADR-057](057-mtime-e-metadados-de-arquivo-no-indice.md)** | mtime e metadados de arquivo no índice | Aceito — **Implementado** | 2026-10-18 | `schema`, `metadata`, `staleness`, `obsidian` |
+
+> [!success]
+> **ADR-057: implementada.** `documents.mtime` e `documents.size` existem nos dois
+> engines (SQLite e PostgreSQL) e são preenchidos a partir do `stat` real do arquivo em
+> ambos os caminhos de indexação (`mem index` e watcher). O decaimento temporal do
+> `--decay` lê `mtime` com fallback para `updated_at`, a detecção de staleness compara o
+> `mtime` persistido contra o do disco, e `mem doctor` reporta quantos documentos foram
+> indexados antes das colunas existirem. A superfície de leitura acompanha em
+> `mem files`, `mem folders`, `mem read`, `mem outline`, `mem wordcount`, `mem random`,
+> `mem deadends`, `mem file` e `mem recents`, com o mesmo comportamento exposto via MCP
+> em `memory_list_files`, `memory_read_note`, `memory_note_outline` e
+> `memory_file_metadata`.
+>
+> Vault indexado antes da migração continua funcionando sem `mem index --force`: os
+> documentos com `mtime = 0` caem no `updated_at` e vão para o fim de `mem recents`.
 
 > [!warning]
 > **ADR-044: decisão mantida, implementação removida.** Em `9bc28c7` os pacotes

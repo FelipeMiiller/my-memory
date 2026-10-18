@@ -7,7 +7,7 @@
 
 ## Contexto e Problema
 
-O objetivo declarado do My-Memory é ser um **superset das funcionalidades do Obsidian**, com a busca semântica por embeddings como complemento. O CLI oficial do Obsidian (v1.12+, introduzido em 2026-02-27) expõe ~115 comandos. O My-Memory expõe 36 comandos e 20 tools MCP.
+O objetivo declarado do My-Memory é ser um **superset das funcionalidades do Obsidian**, com a busca semântica por embeddings como complemento. O CLI oficial do Obsidian (v1.12+, introduzido em 2026-02-27) expõe ~115 comandos. O My-Memory expõe 45 comandos e 24 tools MCP.
 
 A matriz de gap levantada em 2026-10-18, sobre 48 comandos de conteúdo de vault, deu: **3 cobertos · 13 parciais · 32 ausentes**. Os ~45 comandos restantes são de estado do aplicativo (plugins, themes, workspace, bookmarks, sync, `dev:*`, CDP).
 

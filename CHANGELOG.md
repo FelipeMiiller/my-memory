@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Nove comandos de leitura do vault (ADR-057)**: `mem files` (com `--ext` e
+  `--folder`), `mem folders`, `mem read`, `mem outline`, `mem wordcount`,
+  `mem random` (`--json`), `mem deadends`, `mem file` e `mem recents`.
+  Todos leem **o índice**, nunca o filesystem — por isso funcionam num vault
+  federado cujo conteúdo só existe no PostgreSQL.
+  - Extensão ou pasta desconhecida sai com zero e lista vazia, como no Obsidian.
+  - `mem read`/`outline`/`wordcount`/`file` aceitam path completo ou basename;
+    basename ambíguo é reportado com os candidatos, nunca resolvido por escolha
+    silenciosa.
+- **Quatro ferramentas MCP de leitura do vault (ADR-057)**:
+  `memory_list_files`, `memory_read_note`, `memory_note_outline` e
+  `memory_file_metadata`. O agente obtém a mesma superfície do CLI sem shelling
+  out; caminho ausente do índice retorna **erro de tool**, não string vazia.
+  - `memory_file_metadata` expõe `mtime` e `size`; `mtime = 0` é reportado como
+    desconhecido em vez de virar uma data de 1970.
+- **`documents.mtime` e `documents.size`** persistidos nos dois engines a partir
+  do `stat` real do arquivo, e o `mem doctor` passa a reportar quantos
+  documentos foram indexados antes dessas colunas existirem.
 - **`memory_reconcile` (MCP tool, ISSUE-015)**: reconcilia o vault (filesystem)
   com o índice PostgreSQL **sem reindexar tudo**. Remove apenas os documentos
   cujo arquivo sumiu do disco. `dry_run` é `true` por padrão, e a operação
@@ -54,6 +72,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`--decay` ordena por tempo de edição, não por instante de indexação
+  (ADR-057)**. O decaimento temporal lia `documents.updated_at`, que guarda
+  `time.Now().Unix()` da indexação: um `mem index` em vault inteiro dava a
+  todas as notas timestamps quase idênticos, o delta tendia a zero e o
+  multiplicador convergia para 1.0 — a flag virava **no-op silencioso**,
+  priorizando "processado por último" em vez de "editado recentemente".
+  - A ordenação temporal agora usa `documents.mtime`, com fallback para
+    `updated_at` quando o valor é 0 (vault indexado antes da migração, que
+    continua funcionando sem exigir `mem index --force`).
+  - A detecção de staleness passou a comparar o `mtime` persistido contra o
+    `mtime` atual do disco, em vez de inferir mudança do instante de indexação.
+  - As descrições de `--decay` na documentação diziam "notas recentes" sem
+    dizer qual tempo: `docs/CLI_GUIDE.md`, `COMO_USAR.md`, `COMO_FUNCIONA.md`,
+    `README.md`, `docs/REPOSITORY_BRAIN.md`, `skills/` e o help da CLI foram
+    corrigidos para "tempo de edição do arquivo".
 - **Dimensão do vetor vem de `embedder.EmbeddingDim`**, não de um literal `768`
   que sobreviveu à migração. Quando o embedding falhava, o fallback gravava
   vetor de dimensão errada.

@@ -258,7 +258,7 @@ func main() {
 		category := searchCmd.String("category", "", "Filtra por taxonomia de memória: 'resource', 'memory', 'skill' (padrão: todas)")
 		k := searchCmd.Int("k", 0, "Constante de suavização do algoritmo RRF (padrão: 60)")
 		limit := searchCmd.Int("limit", 0, "Número máximo de resultados (padrão: 5)")
-		decay := searchCmd.Bool("decay", false, "Ativa decaimento temporal exponencial para priorizar notas mais recentes")
+		decay := searchCmd.Bool("decay", false, "Ativa decaimento temporal exponencial para priorizar notas mais recentemente editadas (ordena pelo mtime do arquivo, ADR-057)")
 		halfLife := searchCmd.Float64("half-life", 0.0, "Tempo de meia-vida em dias para decaimento temporal (padrão: 30.0)")
 		decayWeight := searchCmd.Float64("decay-weight", -1.0, "Peso do fator temporal entre 0.0 e 1.0 (padrão: 0.3)")
 		dbPath := searchCmd.String("db", "", "Caminho do arquivo SQLite")
@@ -1034,7 +1034,7 @@ search:
   mode: "hybrid"            # "hybrid", "vector" ou "fts"
   limit: 5                  # Número padrão de resultados
   k: 60                     # Constante RRF (Reciprocal Rank Fusion)
-  decay: false              # Priorizar notas mais recentes por data
+  decay: false              # Priorizar notas por data de edição do arquivo (mtime)
   half_life: 30.0           # Meia-vida em dias para decaimento temporal
   decay_weight: 0.3         # Peso do decaimento temporal (0.0 a 1.0)
   use_turbo: false          # Busca quantizada 4-bit TurboQuant no SQLite

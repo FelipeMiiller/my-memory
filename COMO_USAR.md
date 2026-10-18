@@ -172,7 +172,7 @@ mem search --mode fts "CalculateContentHash"
 # Busca exclusivamente vetorial com TurboQuant 4-bit ativado
 mem search --mode vector -tq "algoritmos de detecção de comunidades"
 
-# Busca priorizando notas recentes (Decaimento Temporal)
+# Busca priorizando notas mais recentemente EDITADAS (Decaimento Temporal por mtime)
 mem search --decay --half-life 14 "mudanças recentes de arquitetura"
 ```
 
@@ -353,7 +353,7 @@ Ao executar `mem search` ou consultar a IA via MCP (`memory_search`), o My-Memor
 | `mem repos` | Lista todos os repositórios federados registrados no catálogo global. |
 | `mem install [--tools]` | Auto-configura MCP em ferramentas de IA instaladas (Cursor, VS Code, Claude Desktop). |
 | `mem index [--force]` | Indexa arquivos Markdown com cache SHA-256 e pruning de deletados. |
-| `mem search "<pergunta>"` | Busca híbrida federada com RRF, vetores, BM25 e decaimento temporal opcional. |
+| `mem search "<pergunta>"` | Busca híbrida federada com RRF, vetores, BM25 e decaimento temporal opcional (por data de edição do arquivo). |
 | `mem path <de> <para>` | Encontra o caminho mais curto entre dois conceitos no grafo de conhecimento. |
 | `mem inspect <nota>` | Visão cirúrgica em 3 colunas (in-links, nota central e out-links). |
 | `mem impact <nota>` | Calcula o raio de destruição e dependentes reversos com score de risco. |
@@ -374,6 +374,20 @@ Ao executar `mem search` ou consultar a IA via MCP (`memory_search`), o My-Memor
 | `mem mcp [--port <num>]` | Inicia o servidor MCP via stdio ou HTTP/SSE (com federação RRF). |
 | `mem bench` | Executa benchmarks de TurboQuant, RRF, SHA-256 e parsing. |
 | `mem version` | Exibe versão, commit Git e arquitetura compilada. |
+
+Leitura do vault (ADR-057) — todas leem o **índice**, nunca o disco:
+
+| Comando | O que devolve |
+| --- | --- |
+| `mem files [--ext] [--folder]` | Caminhos indexados em ordem alfabética, com filtros de extensão e pasta. |
+| `mem folders` | Pastas que contêm ao menos um documento indexado. |
+| `mem read <caminho>` | O Markdown bruto da nota. |
+| `mem outline <caminho>` | A hierarquia de títulos da nota. |
+| `mem wordcount <caminho>` | Contagem de palavras e caracteres. |
+| `mem random [--json]` | Uma nota sorteada do índice. |
+| `mem deadends` | Notas com aresta de saída e nenhuma de entrada. |
+| `mem file <caminho>` | Path, título, tamanho e mtime da última edição. |
+| `mem recents [--limit <N>]` | Documentos do mais recentemente editado ao mais antigo. |
 
 ---
 

@@ -184,6 +184,8 @@ $$\text{Fator}(t) = e^{-\lambda \Delta t}$$
 $$\text{Score\_Final}(d) = \text{Score\_RRF}(d) \times \left( (1 - w_{\text{decay}}) + w_{\text{decay}} \times e^{-\lambda \Delta t} \right)$$
 Dessa forma, notas recentes recebem um impulso proporcional sem anular notas fundamentais antigas.
 
+O $\Delta t$ é medido a partir do **mtime do arquivo**, ou seja, de quando a nota foi de fato editada — não de quando `mem index` a processou (ADR-057). Um `mem index` em vault inteiro não pode mais achatar todo o sinal temporal em um mesmo instante; documentos indexados antes de o metadado existir caem no `updated_at` como fallback.
+
 ---
 
 ## 6. Topologia de Grafo e Algoritmos Estruturais

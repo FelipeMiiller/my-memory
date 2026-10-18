@@ -69,9 +69,31 @@ mem search "how does incremental indexing work"        # hybrid
 mem search --mode fts "CalculateContentHash"           # identifiers, exact terms
 mem search --mode vector "how ranking works"           # meaning
 mem search --level l0 "config"                        # summaries only, cheapest layer
-mem search --decay --half-life 14 "recent ADR"        # bias toward fresh notes
+mem search --decay --half-life 14 "recent ADR"        # bias toward recently EDITED notes (file mtime)
 mem search --category skill "note creation"           # resource | memory | skill
 ```
+
+**Read the vault** — every one of these queries the index, never the filesystem, so they
+work on a Postgres-only vault with no local copy of the file.
+
+```bash
+mem files                              # every indexed path, alphabetical
+mem files --ext md --folder docs/adr   # filter by extension and folder segment
+mem folders                            # every folder holding an indexed document
+mem read <path>                        # the note's raw Markdown
+mem outline <path>                     # heading tree with depth
+mem wordcount <path>                   # words and characters
+mem random [--json]                    # one randomly selected note
+mem deadends                           # notes with out-edges but no in-edges
+mem file <path>                        # path, title, size, mtime (ADR-057)
+mem recents [--limit 10]               # most recently edited first
+```
+
+`read`, `outline`, `wordcount` and `file` take a full path or just the basename. An exact
+path always wins; when only a basename matches and several notes share it, the command
+reports the ambiguity with the candidate paths instead of picking one. An extension or
+folder filter that matches nothing exits zero with an empty list — that is a valid answer
+about the vault, not a failure.
 
 **Author**
 
