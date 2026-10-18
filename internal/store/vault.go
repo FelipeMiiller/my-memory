@@ -116,6 +116,37 @@ func (s *PostgresStore) ReadVaultDocumentContent(ctx context.Context, repo, docI
 	return JoinVaultChunks(chunks), nil
 }
 
+// ListVaultDocumentsByMTime devolve os documentos mais recentemente editados,
+// com mtime = 0 no fim. Espelho PostgreSQL de db.ListVaultDocumentsByMTime.
+func (s *PostgresStore) ListVaultDocumentsByMTime(ctx context.Context, repo string, limit int) ([]VaultDocument, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, path, COALESCE(title, ''), COALESCE(mtime, 0), COALESCE(size, 0)
+		FROM documents
+		WHERE ($1 = '' OR repository = $1)
+		ORDER BY CASE WHEN COALESCE(mtime, 0) <= 0 THEN 1 ELSE 0 END ASC,
+		         COALESCE(mtime, 0) DESC,
+		         path ASC
+		LIMIT $2
+	`, repo, limit)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar documentos recentes no postgres: %w", err)
+	}
+	defer rows.Close()
+
+	docs := make([]VaultDocument, 0, limit)
+	for rows.Next() {
+		var doc VaultDocument
+		if err := rows.Scan(&doc.ID, &doc.Path, &doc.Title, &doc.MTime, &doc.Size); err != nil {
+			return nil, fmt.Errorf("erro ao escanear documento recente: %w", err)
+		}
+		docs = append(docs, doc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("erro ao iterar documentos recentes: %w", err)
+	}
+	return docs, nil
+}
+
 // ListVaultDeadends devolve as notas que têm ao menos uma aresta de saída e
 // nenhuma de entrada. Espelho PostgreSQL de db.ListVaultDeadends.
 func (s *PostgresStore) ListVaultDeadends(ctx context.Context, repo string) ([]VaultDocument, error) {

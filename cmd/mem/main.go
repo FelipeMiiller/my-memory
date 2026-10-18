@@ -667,6 +667,18 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "file":
+		if err := runFileCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "recents":
+		if err := runRecentsCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "deadends":
 		if err := runDeadendsCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -893,6 +905,10 @@ func printHelp() {
 	fmt.Println("      Lista os caminhos indexados em ordem alfabética, com filtro opcional de extensão ou pasta")
 	fmt.Println("  mem read <caminho> [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Imprime o Markdown bruto da nota a partir do índice, sem tocar o disco")
+	fmt.Println("  mem file <caminho> [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Relata path, título, tamanho e instante de edição de uma nota (ADR-057)")
+	fmt.Println("  mem recents [--limit 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Lista os documentos mais recentemente editados, do mtime mais novo para o mais antigo")
 	fmt.Println("  mem deadends [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Lista as notas com aresta de saída e nenhuma de entrada (folhas do grafo)")
 	fmt.Println("  mem random [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")

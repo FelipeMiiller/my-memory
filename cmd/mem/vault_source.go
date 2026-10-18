@@ -29,6 +29,8 @@ type vaultReader interface {
 	ReadContent(ctx context.Context, docID string) (string, error)
 	// ListDeadends devolve as notas com aresta de saída e sem aresta de entrada.
 	ListDeadends(ctx context.Context) ([]store.VaultDocument, error)
+	// ListRecent devolve os documentos por mtime decrescente, com mtime = 0 no fim.
+	ListRecent(ctx context.Context, limit int) ([]store.VaultDocument, error)
 }
 
 type sqliteVaultReader struct {
@@ -58,6 +60,10 @@ func (r *sqliteVaultReader) ListDeadends(ctx context.Context) ([]store.VaultDocu
 	return db.ListVaultDeadends(ctx, r.db)
 }
 
+func (r *sqliteVaultReader) ListRecent(ctx context.Context, limit int) ([]store.VaultDocument, error) {
+	return db.ListVaultDocumentsByMTime(ctx, r.db, limit)
+}
+
 func (r *postgresVaultReader) Close() error { return r.store.Close() }
 
 func (r *postgresVaultReader) ListDocuments(ctx context.Context) ([]store.VaultDocument, error) {
@@ -74,6 +80,10 @@ func (r *postgresVaultReader) ReadContent(ctx context.Context, docID string) (st
 
 func (r *postgresVaultReader) ListDeadends(ctx context.Context) ([]store.VaultDocument, error) {
 	return r.store.ListVaultDeadends(ctx, r.repo)
+}
+
+func (r *postgresVaultReader) ListRecent(ctx context.Context, limit int) ([]store.VaultDocument, error) {
+	return r.store.ListVaultDocumentsByMTime(ctx, r.repo, limit)
 }
 
 // vaultFlags são as flags de storage compartilhadas por todos os comandos de

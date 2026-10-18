@@ -98,3 +98,38 @@ func ReadVaultDocumentContent(ctx context.Context, database *sql.DB, docID strin
 	}
 	return store.JoinVaultChunks(chunks), nil
 }
+
+// ListVaultDocumentsByMTime devolve os documentos mais recentemente editados,
+// do mtime mais novo para o mais antigo.
+//
+// Documento com mtime = 0 (indexado antes de a coluna existir, ADR-057) vai
+// para o FIM, não para o começo. Sem esse CASE, o zero venceria todos os
+// timestamps e `mem recents` abriria listando justamente as notas cujo tempo de
+// edição ele não conhece — o oposto do que o comando promete.
+func ListVaultDocumentsByMTime(ctx context.Context, database *sql.DB, limit int) ([]store.VaultDocument, error) {
+	rows, err := database.QueryContext(ctx, `
+		SELECT id, path, COALESCE(title, ''), COALESCE(mtime, 0), COALESCE(size, 0)
+		FROM documents
+		ORDER BY CASE WHEN COALESCE(mtime, 0) <= 0 THEN 1 ELSE 0 END ASC,
+		         COALESCE(mtime, 0) DESC,
+		         path ASC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar documentos recentes: %w", err)
+	}
+	defer rows.Close()
+
+	docs := make([]store.VaultDocument, 0, limit)
+	for rows.Next() {
+		var doc store.VaultDocument
+		if err := rows.Scan(&doc.ID, &doc.Path, &doc.Title, &doc.MTime, &doc.Size); err != nil {
+			return nil, fmt.Errorf("erro ao escanear documento recente: %w", err)
+		}
+		docs = append(docs, doc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("erro ao iterar documentos recentes: %w", err)
+	}
+	return docs, nil
+}
