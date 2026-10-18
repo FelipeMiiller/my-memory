@@ -135,6 +135,37 @@ func TestPrintHelp_CobreTodoSubcommandDoDispatch(t *testing.T) {
 	}
 }
 
+// specParityCommands são os nove comandos de leitura que a spec
+// .specs/features/obsidian-parity-foundation entregou.
+var specParityCommands = []string{
+	"files", "folders", "read", "outline", "wordcount",
+	"random", "deadends", "file", "recents",
+}
+
+// TestPrintHelp_CobreOsComandosDaSpecObsidian fecha o outro lado da guarda.
+//
+// O teste de sincronia acima prova que o que está no dispatch está na ajuda. O
+// inverso — apagar a linha do help E o case do dispatch juntos — passa nele sem
+// que ninguém perceba: os dois caminhos desaparecem juntos e o vault perde um
+// comando inteiro. Aqui a lista vem da spec, não do código, então remover um
+// desses nove comandos quebra o teste.
+func TestPrintHelp_CobreOsComandosDaSpecObsidian(t *testing.T) {
+	help := capturePrintHelp(t)
+	dispatched := map[string]bool{}
+	for _, sub := range dispatchedSubcommands(t) {
+		dispatched[sub] = true
+	}
+
+	for _, sub := range specParityCommands {
+		if !dispatched[sub] {
+			t.Errorf("comando %q da spec de paridade não está no switch de dispatch de main.go", sub)
+		}
+		if !strings.Contains(help, "mem "+sub+" ") && !strings.Contains(help, "mem "+sub+"\n") {
+			t.Errorf("comando %q da spec de paridade não está em printHelp()", sub)
+		}
+	}
+}
+
 // TestPrintHelp_NaoListaComandoInexistente é o contrapeso: a ajuda não pode
 // inventar comando. Pega o erro simétrico — documentar algo que o dispatch
 // não roteia — que o teste anterior, por ser só de "faltando", deixaria passar.
