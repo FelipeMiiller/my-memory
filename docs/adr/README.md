@@ -54,6 +54,19 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-046](046-deferred-until-padrao-para-fallbacks-opcionais-em-adrs.md)** | Padrão "Deferred Until" para Fallbacks Opcionais em ADRs | Aceito | 2026-09-19 | `methodology`, `architecture`, `yagni`, `adr-038`, `deferral`, `scope-reduction`, `cross-cutting` |
 | **[ADR-047](047-code-ast-tree-sitter-multi-linguagem.md)** | Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem) | Aceito | 2026-09-21 | `code-intelligence`, `tree-sitter`, `ast`, `multi-language`, `cgo`, `search`, `hybrid-ranking`, `code-graph` |
 | **[ADR-050](050-threat-model-owasp-llm-aplicado-ao-mymemory.md)** | Threat Model — OWASP LLM Top 10 Aplicado ao MyMemory | Proposed | 2026-09-19 | `security`, `threat-model`, `owasp`, `llm`, `sandbox`, `egress`, `policy`, `red-team` |
+| **[ADR-054](054-escopo-de-paridade-com-o-obsidian.md)** | Escopo de paridade com o Obsidian é o vault, não o aplicativo | Aceito | 2026-10-18 | `scope`, `product`, `vault`, `obsidian`, `parity` |
+| **[ADR-055](055-semantica-de-tag-consultavel-sem-nos-mortos.md)** | Semântica de tag consultável sem nós mortos (adenda da ADR-041) | Proposed | 2026-10-18 | `graph`, `tags`, `adr-041`, `semantics` |
+| **[ADR-056](056-persistencia-de-propriedades-de-frontmatter.md)** | Persistência de propriedades de frontmatter em tabela consultável | Aceito | 2026-10-18 | `schema`, `frontmatter`, `properties`, `obsidian` |
+| **[ADR-057](057-mtime-e-metadados-de-arquivo-no-indice.md)** | mtime e metadados de arquivo no índice | Aceito | 2026-10-18 | `schema`, `metadata`, `staleness`, `obsidian` |
+
+> [!warning]
+> **ADR-044: decisão mantida, implementação removida.** Em `9bc28c7` os pacotes
+> `internal/writer`, `internal/writer/projection` e `internal/policy` foram apagados por
+> não terem importadores, e o comando `mem write` nunca chegou a existir. A decisão de
+> arquitetura continua válida, mas **a precondição de escrita (`--if-match` / `IfMatch`)
+> não é implementada em nenhum caminho hoje** — o parâmetro é aceito e ignorado pelo CLI
+> e pelo MCP. Trate a ADR-044 como especificação não implementada, não como estado atual.
+> A observer levantou isso na análise de gap de 2026-10-18.
 
 ---
 
