@@ -67,7 +67,15 @@ func TestResolveConfigAndStorage_NeverReachUserGlobalState(t *testing.T) {
 		}
 		db = abs
 	}
-	if db != "" && strings.HasPrefix(db, homeAbs+string(os.PathSeparator)) {
-		t.Errorf("vazamento: resolveStorageAndRepo resolveu o SQLite para dentro do home do usuário: %s", db)
+	// "Estado global do usuário" é o SQLite central em ~/.memory — NÃO é o
+	// diretório home inteiro. No CI o próprio checkout vive dentro do home do
+	// runner (/home/runner/work/...), então usar `homeAbs` como prefixo dá falso
+	// positivo em qualquer runner: o teste passava na máquina de desenvolvimento
+	// e falhava no GitHub Actions sem que houvesse vazamento nenhum.
+	// O sentinela correto é o arquivo que o vazamento realmente produz.
+	centralDB := filepath.Join(homeAbs, ".memory", "memory.db")
+
+	if db != "" && strings.EqualFold(filepath.Clean(db), filepath.Clean(centralDB)) {
+		t.Errorf("vazamento: resolveStorageAndRepo resolveu o SQLite para o banco central do usuário: %s", db)
 	}
 }
