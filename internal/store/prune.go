@@ -82,11 +82,20 @@ func normalizePrefixes(prefixes []string) []string {
 // NormalizePathKey reduz um caminho a uma chave canônica de comparação:
 // absoluta quando possível, limpa (sem ".."/"."), com separadores "/" e em
 // minúsculas. Separador e caixa não devem gerar falso "arquivo ausente".
+//
+// A conversão de "\" para "/" acontece ANTES do filepath.Clean, e é
+// incondicional. `filepath` é dependente de SO: em Unix a "\" é um caractere
+// comum, não um separador, então um caminho gravado pelo indexador do Windows
+// passaria inteiro pelo Clean sem ser normalizado, e `filepath.ToSlash` é
+// no-op fora do Windows. O efeito era o reconciliador e o pruner não casarem
+// NENHUM caminho de um índice criado no Windows — que é exatamente o cenário
+// que estes testes existem para cobrir.
 func NormalizePathKey(p string) string {
 	p = strings.TrimSpace(p)
 	if p == "" {
 		return ""
 	}
+	p = strings.ReplaceAll(p, `\`, "/")
 	p = filepath.Clean(p)
 	if abs, err := filepath.Abs(p); err == nil {
 		p = abs
