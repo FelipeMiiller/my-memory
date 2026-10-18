@@ -117,6 +117,10 @@ type DoctorReport struct {
 	TotalEdges     int             `json:"total_edges"`
 	TotalNodes     int             `json:"total_nodes"`
 	HealthScore    int             `json:"health_score"` // 0 a 100
+	// ADR-057: documentos com mtime = 0 foram indexados antes de a coluna
+	// existir. Não é corrupção de dado — é uma lacuna de metadados, então fica
+	// fora do HealthScore e vira contagem explícita no relatório.
+	MissingMTimeCount int             `json:"missing_mtime_count"`
 	DeadLinks      []DeadLink      `json:"dead_links"`
 	OrphanNotes    []OrphanNote    `json:"orphan_notes"`
 	SelfLoops      []SelfLoop      `json:"self_loops"`

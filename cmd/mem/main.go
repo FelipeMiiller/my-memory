@@ -2958,6 +2958,12 @@ func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
 	fmt.Println(strings.Repeat("=", 90))
 	fmt.Printf(" Documentos: %d | Chunks: %d | Arestas: %d | Nós: %d\n",
 		report.TotalDocuments, report.TotalChunks, report.TotalEdges, report.TotalNodes)
+	// ADR-057: documentos sem mtime não são stales — são documentos cujos
+	// metadados de arquivo nunca foram capturados (índice anterior à coluna).
+	if report.MissingMTimeCount > 0 {
+		fmt.Printf(" ⏳ Documentos sem mtime (indexados antes do metadado existir): %d — rode 'mem index --force' paracapturar\n",
+			report.MissingMTimeCount)
+	}
 	if fixedCount > 0 {
 		fmt.Printf(" 🛠  Reparos aplicados (--fix): %d arestas problemáticas removidas\n", fixedCount)
 	}

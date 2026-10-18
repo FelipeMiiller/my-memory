@@ -23,6 +23,9 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM chunks WHERE repository = $1`, repo).Scan(&report.TotalChunks)
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM graph_edges WHERE repository = $1`, repo).Scan(&report.TotalEdges)
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM graph_nodes WHERE repository = $1`, repo).Scan(&report.TotalNodes)
+	// ADR-057: documentos indexados antes de mtime existir ficam com 0. Reportar
+	// a contagem torna a lacuna visível em vez de silenciosa.
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents WHERE repository = $1 AND COALESCE(mtime, 0) = 0`, repo).Scan(&report.MissingMTimeCount)
 
 	// 2. Dead Links (arestas que apontam para notas inexistentes, ignorando tags)
 	deadRows, err := s.db.QueryContext(ctx, `

@@ -229,6 +229,9 @@ func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM chunks`).Scan(&report.TotalChunks)
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM graph_edges`).Scan(&report.TotalEdges)
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM graph_nodes`).Scan(&report.TotalNodes)
+	// ADR-057: documentos indexados antes de mtime existir ficam com 0. Reportar
+	// a contagem torna a lacuna visível em vez de silenciosa.
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents WHERE COALESCE(mtime, 0) = 0`).Scan(&report.MissingMTimeCount)
 
 	// 2. Dead Links (arestas que apontam para notas inexistentes, ignorando tags)
 	deadRows, err := db.QueryContext(ctx, `
