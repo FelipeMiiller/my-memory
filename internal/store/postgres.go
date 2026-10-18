@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS documents (
     path TEXT NOT NULL,
     title TEXT,
     updated_at BIGINT NOT NULL,
+    mtime BIGINT NOT NULL DEFAULT 0,
+    size BIGINT NOT NULL DEFAULT 0,
     content_hash TEXT,
     embed_epoch TEXT,
     abstract TEXT,
@@ -39,6 +41,8 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS abstract TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'resource';
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS embed_epoch TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS mtime BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS size BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS chunks (
     id TEXT NOT NULL,

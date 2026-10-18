@@ -84,6 +84,20 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN last_event_id TEXT")
 	}
 
+	// Migração retrocompatível (ADR-057): mtime e size carregam os metadados reais
+	// do arquivo no momento da indexação. Vaults já indexados ficam com 0 — sinal
+	// explícito de "indexado antes de mtime existir", nunca um mtime inventado.
+	var mtimeColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'mtime'").Scan(&mtimeColCount)
+	if mtimeColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN mtime INTEGER NOT NULL DEFAULT 0")
+	}
+	var sizeColCount int
+	_ = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = 'size'").Scan(&sizeColCount)
+	if sizeColCount == 0 {
+		_, _ = db.Exec("ALTER TABLE documents ADD COLUMN size INTEGER NOT NULL DEFAULT 0")
+	}
+
 	return db, nil
 }
 
