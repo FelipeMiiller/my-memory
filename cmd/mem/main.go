@@ -667,6 +667,18 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "outline":
+		if err := runOutlineCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "wordcount":
+		if err := runWordcountCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "read":
 		if err := runReadCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -869,6 +881,10 @@ func printHelp() {
 	fmt.Println("      Lista os caminhos indexados em ordem alfabética, com filtro opcional de extensão ou pasta")
 	fmt.Println("  mem read <caminho> [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Imprime o Markdown bruto da nota a partir do índice, sem tocar o disco")
+	fmt.Println("  mem outline <caminho> [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Imprime a estrutura de títulos da nota, indentada dois espaços por nível")
+	fmt.Println("  mem wordcount <caminho> [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Conta palavras e caracteres da nota indexada")
 	fmt.Println("  mem folders [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Lista as pastas do vault que contêm ao menos um documento indexado")
 	fmt.Println("  mem note <create|append> [opções] <caminho>")
