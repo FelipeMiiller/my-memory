@@ -115,7 +115,7 @@ func FormatVector(vec []float32) string {
 	return sb.String()
 }
 
-func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, embedEpoch, abstract, category string) error {
+func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, embedEpoch, abstract, category string, mtime, size int64) error {
 	if repo == "" {
 		repo = "default"
 	}
@@ -124,17 +124,19 @@ func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, pa
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO documents (id, repository, path, title, updated_at, content_hash, embed_epoch, abstract, category)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO documents (id, repository, path, title, updated_at, mtime, size, content_hash, embed_epoch, abstract, category)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (repository, id) DO UPDATE SET
 			title = EXCLUDED.title,
 			path = EXCLUDED.path,
 			updated_at = EXCLUDED.updated_at,
+			mtime = EXCLUDED.mtime,
+			size = EXCLUDED.size,
 			content_hash = EXCLUDED.content_hash,
 			embed_epoch = EXCLUDED.embed_epoch,
 			abstract = EXCLUDED.abstract,
 			category = EXCLUDED.category
-	`, id, repo, path, title, updatedAt, contentHash, embedEpoch, abstract, category)
+	`, id, repo, path, title, updatedAt, mtime, size, contentHash, embedEpoch, abstract, category)
 	if err != nil {
 		return err
 	}
@@ -149,7 +151,7 @@ func (s *PostgresStore) InsertDocumentWithMeta(ctx context.Context, repo, id, pa
 }
 
 func (s *PostgresStore) InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error {
-	return s.InsertDocumentWithMeta(ctx, repo, id, path, title, updatedAt, contentHash, "", "", "resource")
+	return s.InsertDocumentWithMeta(ctx, repo, id, path, title, updatedAt, contentHash, "", "", "resource", 0, 0)
 }
 
 // GetDocumentIndexState devolve o par que decide se o cache incremental vale:

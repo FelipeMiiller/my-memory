@@ -1599,7 +1599,9 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 		}
 
 		// 1. Salva documento com content_hash, embed_epoch, abstract e category
-		if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category); err != nil {
+		// mtime e size vêm do disco (ADR-057), não do relógio da indexação.
+		fileMtime, fileSize := store.FileStatValues(path)
+		if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category, fileMtime, fileSize); err != nil {
 			return err
 		}
 
@@ -1789,7 +1791,9 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		}
 
 		// 1. Salva documento com content_hash, embed_epoch, abstract e category
-		if err := db.InsertDocumentWithMeta(ctx, database, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category); err != nil {
+		// mtime e size vêm do disco (ADR-057), não do relógio da indexação.
+		fileMtime, fileSize := store.FileStatValues(path)
+		if err := db.InsertDocumentWithMeta(ctx, database, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category, fileMtime, fileSize); err != nil {
 			return err
 		}
 

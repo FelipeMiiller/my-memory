@@ -22,7 +22,7 @@ func TestEmbedEpoch_Roundtrip(t *testing.T) {
 	defer database.Close()
 
 	const epoch = "paraphrase-multilingual-MiniLM-L12-v2:384:v1"
-	if err := InsertDocumentWithMeta(ctx, database, "doc-1", "notes/a.md", "A", time.Now().Unix(), "hash-1", epoch, "Resumo A", "resource"); err != nil {
+	if err := InsertDocumentWithMeta(ctx, database, "doc-1", "notes/a.md", "A", time.Now().Unix(), "hash-1", epoch, "Resumo A", "resource", 0, 0); err != nil {
 		t.Fatalf("InsertDocumentWithMeta falhou: %v", err)
 	}
 
@@ -38,7 +38,7 @@ func TestEmbedEpoch_Roundtrip(t *testing.T) {
 	}
 
 	// Update precisa propagar o epoch, senão toda reindexação limpa deixaria NULL.
-	if err := InsertDocumentWithMeta(ctx, database, "doc-1", "notes/a.md", "A2", time.Now().Unix(), "hash-2", epoch+"2", "Resumo A2", "resource"); err != nil {
+	if err := InsertDocumentWithMeta(ctx, database, "doc-1", "notes/a.md", "A2", time.Now().Unix(), "hash-2", epoch+"2", "Resumo A2", "resource", 0, 0); err != nil {
 		t.Fatalf("update falhou: %v", err)
 	}
 	_, ep, err = GetDocumentIndexState(ctx, database, "doc-1")
@@ -97,7 +97,7 @@ func TestEmbedEpoch_SemProviderNaoInvalidaBase(t *testing.T) {
 
 	// Modo léxico: nada vetorial é gravado, então epoch "" nos dois lados e o
 	// cache por hash continua valendo — sem reindexar a base a cada execução.
-	if err := InsertDocumentWithMeta(ctx, database, "fts", "notes/f.md", "F", time.Now().Unix(), "h", "", "Resumo", "resource"); err != nil {
+	if err := InsertDocumentWithMeta(ctx, database, "fts", "notes/f.md", "F", time.Now().Unix(), "h", "", "Resumo", "resource", 0, 0); err != nil {
 		t.Fatalf("insert falhou: %v", err)
 	}
 
@@ -118,7 +118,7 @@ func TestGetDocumentHash_DelegaParaIndexState(t *testing.T) {
 	}
 	defer database.Close()
 
-	if err := InsertDocumentWithMeta(ctx, database, "d", "notes/d.md", "D", time.Now().Unix(), "hh", "ee", "R", "resource"); err != nil {
+	if err := InsertDocumentWithMeta(ctx, database, "d", "notes/d.md", "D", time.Now().Unix(), "hh", "ee", "R", "resource", 0, 0); err != nil {
 		t.Fatalf("insert falhou: %v", err)
 	}
 

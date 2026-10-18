@@ -316,9 +316,9 @@ func TestPackContext(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().Unix()
 
-	_ = InsertDocumentWithMeta(ctx, database, "doc-auth", "docs/auth.md", "Autenticação", now, "h1", "test-epoch", "Resumo do auth", "resource")
-	_ = InsertDocumentWithMeta(ctx, database, "doc-jwt", "docs/jwt.md", "Tokens JWT", now, "h2", "test-epoch", "Resumo do JWT", "resource")
-	_ = InsertDocumentWithMeta(ctx, database, "doc-db", "docs/db.md", "Banco de Dados", now, "h3", "test-epoch", "Resumo do DB", "resource")
+	_ = InsertDocumentWithMeta(ctx, database, "doc-auth", "docs/auth.md", "Autenticação", now, "h1", "test-epoch", "Resumo do auth", "resource", 0, 0)
+	_ = InsertDocumentWithMeta(ctx, database, "doc-jwt", "docs/jwt.md", "Tokens JWT", now, "h2", "test-epoch", "Resumo do JWT", "resource", 0, 0)
+	_ = InsertDocumentWithMeta(ctx, database, "doc-db", "docs/db.md", "Banco de Dados", now, "h3", "test-epoch", "Resumo do DB", "resource", 0, 0)
 
 	// Chunks para auth e jwt
 	_ = InsertChunk(ctx, database, "c1", "doc-auth", "Documentação do serviço de autenticação com detalhes.", 0, nil)

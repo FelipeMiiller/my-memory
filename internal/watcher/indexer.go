@@ -89,8 +89,13 @@ func IndexSingleFileSQLite(
 	// 1. Limpa dados anteriores do documento para reindexação limpa
 	_ = db.DeleteDocumentData(ctx, database, docID)
 
+	// Metadados reais do arquivo (ADR-057): o mtime do disco é o instante em que
+	// o AUTOR editou a nota, ao contrário de updated_at, que é o instante em que
+	// nós indexamos. Sem esta distinção o decaimento temporal mede a indexação.
+	mtime, size := store.FileStatValues(filePath)
+
 	// 2. Salva documento com content_hash, embed_epoch, abstract e category
-	if err := db.InsertDocumentWithMeta(ctx, database, docID, filePath, title, time.Now().Unix(), currentHash, embedder.EpochFor(emb), abstract, category); err != nil {
+	if err := db.InsertDocumentWithMeta(ctx, database, docID, filePath, title, time.Now().Unix(), currentHash, embedder.EpochFor(emb), abstract, category, mtime, size); err != nil {
 		return nil, fmt.Errorf("erro ao inserir documento SQLite: %w", err)
 	}
 
@@ -225,7 +230,9 @@ func IndexSingleFilePostgres(
 
 	_ = s.DeleteDocumentData(ctx, targetRepo, docID)
 
-	if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, filePath, title, time.Now().Unix(), currentHash, embedder.EpochFor(emb), abstract, category); err != nil {
+	mtime, size := store.FileStatValues(filePath)
+
+	if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, filePath, title, time.Now().Unix(), currentHash, embedder.EpochFor(emb), abstract, category, mtime, size); err != nil {
 		return nil, fmt.Errorf("erro ao inserir documento Postgres: %w", err)
 	}
 	connections := parser.ExtractConnections(content)

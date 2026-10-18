@@ -112,22 +112,26 @@ type Document struct {
 	Category    string `json:"category,omitempty"`
 }
 
-// InsertDocumentWithMeta salva documento com content_hash, embed_epoch, abstract (L0), category e seus nós no grafo
-func InsertDocumentWithMeta(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash, embedEpoch, abstract, category string) error {
+// InsertDocumentWithMeta salva documento com content_hash, embed_epoch, abstract (L0), category e seus nós no grafo.
+// mtime e size carregam os metadados reais do arquivo no momento da indexação (ADR-057);
+// updated_at continua sendo o instante da indexação.
+func InsertDocumentWithMeta(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash, embedEpoch, abstract, category string, mtime, size int64) error {
 	if category == "" {
 		category = "resource"
 	}
 	_, err := db.ExecContext(ctx, `
-		INSERT INTO documents (id, path, title, updated_at, content_hash, embed_epoch, abstract, category)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO documents (id, path, title, updated_at, mtime, size, content_hash, embed_epoch, abstract, category)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			title = excluded.title,
 			updated_at = excluded.updated_at,
+			mtime = excluded.mtime,
+			size = excluded.size,
 			content_hash = excluded.content_hash,
 			embed_epoch = excluded.embed_epoch,
 			abstract = excluded.abstract,
 			category = excluded.category
-	`, id, path, title, updatedAt, contentHash, embedEpoch, abstract, category)
+	`, id, path, title, updatedAt, mtime, size, contentHash, embedEpoch, abstract, category)
 	if err != nil {
 		return err
 	}
@@ -141,7 +145,7 @@ func InsertDocumentWithMeta(ctx context.Context, db *sql.DB, id, path, title str
 
 // InsertDocument salva documento com content_hash e seus nós no grafo (compatibilidade com chamadores legados)
 func InsertDocument(ctx context.Context, db *sql.DB, id, path, title string, updatedAt int64, contentHash string) error {
-	return InsertDocumentWithMeta(ctx, db, id, path, title, updatedAt, contentHash, "", "", "resource")
+	return InsertDocumentWithMeta(ctx, db, id, path, title, updatedAt, contentHash, "", "", "resource", 0, 0)
 }
 
 // GetDocumentIndexState devolve o par que decide se o cache incremental vale:

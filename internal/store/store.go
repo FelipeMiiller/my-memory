@@ -131,8 +131,9 @@ type Store interface {
 	// InsertDocument insere ou atualiza um documento atrelado ao repositório
 	InsertDocument(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash string) error
 
-	// InsertDocumentWithMeta insere ou atualiza um documento com metadados de abstract (L0) e categoria
-	InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, embedEpoch, abstract, category string) error
+	// InsertDocumentWithMeta insere ou atualiza um documento com metadados de abstract (L0), categoria
+	// e os metadados reais do arquivo (mtime, size) capturados na indexação (ADR-057)
+	InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, embedEpoch, abstract, category string, mtime, size int64) error
 
 	// GetDocumentHash retorna o hash SHA-256 armazenado de um documento (ou "" se não existir)
 	GetDocumentHash(ctx context.Context, repo, id string) (string, error)
