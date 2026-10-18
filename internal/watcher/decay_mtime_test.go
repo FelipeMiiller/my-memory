@@ -68,10 +68,46 @@ func TestDecayUsesFileEditTimeNotIndexTime(t *testing.T) {
 	if err := database.QueryRow(`SELECT updated_at FROM documents WHERE id = ?`, newPath).Scan(&newUpdatedAt); err != nil {
 		t.Fatalf("documento recente ausente do índice: %v", err)
 	}
-	// Sem isto o teste não prova nada: indexados em um mesmo run, os dois
-	// compartilham updated_at e só o mtime os distingue.
-	if oldUpdatedAt != newUpdatedAt {
-		t.Fatalf("precondição do teste quebrada: updated_at deveria ser igual (antigo=%d recente=%d)", oldUpdatedAt, newUpdatedAt)
+	// Sem isto o teste não prova nada: os dois entram no mesmo run e
+	// compartilham quase o mesmo updated_at, de modo que só o mtime os
+	// distingue.
+	//
+	// updated_at NÃO precisa ser idêntico: ele é capturado por documento, no
+	// momento da gravação. Num arquivo com dois documentos, indexar o segundo
+	// logo após o primeiro normalmente cai no mesmo segundo, mas sob carga —
+	// CI, disco lento, suite paralela — pode cruzar a fronteira. Exigir
+	// igualdade exata transformava uma máquina lenta em teste instável, sem
+	// que o código sob teste tivesse mudado. O invariante que importa é a
+	// ORDEM DE GRANDEZA: o spread de updated_at tem de ser ordens de grandeza
+	// menor que o spread de mtime, senão o decaimento poderia estar sendo
+	// movido pelo instante de indexação.
+
+	const indexSpreadTolerance = 5
+
+	updatedSpread := oldUpdatedAt - newUpdatedAt
+	if updatedSpread < 0 {
+		updatedSpread = -updatedSpread
+	}
+	if updatedSpread > indexSpreadTolerance {
+		t.Fatalf("precondição do teste quebrada: updated_at deveria ser praticamente igual (antigo=%d recente=%d, spread=%ds > tolerância de %ds). "+
+			"Se este erro aparece, o teste não prova a precondição e a diferença de decaimento observada pode ser explicada pelo instante de indexação, não pelo mtime.",
+			oldUpdatedAt, newUpdatedAt, updatedSpread, indexSpreadTolerance)
+	}
+
+	// As idades do fixture são 180 e 3 dias (spread de 177), mas o invariante
+	// não deve depender delas: basta que o spread de mtime seja ordens de
+	// grandeza maior que o de updated_at para que qualquer diferença de
+	// decaimento observada seja atribuível ao mtime.
+	const minMTimeSpread = 30 * 24 * 3600
+
+	oldMtime, newMtime := fileMtime(t, oldPath), fileMtime(t, newPath)
+	mtimeSpread := oldMtime - newMtime
+	if mtimeSpread < 0 {
+		mtimeSpread = -mtimeSpread
+	}
+	if mtimeSpread < minMTimeSpread {
+		t.Fatalf("precondição do teste quebrada: o spread de mtime precisa ser de ao menos %ds (atual=%ds), senão os dois documentos são equivalentes para o decaimento",
+			minMTimeSpread, mtimeSpread)
 	}
 
 	oldResults, err := db.SearchFTSWithOptions(ctx, database, "zettelumantiga", 5, store.SearchOptions{Level: "l1"})
@@ -148,4 +184,15 @@ func toStoreResult(t *testing.T, r db.SearchResult) store.SearchResult {
 		Abstract:   r.Abstract,
 		Category:   r.Category,
 	}
+}
+
+// fileMtime devolve o mtime do arquivo em segundos Unix, para o teste
+// validar a precondição sobre o spread real entre os dois documentos.
+func fileMtime(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat de %s falhou: %v", path, err)
+	}
+	return info.ModTime().Unix()
 }
