@@ -7,6 +7,27 @@ import (
 	"strings"
 )
 
+// SkipDotEnvEnv desliga a descoberta automática de arquivos .env quando
+// definida com um valor truthy ("1", "true", "yes" ou "on").
+//
+// Existe porque LoadDotEnvFile injeta as variáveis com os.Setenv no processo.
+// Numa suíte de testes isso desfaz qualquer isolamento baseado em
+// os.Unsetenv: o TestMain limpa MY_MEMORY_PG_URL, mas a primeira chamada a
+// resolveConfig() reencontra o `.memory/.env` do repositório e repõe a URL do
+// Postgres real do desenvolvedor (ISSUE-016). A variável é herdada pelos
+// subprocessos que a suíte executa, então isolar só o processo de teste não
+// basta.
+const SkipDotEnvEnv = "MY_MEMORY_SKIP_DOTENV"
+
+// DotEnvDisabled reporta se a descoberta automática de .env está desligada.
+func DotEnvDisabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(SkipDotEnvEnv))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
 // CandidateEnvFileNames lista os caminhos prioritários para localização de arquivos de ambiente
 var CandidateEnvFileNames = []string{
 	filepath.Join(".memory", ".env"),
@@ -15,7 +36,12 @@ var CandidateEnvFileNames = []string{
 
 // FindAndLoadDotEnv busca arquivos .env (priorizando .memory/.env e depois .env)
 // a partir de startDir subindo até a raiz do git ou disco, carregando as variáveis encontradas.
+// Retorna os.ErrNotExist sem tocar no ambiente quando SkipDotEnvEnv está ligada.
 func FindAndLoadDotEnv(startDir string) (string, error) {
+	if DotEnvDisabled() {
+		return "", os.ErrNotExist
+	}
+
 	if startDir == "" || startDir == "." {
 		cwd, err := os.Getwd()
 		if err == nil {

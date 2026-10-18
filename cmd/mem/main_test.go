@@ -31,6 +31,13 @@ var envStorageVars = []string{
 //  2. Variáveis de ambiente de storage. MY_MEMORY_PG_URL tem precedência sobre
 //     a config inteira, então um teste esperando SQLite local conectava no
 //     Postgres do usuário e falhava com "Postgres detectado no config/env".
+//
+//  3. Descoberta de .env (ISSUE-016). A camada 2 sozinha não segurava: unclean,
+//     todo subcomando que chama resolveConfig() faz FindAndLoadDotEnv("."),
+//     que sobe até a raiz do repositório, acha o `.memory/.env` do projeto e
+//     repõe MY_MEMORY_PG_URL/DATABASE_URL via os.Setenv. Como o processo de
+//     teste é o pai dos `mem.exe` que a suíte executa, o vazamento alcançava
+//     também os subprocessos. SkipDotEnvEnv desliga a descoberta na raiz.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "mem-cmd-test-global")
 	if err != nil {
@@ -46,6 +53,10 @@ func TestMain(m *testing.M) {
 	// Guarda os valores originais e restaura ao final, para não afetar a
 	// sessão do desenvolvedor que chamou `go test`.
 	saved := map[string]string{}
+	savedSkip, hadSkip := os.LookupEnv(config.SkipDotEnvEnv)
+	if err := os.Setenv(config.SkipDotEnvEnv, "1"); err != nil {
+		panic("nao foi possivel definir " + config.SkipDotEnvEnv + ": " + err.Error())
+	}
 	for _, k := range envStorageVars {
 		if v, ok := os.LookupEnv(k); ok {
 			saved[k] = v
@@ -59,6 +70,11 @@ func TestMain(m *testing.M) {
 
 	for k, v := range saved {
 		_ = os.Setenv(k, v)
+	}
+	if hadSkip {
+		_ = os.Setenv(config.SkipDotEnvEnv, savedSkip)
+	} else {
+		_ = os.Unsetenv(config.SkipDotEnvEnv)
 	}
 	os.RemoveAll(dir)
 	os.Exit(code)
