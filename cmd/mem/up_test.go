@@ -20,7 +20,11 @@ func TestCliUp_StartsAndStops(t *testing.T) {
 	writeMemoryDir(t, memDir)
 	t.Setenv("FAKE_MEMORY_DIR", memDir)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// O budget precisa cobrir `up` + o StopGrace de `down` (10s, down.go:20).
+	// No Windows SIGTERM é no-op, então `mem down` sempre consome o grace
+	// inteiro: os 15s originais eram estruturalmente justos demais e o teste
+	// passou a falhar por `ctx.Done()` quando a suíte roda sob carga.
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
 	var upOut, upErr bytes.Buffer
