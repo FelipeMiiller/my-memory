@@ -67,6 +67,13 @@ Consulte estes registros antes de sugerir mudanças estruturais:
 * **ADR-036**: Consolidação Pós-Release v1.3.0 e Roadmap v1.4.0.
 * **ADR-046**: Padrão "Deferred Until" para Fallbacks Opcionais em ADRs (metodologia).
 * **ADR-047**: Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem) — `feat-code-ast` em `.specs/features/feat-code-ast/`.
+* **ADR-054**: Escopo de paridade com o Obsidian é o vault, não o aplicativo.
+* **ADR-055**: Semântica de tag consultável sem nós mortos.
+* **ADR-056**: Persistência de propriedades de frontmatter em tabela consultável.
+* **ADR-057**: mtime e metadados de arquivo no índice.
+* **ADR-058**: Renderizador vis-network vendorizado, sem build step e sem CDN.
+* **ADR-059**: SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP.
+* **ADR-060**: Stack do frontend da viewer (TanStack) e a rota de fallback SPA.
 
 ## 🤖 Habilidades de IA Disponíveis (`.agents/skills/`)
 
@@ -78,6 +85,22 @@ Antes de realizar ações complexas, consulte e siga as skills instaladas:
 | **`my-memory-format`** | [`.agents/skills/my-memory-format/SKILL.md`](.agents/skills/my-memory-format/SKILL.md) | Referência canônica para **criar qualquer memória do MyMemory** — Markdown Obsidian Flavored (frontmatter, wikilinks, tags, callouts) **e** JSON Canvas 1.0 (mapas espaciais). Usar SEMPRE que criar/editar nota ou canvas. A skill `my-memory` aponta para esta para markup detalhado. |
 | **`create-adr`** | [`.agents/skills/create-adr/SKILL.md`](.agents/skills/create-adr/SKILL.md) | Ao tomar decisões arquiteturais significativas, registrar escolhas técnicas ou quando o usuário pedir para documentar o motivo de uma escolha. Formato obrigatório: **MADR**. |
 | **`tlc-spec-driven`** | [`.agents/skills/tlc-spec-driven/SKILL.md`](.agents/skills/tlc-spec-driven/SKILL.md) | Ao planejar ou implementar features não-triviais. Seguir as 4 fases adaptativas (*Specify → Design → Tasks → Execute*), critérios em notação EARS, commits atômicos e gates determinísticos em Python. |
+
+### Pacote público de skills (`skills/`)
+
+Ao lado das skills de engenharia acima, o repositório mantém um **pacote de
+skills do My-Memory** distribuível, com um roteador e seis skills irmãs. O
+roteador é a entrada: carregue **uma** skill por tarefa.
+
+| Skill | Localização | Quando o Agente DEVE usar |
+| :--- | :--- | :--- |
+| **`mymemory`** ⭐ roteador | [`skills/mymemory/SKILL.md`](skills/mymemory/SKILL.md) | **Primeiro ponto de entrada** do pacote: instala, configura, usa a CLI, integra via MCP e cria documentos no vault. Decide qual das seis irmãs responde à tarefa. |
+| **`mymemory-cli`** | [`skills/mymemory-cli/SKILL.md`](skills/mymemory-cli/SKILL.md) | Rodar `mem` a partir de um shell ou script: instalação, flags, `init`, `index`, `search`, `watch`, `hook` e códigos de saída. |
+| **`mymemory-mcp`** | [`skills/mymemory-mcp/SKILL.md`](skills/mymemory-mcp/SKILL.md) | Quando um agente **chama o servidor MCP**: ligar um cliente, escolher entre tool e CLI, as 24 tools com entradas e saídas, o `structuredContent` e a URL servida. |
+| **`mymemory-notes`** | [`skills/mymemory-notes/SKILL.md`](skills/mymemory-notes/SKILL.md) | Escrever ou editar uma nota: taxonomia de frontmatter, wikilinks, arestas tipadas, tags e os caminhos de escrita `mem note` / `mem compile`. |
+| **`mymemory-graph`** | [`skills/mymemory-graph/SKILL.md`](skills/mymemory-graph/SKILL.md) | Entender o grafo ou auditar o vault: `inspect`, `path`, `hubs`, `clusters`, `impact`, `drift`, `doctor` e exportação para canvas. |
+| **`mymemory-config`** | [`skills/mymemory-config/SKILL.md`](skills/mymemory-config/SKILL.md) | Onde cada configuração mora e qual vence: precedência de config, split global/local, SQLite vs Postgres, cofre central. |
+| **`mymemory-knowledge-base`** | [`skills/mymemory-knowledge-base/SKILL.md`](skills/mymemory-knowledge-base/SKILL.md) | Construir base de conhecimento a partir de muitas fontes — um tópico respondido por muitas notas interligadas com proveniência verificada. |
 
 ---
 
@@ -144,6 +167,8 @@ go build -v -o bin/mem.exe ./cmd/mem
 7. **Atualização Mandatória de Documentação, Specs e README ao Subir PR:** Antes de finalizar uma funcionalidade, abrir PR ou submeter alterações para o repositório remoto (`git push`), o agente DEVE OBRIGATORIAMENTE atualizar todos os artefatos de documentação impactados:
    - `README.md`: Atualizar tabela de capacidades, novos comandos da CLI, novas ferramentas MCP e exemplos de uso.
    - `docs/`: Atualizar `docs/README.md`, `docs/CLI_GUIDE.md`, `docs/AGENT_INTEGRATION_GUIDE.md`, `docs/ARCHITECTURE.md` e registrar o respectivo ADR em `docs/adr/`.
-   - `.specs/`: Concluir especificação (`spec.md`), tarefas (`tasks.md`), validação com evidências (`validation.md`) e atualizar o snapshot em `STATE.md`.
+   - `.specs/`: Concluir especificação (`spec.md`), tarefas (`tasks.md`), validação com evidências (`validation.md`) e atualizar o snapshot em `STATE.md`. As features do painel têm specs próprias — `viewer-dashboard` (SPA) e `mcp-static-serving` (serving estático) — e as duas precisam estar fechadas antes do push.
    - **Reindexação e Checagem de Desvio:** Executar `mem index` e verificar com `mem drift` que nenhum código novo permaneceu órfão e que a documentação está sincronizada antes do push (consulte [.agents/rules/always-update-docs-and-specs-on-pr.md](.agents/rules/always-update-docs-and-specs-on-pr.md)).
 8. **Quality Gate de Fim de Tarefa:** Após qualquer entrega (spec concluída, task fechada, fix aplicado), o agente DEVE rodar silenciosamente o gate completo antes de declarar "pronto" (consulte [.agents/rules/always-quality-gate.md](.agents/rules/always-quality-gate.md)). Itens do gate: `go test -count=1 ./...`, `go build`, `gofmt -l .`, benchmarks onde faltarem, smoke test do binário, status do pipeline CI, `git status` sem untracked de teste, e checagem cruzada com ADR-036. Erros são corrigidos imediatamente; só viram ADR quando a decisão for arquitetural.
+   - **Gate de frontend (quando `viewer/` for tocado):** em `viewer/`, `npm run typecheck && npm run test && npm run build`, com o **orçamento de 180 kB gzip** para o bundle (`gzip -9` sobre `dist/assets/*.js`, budget `184320` bytes — o mesmo do job `frontend` do CI). O gate do frontend é **independente** do gate Go: passar em `go test` não compila a SPA.
+9. **`.mymemory/www/` é raiz servida, gerada e nunca versionada.** O diretório `.mymemory/www/` é a **raiz publicada** pelo transporte HTTP do MCP (ADR-059, ADR-060), com `app/` (build da viewer) e `graph/` (artefatos de grafo). Ele é **gerado** (por `make viewer` ou por `memory_visualize_graph`), fica **fora do escopo de indexação** — os artefatos não entram no grafo nem no índice — e **nunca deve ser commitado**. O `viewer/dist/` segue a mesma regra: é artefato de build, não fonte.

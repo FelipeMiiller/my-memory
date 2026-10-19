@@ -19,6 +19,9 @@ Este documento é o guia definitivo para desenvolvedores e **Agentes de IA** (An
 5. [Configuração Declarativa de Escopo (`config.yaml`)](#5-configuração-declarativa-de-escopo-configyaml)
 6. [Manual de Comandos do CLI (`mem <comando>`)](#6-manual-de-comandos-do-cli-mem-comando)
 7. [Ferramentas do Servidor MCP para IAs](#7-ferramentas-do-servidor-mcp-para-ias)
+   - [7.1 `structuredContent`: a segunda camada da resposta](#71-structuredcontent-a-segunda-camada-da-resposta)
+   - [7.2 URL servida vs. caminho em disco](#72-url-servida-vs-caminho-em-disco)
+8. [Detecção de Desatualização & Staleness Banners](#8-detecção-de-desatualização--staleness-banners)
 
 ---
 
@@ -293,7 +296,7 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | `memory_write_note` | Para criar notas conceituais com backlinks após implementar features. | `path`, `title`, `content`, `tags` |
 | `memory_append_section`| Para adicionar exemplos, testes ou logs a uma nota existente. | `path`, `header`, `content` |
 | `memory_compile_note` | Para consolidar tópicos dispersos em uma síntese única com fontes. | `topic`, `out_path`, `limit` |
-| `memory_visualize_graph`| Para renderizar o grafo de conhecimento em HTML standalone interativo. | `root_node`, `depth` |
+| `memory_visualize_graph`| Para renderizar o grafo de conhecimento em HTML standalone interativo. Com o transporte HTTP ativo, devolve a **URL servida** do artefato e o caminho em disco. | `root_node`, `depth` |
 | `memory_export_canvas` | Para exportar subgrafo para o formato visual Obsidian JSON Canvas 1.0. | `root_node` (string), `out_path` (string), `depth` (int) |
 | `memory_inspect_node` | Para inspeção cirúrgica em 3 colunas (in-links, nó e out-links com sinalização cross-vault) com zero file reads. | `node_id` (string), `max_content_length` (int) |
 | `memory_find_path` | Para rastrear a cadeia de dependências ou menor caminho epistêmico entre dois nós. | `source` (string), `target` (string), `max_depth` (int), `directed` (bool), `mode` ("epistemic" \| "hops") |
@@ -303,6 +306,73 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | `memory_code_search` | Para localizar símbolos de código (funções, classes, structs) por nome/linguagem/kind com boost RRF 2× em `qualified_name` (CA-10, ADR-047). Requer build com `-tags treesitter`; no build padrão devolve lista vazia com aviso. | `query` (string), `language` (string opcional), `kind` (string opcional), `limit` (int opcional) |
 | `memory_code_neighbors` | Para inspecionar o sub-grafo de chamadas/referências (in+out) de um símbolo até `depth` hops via CTE recursivo (CA-11, ADR-047). | `symbol` (string), `depth` (int opcional, padrão 1, máx 5) |
 | `memory_search` (com `include_code`) | Estende a busca híbrida existente para que `code_symbols` concorram no ranqueamento RRF quando `include_code=true` (CA-12, default `false` para preservar comportamento de clientes legados). | `query` (string), `include_code` (bool opcional) |
+
+### 7.1 `structuredContent`: a segunda camada da resposta
+
+Toda resposta `tools/call` tem hoje **duas camadas**:
+
+| Camada | Campo | Para quem |
+|---|---|---|
+| Texto legível | `content[]` (blocos `text`) | humano e LLM que lê a resposta como prosa |
+| Payload estruturado | `structuredContent` | **cliente de máquina** — a viewer, um script, um validador |
+
+O `structuredContent` é definido pelo **MCP spec 2025-06-18**, e a
+implementação Go do My-Memory **não o tinha**: a resposta era só texto. Ele
+foi adicionado de forma **aditiva** — as tools que não o preenchem continuam
+emitindo exatamente o mesmo JSON, porque o campo é omitido quando vazio
+(`internal/mcp/handlers.go`).
+
+> [!important]
+> **A forma do payload é o JSON tags do tipo Go, e isso é a fonte da verdade.**
+> Não existe um schema paralelo: o `structuredContent` é a serialização do
+> próprio tipo Go devolvido pelo handler. Para saber o contrato exato de uma
+> tool, leia a struct em `internal/mcp/` — os `json:"..."` tags **são** o
+> contrato. A viewer replica essa forma em `viewer/src/lib/schemas.ts` com
+> `zod/mini`, e é a validação de frente que garante que as duas não divirjam.
+
+As **dez** tools que preenchem o campo:
+
+| Tool | `structuredContent` |
+|---|---|
+| `memory_doctor` | `{total_documents, total_chunks, total_edges, total_nodes, health_score, missing_mtime_count, dead_links[], orphan_notes[], self_loops[], desynced_chunks[]}` |
+| `memory_get_hubs` | `[{id, name, in_degree, out_degree, total_degree}]` (grau) ou `[{id, name, score, rank, in_degree, out_degree}]` (PageRank) |
+| `memory_get_clusters` | lista de clusters com modularidade e memberships |
+| `memory_get_insights` | `[{source_id, source_name, target_id, target_name, similarity, reason}]` |
+| `memory_get_drift` | relatório de drift (desvio, órfãos, blast radius) |
+| `memory_list_files` | `[{id, path, title, mtime, size}]` |
+| `memory_read_note` | `{path, title, content}` |
+| `memory_note_outline` | `[{level, text}]` |
+| `memory_file_metadata` | `{path, title, size, mtime}` |
+| `memory_visualize_graph` | `{url?, path, total_nodes, total_edges, hub_count, density}` |
+
+**Regra de ouro para o agente:** se você é um cliente de máquina, use o
+`structuredContent` e **não** raspe o texto. O texto é a camada legível, e
+raspar `content[].text` é parsing frágil que quebra quando a redação muda.
+
+### 7.2 URL servida vs. caminho em disco
+
+`memory_visualize_graph` grava o artefato HTML do grafo dentro da raiz servida
+pelo MCP (`<repo>/.mymemory/www/graph/`) e devolve **duas** coisas:
+
+| Campo | Significado |
+|---|---|
+| `url` | URL **clicável** do artefato, montada a partir do endereço que o transporte HTTP **realmente vinculou** (`http://127.0.0.1:38400/graph/<arquivo>.html`) |
+| `path` | caminho absoluto em disco do mesmo arquivo |
+
+> [!tip]
+> **A URL é o que tira a fricção "caminho não é clicável".** Um caminho absoluto
+> só faz sentido na máquina onde o processo roda; uma URL funciona em qualquer
+> cliente que alcance a porta. O texto da resposta repete as duas informações
+> (`- **Arquivo HTML**` e `- **URL Servida**`) para o agente que só lê prosa.
+
+> [!warning]
+> **A fricção que sobrou: a URL só existe com o transporte HTTP ativo.** No
+> modo `stdio` (o padrão do `mem mcp`), não há porta, não há URL — a tool
+> devolve **só** o `path`, **sem erro**. A degradação é silenciosa por
+> desenho: quem chama em stdio recebe um caminho e segue com ele, sem tratamento
+> de erro. Se o agente precisa de uma URL, ele precisa subir o servidor HTTP
+> (`mem mcp --port 38400`) — o `structuredContent` da tool deixa isso explícito,
+> porque o campo `url` simplesmente não aparece.
 
 ---
 

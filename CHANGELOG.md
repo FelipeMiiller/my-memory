@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Painel de métricas da memória (`viewer/`, ADR-059 e ADR-060)**: SPA React 19 +
+  Vite 8 que **o próprio MCP serve**, sem processo extra, sem CDN e sem runtime de
+  aplicação. Quatro visões: **Overview** (prontidão e Health Score com dead links,
+  órfãs e self-loops), **Grafo** (hubs por grau e PageRank, comunidades LPA com
+  modularidade, conexões latentes), **Notas** (lista indexada com filtro, outline,
+  metadados e leitura com `[[wikilinks]]` navegáveis) e **Drift** (documentação
+  defasada, código sem cobertura, blast radius, caminho entre dois nós).
+  - Stack: TanStack Query, TanStack Router, Zustand, `zod/mini` e
+    `@tanstack/markdown`. Bundle final de **133.086 bytes gzip -9** — a mesma
+    medição que o job `frontend` do CI faz — contra o orçamento de 180 kB. A
+    meta registrada na ADR-060 era ~139 kB; o relatório do próprio Vite, que
+    comprime em zlib nível 6, mostra 143,3 kB para os mesmos arquivos.
+  - `zod/mini` e não `zod`: medido 3,0 kB gzip contra 90,8 kB do barrel. O job de
+    frontend do CI impõe orçamento de **180 kB gzip** justamente para pegar essa
+    importação errada, que passaria despercebida numa revisão de diff.
+  - O pré-processador de wikilinks espelha o parser Go: mesma regex, mesma lista
+    de relações e os **mesmos quatro contextos sem link** (bloco de código,
+    código inline, comentário HTML, linha de tabela) — linkar ali mostraria
+    links que o grafo não tem.
+- **O transporte HTTP do MCP serve arquivos estáticos (ADR-059)**: a raiz servida é
+  `<base>/.mymemory/www/`, com `app/` (build da viewer) e `graph/` (artefatos de
+  grafo) — **nunca** a raiz do vault, e fora do escopo de indexação.
+  - Ordem de avaliação é contrato: resolver → recusar escape da raiz (404) →
+    servir arquivo existente → fallback da SPA **só** para `Accept: text/html` → 404.
+  - A barreira de path traversal roda **antes** do fallback, e `/graph/` é
+    prefixo reservado que nunca cai nele.
+  - Degradação explícita: sem build, **503** com mensagem simples — não 404 para
+    cada arquivo.
+  - `make viewer` compila e publica o build na raiz servida.
+- **`memory_visualize_graph` devolve a URL servida do artefato** (ADR-059), com o
+  caminho em disco como companion. A URL usa o host e a porta **reais** do
+  listener. Sem transporte HTTP ativo, devolve **só o caminho, sem erro** — a
+  fricção real era um caminho não ser acionável para um agente em outra máquina.
+- **Job `frontend` no CI**: instala, typechecka, testa, linta e compila a viewer,
+  e impõe o orçamento de 180 kB gzip. O último step roda a invariante do
+  `internal/ci` **com `node_modules` presente** — sem essa combinação, ela roda
+  num checkout limpo, onde `go list ./...` não vê nenhum pacote de terceiro.
+- **`structuredContent` no envelope de resposta MCP** (ADR-060, MCP spec
+  2025-06-18): as dez tools de leitura devolvem, além do texto legível, o dado
+  estruturado que o handler já tinha antes de formatar em Markdown. A forma é o
+  **JSON tags do tipo Go**, que é a fonte da verdade.
+  - Mudança **aditiva**: `NewTextResult` não muda e as 24 tools mantêm o `content`
+    textual byte-idêntico. O campo é omitido quando uma tool não o preenche.
 - **Nove comandos de leitura do vault (ADR-057)**: `mem files` (com `--ext` e
   `--folder`), `mem folders`, `mem read`, `mem outline`, `mem wordcount`,
   `mem random` (`--json`), `mem deadends`, `mem file` e `mem recents`.
@@ -205,6 +248,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - As 24 tools MCP mapeadas são a superfície de dados do painel.
 - **Índice de ADRs**: a linha em branco entre ADR-057 e ADR-058 foi removida —
   ela encerrava a tabela markdown e deixava ADR-058 e ADR-059 sem cabeçalho.
+
+- **Varredura documental da viewer**: `README.md` passa a descrever os **7 pilares**
+  — o painel é o sétimo — e lista as 59 ADRs; `AGENTS.md` registra as ADRs
+  054–060, o **gate de frontend** (`npm run typecheck && npm run test &&
+  npm run build`, com orçamento de 180 kB gzip) e a regra de que
+  `.mymemory/www/` é raiz servida, gerada e **nunca versionada**;
+  `docs/README.md`, `docs/CLI_GUIDE.md`, `docs/AGENT_INTEGRATION_GUIDE.md`,
+  `docs/ARCHITECTURE.md` e `docs/REPOSITORY_BRAIN.md` recebem o painel, a rota
+  de fallback e o `structuredContent`; `skills/mymemory-mcp/SKILL.md` documenta
+  as duas camadas da resposta MCP, a URL servida e a **ausência de
+  autenticação** do transporte.
 
 ### CI
 

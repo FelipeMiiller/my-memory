@@ -227,6 +227,67 @@ curl -X POST http://localhost:38400/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_search","arguments":{"query":"arquitetura"}}}'
 ```
 
+#### Painel de Métricas servido pelo próprio MCP (ADR-059, ADR-060)
+
+No transporte HTTP, o mesmo binário que serve o protocolo MCP também serve o
+**painel de métricas** (a SPA em `viewer/`) e os **artefatos de grafo**. Não há
+servidor extra, nem CDN, nem runtime de aplicação: é build estático servido a
+partir de uma raiz dedicada.
+
+**Raiz servida:** `<repo>/.mymemory/www/`, com duas subáreas:
+
+| Subárea | Conteúdo | URL |
+|---|---|---|
+| `app/` | build estático da viewer (`viewer/dist/` copiado por `make viewer`) | `/` |
+| `graph/` | artefatos HTML gerados por `memory_visualize_graph` | `/graph/<arquivo>.html` |
+
+A raiz **nunca** é a raiz do vault, e `.mymemory/` fica fora do escopo de
+indexação — os artefatos gerados não entram no grafo nem no índice.
+
+```bash
+# 1. Compilar a viewer e publicar o build na raiz servida
+make viewer
+
+# 2. Subir o MCP com transporte HTTP
+./bin/mem.exe mcp --port 38400
+
+# 3. Abrir o painel
+# http://127.0.0.1:38400/
+```
+
+**Contrato de rotas** (`internal/mcp/static_server.go`) — a ordem é o contrato:
+
+1. resolver e normalizar o path;
+2. se escapa da raiz servida → **404**;
+3. se é arquivo existente → servir o arquivo;
+4. se aceita `text/html` e não é `/graph/` → `app/index.html` com **200**;
+5. senão → **404**.
+
+O dispatcher das rotas estáticas é **separado** do `http.ServeMux` do protocolo
+(`internal/mcp/http_server.go`): o mux canonicaliza o path e responde **301**
+para qualquer `..`, o que esconderia a tentativa de escape da raiz servida.
+As quatro rotas do protocolo (`/health`, `/sse`, `/message`, `/mcp`) seguem
+intocadas.
+
+> [!warning]
+> **Degradação sem build.** Sem `app/index.html` na raiz servida, o painel
+> responde **503** com mensagem simples (`viewer nao compilado: rode \`npm run
+> build\` em \`viewer/\``) em vez de 404 para cada arquivo. O `/graph/` é
+> prefixo **reservado**: um artefato inexistente devolve 404 e **nunca** cai
+> no fallback da SPA.
+
+> [!warning]
+> **Sem autenticação.** O transporte HTTP do MCP **não tem autenticação** — nem
+> token, nem API key, nem allowlist. É uma lacuna **pré-existente**, registrada
+> na [ADR-021](adr/021-servidor-mcp-com-transporte-http-sse.md) e na
+> [ADR-050](adr/050-threat-model-owasp-llm-aplicado-ao-mymemory.md), **não**
+> criada por esta feature. O bind padrão é **loopback** (`127.0.0.1`).
+> **Não exponha a porta em uma rede não confiável** sem um reverse proxy com
+> autenticação (mTLS ou API key): `--host 0.0.0.0` e `--http 0.0.0.0:38400`
+> ignoram o default loopback. O que passa a ser legível dentro do bind é a
+> raiz servida — e o artefato de grafo carrega **títulos de nós e conexões** do
+> vault.
+
 #### Ferramenta `memory_reconcile` (PostgreSQL)
 
 Reconcilia o **vault (filesystem)** com o **índice PostgreSQL** sem precisar reindexar

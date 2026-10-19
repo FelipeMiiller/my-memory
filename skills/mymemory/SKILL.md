@@ -1,6 +1,6 @@
 ---
 name: mymemory
-description: Use the MyMemory CLI and MCP server to build and maintain a semantic knowledge base of Markdown notes - hybrid search (BM25 + vectors + graph), Obsidian wikilinks, and graph analysis. This is the router skill: load it to find which of the six focused skills answers the task. Covers vault setup (mem init / mem setup), indexing (mem index / mem watch / mem hook), hybrid search, graph analysis, note authoring, the 24 MCP tools, and building a knowledge base from many sources. Triggers on "my-memory", "mem search", "mem index", "mem init", "knowledge base", "build a knowledge base", "create a note in the vault", "MCP memory tools", "memory_write_note", "memory_search", "wikilink", "Obsidian vault", "note graph", "dangling link", "orphan note", "central vault", "mem doctor", "mem drift", "mem compile", "compile-not-retrieve". DO NOT load for general documentation tools that do not index a note graph.
+description: Use the MyMemory CLI and MCP server to build and maintain a semantic knowledge base of Markdown notes - hybrid search (BM25 + vectors + graph), Obsidian wikilinks, and graph analysis. This is the router skill: load it to find which of the six focused skills answers the task. Covers vault setup (mem init / mem setup), indexing (mem index / mem watch / mem hook), hybrid search, graph analysis, note authoring, the 24 MCP tools, and building a knowledge base from many sources. Triggers on "my-memory", "mem search", "mem index", "mem init", "knowledge base", "build a knowledge base", "create a note in the vault", "MCP memory tools", "memory_write_note", "memory_search", "wikilink", "Obsidian vault", "note graph", "dangling link", "orphan note", "central vault", "mem doctor", "mem drift", "mem compile", "compile-not-retrieve", "painel de métricas", "dashboard do vault", "mem mcp --http". DO NOT load for general documentation tools that do not index a note graph.
 license: MIT
 metadata:
   version: 2.0.0
@@ -42,6 +42,12 @@ This package is split by capability. Load exactly one; each is self-contained.
 > Unsure which? `mymemory-cli` covers the widest ground. If the question is *"what does this
 > repo already know about X"*, that is a `mymemory-cli` search question, not a knowledge-base
 > authoring question.
+
+> [!note]
+> The MCP server also serves a **metrics dashboard** (a React/Vite SPA) from
+> `<base>/.mymemory/www/`, with no extra process. The routes, the `structuredContent`
+> shape and the transport's **lack of authentication** are documented in
+> [`mymemory-mcp`](../mymemory-mcp/SKILL.md).
 
 ## The one idea that matters
 

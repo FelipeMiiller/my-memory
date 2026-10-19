@@ -43,6 +43,19 @@ mem mcp --port 38400             # HTTP/SSE
 mem mcp --http 0.0.0.0:38400     # network-exposed
 ```
 
+The same HTTP transport also **serves the metrics dashboard and the graph
+artefacts** (ADR-059, ADR-060). The viewer build is published under
+`<repo>/.mymemory/www/app/` and answers on `/`; generated graph artefacts
+answer on `/graph/`. Run `make viewer` to build and publish it.
+
+> [!warning]
+> **The HTTP transport has no authentication.** The default bind is loopback
+> (`127.0.0.1`), but `--http 0.0.0.0:38400` exposes it to the network, and
+> anything that can reach the port can read the served root — including the
+> graph artefacts, whose titles come from vault notes. This gap predates the
+> viewer (ADR-021) and is tracked in ADR-050. Put a reverse proxy with
+> authentication in front of it before exposing it anywhere.
+
 > [!important]
 > **The connection URL and the credential are separate things.** The Postgres URL in
 > `storage.postgres_url` is not a secret — it must be readable and shareable. The password is a
@@ -97,6 +110,46 @@ Start there, escalate only when the broad layer misses.
 **`memory_compile_note` replaces re-reading.** Retrieve once, compile once, then read only the
 compiled note on later interactions instead of re-querying N sources.
 
+## Two layers in one response
+
+The ten read tools return **both** a human-readable `content` block and a
+machine-readable **`structuredContent`** — the field the MCP spec (2025-06-18)
+defines and this server now fills (ADR-060).
+
+| Layer | Who reads it | Shape |
+| --- | --- | --- |
+| `content[].text` | the human, the LLM | Markdown, formatted for reading |
+| `structuredContent` | a client that parses JSON | the handler's own data, as JSON |
+
+**Prefer `structuredContent` when the client can parse JSON.** Scraping a number
+out of a Markdown table is brittle: the formatting is for humans and changes for
+readability, not for machine stability. The shape of `structuredContent` is the
+**JSON tags of the Go type** the handler already had — that type is the source
+of truth, not the documentation.
+
+Tools that fill it: `memory_doctor`, `memory_get_hubs`, `memory_get_clusters`,
+`memory_get_insights`, `memory_get_drift`, `memory_list_files`,
+`memory_read_note`, `memory_note_outline`, `memory_file_metadata`,
+`memory_visualize_graph`.
+
+The field is **omitted** when a tool does not fill it, so the JSON of the other
+fourteen tools is byte-identical to what it was before.
+
+> [!tip]
+> **A response without `structuredContent` is not an error.** A client written
+> against an older server still gets the text. Treat the structured payload as an
+> upgrade, and keep the text fallback.
+
+## A URL, not just a path
+
+`memory_visualize_graph` returns the **served URL** of the artefact alongside the
+filesystem path — `http://127.0.0.1:38400/graph/<file>.html` when the HTTP
+transport is running. A path is not actionable for an agent that runs on another
+machine, in a container, or behind a different filesystem; a URL is.
+
+Without the HTTP transport (the `stdio` default), the result carries **only the
+path, and no error** — the transport simply is not there.
+
 ## Reference
 
 - [mcp-tools.md](references/mcp-tools.md) — all 24 tools with arguments, defaults, suggested flows
@@ -108,3 +161,7 @@ compiled note on later interactions instead of re-querying N sources.
 2. **`doctor` is cheap** — run it after any batch of writes.
 3. **`drift` is a release gate** — it catches documentation that fell behind code.
 4. **Argument naming differs from the CLI** — MCP uses `detail_level`; the CLI uses `--level`.
+5. **The HTTP transport is unauthenticated** — loopback by default, but `--http 0.0.0.0:...`
+   puts the served root on the network, graph artefact titles included.
+6. **`structuredContent` is optional** — a tool that does not fill it omits the field
+   entirely; keep the text fallback for clients that talk to an older server.

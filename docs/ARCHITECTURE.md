@@ -186,6 +186,99 @@ O My-Memory atua como servidor de contexto para LLMs e agentes através de dois 
 
 ---
 
+## 📦 Camada de Serving Estático do Transporte HTTP (ADR-059, ADR-060)
+
+No transporte HTTP, o `HTTPServer` atende **duas** famílias de requisições: as
+**quatro rotas do protocolo MCP** (intocadas) e as **rotas estáticas**, que
+servem o painel de métricas e os artefatos de grafo.
+
+```
+requisição HTTP
+      │
+      ├── /health, /sse, /message, /mcp  ──►  http.ServeMux do protocolo
+      │                                          (JSON-RPC / SSE / health)
+      │
+      └── qualquer outro path  ────────────►  StaticHandler
+                                                 │
+                                                 ├─ app/    build da viewer (viewer/dist)
+                                                 └─ graph/  artefatos de memory_visualize_graph
+                                                   em <repo>/.mymemory/www/
+```
+
+**Raiz servida:** `<repo>/.mymemory/www/` — um diretório **dedicado**, nunca a
+raiz do vault. `.mymemory/` fica fora do escopo de indexação, de modo que os
+artefatos gerados não entram no grafo nem no índice. As duas subáreas são:
+
+| Subárea | Conteúdo | Rota |
+|---|---|---|
+| `app/` | build estático da SPA (`viewer/dist/`, publicado por `make viewer`) | `/` |
+| `graph/` | artefatos HTML do grafo gerados por `memory_visualize_graph` | `/graph/<arquivo>.html` |
+
+**Ordem de avaliação das rotas** (`internal/mcp/static_server.go`) — a ordem é
+o contrato, não uma implementação:
+
+1. resolver e normalizar o path (recusando segmentos com nome de volume);
+2. se o caminho resolvido **escapa da raiz servida** → **404**;
+3. se é um **arquivo existente** → servir o arquivo;
+4. se aceita `text/html` **e não é** `/graph/` → `app/index.html` com **200**;
+5. senão → **404**.
+
+Duas regras derivam dessa ordem:
+
+* O **`/graph/` é prefixo reservado** e **nunca** cai no fallback da SPA — um
+  artefato inexistente é 404, não o `index.html`.
+* O fallback só vale para **requisições de navegação** (`Accept: text/html`). Um
+  asset faltando continua 404, para que o browser não receba HTML onde esperava
+  JavaScript.
+
+**Por que o dispatcher é separado do `http.ServeMux`.** O `http.ServeMux` do
+`net/http` **canonicaliza** o path e responde **301** para qualquer path que
+contenha `..`. Se as rotas estáticas passassem pelo mux, a tentativa de escape
+da raiz servida seria respondida com um *redirect* — o cliente seguiria o
+redirect e a barreira de path traversal nunca seria exercida. Por isso
+`HTTPServer.route()` (`internal/mcp/http_server.go`) testa primeiro se o path
+pertence ao protocolo: só o que é `/health`, `/sse`, `/message` ou `/mcp` vai
+ao mux. O resto vai ao `StaticHandler` com o **path cru**, que decide 404
+diante de qualquer tentativa de escape. A fronteira de raiz segue o padrão já
+existente em `internal/compiler/note.go`.
+
+**Degradação.** Sem `app/index.html`, a raiz da URL responde **503** com
+mensagem simples, em vez de 404 para cada arquivo. Sem build, o MCP continua
+funcionando — só o painel não existe.
+
+**URL para o agente.** O `HTTPServer` publica o endereço **realmente vinculado**
+(o `net.Listener` resolve porta `0` e `:38400` para a porta concreta) e o
+`Server` o expõe às tools. Com o transporte ativo, `memory_visualize_graph`
+devolve a **URL servida** do artefato e o caminho em disco; sem ele, devolve
+só o caminho, sem erro.
+
+## 🧬 `structuredContent` no Envelope de Resposta MCP
+
+O envelope de `tools/call` (`internal/mcp/handlers.go`) carrega **duas**
+camadas:
+
+```go
+type CallToolResult struct {
+    Content           []ToolContent `json:"content"`
+    IsError           bool          `json:"isError,omitempty"`
+    StructuredContent any           `json:"structuredContent,omitempty"`
+}
+```
+
+`content[]` é a saída **humana** (blocos de texto). `structuredContent` é a
+saída **estruturada**, definida pelo MCP spec 2025-06-18, que a implementação
+Go não tinha. Ele é **aditivo**: o campo é omitido quando vazio, de modo que
+as tools que não o preenchem emitem exatamente o mesmo JSON de antes.
+
+A forma do payload **é** o JSON tags do tipo Go devolvido pelo handler — não
+existe schema paralelo, e o tipo Go é a fonte da verdade. As dez tools que o
+preenchem são `memory_doctor`, `memory_get_hubs`, `memory_get_clusters`,
+`memory_get_insights`, `memory_get_drift`, `memory_list_files`,
+`memory_read_note`, `memory_note_outline`, `memory_file_metadata` e
+`memory_visualize_graph`.
+
+---
+
 ## 🎨 Visualizador Interativo de Grafo em HTML/SVG Standalone (ADR-020)
 
 O pacote `internal/graphview` compila a topologia do grafo em um artefato HTML/SVG totalmente autocontido (Zero-CDN) executável em qualquer navegador moderno:

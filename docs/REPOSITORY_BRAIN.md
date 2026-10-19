@@ -145,8 +145,18 @@ A IA ganha acesso automático a ferramentas com escopo de repositório:
 * `memory_append_section(path, heading, content, create_if_missing?, repository?)`: Anexa seções e blocos de conteúdo sob cabeçalhos Markdown existentes ou novos.
 * `memory_compile_note(topic, target_path, title?, search_mode?, limit?, tags?, overwrite?, repository?)`: Sintetiza conhecimento sobre um tópico a partir de buscas no repositório (padrão *Compile-not-Retrieve*), gravando nota estruturada com backlinks.
 * `memory_export_canvas(node_id, max_depth?, repository?)`: Gera JSON Canvas 1.0 espacial para visualização gráfica no Obsidian.
-* `memory_visualize_graph(root_node?, max_depth?, output_path?, repository?)`: Exporta uma visualização interativa do grafo em página HTML/SVG standalone com física de forças, busca em tempo real, PageRank e agrupamento por cores de comunidade.
+* `memory_visualize_graph(root_node?, max_depth?, output_path?, repository?)`: Exporta uma visualização interativa do grafo em página HTML/SVG standalone com física de forças, busca em tempo real, PageRank e agrupamento por cores de comunidade. Com o transporte HTTP ativo, devolve também a **URL servida** do artefato.
 * `memory_doctor(repository?, fix?)`: Audita a integridade do grafo (dead links, notas órfãs, self-loops e Health Score), com suporte a reparo automático.
+
+> [!tip]
+> **O mesmo servidor HTTP também serve o painel de métricas e os artefatos de
+> grafo** (ADR-059, ADR-060). O build da viewer é publicado em
+> `<repo>/.mymemory/www/app/` e responde em `/`; os artefatos de grafo ficam em
+> `/graph/`. Com isso, `memory_visualize_graph` devolve uma **URL clicável** —
+> `http://127.0.0.1:38400/graph/<arquivo>.html` — e não apenas um caminho que
+> só existe na máquina do processo. Sem o transporte HTTP ativo (modo `stdio`),
+> a tool devolve só o caminho, sem erro. Detalhes em
+> [`docs/CLI_GUIDE.md`](CLI_GUIDE.md#painel-de-métricas-servido-pelo-próprio-mcp-adr-059-adr-060).
 
 ---
 
