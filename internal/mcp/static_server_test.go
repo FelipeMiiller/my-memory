@@ -177,6 +177,28 @@ func TestStaticHandler_GraphRouteServesArtifactsOnly(t *testing.T) {
 	}
 }
 
+// TestStaticHandler_GraphPathIsASpaRoute fixa a fronteira da área reservada de
+// grafo: o **conteúdo** de `/graph/` é dos artefatos, mas o path exato `/graph`
+// é uma rota da SPA.
+//
+// Sem essa distinção, a rota do grafo da viewer respondia 404 em texto puro
+// quando o usuário abria ou recarregava a URL direto — a navegação por link
+// funcionava, porque o roteador do cliente não passa pelo servidor.
+func TestStaticHandler_GraphPathIsASpaRoute(t *testing.T) {
+	root := newStaticFixture(t)
+	handler := NewStaticHandler(root, nil)
+
+	for _, target := range []string{"/graph", "/graph/"} {
+		rec := doRequest(handler, http.MethodGet, target, "text/html")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: esperado 200 (rota da SPA), obteve %d", target, rec.Code)
+		}
+		if body := rec.Body.String(); !strings.Contains(body, "<title>viewer</title>") {
+			t.Errorf("%s: esperado o entrypoint da SPA, obteve %q", target, body)
+		}
+	}
+}
+
 func TestStaticHandler_AppliesSecurityHeaders(t *testing.T) {
 	root := newStaticFixture(t)
 	handler := NewStaticHandler(root, nil)

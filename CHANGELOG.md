@@ -115,6 +115,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A rota `/graph` da viewer devolvia 404 em texto puro quando a URL era aberta
+  ou recarregada direto**. O prefixo `/graph/` é reservado para os artefatos de
+  grafo, e o path **exato** `/graph` — que é uma rota da SPA — caía dentro desse
+  prefixo. A navegação por link funcionava, porque o roteador do cliente não
+  passa pelo servidor; abrir ou recarregar a URL não.
+  - A área reservada passou a ser o **conteúdo** de `/graph/`: o path exato
+    `/graph` e `/graph/` caem no fallback da SPA, como qualquer path de
+    navegação — que é o que a ADR-060 exige desde a sua emenda.
+  - `GET /graph/<arquivo>` continua servindo o artefato, e `GET
+    /graph/nao-existe.html` continua devolvendo 404 sem o entrypoint.
+  - Encontrado pela **validação visual** das quatro rotas, que o verificador
+    independente não podia fazer (ele não renderiza a SPA). Teste de regressão
+    com mutação provada.
 - **O servidor MCP serializava uma lista vazia como `null`, e a viewer rejeitava
   o payload**. O `encoding/json` transforma slice nil em `null`, e o schema
   `zod/mini` da viewer aceita `undefined` em `.optional()` mas **não** `null`:

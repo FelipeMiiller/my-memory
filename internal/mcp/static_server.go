@@ -59,10 +59,14 @@ func GraphArtifactsDir(base string) string {
 //
 // O contrato de rotas é o da ADR-059 (D-3) emendado pela ADR-060:
 //
-//	GET /                      → app/index.html
-//	GET /<qualquer>            → app/<qualquer>   (arquivo existente)
-//	GET /graph/<arquivo>.html  → graph/<arquivo>  (artefato existente)
-//	GET /<qualquer>            → app/index.html   (fallback SPA, só navegação)
+//	GET /                       → app/index.html
+//	GET /<qualquer>             → app/<qualquer>   (arquivo existente)
+//	GET /graph/<arquivo>.html   → graph/<arquivo>  (artefato existente)
+//	GET /<qualquer>             → app/index.html   (fallback SPA, só navegação)
+//
+// A área reservada de grafo é o **conteúdo** de `/graph/`. O path exato
+// `/graph` é uma rota da SPA e cai no fallback, como qualquer path de
+// navegação.
 //
 // A ordem de avaliação é não-negociável e é implementada em ServeHTTP:
 // (1) resolver e normalizar o path, (2) se escapa da raiz servida → 404,
@@ -117,8 +121,12 @@ func (s *StaticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A rota /graph/ é reservada para os artefatos de grafo.
-	isGraph := len(segments) > 0 && segments[0] == graphRoutePrefix
+	// A rota /graph/ é reservada para os artefatos de grafo. A área reservada é
+	// o **conteúdo** do diretório: o path exato `/graph` é uma rota da SPA, e
+	// a ADR-060 exige que qualquer path de navegação devolva o entrypoint — sem
+	// isso, recarregar a rota do grafo na viewer devolveria 404 em vez do
+	// painel.
+	isGraph := len(segments) > 1 && segments[0] == graphRoutePrefix
 	if isGraph {
 		segments = segments[1:]
 	}
