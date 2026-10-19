@@ -471,7 +471,8 @@ func (s *PostgresStore) SearchKNNWithOptions(ctx context.Context, repo string, q
 
 	query := `
 		SELECT c.id, c.document_id, c.repository, c.content, (c.embedding <=> $1::vector) AS distance,
-		       COALESCE(d.updated_at, 0), COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
+		       COALESCE(d.updated_at, 0), COALESCE(d.mtime, 0),
+		       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 		FROM chunks c
 		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
@@ -489,7 +490,7 @@ func (s *PostgresStore) SearchKNNWithOptions(ctx context.Context, repo string, q
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &r.Distance, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &r.Distance, &r.UpdatedAt, &r.MTime, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 
@@ -550,7 +551,8 @@ func (s *PostgresStore) SearchFTSWithOptions(ctx context.Context, repo string, q
 	q := `
 		SELECT c.id, c.document_id, c.repository, c.content,
 		       ts_rank(to_tsvector('simple', c.content), plainto_tsquery('simple', $1)) AS rank,
-		       COALESCE(d.updated_at, 0), COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
+		       COALESCE(d.updated_at, 0), COALESCE(d.mtime, 0),
+		       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 		FROM chunks c
 		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
@@ -570,7 +572,7 @@ func (s *PostgresStore) SearchFTSWithOptions(ctx context.Context, repo string, q
 	for rows.Next() {
 		var r SearchResult
 		var rank float64
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &rank, &r.UpdatedAt, &r.Abstract, &r.Category); err != nil {
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Repository, &r.Content, &rank, &r.UpdatedAt, &r.MTime, &r.Abstract, &r.Category); err != nil {
 			return nil, err
 		}
 		r.Distance = rank
@@ -638,7 +640,7 @@ func (s *PostgresStore) SearchHybridWithOptions(ctx context.Context, repo string
 
 		for _, n := range neighbors {
 			rows, err := s.db.QueryContext(ctx, `
-				SELECT c.id, c.document_id, c.repository, c.content, COALESCE(d.updated_at, 0),
+				SELECT c.id, c.document_id, c.repository, c.content, COALESCE(d.updated_at, 0), COALESCE(d.mtime, 0),
 				       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 				FROM chunks c
 				LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
@@ -653,7 +655,7 @@ func (s *PostgresStore) SearchHybridWithOptions(ctx context.Context, repo string
 
 			for rows.Next() {
 				var gr SearchResult
-				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Repository, &gr.Content, &gr.UpdatedAt, &gr.Abstract, &gr.Category); err == nil {
+				if err := rows.Scan(&gr.ChunkID, &gr.DocumentID, &gr.Repository, &gr.Content, &gr.UpdatedAt, &gr.MTime, &gr.Abstract, &gr.Category); err == nil {
 					if !seenChunks[gr.ChunkID] {
 						seenChunks[gr.ChunkID] = true
 						graphResults = append(graphResults, gr)
