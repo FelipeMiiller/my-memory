@@ -557,3 +557,15 @@ Every layer the matrix marks as tested carries its test inside the same task. âœ
 
 - **MCP**: NONE (the feature registers new tools but consumes none)
 - **Skills**: `my-memory-format` (T14), `tlc-spec-driven` (this flow), NONE otherwise
+
+## Registro de desvio (lacuna 7 do Verifier, resolvida)
+
+O plano declarava `Where: cmd/mem/main.go` para T6â€“T12. A implementacao foi
+para um arquivo por comando em `cmd/mem/` (`files.go`, `read.go`,
+`outline.go`, `random.go`, `deadends.go`, `recents.go`,
+`vault_source.go`), mantendo em `main.go` apenas os `case` do dispatch e as
+linhas do `printHelp`. A camada de acesso engine-neutral foi para
+`internal/db/vault.go` e `internal/store/vault.go`.
+
+Desvio aceito: `main.go` ja tem 123 KB, o padrao do pacote e um arquivo por
+comando, e o guard de dispatch/help permaneceu em `main.go` onde belong.
