@@ -131,6 +131,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     como obsoleta.
   - Dois testes novos fixam a semântica (casos de filtro e varredura da lista
     real de pacotes).
+- **O último step do job `frontend` do CI usava um `working-directory`
+  ambíguo**. O job declara `defaults.run.working-directory: viewer` e o step
+  que roda a invariante de `internal/ci` usava `working-directory: .` para
+  voltar à raiz do repositório — mas um caminho relativo de step herda a
+  resolução do default do job, o que faria `go test ./internal/ci/...` rodar
+  de dentro de `viewer/`, onde o pacote não existe. O job ficaria vermelho
+  **sem exercitar a invariante** que ele existe para exercitar.
+  - Trocado por `${{ github.workspace }}`, que é absoluto e não tem ambiguidade
+    de resolução.
 - **`--decay` ordena por tempo de edição, não por instante de indexação
   (ADR-057)**. O decaimento temporal lia `documents.updated_at`, que guarda
   `time.Now().Unix()` da indexação: um `mem index` em vault inteiro dava a

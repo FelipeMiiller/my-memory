@@ -435,7 +435,15 @@ jobs:
           cache: true
 
       - name: Run CI Coverage Invariant With node_modules Present
-        working-directory: .
+        # Caminho ABSOLUTO de proposito. O job tem `defaults.run.working-directory: viewer`,
+        # e um `working-directory: .` relativo deixa o diretorio de execucao
+        # dependente de como o runner resolve um caminho relativo de step
+        # (raiz do workspace ou o default do job). Com `.` resolvido para
+        # `viewer/`, o comando abaixo rodaria de dentro de `viewer/` e
+        # `go test ./internal/ci/...` nao encontraria o pacote -- o job
+        # ficaria vermelho sem exercitar a invariante que ele existe para
+        # exercitar. `${{ github.workspace }}` nao tem ambiguidade.
+        working-directory: ${{ github.workspace }}
         run: go test -count=1 -v ./internal/ci/...
 
   build-verification:
