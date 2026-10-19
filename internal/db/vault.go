@@ -42,13 +42,18 @@ func ListVaultDocuments(ctx context.Context, database *sql.DB) ([]store.VaultDoc
 // FindVaultDocumentsByPath resolve um caminho do usuário para documentos do
 // índice: path exato OU path terminado em "/<basename>", em ordem alfabética.
 // Espelho SQLite de PostgresStore.FindVaultDocumentsByPath.
+//
+// O ramo LIKE recebe store.EscapeLikePattern(query) porque o basename é dado
+// pelo usuário, não um padrão: sem escape, `my_note.md` casaria com
+// `myXnote.md` e o comando acusaria ambiguidade falsa. O ESCAPE é declarado
+// porque o SQLite não tem caractere de escape padrão para o LIKE.
 func FindVaultDocumentsByPath(ctx context.Context, database *sql.DB, query string) ([]store.VaultDocument, error) {
 	rows, err := database.QueryContext(ctx, `
 		SELECT id, path, COALESCE(title, ''), COALESCE(mtime, 0), COALESCE(size, 0)
 		FROM documents
-		WHERE path = ? OR path LIKE '%/' || ?
+		WHERE path = ? OR path LIKE '%/' || ? ESCAPE '\'
 		ORDER BY path ASC
-	`, query, query)
+	`, query, store.EscapeLikePattern(query))
 	if err != nil {
 		return nil, fmt.Errorf("erro ao buscar documento por caminho: %w", err)
 	}

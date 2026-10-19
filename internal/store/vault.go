@@ -59,14 +59,19 @@ func (s *PostgresStore) ListVaultDocuments(ctx context.Context, repo string) ([]
 // Devolve todos os candidatos: escolher entre eles é decisão do comando, que
 // precisa reportar ambiguidade em vez de chutar um. repo vazio = todos os
 // repositórios.
+//
+// O ramo LIKE usa EscapeLikePattern(query) e declara ESCAPE: o basename é dado
+// pelo usuário, não um padrão. Sem escape, `my_note.md` casaria com
+// `myXnote.md` e o comando acusaria ambiguidade falsa. O ESCAPE explícito
+// também é o que alinha este motor ao SQLite, que não tem escape padrão.
 func (s *PostgresStore) FindVaultDocumentsByPath(ctx context.Context, repo, query string) ([]VaultDocument, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, path, COALESCE(title, ''), COALESCE(mtime, 0), COALESCE(size, 0)
 		FROM documents
 		WHERE ($1 = '' OR repository = $1)
-		  AND (path = $2 OR path LIKE '%/' || $2)
+		  AND (path = $2 OR path LIKE '%/' || $2 ESCAPE '\')
 		ORDER BY path ASC
-	`, repo, query)
+	`, repo, EscapeLikePattern(query))
 	if err != nil {
 		return nil, fmt.Errorf("erro ao buscar documento por caminho no postgres: %w", err)
 	}
@@ -117,17 +122,15 @@ func (s *PostgresStore) ReadVaultDocumentContent(ctx context.Context, repo, docI
 }
 
 // ListVaultDocumentsByMTime devolve os documentos mais recentemente editados,
-// com mtime = 0 no fim. Espelho PostgreSQL de db.ListVaultDocumentsByMTime —
-// inclusive na parte que importa: o COALESCE na chave de ordenação. No Postgres
-// `ORDER BY col DESC` põe NULL primeiro por padrão (o SQLite põe último), então
-// sem o COALESCE um mtime NULL de tabela legada abriria a lista. Ver a
-// justificativa completa e a medição do CASE morto removido em db.ListVaultDocumentsByMTime.
+// com mtime = 0 no fim. Espelho PostgreSQL de db.ListVaultDocumentsByMTime.
 func (s *PostgresStore) ListVaultDocumentsByMTime(ctx context.Context, repo string, limit int) ([]VaultDocument, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, path, COALESCE(title, ''), COALESCE(mtime, 0), COALESCE(size, 0)
 		FROM documents
 		WHERE ($1 = '' OR repository = $1)
-		ORDER BY COALESCE(mtime, 0) DESC, path ASC
+		ORDER BY CASE WHEN COALESCE(mtime, 0) <= 0 THEN 1 ELSE 0 END ASC,
+		         COALESCE(mtime, 0) DESC,
+		         path ASC
 		LIMIT $2
 	`, repo, limit)
 	if err != nil {
