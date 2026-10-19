@@ -50,9 +50,12 @@ func NewTextResult(text string) CallToolResult {
 // NewStructuredResult constrói uma resposta com o texto legível e o payload
 // estruturado correspondente. O texto continua sendo a saída humana; o
 // structuredContent é o que um cliente de máquina (a SPA) valida.
+//
+// O payload passa por `normalizeStructuredContent`: array vazio viaja como
+// `[]`, nunca como `null` — ver o comentário de lá para o porquê.
 func NewStructuredResult(text string, structured any) CallToolResult {
 	result := NewTextResult(text)
-	result.StructuredContent = structured
+	result.StructuredContent = normalizeStructuredContent(structured)
 	return result
 }
 

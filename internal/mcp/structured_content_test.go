@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/FelipeMiiller/my-memory/internal/drift"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 )
@@ -221,5 +223,94 @@ func TestMemoryVisualizeGraphTool_StructuredContentHasURLAndPath(t *testing.T) {
 	}
 	if !strings.Contains(string(payload), `"path":`) {
 		t.Errorf("o payload não traz o caminho do artefato: %s", payload)
+	}
+}
+
+// TestStructuredContentNeverEmitsNullArrays fixa o contrato do wire: um array
+// vazio viaja como `[]`, nunca como `null`.
+//
+// O `encoding/json` serializa slice nil como `null`, e o schema `zod/mini` da
+// viewer aceita `undefined` em `.optional()`, mas NÃO `null`. Um array vazio
+// chegando como `null` derrubava a validação do schema, o cliente caía no
+// fallback textual e o painel `/drift` renderizava markdown cru em vez da UI
+// estruturada. Este teste é o que impede a regressão de voltar.
+func TestStructuredContentNeverEmitsNullArrays(t *testing.T) {
+	cases := []struct {
+		nome    string
+		payload any
+		arrays  []string
+	}{
+		{"drift", &drift.DriftReport{RangeStr: "HEAD~5..HEAD"}, []string{`"drifted_notes":[]`, `"uncovered_code":[]`}},
+		{"doctor", &DoctorReport{}, []string{`"dead_links":[]`, `"orphan_notes":[]`, `"self_loops":[]`, `"desynced_chunks":[]`}},
+		{"list_files", []store.VaultDocument(nil), []string{`[]`}},
+		{"note_outline", []OutlineHeading(nil), []string{`[]`}},
+		{"hubs_degree", []GodNode(nil), []string{`[]`}},
+		{"hubs_pagerank", []PageRankNode(nil), []string{`[]`}},
+		{"insights", []SurprisingConnection(nil), []string{`[]`}},
+		{"clusters", graph.CommunityResult{}, []string{`"communities":[]`}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.nome, func(t *testing.T) {
+			encoded, err := json.Marshal(NewStructuredResult("texto", tc.payload).StructuredContent)
+			if err != nil {
+				t.Fatalf("falha ao serializar: %v", err)
+			}
+			if strings.Contains(string(encoded), ":null") {
+				t.Errorf("o payload serializou null em um campo array: %s", encoded)
+			}
+			for _, want := range tc.arrays {
+				if !strings.Contains(string(encoded), want) {
+					t.Errorf("o payload não contem %s: %s", want, encoded)
+				}
+			}
+		})
+	}
+}
+
+// TestMemoryGetDriftTool_EmptyReportEmitsEmptyArrays prova o caminho real: o
+// handler de memory_get_drift, com um relatório sem drift nenhum, precisa
+// serializar as listas como `[]`.
+func TestMemoryGetDriftTool_EmptyReportEmitsEmptyArrays(t *testing.T) {
+	handler := NewMemoryGetDriftHandler(func(ctx context.Context, rangeStr string, threshold float64, includeUncovered bool, repoSlug string) (*drift.DriftReport, error) {
+		return &drift.DriftReport{RangeStr: rangeStr, AnalyzedAt: time.Now()}, nil
+	})
+
+	res, err := handler(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("handler falhou: %v", err)
+	}
+
+	payload, err := json.Marshal(res.(CallToolResult).StructuredContent)
+	if err != nil {
+		t.Fatalf("falha ao serializar o payload: %v", err)
+	}
+
+	if strings.Contains(string(payload), "null") {
+		t.Errorf("o relatório de drift vazio serializou null: %s", payload)
+	}
+	if !strings.Contains(string(payload), `"drifted_notes":[]`) {
+		t.Errorf("drifted_notes deveria ser lista vazia: %s", payload)
+	}
+	if !strings.Contains(string(payload), `"uncovered_code":[]`) {
+		t.Errorf("uncovered_code deveria ser lista vazia: %s", payload)
+	}
+}
+
+// TestNormalizeStructuredContent_DoesNotMutateTheProducer garante que a
+// normalização é pura: o relatório devolvido pelo produtor não pode ser
+// alterado por quem o consome.
+func TestNormalizeStructuredContent_DoesNotMutateTheProducer(t *testing.T) {
+	report := &drift.DriftReport{RangeStr: "HEAD~5..HEAD"}
+
+	normalized, ok := normalizeStructuredContent(report).(*drift.DriftReport)
+	if !ok {
+		t.Fatal("a normalização devolveu outro tipo")
+	}
+	if normalized.DriftedNotes == nil || normalized.UncoveredCode == nil {
+		t.Error("o payload normalizado deveria ter as listas vazias, não nulas")
+	}
+	if report.DriftedNotes != nil || report.UncoveredCode != nil {
+		t.Error("a normalização alterou o relatório do produtor")
 	}
 }
