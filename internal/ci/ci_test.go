@@ -1,6 +1,8 @@
 package ci
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -61,6 +63,58 @@ func TestExclusionsAreJustifiedAndFresh(t *testing.T) {
 	if stale := StaleExclusions(pkgs); len(stale) > 0 {
 		t.Errorf("exclusao obsoleta: %s nao existe mais em `go list ./...`; remova a entrada de excludedPackages",
 			strings.Join(stale, ", "))
+	}
+}
+
+// TestPackagesSurvivesBrokenThirdPartyPackage reproduz o modo de falha real
+// que o flag -e de `go list` resolve.
+//
+// `go list ./...` sem -e sai com codigo 1 quando qualquer pacote da arvore
+// falha ao carregar, e a arvore contem codigo Go de terceiro dentro de
+// `viewer/node_modules/`. Medido neste repo: um diretorio de node_modules com
+// dois arquivos de `package` diferentes faz `go list ./...` sair com 1 e a
+// mensagem "found packages alpha and beta" -- a invariante falharia com um
+// erro que nao fala do problema real, e so em maquinas cuja arvore npm
+// por acaso tem um diretorio assim.
+//
+// O teste grava essa situacao de verdade e exige que a listagem continue
+// funcionando e que o pacote quebrado nao apareca.
+func TestPackagesSurvivesBrokenThirdPartyPackage(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatalf("localizar raiz do repositorio: %v", err)
+	}
+
+	nodeModules := filepath.Join(root, "viewer", "node_modules")
+	_, statErr := os.Stat(nodeModules)
+	nodeModulesExisted := statErr == nil
+
+	probe := filepath.Join(nodeModules, "mmciprobe", "pkg", "twopkg")
+	if err := os.MkdirAll(probe, 0o755); err != nil {
+		t.Fatalf("criar probe: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(filepath.Join(nodeModules, "mmciprobe"))
+		if !nodeModulesExisted {
+			_ = os.Remove(nodeModules)
+		}
+	})
+
+	if err := os.WriteFile(filepath.Join(probe, "a.go"), []byte("package alpha\n\nfunc A() {}\n"), 0o644); err != nil {
+		t.Fatalf("escrever probe a.go: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(probe, "b.go"), []byte("package beta\n\nfunc B() {}\n"), 0o644); err != nil {
+		t.Fatalf("escrever probe b.go: %v", err)
+	}
+
+	pkgs, err := Packages(root)
+	if err != nil {
+		t.Fatalf("enumerar pacotes com pacote de terceiro quebrado presente: %v", err)
+	}
+	for _, p := range pkgs {
+		if strings.Contains(p, "mmciprobe") {
+			t.Errorf("pacote de terceiro quebrado escapou do filtro: %q", p)
+		}
 	}
 }
 

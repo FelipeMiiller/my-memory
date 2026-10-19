@@ -104,7 +104,22 @@ func Packages(root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := goOutput(root, "list", "./...")
+	// The -e flag is not cosmetic. Plain `go list ./...` exits non-zero when
+	// ANY package in the tree fails to load, and the tree now contains
+	// third-party Go code under viewer/node_modules/ that this repository
+	// neither builds nor controls. Measured on this repo: a node_modules
+	// directory holding two files with different `package` clauses makes
+	// `go list ./...` exit 1 with "found packages alpha and beta", while
+	// `go list -e ./...` exits 0 and still lists the package. Without -e the
+	// invariant would fail with an error that says nothing about the real
+	// problem, and only on machines where the npm tree happens to contain
+	// such a directory -- which is exactly the kind of environment-dependent
+	// failure that hides in CI.
+	//
+	// A first-party package that fails to load is still listed under -e, so it
+	// still has to have a test step; a genuine load error in this repository is
+	// caught by `go build ./...` and `go vet ./...` in the lint job.
+	out, err := goOutput(root, "list", "-e", "./...")
 	if err != nil {
 		return nil, err
 	}
