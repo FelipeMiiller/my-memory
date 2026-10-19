@@ -35,6 +35,14 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/watcher"
 )
 
+// servedRootBase é a base a partir da qual a raiz servida pelo transporte HTTP
+// (<base>/.mymemory/www/) e o diretório dos artefatos de grafo são resolvidos.
+//
+// É a mesma base que a tool memory_visualize_graph usava antes — o diretório
+// de trabalho do processo — de modo que o artefato escrito é exatamente o
+// arquivo publicado pelo transporte (ADR-059 D-2).
+const servedRootBase = "."
+
 func main() {
 	if len(os.Args) < 2 {
 		printHelp()
@@ -2544,7 +2552,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				repo = defaultRepo
 			}
 			return graphview.BuildFromPostgres(ctx, pgStore, repo, rootNode, maxDepth)
-		}, ".")
+		}, servedRootBase)
 
 		srv.SetClustersHandler(func(ctx context.Context, repo string, minSize int) (graph.CommunityResult, error) {
 			if repo == "" {
@@ -2738,7 +2746,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				repo = defaultRepo
 			}
 			return graphview.BuildFromSQLite(ctx, database, rootNode, maxDepth, repo)
-		}, ".")
+		}, servedRootBase)
 
 		srv.SetClustersHandler(func(ctx context.Context, repo string, minSize int) (graph.CommunityResult, error) {
 			if repo == "" {
@@ -2811,6 +2819,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			Addr:        httpAddr,
 			CORSEnabled: corsEnabled,
 			DefaultRepo: defaultRepo,
+			ServedRoot:  mcp.ServedRoot(servedRootBase),
 			Logger:      log.New(os.Stderr, "[mcp-http] ", log.LstdFlags),
 		})
 

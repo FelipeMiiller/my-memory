@@ -40,6 +40,25 @@ type OutlineHeading struct {
 	Text  string `json:"text"`
 }
 
+// ReadNoteResult é o structuredContent de memory_read_note.
+//
+// structuredContent: {path: string, title: string, content: string}
+type ReadNoteResult struct {
+	Path    string `json:"path"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
+}
+
+// FileMetadataResult é o structuredContent de memory_file_metadata.
+//
+// structuredContent: {path: string, title: string, size: number, mtime: number}
+type FileMetadataResult struct {
+	Path  string `json:"path"`
+	Title string `json:"title"`
+	Size  int64  `json:"size"`
+	MTime int64  `json:"mtime"`
+}
+
 // VaultAccess é o conjunto completo de acessos de leitura que as ferramentas de
 // paridade precisam. Uma struct só, em vez de um setter por ferramenta, porque
 // as quatro leem o mesmo índice e uma configuração parcial não tem sentido.
@@ -111,11 +130,15 @@ func NewMemoryListFilesHandler(listFn VaultListFunc) ToolHandlerFunc {
 		if err != nil {
 			return nil, NewError(CodeInternalError, "Falha ao listar documentos do vault", err.Error())
 		}
+		if docs == nil {
+			docs = []store.VaultDocument{}
+		}
 
+		// structuredContent: [{id: string, path: string, title: string, mtime: number, size: number}]
 		if len(docs) == 0 {
-			return NewTextResult(fmt.Sprintf(
+			return NewStructuredResult(fmt.Sprintf(
 				"Nenhum documento indexado corresponde a esses filtros (ext='%s', folder='%s').",
-				params.Ext, params.Folder)), nil
+				params.Ext, params.Folder), docs), nil
 		}
 
 		var sb strings.Builder
@@ -128,7 +151,7 @@ func NewMemoryListFilesHandler(listFn VaultListFunc) ToolHandlerFunc {
 			sb.WriteString("\n")
 		}
 
-		return NewTextResult(strings.TrimRight(sb.String(), "\n")), nil
+		return NewStructuredResult(strings.TrimRight(sb.String(), "\n"), docs), nil
 	}
 }
 
@@ -158,7 +181,12 @@ func NewMemoryReadNoteHandler(docFn VaultDocumentFunc, readFn VaultContentFunc) 
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Falha ao ler o conteúdo de '%s'", doc.Path), err.Error())
 		}
 
-		return NewTextResult(content), nil
+		// structuredContent: {path: string, title: string, content: string}
+		return NewStructuredResult(content, ReadNoteResult{
+			Path:    doc.Path,
+			Title:   doc.Title,
+			Content: content,
+		}), nil
 	}
 }
 
@@ -189,8 +217,13 @@ func NewMemoryNoteOutlineHandler(docFn VaultDocumentFunc, readFn VaultContentFun
 		}
 
 		headings := headingsFn(content)
+		if headings == nil {
+			headings = []OutlineHeading{}
+		}
+
+		// structuredContent: [{level: number, text: string}]
 		if len(headings) == 0 {
-			return NewTextResult(fmt.Sprintf("A nota '%s' não tem nenhum título ATX.", doc.Path)), nil
+			return NewStructuredResult(fmt.Sprintf("A nota '%s' não tem nenhum título ATX.", doc.Path), headings), nil
 		}
 
 		var sb strings.Builder
@@ -200,7 +233,7 @@ func NewMemoryNoteOutlineHandler(docFn VaultDocumentFunc, readFn VaultContentFun
 			sb.WriteString(fmt.Sprintf("%s- (h%d) %s\n", indent, heading.Level, heading.Text))
 		}
 
-		return NewTextResult(strings.TrimRight(sb.String(), "\n")), nil
+		return NewStructuredResult(strings.TrimRight(sb.String(), "\n"), headings), nil
 	}
 }
 
@@ -241,7 +274,13 @@ func NewMemoryFileMetadataHandler(docFn VaultDocumentFunc) ToolHandlerFunc {
 			sb.WriteString("- **Mtime**: desconhecido — documento indexado antes de o metadado existir (ADR-057)\n")
 		}
 
-		return NewTextResult(strings.TrimRight(sb.String(), "\n")), nil
+		// structuredContent: {path: string, title: string, size: number, mtime: number}
+		return NewStructuredResult(strings.TrimRight(sb.String(), "\n"), FileMetadataResult{
+			Path:  doc.Path,
+			Title: doc.Title,
+			Size:  doc.Size,
+			MTime: doc.MTime,
+		}), nil
 	}
 }
 

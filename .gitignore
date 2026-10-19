@@ -37,16 +37,22 @@ vault_test/
 __pycache__/
 *.pyc
 
-# Node.js — viewer Electron removido (2026-10-18). Os ignores abaixo são
-# mantidos apenas como barreira defensiva contra artefatos locais remanescentes.
+# Node.js — a toolchain da viewer vive em `viewer/` (ADR-059 e ADR-060).
+# `viewer/` é fonte versionada; `node_modules/` e `dist/` nunca entram.
 node_modules/
 
-# Build artifacts genéricos — Electron Forge / Vite / tsc (viewer removido).
+# Build artifacts genéricos — Vite / tsc (viewer).
 out/
 dist/
 .vite/
 **/out/**
 **/dist/**
+
+# Raiz servida pelo transporte HTTP do MCP (ADR-059 D-2): o build da viewer
+# copiado para `app/` e os artefatos de grafo gerados em `graph/`. É gerada em
+# tempo de execução, vive fora do escopo de indexação do vault e nunca é
+# versionada.
+.mymemory/
 
 # Artefatos de smoke test / Playwright CLI (output de validação visual)
 screenshot-*.png

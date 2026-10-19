@@ -405,7 +405,7 @@ var (
 				},
 				"output_path": map[string]any{
 					"type":        "string",
-					"description": "Caminho do arquivo HTML de saída (padrão: graph.html ou graph_<nota>.html)",
+					"description": "Nome do arquivo HTML de saída, gravado no diretório de artefatos servidos (padrão: graph.html ou graph_<nota>.html)",
 				},
 				"repository": map[string]any{
 					"type":        "string",

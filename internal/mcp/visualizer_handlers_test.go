@@ -4,14 +4,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/graphview"
 )
+
+// graphArtifactsPath devolve o caminho do artefato dentro da raiz servida,
+// que é onde a tool grava desde a ADR-059.
+func graphArtifactsPath(base, name string) string {
+	return filepath.Join(GraphArtifactsDir(base), name)
+}
 
 func TestMemoryVisualizeGraphTool_List(t *testing.T) {
 	in := &bytes.Buffer{}
@@ -67,7 +75,7 @@ func TestMemoryVisualizeGraphTool_Call(t *testing.T) {
 		return mockGV, nil
 	}
 
-	handler := NewMemoryVisualizeGraphHandler(mockFn, tmpDir)
+	handler := NewMemoryVisualizeGraphHandler(mockFn, tmpDir, nil)
 
 	outFile := "output_graph.html"
 	args := map[string]any{
@@ -98,8 +106,8 @@ func TestMemoryVisualizeGraphTool_Call(t *testing.T) {
 		t.Errorf("texto deve conter métrica de nós: %s", text)
 	}
 
-	// Verifica criação física do arquivo
-	targetPath := filepath.Join(tmpDir, outFile)
+	// Verifica criação física do arquivo, dentro da raiz servida
+	targetPath := graphArtifactsPath(tmpDir, outFile)
 	data, err := os.ReadFile(targetPath)
 	if err != nil {
 		t.Fatalf("arquivo HTML gerado não existe no disco: %v", err)
@@ -111,7 +119,7 @@ func TestMemoryVisualizeGraphTool_Call(t *testing.T) {
 }
 
 func TestMemoryVisualizeGraphTool_InvalidJSON(t *testing.T) {
-	handler := NewMemoryVisualizeGraphHandler(nil, "")
+	handler := NewMemoryVisualizeGraphHandler(nil, "", nil)
 	_, err := handler(context.Background(), json.RawMessage(`{invalid-json`))
 	if err == nil {
 		t.Fatal("esperava erro para JSON inválido, obteve nil")
@@ -128,7 +136,7 @@ func TestMemoryVisualizeGraphTool_BuilderError(t *testing.T) {
 		return nil, os.ErrPermission
 	}
 
-	handler := NewMemoryVisualizeGraphHandler(mockFn, "")
+	handler := NewMemoryVisualizeGraphHandler(mockFn, "", nil)
 	_, err := handler(context.Background(), json.RawMessage(`{}`))
 	if err == nil {
 		t.Fatal("esperava erro quando builder falha, obteve nil")
@@ -142,7 +150,7 @@ func TestMemoryVisualizeGraphTool_BuilderError(t *testing.T) {
 
 func TestMemoryVisualizeGraphTool_NilBuilderFallback(t *testing.T) {
 	tmpDir := t.TempDir()
-	handler := NewMemoryVisualizeGraphHandler(nil, tmpDir)
+	handler := NewMemoryVisualizeGraphHandler(nil, tmpDir, nil)
 
 	res, err := handler(context.Background(), json.RawMessage(`{"output_path": "fallback.html"}`))
 	if err != nil {
@@ -154,14 +162,14 @@ func TestMemoryVisualizeGraphTool_NilBuilderFallback(t *testing.T) {
 		t.Fatal("resultado vazio")
 	}
 
-	if _, err := os.Stat(filepath.Join(tmpDir, "fallback.html")); err != nil {
+	if _, err := os.Stat(graphArtifactsPath(tmpDir, "fallback.html")); err != nil {
 		t.Fatalf("arquivo de fallback não foi criado: %v", err)
 	}
 }
 
 func TestMemoryVisualizeGraphTool_AutoOutputPath(t *testing.T) {
 	tmpDir := t.TempDir()
-	handler := NewMemoryVisualizeGraphHandler(nil, tmpDir)
+	handler := NewMemoryVisualizeGraphHandler(nil, tmpDir, nil)
 
 	args := json.RawMessage(`{"root_node": "concepts/deep/learning.md", "max_depth": 3}`)
 	res, err := handler(context.Background(), args)
@@ -175,22 +183,28 @@ func TestMemoryVisualizeGraphTool_AutoOutputPath(t *testing.T) {
 		t.Errorf("esperado nome sanitizado 'graph_concepts_deep_learning.html' no resultado, obteve: %s", text)
 	}
 
-	expectedFile := filepath.Join(tmpDir, "graph_concepts_deep_learning.html")
+	expectedFile := graphArtifactsPath(tmpDir, "graph_concepts_deep_learning.html")
 	if _, err := os.Stat(expectedFile); err != nil {
 		t.Fatalf("arquivo esperado %s não foi encontrado no disco", expectedFile)
 	}
 }
 
 func TestMemoryVisualizeGraphTool_ExportError(t *testing.T) {
-	handler := NewMemoryVisualizeGraphHandler(nil, "")
+	// O diretório de artefatos é criado pela tool; quando a criação falha, a
+	// falha vira mensagem de tool, nunca panic.
+	base := t.TempDir()
+	blocked := filepath.Join(base, ".mymemory", "www", "graph")
+	if err := os.MkdirAll(filepath.Dir(blocked), 0o755); err != nil {
+		t.Fatalf("falha ao preparar o bloqueio: %v", err)
+	}
+	if err := os.WriteFile(blocked, []byte("isto e um arquivo, nao um diretorio"), 0o644); err != nil {
+		t.Fatalf("falha ao criar o arquivo de bloqueio: %v", err)
+	}
 
-	// Tenta gravar em subdiretório inexistente para induzir falha de exportação
-	invalidOut := filepath.Join(os.TempDir(), "non_existent_folder_abc123", "sub", "graph.html")
-	args, _ := json.Marshal(map[string]any{"output_path": invalidOut})
-
-	_, err := handler(context.Background(), args)
+	handler := NewMemoryVisualizeGraphHandler(nil, base, nil)
+	_, err := handler(context.Background(), json.RawMessage(`{}`))
 	if err == nil {
-		t.Fatal("esperava erro ao tentar exportar em caminho de diretório inexistente")
+		t.Fatal("esperava erro quando o diretório de artefatos não pode ser criado")
 	}
 
 	mcpErr, ok := err.(*Error)
@@ -224,5 +238,116 @@ func TestServer_SetGraphViewHandler(t *testing.T) {
 	}
 	if !called {
 		t.Error("esperava que mockFn tivesse sido invocado")
+	}
+}
+
+func TestMemoryVisualizeGraphTool_UrlWithActiveTransport(t *testing.T) {
+	tmpDir := t.TempDir()
+	handler := NewMemoryVisualizeGraphHandler(nil, tmpDir, func() string {
+		return "http://127.0.0.1:38400"
+	})
+
+	res, err := handler(context.Background(), json.RawMessage(`{"output_path": "graph.html"}`))
+	if err != nil {
+		t.Fatalf("handler falhou: %v", err)
+	}
+
+	result := res.(CallToolResult)
+	text := result.Content[0].Text
+	if !strings.Contains(text, "http://127.0.0.1:38400/graph/graph.html") {
+		t.Errorf("a URL servida não está no resultado: %s", text)
+	}
+	if !strings.Contains(text, "**Arquivo HTML**") {
+		t.Errorf("o caminho do arquivo não está no resultado: %s", text)
+	}
+
+	structured, ok := result.StructuredContent.(VisualizeGraphResult)
+	if !ok {
+		t.Fatalf("structuredContent inesperado: %T", result.StructuredContent)
+	}
+	if structured.URL != "http://127.0.0.1:38400/graph/graph.html" {
+		t.Errorf("URL no structuredContent inesperada: %s", structured.URL)
+	}
+	if structured.Path == "" {
+		t.Error("o structuredContent deve trazer o caminho do artefato")
+	}
+}
+
+func TestMemoryVisualizeGraphTool_NoUrlWithoutTransport(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Sem transporte HTTP, o provedor devolve string vazia.
+	handler := NewMemoryVisualizeGraphHandler(nil, tmpDir, func() string {
+		return ""
+	})
+
+	res, err := handler(context.Background(), json.RawMessage(`{"output_path": "graph.html"}`))
+	if err != nil {
+		t.Fatalf("sem transporte HTTP a tool não pode falhar: %v", err)
+	}
+
+	result := res.(CallToolResult)
+	text := result.Content[0].Text
+	if strings.Contains(text, "URL Servida") {
+		t.Errorf("sem transporte HTTP não deve haver URL no resultado: %s", text)
+	}
+	if !strings.Contains(text, "**Arquivo HTML**") {
+		t.Errorf("o caminho do arquivo deve continuar no resultado: %s", text)
+	}
+
+	structured, ok := result.StructuredContent.(VisualizeGraphResult)
+	if !ok {
+		t.Fatalf("structuredContent inesperado: %T", result.StructuredContent)
+	}
+	if structured.URL != "" {
+		t.Errorf("sem transporte HTTP o structuredContent não deve ter url: %s", structured.URL)
+	}
+	if structured.Path == "" {
+		t.Error("o structuredContent deve trazer o caminho do artefato")
+	}
+}
+
+func TestMemoryVisualizeGraphTool_UrlUsesRealListenerPort(t *testing.T) {
+	base := t.TempDir()
+
+	srv := newTestServer()
+	httpSrv := NewHTTPServer(srv, HTTPServerOptions{ServedRoot: base})
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("falha ao abrir listener tcp: %v", err)
+	}
+	go func() {
+		_ = httpSrv.Serve(ln)
+	}()
+	defer func() { _ = httpSrv.Shutdown(context.Background()) }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for srv.BaseURL() == "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if srv.BaseURL() == "" {
+		t.Fatal("o transporte não publicou o endereço vinculado")
+	}
+
+	port := ln.Addr().(*net.TCPAddr).Port
+	srv.SetGraphViewHandler(func(ctx context.Context, repo, rootNode string, maxDepth int) (*graphview.GraphView, error) {
+		return &graphview.GraphView{Title: "Grafo"}, nil
+	}, base)
+
+	handler := srv.toolHandlers[ToolMemoryVisualizeGraph.Name]
+	res, err := handler(context.Background(), json.RawMessage(`{"output_path": "graph.html"}`))
+	if err != nil {
+		t.Fatalf("handler falhou: %v", err)
+	}
+
+	result := res.(CallToolResult)
+	structured, ok := result.StructuredContent.(VisualizeGraphResult)
+	if !ok {
+		t.Fatalf("structuredContent inesperado: %T", result.StructuredContent)
+	}
+
+	expected := "http://127.0.0.1:" + strconv.Itoa(port) + "/graph/graph.html"
+	if structured.URL != expected {
+		t.Errorf("URL inesperada: %s (esperado %s)", structured.URL, expected)
 	}
 }

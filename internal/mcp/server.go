@@ -67,6 +67,7 @@ type Server struct {
 	tools             []Tool
 	toolHandlers      map[string]ToolHandlerFunc
 	stalenessDetector *staleness.Detector
+	baseURL           string
 	mu                sync.RWMutex
 	initialized       bool
 }
@@ -103,7 +104,7 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryWriteNote, NewMemoryWriteNoteHandler(nil, "."))
 	s.RegisterTool(ToolMemoryAppendSection, NewMemoryAppendSectionHandler(nil, "."))
 	s.RegisterTool(ToolMemoryCompileNote, NewMemoryCompileNoteHandler(nil, nil, "."))
-	s.RegisterTool(ToolMemoryVisualizeGraph, NewMemoryVisualizeGraphHandler(nil, "."))
+	s.RegisterTool(ToolMemoryVisualizeGraph, NewMemoryVisualizeGraphHandler(nil, ".", s.BaseURL))
 	s.RegisterTool(ToolMemoryGetClusters, NewMemoryGetClustersHandler(nil))
 	s.RegisterTool(ToolMemoryGetImpact, NewMemoryGetImpactHandler(nil))
 	s.RegisterTool(ToolMemoryInspectNode, NewMemoryInspectNodeHandler(nil))
@@ -137,6 +138,27 @@ func (s *Server) StalenessDetector() *staleness.Detector {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.stalenessDetector
+}
+
+// SetBaseURL publica o endereço base do transporte HTTP (ex:
+// "http://127.0.0.1:38400"). O transporte HTTP chama este método quando
+// vincula a porta, e as tools usam o valor para devolver a URL servida do
+// artefato (ADR-059 D-5).
+//
+// Sem transporte HTTP ativo, o valor é vazio e a tool devolve apenas o
+// caminho do arquivo, sem erro.
+func (s *Server) SetBaseURL(baseURL string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.baseURL = baseURL
+}
+
+// BaseURL retorna o endereço base publicado pelo transporte HTTP, ou string
+// vazia quando o transporte não está ativo.
+func (s *Server) BaseURL() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.baseURL
 }
 
 // RegisterHandler registra um método JSON-RPC customizado

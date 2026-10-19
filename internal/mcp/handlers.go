@@ -29,6 +29,10 @@ type ToolContent struct {
 type CallToolResult struct {
 	Content []ToolContent `json:"content"`
 	IsError bool          `json:"isError,omitempty"`
+	// StructuredContent é o payload estruturado da tool, conforme o MCP spec
+	// (2025-06-18). Ele é aditivo: as tools que não o preenchem continuam
+	// emitindo exatamente o mesmo JSON, porque o campo é omitido quando vazio.
+	StructuredContent any `json:"structuredContent,omitempty"`
 }
 
 // NewTextResult constrói uma resposta textual compatível com CallToolResult
@@ -41,6 +45,15 @@ func NewTextResult(text string) CallToolResult {
 			},
 		},
 	}
+}
+
+// NewStructuredResult constrói uma resposta com o texto legível e o payload
+// estruturado correspondente. O texto continua sendo a saída humana; o
+// structuredContent é o que um cliente de máquina (a SPA) valida.
+func NewStructuredResult(text string, structured any) CallToolResult {
+	result := NewTextResult(text)
+	result.StructuredContent = structured
+	return result
 }
 
 // SearchResult representa um trecho relevante recuperado na busca semântica
@@ -682,7 +695,8 @@ func NewAdvancedMemoryGetHubsHandler(hubsFn HubsFunc, prFn PageRankFunc) ToolHan
 			if err != nil {
 				return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao calcular PageRank dos nós: %v", err), nil)
 			}
-			return NewTextResult(FormatPageRankHubs(nodes)), nil
+			// structuredContent (algorithm=pagerank): [{id: string, name: string, score: number, rank: number, in_degree: number, out_degree: number}]
+			return NewStructuredResult(FormatPageRankHubs(nodes), nodes), nil
 		}
 
 		if hubsFn == nil {
@@ -694,7 +708,8 @@ func NewAdvancedMemoryGetHubsHandler(hubsFn HubsFunc, prFn PageRankFunc) ToolHan
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao buscar nós centrais: %v", err), nil)
 		}
 
-		return NewTextResult(FormatHubs(hubs)), nil
+		// structuredContent (algorithm=degree): [{id: string, name: string, in_degree: number, out_degree: number, total_degree: number}]
+		return NewStructuredResult(FormatHubs(hubs), hubs), nil
 	}
 }
 
@@ -778,7 +793,8 @@ func NewMemoryGetInsightsHandler(insightsFn InsightsFunc) ToolHandlerFunc {
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao buscar insights conceituais: %v", err), nil)
 		}
 
-		return NewTextResult(FormatInsights(connections)), nil
+		// structuredContent: [{source_id: string, source_name: string, target_id: string, target_name: string, similarity: number, reason: string}]
+		return NewStructuredResult(FormatInsights(connections), connections), nil
 	}
 }
 
@@ -889,7 +905,12 @@ func NewMemoryDoctorHandler(diagnoseFn DoctorDiagnoseFunc, fixFn DoctorFixFunc) 
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao auditar integridade da memória: %v", err), nil)
 		}
 
-		return NewTextResult(FormatDoctorReport(report, fixedCount)), nil
+		// structuredContent: {total_documents: number, total_chunks: number, total_edges: number, total_nodes: number, health_score: number, missing_mtime_count: number, dead_links: [{source_id: string, target_id: string, relation: string}], orphan_notes: [{id: string, title: string}], self_loops: [{node_id: string, relation: string}], desynced_chunks: [{chunk_id: string, document_id: string, issue: string}]}
+		if report == nil {
+			report = &DoctorReport{}
+		}
+
+		return NewStructuredResult(FormatDoctorReport(report, fixedCount), report), nil
 	}
 }
 

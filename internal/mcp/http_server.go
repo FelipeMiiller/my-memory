@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -23,6 +24,11 @@ type HTTPServer struct {
 	logger      *log.Logger
 	startedAt   time.Time
 	defaultRepo string
+	static      *StaticHandler
+
+	// boundAddr é o endereço efetivamente vinculado (host:port), publicado
+	// para que as tools devolvam a URL real do artefato servido (ADR-059 D-5).
+	boundAddr string
 
 	mu       sync.RWMutex
 	sessions map[string]chan []byte
@@ -33,7 +39,11 @@ type HTTPServerOptions struct {
 	Addr        string
 	CORSEnabled bool
 	DefaultRepo string
-	Logger      *log.Logger
+	// ServedRoot é a raiz publicada pelo transporte: <base>/.mymemory/www/,
+	// com app/ (viewer compilada) e graph/ (artefatos de grafo). Vazio usa
+	// ServedRoot(".").
+	ServedRoot string
+	Logger     *log.Logger
 }
 
 // HealthResponse estrutura os dados retornados pelo endpoint GET /health
@@ -66,6 +76,7 @@ func NewHTTPServer(srv *Server, opts HTTPServerOptions) *HTTPServer {
 		startedAt:   time.Now(),
 		defaultRepo: opts.DefaultRepo,
 		sessions:    make(map[string]chan []byte),
+		static:      NewStaticHandler(opts.ServedRoot, logger),
 	}
 
 	mux := http.NewServeMux()
@@ -76,13 +87,41 @@ func NewHTTPServer(srv *Server, opts HTTPServerOptions) *HTTPServer {
 
 	h.httpServer = &http.Server{
 		Addr:         opts.Addr,
-		Handler:      h.withCORS(mux),
+		Handler:      h.withCORS(h.route(mux)),
 		ReadTimeout:  60 * time.Second,
 		WriteTimeout: 0, // Essencial para manter conexões SSE abertas sem timeout prematuro
 		IdleTimeout:  120 * time.Second,
 	}
 
 	return h
+}
+
+// route separa as quatro rotas do protocolo MCP das rotas estáticas.
+//
+// A separação é deliberada: o http.ServeMux canonicaliza o path e redireciona
+// (301) qualquer path que contenha "..", o que esconderia a tentativa de
+// escape da raiz servida. As rotas estáticas recebem o path cru, para que a
+// barreira de path traversal responda 404 — nunca o index.html (ADR-059 D-4,
+// ADR-060).
+func (h *HTTPServer) route(mux *http.ServeMux) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isProtocolPath(r.URL.Path) {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		h.static.ServeHTTP(w, r)
+	})
+}
+
+// isProtocolPath informa se o path pertence a uma das quatro rotas do
+// protocolo MCP. O path com barra final continua pertencendo ao protocolo,
+// para preservar o comportamento anterior do mux.
+func isProtocolPath(urlPath string) bool {
+	switch strings.TrimSuffix(urlPath, "/") {
+	case "/health", "/sse", "/message", "/mcp":
+		return true
+	}
+	return false
 }
 
 func (h *HTTPServer) createSession() (string, chan []byte) {
@@ -292,14 +331,67 @@ func (h *HTTPServer) withCORS(next http.Handler) http.Handler {
 
 // Serve inicia o servidor aceitando conexões a partir de um net.Listener já vinculado
 func (h *HTTPServer) Serve(l net.Listener) error {
+	h.publishBoundAddr(l.Addr().String())
 	h.logger.Printf("Servidor MCP escutando em %s", l.Addr().String())
 	return h.httpServer.Serve(l)
 }
 
-// ListenAndServe inicia a escuta no endereço configurado
+// ListenAndServe inicia a escuta no endereço configurado.
+//
+// O listener é criado aqui e o serviço segue pelo mesmo caminho de Serve, de
+// modo que os dois caminhos publiquem o mesmo endereço efetivamente vinculado
+// (ADR-059 D-5).
 func (h *HTTPServer) ListenAndServe() error {
-	h.logger.Printf("Servidor MCP iniciando em %s", h.addr)
-	return h.httpServer.ListenAndServe()
+	ln, err := net.Listen("tcp", h.addr)
+	if err != nil {
+		h.logger.Printf("Falha ao escutar em %s: %v", h.addr, err)
+		return err
+	}
+	return h.Serve(ln)
+}
+
+// publishBoundAddr publica o endereço efetivamente vinculado. O caminho
+// Serve(l) conhece a porta concreta mesmo quando o pedido foi ":0" ou
+// ":38400", porque vem do net.Listener real.
+func (h *HTTPServer) publishBoundAddr(addr string) {
+	h.mu.Lock()
+	h.boundAddr = addr
+	h.mu.Unlock()
+
+	base := baseURLFromAddr(addr)
+	h.logger.Printf("Endereço base publicado: %s", base)
+	if h.server != nil {
+		h.server.SetBaseURL(base)
+	}
+}
+
+// BaseURL devolve a URL base do transporte HTTP ("http://host:port"), ou string
+// vazia enquanto o servidor não vinculou a porta.
+func (h *HTTPServer) BaseURL() string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return baseURLFromAddr(h.boundAddr)
+}
+
+// baseURLFromAddr converte o endereço vinculado ("host:port") na URL base
+// publicada ao cliente. Host vazio ou curinga vira loopback, porque a URL
+// precisa ser clicável.
+func baseURLFromAddr(addr string) string {
+	if addr == "" {
+		return ""
+	}
+
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return ""
+	}
+
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		host = "127.0.0.1"
+	}
+
+	return "http://" + net.JoinHostPort(host, port)
 }
 
 // Shutdown encerra graciosamente o servidor HTTP e fecha as sessões ativas

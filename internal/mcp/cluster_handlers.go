@@ -84,7 +84,15 @@ func NewMemoryGetClustersHandler(clustersFn ClustersFunc) ToolHandlerFunc {
 			}
 		}
 
-		return NewTextResult(sb.String()), nil
+		// structuredContent: {communities: [{id: number, label: string, lead_node: string, members: [string], size: number, dominant_type?: string}], modularity: number, total_nodes: number, total_edges: number}
+		structured := graph.CommunityResult{
+			Communities: filtered,
+			Modularity:  result.Modularity,
+			TotalNodes:  result.TotalNodes,
+			TotalEdges:  result.TotalEdges,
+		}
+
+		return NewStructuredResult(sb.String(), structured), nil
 	}
 }
 

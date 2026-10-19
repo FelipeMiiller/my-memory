@@ -102,7 +102,8 @@ func NewMemoryGetDriftHandler(analyzer DriftAnalysisFunc) ToolHandlerFunc {
 			sb.WriteString("\n")
 		}
 
-		return NewTextResult(sb.String()), nil
+		// structuredContent: {range: string, total_commits: number, total_changed_files: number, drifted_notes: [{note_id: string, title: string, path: string, drift_score: number, severity: string, commits_behind: number, lines_changed: number, affected_files: [string], reason: string, pagerank: number}], uncovered_code: [{file_path: string, package: string, status: string, additions: number, deletions: number, suggested_action: string}], overall_score: number, critical_count: number, high_count: number, medium_count: number, low_count: number, analyzed_at: string}
+		return NewStructuredResult(sb.String(), report), nil
 	}
 }
 
