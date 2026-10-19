@@ -72,8 +72,11 @@ vis-network atende exatamente a restrição: build **standalone UMD**, carregado
 3. The repository SHALL contain `internal/graphview/assets/PROVENANCE.md` recording the source URL, the exact version, the SHA-256 of the file, and the retrieval date
 4. IF the vendored file's SHA-256 differs from the one recorded in `PROVENANCE.md` THEN a test SHALL fail
 5. The vendored asset SHALL be tracked by git, not gitignored
-6. The build of the repository SHALL NOT depend on the asset being present
-7. IF `go build ./...` runs on a machine where the asset is absent THEN it SHALL still exit 0
+6. The asset SHALL be embedded in the binary with `go:embed`, so a freshly installed `mem` can render the vis engine with no extra setup
+7. IF `internal/graphview/assets/vis-network.min.js` is missing THEN `go build ./...` SHALL fail with a clear message, because the asset is git-tracked and its absence is a visible error rather than a silently broken binary
+8. `mem graph view --engine vis --out g.html` SHALL write **two** files next to each other: `g.html` and `vis-network.min.js`, taken from the embedded bytes
+9. IF the output directory is copied elsewhere THEN the pair SHALL still render with no network access
+10. The build SHALL NOT require the `.map` source map, which SHALL NOT be vendored
 
 **Independent Test**: hash the vendored file, compare against `PROVENANCE.md`.
 
@@ -161,9 +164,9 @@ vis-network atende exatamente a restrição: build **standalone UMD**, carregado
 | VIS-05 | P1: Asset vendorizado | Execute | Pending |
 | VIS-06 | P1: Asset vendorizado | Execute | Pending |
 | VIS-07 | P1: Asset vendorizado | Execute | Pending |
-| VIS-08 | P2: Renderizador vis-network | Execute | Pending |
-| VIS-09 | P2: Renderizador vis-network | Execute | Pending |
-| VIS-10 | P2: Renderizador vis-network | Execute | Pending |
+| VIS-08 | P1: Asset vendorizado | Execute | Pending |
+| VIS-09 | P1: Asset vendorizado | Execute | Pending |
+| VIS-10 | P1: Asset vendorizado | Execute | Pending |
 | VIS-11 | P2: Renderizador vis-network | Execute | Pending |
 | VIS-12 | P2: Renderizador vis-network | Execute | Pending |
 | VIS-13 | P2: Renderizador vis-network | Execute | Pending |
@@ -174,28 +177,21 @@ vis-network atende exatamente a restrição: build **standalone UMD**, carregado
 | VIS-18 | P2: Renderizador vis-network | Execute | Pending |
 | VIS-19 | P2: Renderizador vis-network | Execute | Pending |
 | VIS-20 | P2: Renderizador vis-network | Execute | Pending |
-| VIS-21 | P3: A flag no CLI | Execute | Pending |
-| VIS-22 | P3: A flag no CLI | Execute | Pending |
-| VIS-23 | P3: A flag no CLI | Execute | Pending |
+| VIS-21 | P2: Renderizador vis-network | Execute | Pending |
+| VIS-22 | P2: Renderizador vis-network | Execute | Pending |
+| VIS-23 | P2: Renderizador vis-network | Execute | Pending |
 | VIS-24 | P3: A flag no CLI | Execute | Pending |
 | VIS-25 | P3: A flag no CLI | Execute | Pending |
 | VIS-26 | P3: A flag no CLI | Execute | Pending |
-| VIS-27 | P2: Documentação e decisão | Execute | Pending |
-| VIS-28 | P2: Documentação e decisão | Execute | Pending |
-| VIS-29 | P2: Documentação e decisão | Execute | Pending |
+| VIS-27 | P3: A flag no CLI | Execute | Pending |
+| VIS-28 | P3: A flag no CLI | Execute | Pending |
+| VIS-29 | P3: A flag no CLI | Execute | Pending |
 | VIS-30 | P2: Documentação e decisão | Execute | Pending |
 | VIS-31 | P2: Documentação e decisão | Execute | Pending |
 | VIS-32 | P2: Documentação e decisão | Execute | Pending |
 | VIS-33 | P2: Documentação e decisão | Execute | Pending |
+| VIS-34 | P2: Documentação e decisão | Execute | Pending |
+| VIS-35 | P2: Documentação e decisão | Execute | Pending |
+| VIS-36 | P2: Documentação e decisão | Execute | Pending |
 
-**Coverage:** 33 total, 33 mapped to stories, 0 unmapped.
-
----
-
-## Success Criteria
-
-- [ ] `go build ./...`, `go vet ./...` and `go test -count=1 ./...` exit 0
-- [ ] `mem graph view` without `--engine` produces byte-identical output to before this feature
-- [ ] `mem graph view --engine vis --out g.html` emits HTML with no remote origin and a working local script reference
-- [ ] The vendored asset's SHA-256 matches `PROVENANCE.md`
-- [ ] `go build ./...` still exits 0 with the asset removed from disk
+**Coverage:** 36 total, 36 mapped to stories, 0 unmapped.
