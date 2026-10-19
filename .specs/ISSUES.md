@@ -627,3 +627,32 @@ Os negativos importam mais que os positivos — um detector que "corrige" palavr
 **Defeito 2 — o vault deste repositório está efetivamente não indexado.** Os 8.094 arquivos modificados/novos do banner staleness, contra 0 documentos no grafo, são o mesmo fato visto de dois ângulos: a memória do próprio repositório não existe no banco. `mem index` no vault local resolve este; o Defeito 1 é a correção de código.
 
 **Por que não duplica `ISSUE-006`.** `ISSUE-006` trata o Health Score *persistentemente baixo* num vault indexado — é calibração de pesos. O caso daqui é o oposto e anterior na cadeia: score alto com grafo vazio, por uma guarda que pula o cálculo inteiro. As duas convivem; corrigir uma não arruma a outra.
+
+---
+
+## ISSUE-020 — ADR-058 (vis-network vendorizado) está Accepted, mas o asset e o `go:embed` não existem
+
+- **Severidade:** 🟠 high
+- **Status:** 🔵 open
+- **Achado em:** sessão 2026-10-19 — auditoria da rodada da viewer (ADR-059/ADR-060), ao verificar o estado real do motor de grafo antes de planejar a etapa seguinte
+- **Relacionada:** ADR-058 (`docs/adr/058-renderizador-vis-network-vendorizado-sem-build-step.md`) · feature `graph-view-vis-engine`
+
+**O que a ADR-058 decide.** Renderizar o grafo com **vis-network 10.1.2 vendorizado**, sem build step e sem CDN: o asset `internal/graphview/assets/vis-network.min.js` (652 kB, UMD standalone) embutido com `go:embed`, e `mem graph view --engine vis --out g.html` emitindo **dois arquivos** lado a lado (`g.html` + `vis-network.min.js`), extraídos dos bytes embutidos.
+
+**O que existe hoje.** Nenhum item da decisão foi implementado:
+
+| Item | ADR-058 exige | Estado real |
+|---|---|---|
+| `internal/graphview/assets/vis-network.min.js` | presente (652 kB, v10.1.2) | **ausente** — `internal/graphview/` tem só 8 arquivos, todos `.go` |
+| `go:embed` do asset | embutido no binário | **0 ocorrências** em `internal/graphview/` |
+| `LICENSE-vis-network.txt` | ao lado do asset | **ausente** |
+| `mem graph view --engine vis` | flag que escolhe o motor | **não existe** — `cmd/mem/` não tem flag `--engine` de grafo |
+| Renderizador ativo | vis-network | template HTML autocontido com JS inline (`internal/graphview/template.go:11`, `htmlPageTemplate`) — o motor legado das ADR-020/ADR-024 |
+
+**Por que isso é um defeito, e não só trabalho faltando.** O índice de ADRs (`docs/adr/README.md:61`) registra a ADR-058 como **Accepted**, que no vocabulário do repositório significa decisão em vigor. Quem procurar o motor vis-network no código não encontra, e a ADR-058 sugere que a restrição "sem CDN e sem build step" já está satisfeita no grafo servido pelo MCP — onde, na verdade, ainda é o HTML legado. A feature `graph-view-vis-engine` parou na fase **Specify**: tem `spec.md` e `design.md`, mas **nenhum `tasks.md`**, ou seja, nunca passou pela fase Tasks nem foi executada.
+
+**Impacto.** Nenhum em runtime — o renderizador legado continua funcionando e o gate segue verde. Alto em **rastreabilidade**: o repositório afirma uma decisão que não foi implementada, e a feature correspondente não tem plano de execução.
+
+**Decisão pendente (produto, não documentação).** O escopo do `tasks.md` de `graph-view-vis-engine` é decisão do operador: (a) executar a feature como especificada — vendorizar os 652 kB, embutir, expor `--engine vis`; (b) rebaixar a ADR-058 para "Accepted, não implementada" e manter o motor legado como único; (c) superseder a ADR-058 se o motor vis-network for superado pela viewer React/Vite da ADR-059, que já desenha o grafo no navegador.
+
+**Reprodução:** `grep -r "go:embed" internal/graphview/` → 0 ocorrências; `internal/graphview/` → 8 arquivos `.go`, nenhum subdiretório.

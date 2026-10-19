@@ -110,6 +110,18 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > explícita e local — 56 linhas, sem preset.
 
 > [!warning]
+> **ADR-058: decisão aceita, implementação ausente.** A ADR decide vendorizar o
+> vis-network 10.1.2 em `internal/graphview/assets/vis-network.min.js` com
+> `go:embed`, sem CDN e sem build step. Nada disso existe hoje: o diretório
+> `assets/` não foi criado, não há nenhuma ocorrência de `go:embed` em
+> `internal/graphview/`, e a flag `mem graph view --engine vis` não existe — o
+> renderizador ativo continua sendo o HTML autocontido com JS inline
+> (`internal/graphview/template.go:11`), o motor legado das ADR-020/ADR-024. A
+> feature `graph-view-vis-engine` parou na fase **Specify**: tem `spec.md` e
+> `design.md`, mas nenhum `tasks.md`. Registrado como
+> [ISSUE-020](../../.specs/ISSUES.md).
+
+> [!warning]
 > **ADR-044: decisão mantida, implementação removida.** Em `9bc28c7` os pacotes
 > `internal/writer`, `internal/writer/projection` e `internal/policy` foram apagados por
 > não terem importadores, e o comando `mem write` nunca chegou a existir. A decisão de
