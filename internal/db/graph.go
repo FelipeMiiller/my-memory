@@ -21,9 +21,9 @@ type SearchResult struct {
 	Distance   float64             `json:"distance,omitempty"`
 	Score      float64             `json:"score,omitempty"`
 	Sources    []string            `json:"sources,omitempty"`
-	Neighbors  []string            `json:"neighbors,omitempty"` // Conexões descobertas no grafo
+	Neighbors  []string            `json:"neighbors,omitempty"`  // Conexões descobertas no grafo
 	UpdatedAt  int64               `json:"updated_at,omitempty"` // Instante da indexação
-	MTime      int64               `json:"mtime,omitempty"`     // Instante da última edição do arquivo (ADR-057); 0 = desconhecido
+	MTime      int64               `json:"mtime,omitempty"`      // Instante da última edição do arquivo (ADR-057); 0 = desconhecido
 	Abstract   string              `json:"abstract,omitempty"`
 	Category   string              `json:"category,omitempty"`
 	Links      *deeplink.DeepLinks `json:"links,omitempty"`

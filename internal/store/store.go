@@ -42,7 +42,7 @@ type SearchResult struct {
 	Sources    []string            `json:"sources,omitempty"` // Origens e posições (ex: ["fts:1", "vector:3"])
 	Neighbors  []string            `json:"neighbors,omitempty"`
 	UpdatedAt  int64               `json:"updated_at,omitempty"` // Instante da INDEXAÇÃO do documento
-	MTime      int64               `json:"mtime,omitempty"`     // Instante da ÚLTIMA EDIÇÃO do arquivo (ADR-057); 0 = desconhecido
+	MTime      int64               `json:"mtime,omitempty"`      // Instante da ÚLTIMA EDIÇÃO do arquivo (ADR-057); 0 = desconhecido
 	Abstract   string              `json:"abstract,omitempty"`
 	Category   string              `json:"category,omitempty"`
 	Links      *deeplink.DeepLinks `json:"links,omitempty"`
@@ -112,19 +112,19 @@ type DesyncedChunk struct {
 
 // DoctorReport agrega as métricas estruturais e anomalias de saúde do grafo
 type DoctorReport struct {
-	TotalDocuments int             `json:"total_documents"`
-	TotalChunks    int             `json:"total_chunks"`
-	TotalEdges     int             `json:"total_edges"`
-	TotalNodes     int             `json:"total_nodes"`
-	HealthScore    int             `json:"health_score"` // 0 a 100
+	TotalDocuments int `json:"total_documents"`
+	TotalChunks    int `json:"total_chunks"`
+	TotalEdges     int `json:"total_edges"`
+	TotalNodes     int `json:"total_nodes"`
+	HealthScore    int `json:"health_score"` // 0 a 100
 	// ADR-057: documentos com mtime = 0 foram indexados antes de a coluna
 	// existir. Não é corrupção de dado — é uma lacuna de metadados, então fica
 	// fora do HealthScore e vira contagem explícita no relatório.
 	MissingMTimeCount int             `json:"missing_mtime_count"`
-	DeadLinks      []DeadLink      `json:"dead_links"`
-	OrphanNotes    []OrphanNote    `json:"orphan_notes"`
-	SelfLoops      []SelfLoop      `json:"self_loops"`
-	DesyncedChunks []DesyncedChunk `json:"desynced_chunks"`
+	DeadLinks         []DeadLink      `json:"dead_links"`
+	OrphanNotes       []OrphanNote    `json:"orphan_notes"`
+	SelfLoops         []SelfLoop      `json:"self_loops"`
+	DesyncedChunks    []DesyncedChunk `json:"desynced_chunks"`
 	// Ortografia é um AVISO (ISSUE-017): termos sem acento que quebram a
 	// tokenização da busca. Não entra no cálculo do HealthScore — perda de
 	// acento não é corrupção de dado, é decisão de produto.
