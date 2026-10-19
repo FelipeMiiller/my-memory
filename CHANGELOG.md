@@ -184,6 +184,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A auditoria das citações encontrou uma **sexta** divergência, agora
     registrada: o invariant de `internal/ci` **é** afetado por `viewer/`, porque
     `go list ./...` enxerga o port Go que o pacote npm `flatted` distribui.
+- **ADR-060: stack do frontend da viewer e a rota de fallback SPA**. A viewer
+  passa de "scaffold do shadcn" para stack decidida, com custos medidos:
+  `@tanstack/react-query` (13,2 kB gzip), `@tanstack/react-router` (30,98 kB),
+  `zustand` (489 B), `zod/mini` (3,0 kB — contra **90,8 kB** do `zod` completo,
+  medido localmente) e `@tanstack/markdown` (6,94 kB). Total: **+54,7 kB gzip**
+  sobre o baseline de 84,28 kB.
+  - **Emenda à ADR-059**: o contrato de rotas ganha o fallback SPA, com duas
+    regras não-negociáveis — a checagem de path traversal acontece **antes** do
+    fallback, e o fallback só se aplica a requisições `Accept: text/html`, de
+    modo que um asset faltando continua sendo 404.
+  - `@tanstack/config` **não** entra: o pacote está deprecado no npm ("Package
+    no longer supported"), e a doc em `tanstack.com/config/latest` continua
+    recomendando. O slot é ocupado por `@tanstack/vite-config@0.6.0`, sucessor
+    do mesmo produto.
+  - Registra a **duplicação da gramática de wikilink** entre o parser Go
+    (`internal/parser/wikilinks.go`) e o pré-processador do SPA, com a regra de
+    contexto (código cercado, código inline, comentário HTML, linha de tabela)
+    que impede a viewer de linkar o que o grafo não tem.
+  - As 24 tools MCP mapeadas são a superfície de dados do painel.
 - **Índice de ADRs**: a linha em branco entre ADR-057 e ADR-058 foi removida —
   ela encerrava a tabela markdown e deixava ADR-058 e ADR-059 sem cabeçalho.
 

@@ -59,7 +59,8 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-056](056-persistencia-de-propriedades-de-frontmatter.md)** | Persistência de propriedades de frontmatter em tabela consultável | Aceito | 2026-10-18 | `schema`, `frontmatter`, `properties`, `obsidian` |
 | **[ADR-057](057-mtime-e-metadados-de-arquivo-no-indice.md)** | mtime e metadados de arquivo no índice | Aceito — **Implementado** | 2026-10-18 | `schema`, `metadata`, `staleness`, `obsidian` |
 | **[ADR-058](058-renderizador-vis-network-vendorizado-sem-build-step.md)** | Renderizador vis-network vendorizado, sem build step e sem CDN | Accepted | 2026-10-19 | `graphview`, `vis-network`, `vendorizado`, `go-embed`, `offline` |
-| **[ADR-059](059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** | SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP | Aceito | 2026-10-19 | `viewer`, `react`, `vite`, `mcp`, `http`, `build-estatico`, `seguranca` |
+| **[ADR-059](059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** | SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP | Aceito — **Emendado pela ADR-060** | 2026-10-19 | `viewer`, `react`, `vite`, `mcp`, `http`, `build-estatico`, `seguranca` |
+| **[ADR-060](060-stack-do-frontend-da-viewer-e-fallback-spa.md)** | Stack do frontend da viewer (TanStack) e a rota de fallback SPA | Aceito | 2026-10-19 | `viewer`, `react`, `tanstack`, `router`, `query`, `zustand`, `zod`, `markdown`, `wikilinks`, `spa` |
 > [!success]
 > **ADR-057: implementada.** `documents.mtime` e `documents.size` existem nos dois
 > engines (SQLite e PostgreSQL) e são preenchidos a partir do `stat` real do arquivo em
@@ -75,6 +76,17 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > Vault indexado antes da migração continua funcionando sem `mem index --force`: os
 > documentos com `mtime = 0` caem no `updated_at` e vão para o fim de `mem recents`.
 
+> [!warning]
+> **ADR-059: emendada pela ADR-060.** O contrato de rotas do servidor ganhou a
+> **rota de fallback SPA**: uma requisição de navegação (`Accept: text/html`)
+> para um path que não corresponde a arquivo existente devolve `index.html` em
+> vez de 404. A checagem de path traversal acontece **antes** do fallback, e o
+> fallback só se aplica a `text/html` — um asset faltando continua sendo 404.
+> A ADR-060 também registra o stack do frontend (TanStack Query, Router, Zustand,
+> `zod/mini`, `@tanstack/markdown`) com os custos medidos, e a duplicação da
+> gramática de wikilink entre o parser Go e o pré-processador do SPA.
+> O texto da ADR-059 permanece inalterado, como registro histórico.
+>
 > [!warning]
 > **ADR-044: decisão mantida, implementação removida.** Em `9bc28c7` os pacotes
 > `internal/writer`, `internal/writer/projection` e `internal/policy` foram apagados por
