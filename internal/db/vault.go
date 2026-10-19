@@ -103,16 +103,26 @@ func ReadVaultDocumentContent(ctx context.Context, database *sql.DB, docID strin
 // do mtime mais novo para o mais antigo.
 //
 // Documento com mtime = 0 (indexado antes de a coluna existir, ADR-057) vai
-// para o FIM, não para o começo. Sem esse CASE, o zero venceria todos os
-// timestamps e `mem recents` abriria listando justamente as notas cujo tempo de
-// edição ele não conhece — o oposto do que o comando promete.
+// para o FIM, não para o começo: `mem recents` não deve abrir listando as notas
+// cujo tempo de edição ele desconhece, que é o oposto do que o comando promete.
+//
+// O COALESCE na chave de ordenação é o que sustenta essa garantia. Hoje
+// documents.mtime é NOT NULL nos dois engines, então NULL é impossível — mas
+// numa tabela legada, anterior à coluna, ele pode não ser. E aí a diferença
+// entre os engines aparece: no PostgreSQL `ORDER BY col DESC` coloca NULL
+// PRIMEIRO por padrão, enquanto o SQLite coloca por último. Sem o COALESCE, um
+// NULL no Postgres abriria a lista justamente por ser o documento do qual menos
+// sabemos.
+//
+// Havia aqui um `CASE WHEN COALESCE(mtime, 0) <= 0 THEN 1 ELSE 0 END ASC`
+// atras do qual este teste "zerado" alegava guardar. Era código morto: com o
+// COALESCE presente, 0 já é o menor valor possível e desce sozinho sob DESC.
+// Medido nos dois engines, remover o CASE não muda uma linha da ordem.
 func ListVaultDocumentsByMTime(ctx context.Context, database *sql.DB, limit int) ([]store.VaultDocument, error) {
 	rows, err := database.QueryContext(ctx, `
 		SELECT id, path, COALESCE(title, ''), COALESCE(mtime, 0), COALESCE(size, 0)
 		FROM documents
-		ORDER BY CASE WHEN COALESCE(mtime, 0) <= 0 THEN 1 ELSE 0 END ASC,
-		         COALESCE(mtime, 0) DESC,
-		         path ASC
+		ORDER BY COALESCE(mtime, 0) DESC, path ASC
 		LIMIT ?
 	`, limit)
 	if err != nil {
