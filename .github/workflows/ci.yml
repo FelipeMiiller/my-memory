@@ -360,6 +360,84 @@ jobs:
           go mod tidy
           go run .
 
+  # ---------------------------------------------------------------------------
+  # Frontend (viewer SPA) - ADR-059 / ADR-060
+  # ---------------------------------------------------------------------------
+  # O job `frontend` que existia foi removido junto com o viewer Electron em
+  # b477200, e nunca voltou. Desde a ADR-059 o repositorio tem uma segunda
+  # toolchain (Node) em `viewer/`, e sem este job nada garante que
+  # `npm run build` passa.
+  #
+  # O ultimo step e o mais importante: ele roda a invariante de
+  # `internal/ci` COM `node_modules` presente. Sem essa combinacao, a
+  # invariante roda num checkout limpo, onde `go list ./...` nao enxerga
+  # nenhum pacote de terceiro -- e foi exatamente assim que o defeito do
+  # commit cee9fb1 escapou: um pacote npm (`flatted`) distribui codigo Go, e
+  # `go list ./...` o reportava como pacote deste modulo.
+  frontend:
+    name: Frontend (viewer SPA)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: viewer
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: "viewer/package.json"
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit Tests
+        run: npm run test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Check bundle size budget
+        run: |
+          # ADR-060 mediu o stack do frontend em +54,7 kB gzip sobre o
+          # baseline de 84,28 kB, com meta de ~139 kB. O orcamento de 180 kB
+          # existe para pegar o modo de falha mais provavel: importar o
+          # barrel do `zod` em vez de `zod/mini` custa +87,8 kB e passaria
+          # despercebida numa review de diff.
+          set -euo pipefail
+          budget=184320   # 180 kB
+          total=0
+          for f in dist/assets/*.js; do
+            [ -e "$f" ] || continue
+            size=$(gzip -9 -c "$f" | wc -c)
+            echo "  $f -> $size bytes gzip"
+            total=$((total + size))
+          done
+          echo "Total: $total bytes gzip (budget $budget)"
+          if [ "$total" -gt "$budget" ]; then
+            echo "FAIL: bundle gzip acima do orcamento de 180 kB"
+            exit 1
+          fi
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Run CI Coverage Invariant With node_modules Present
+        working-directory: .
+        run: go test -count=1 -v ./internal/ci/...
+
   build-verification:
     name: Build Verification
     needs: [unit-tests, database-tests]

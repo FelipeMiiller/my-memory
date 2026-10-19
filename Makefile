@@ -1,5 +1,5 @@
 # Makefile para o projeto My-Memory
-.PHONY: all build test test-coverage lint fmt clean run-index run-search
+.PHONY: all build test test-all test-coverage lint fmt clean run-index run-search viewer
 
 BINARY_NAME=mem
 BUILD_DIR=bin
@@ -42,3 +42,17 @@ lint:
 clean:
 	@echo "==> Limpando diretórios de build..."
 	@rm -rf $(BUILD_DIR) coverage.txt
+
+## Compila a viewer e publica o build na raiz servida pelo MCP
+## (ADR-059 D-2, ADR-060). A raiz servida é .mymemory/www/, com app/ para o
+## build da SPA e graph/ para os artefatos de grafo gerados.
+viewer:
+	@echo "==> Instalando dependências da viewer..."
+	cd viewer && npm install --no-audit --no-fund
+	@echo "==> Compilando a viewer..."
+	cd viewer && npm run build
+	@echo "==> Publicando o build em .mymemory/www/app/..."
+	@rm -rf .mymemory/www/app
+	@mkdir -p .mymemory/www/app
+	@cp -R viewer/dist/. .mymemory/www/app/
+	@echo "==> Viewer publicada. Suba com 'mem mcp --port 38400' e abra http://127.0.0.1:38400/"
