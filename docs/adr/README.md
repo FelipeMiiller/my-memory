@@ -88,6 +88,26 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > O texto da ADR-059 permanece inalterado, como registro histórico.
 >
 > [!warning]
+> **ADR-060: implementada, com uma pendência resolvida.** A viewer foi
+> construída com o stack decidido — TanStack Query, Router, Zustand, `zod/mini`
+> e `@tanstack/markdown` — e o bundle final mede **138,5 kB gzip**, contra a
+> meta de ~139 kB registrada na ADR-060.
+>
+> A pendência é a D-1: `@tanstack/vite-config@0.6.0` **não foi adotado**, e a
+> dependência foi removida do `package.json`. A leitura do pacote mostra por
+> quê: ele é um preset de **biblioteca**, não de aplicação — `build.lib` com
+> formatos `es` + `cjs`, `minify: false`, `sourcemap: true` e
+> `preserveModules: true`, além de `vite-plugin-dts` gerando `.d.ts` e `.d.cts`.
+> Adotá-lo transformaria o build da SPA em build de biblioteca e desligaria a
+> minificação. A ADR-060 já registrava esse `vite-plugin-dts` como inerte e
+> delegava a desligá-lo à implementação; foi o que aconteceu.
+>
+> Consequência: **o slot "Config" da stack não tem candidato correto para uma
+> SPA**. O `@tanstack/config` está deprecado no npm ("Package no longer
+> supported") e o sucessor é de biblioteca. A `vite.config.ts` da viewer segue
+> explícita e local — 56 linhas, sem preset.
+
+> [!warning]
 > **ADR-044: decisão mantida, implementação removida.** Em `9bc28c7` os pacotes
 > `internal/writer`, `internal/writer/projection` e `internal/policy` foram apagados por
 > não terem importadores, e o comando `mem write` nunca chegou a existir. A decisão de

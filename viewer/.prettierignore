@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+.pnpm-store/
+pnpm-lock.yaml
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Gerado pelo @tanstack/router-plugin: versionado, mas nunca formatado.
+src/routes/routeTree.gen.ts
