@@ -740,3 +740,66 @@ O `Accept: text/html` é exatamente o que um **navegador** envia ao pedir um `.j
 **O mesmo padrão apareceu nesta rodada** em `.specs/features/mcp-static-serving/spec.md:19` (`cujo uso尺尺 é fácil confundir` → `cujo uso é fácil`). Uma spec **não** é registro histórico, então essa foi corrigida direto. A lição para a próxima: specs e docs corrige-se; ADRs, só no índice.
 
 **Decisão pendente (produto).** Registrar a correção textual no índice de ADRs, ou superseder as duas ADRs.
+
+---
+
+## ISSUE-025 — 12 testes de events em `cmd/mem` falharam uma vez, sob carga concorrente do mesmo store
+
+- **Severidade:** 🟡 medium
+- **Status:** 🔵 open
+- **Achado em:** sessão 2026-10-19 — gate final da rodada da viewer
+- **Relacionada:** ISSUE-016 (testes de `cmd/mem` liam e escreviam no Postgres real) · ISSUE-011 (teste flaky em `internal/event_runtime`)
+
+**O fato.** Uma execução de `go test -count=1 ./...` reprovou **12 testes**, todos
+do mesmo grupo — os de *events*:
+
+```
+TestDoctor_EventsFlag_ReportsMetrics
+TestDoctor_EventsFlag_WarnsWhenOldestUnackedTooOld
+TestDoctor_NoEventsFlag_NoEventsSection
+TestCLI_EventsTail_PrintsJSONLines
+TestCLI_EventsInspect_NotFound_ExitsNonZero
+TestCLI_EventsInspect_Found_PrintsEnvelope
+TestCLI_ReplayDryRun_DoesNotApplyEffects
+TestCLI_ReplayApply_RequiresConfirmation
+TestCLI_Trace_ReturnsAllEventsWithCorrelationID
+TestCLI_LastSequence_PrintsMaxSequence
+TestCLI_Stats_ReportsOldestUnacked
+TestCLI_MissingConfig_Exits2
+```
+
+O resto da suíte passou — inclusive `internal/mcp`, que é o pacote tocado nesta
+rodada.
+
+**O contexto.** No momento da falha, havia um `mem mcp --port 38400` rodando em
+background **e atendendo consultas pesadas** contra o mesmo Postgres: um
+`memory_doctor` (varredura completa do banco) e um `memory_get_drift` (varredura
+do git). Os 12 testes que falharam são exatamente os que tocam o *event store*.
+
+**Tentativas de reprodução.**
+
+| Cenário | Resultado |
+|---|---|
+| Suíte completa, com o servidor ainda no ar | **PASS** (exit 0) |
+| `TestCLI_Stats_ReportsOldestUnacked` isolado, com o servidor no ar | **PASS** |
+| Suíte completa, com o servidor encerrado | **PASS** (74,9 s) |
+
+Ou seja: **não reproduz sob demanda**, e o gate final fechou verde. A falha
+correlaciona com uso concorrente do mesmo store, não com uma mudança de código.
+
+**Hipótese (a confirmar).** Os testes de events compartilham um recurso real
+com o servidor — a mesma classe da ISSUE-016, em que os testes de `cmd/mem`
+liam e escreviam no Postgres do usuário. A correção da ISSUE-016 isolaram
+alguns testes, mas o grupo de *events* ficou de fora.
+
+**Impacto.** Quem roda o servidor MCP e a suíte ao mesmo tempo pode ver um
+gate vermelho sem causa no código — e o oposto, um gate verde que não exercita
+nada. É a mesma armadilha que a ISSUE-014 descreveu (CI vermelho por dias sem
+rodar teste nenhum), vista pelo outro lado.
+
+**Direção da correção.** Isolar o event store nos testes de `cmd/mem`, como a
+ISSUE-016 fez com o restante — temp dir ou store efêmero por teste, sem tocar
+o store real.
+
+**Nota.** A flakiness já tem precedente no repositório: a ISSUE-011 registrou um
+teste flaky em `internal/event_runtime` com taxa de falha de ~50%.
