@@ -17,25 +17,48 @@ tags: [validation, obsidian, mtime, decay, adr-057]
 
 ## Veredito
 
-# FAIL
+## Validation
 
-A entrega e solida na superficie SQLite — 9 comandos, 4 ferramentas MCP, documentacao e a
-correcao do decaimento estao todos presentes, testados e, onde testados, discriminando de
-verdade. **Mas a correcao central da spec nao vale no engine Postgres**, que e o
-armazenamento canonico do projeto por ADR-040. Ali `--decay` continua medindo o instante de
-indexacao — exatamente o bug que a ADR-057 existe para corrigir.
+**Result**: PASS
 
- alem disso, **18 dos 61 arquivos da feature estao fora do diff range declarado**, e o range
-indicado na tarefa de verificacao exclui justamente o nucleo corretivo.
+# PASS
 
-| Metrica | Valor |
-| --- | --- |
-| Criterios PASS | **39 / 41** |
-| Criterios FAIL | **2 / 41** (PARITY-05, PARITY-06) |
-| Criterios UNVERIFIABLE | 0 |
-| Mutantes injetados | 10 (mais 1 probe empirico) |
-| Mutantes mortos (KILLED) | 5 |
-| Mutantes sobrevividos (SURVIVED) | 5 |
+> **Veredito reemitido apos o ciclo de correcao.** O veredito original deste laudo foi
+> **FAIL**: 39/41 criterios PASS e 2 FAIL, porque a correcao central da spec nao valia
+> no Postgres — o engine canonico pela ADR-040. As 7 lacunas levantadas foram corrigidas
+> e re-verificadas uma a uma. O corpo do laudo original esta preservado abaixo, com o
+> historico do que foi encontrado; esta secao substitui apenas o veredito.
+>
+| Metrica | Original | Apos correcao |
+| --- | --- | --- |
+| Criterios PASS | 39 / 41 | **41 / 41** |
+| Criterios FAIL | 2 / 41 | **0** |
+| Lacunas abertas | 7 | **0** |
+| Gate final | 25 pkg / 0 FAIL | **25 pkg / 0 FAIL** |
+
+## Ciclo de correcao — as 7 lacunas, uma a uma
+
+| # | Lacuna | Gravidade | Commit | Re-verificacao |
+|---|---|---|---|---|
+| 1 | Postgres nao populava MTime em nenhum dos 3 caminhos de busca | CRITICA | 75d4836 | 3 sitios com COALESCE(d.mtime); prova empirica em Postgres vivo: decaimento **0.718750** (120 dias) vs **1.000000** (instante da indexacao) |
+| 2 | Diff range declarado excluia 18 arquivos, entre eles o proprio 
+rf.go | ALTA | — (erro de briefing do orquestrador, nao de codigo) | range real 1ff5d2c~1..HEAD; nenhuma mudanca de codigo necessaria |
+| 3 | 3 dos 4 caminhos de fusao SQLite sem cobertura de MTime | MEDIA | 99994df | teste table-driven nomeando os 4 pela origem exata: ts/hybrid.go:28, 	urboquant/graph.go:97, grafo/hybrid.go:130, knn/graph.go:51 |
+| 4 | TestRunRecentsCommand_MTimeZeroVaiParaOFim tautologico | MEDIA | 200e55f, ef82f56 | CASE morto removido; COALESCE mantido porque e ele que defende NULL (Postgres ordena NULL primeiro em DESC, SQLite por ultimo); teste reescrito no contrato real |
+| 5 | Curingas de LIKE nao escapadas | BAIXA | f9c2e8 | store.EscapeLikePattern + LikeEscapeChar explicito nos dois engines |
+| 6 | JoinVaultChunks sem teste adversarial | BAIXA | commit das 7fffdf6 (chunks) | 7 casos: doc de um chunk, nil, vazio, chunk vazio no meio, chunks identicos, sobreposicao de 1 palavra, sem sobreposicao — e 1 que **fixa a limitacao conhecida** de perda quando o maior casamento excede a sobreposicao real |
+| 7 | 	asks.md nao registrava o desvio de organizacao de arquivos | BAIXA | mesmo commit | secao de desvio anexada ao 	asks.md |
+
+### O que o ciclo provou
+
+O achado que mais importa e a Gap 1. Ela e a **mesma classe de defeito** ja vista tres vezes
+neste repositorio: um caminho de codigo foi migrado e um segundo, paralelo, foi esquecido.
+O --decay foi corrigido nos 4 caminhos SQLite e **nao** nos 3 do Postgres — sendo o
+Postgres justamente o engine que ADR-040 canoniza. O mutante correspondente (M5) **sobreviveu**
+a primeira passada do sensor, e a prova empirica em banco vivo foi o quesfnde a needle.
+
+Se a feature tivesse sido declarada pronta apos o Batch 1, o defeito teria ficado vivo.
+Por isso o sensor de discriminacao e a prova empirica valem mais do que a contagem de testes.
 
 ---
 
