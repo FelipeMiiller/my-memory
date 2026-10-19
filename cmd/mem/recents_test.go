@@ -125,14 +125,30 @@ func TestRunRecentsCommand_OrdenaPorMTimeDecrescente(t *testing.T) {
 	}
 }
 
-// TestRunRecentsCommand_MTimeZeroVaiParaOFim é o critério que separa "mais
-// recente" de "zero побеждает": sem o CASE na ordenação, um documento com
-// mtime = 0 abriria a lista dos recentes, que é o oposto do que o comando
-// promete sobre a ordem temporal.
+// TestRunRecentsCommand_MTimeZeroVaiParaOFim fixa o contrato de ordenação do
+// `mem recents`: do mtime mais novo para o mais antigo, e tudo o que não tem
+// tempo de edição conhecido — mtime 0 (linha legada do ADR-057) e mtime
+// negativo (arquivo com data anterior a 1970) — no FIM, nunca abrindo a lista.
+//
+// Este teste substitui um anterior que alegava guardar um
+// `CASE WHEN COALESCE(mtime,0) <= 0 THEN 1 ELSE 0 END` na ordenação. Não
+// guardava: sob `ORDER BY mtime DESC` um mtime 0 já é o menor valor possível e
+// já desce sozinho, então remover o CASE não mudava nada observável. Medido
+// nos dois engines, o CASE era código morto e foi removido (ver
+// db.ListVaultDocumentsByMTime). O que este teste fixa agora é a ordem
+// inteira, incluindo o desempate por path dentro do grupo dos zeros — que o
+// teste de duas linhas não alcançava.
+//
+// NULL não entra no contrato porque é impossível aqui: documents.mtime é NOT
+// NULL nos dois engines (o SQLite e o Postgres recusam o UPDATE direto). O que
+// protege uma tabela legada, sim, é o COALESCE na chave de ordenação.
 func TestRunRecentsCommand_MTimeZeroVaiParaOFim(t *testing.T) {
 	dbPath := newMTTimeFixture(t,
-		vaultFixtureDoc{path: "legado.md", title: "Legado", mtime: 0, size: 1},
+		vaultFixtureDoc{path: "z-legado-b.md", title: "Legado B", mtime: 0, size: 1},
+		vaultFixtureDoc{path: "a-legado-a.md", title: "Legado A", mtime: 0, size: 1},
 		vaultFixtureDoc{path: "antiga.md", title: "Antiga", mtime: 1000, size: 1},
+		vaultFixtureDoc{path: "pre-1970.md", title: "Pre 1970", mtime: -50, size: 1},
+		vaultFixtureDoc{path: "recente.md", title: "Recente", mtime: 9000, size: 1},
 	)
 
 	var buf bytes.Buffer
@@ -142,13 +158,15 @@ func TestRunRecentsCommand_MTimeZeroVaiParaOFim(t *testing.T) {
 	}
 
 	got := recentsOrder(buf.String())
-	want := []string{"antiga.md", "legado.md"}
+	// 9000 e 1000 decrescentes; os dois zeros empatam e desempatam por path
+	// ASC; o negativo fecha a lista.
+	want := []string{"recente.md", "antiga.md", "a-legado-a.md", "z-legado-b.md", "pre-1970.md"}
 	if len(got) != len(want) {
 		t.Fatalf("esperava %v, obteve %v", want, got)
 	}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Errorf("posição %d: esperava %q, obteve %q", i, want[i], got[i])
+			t.Errorf("posição %d: esperava %q, obteve %q (ordem completa %v)", i, want[i], got[i], got)
 		}
 	}
 }

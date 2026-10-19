@@ -117,15 +117,17 @@ func (s *PostgresStore) ReadVaultDocumentContent(ctx context.Context, repo, docI
 }
 
 // ListVaultDocumentsByMTime devolve os documentos mais recentemente editados,
-// com mtime = 0 no fim. Espelho PostgreSQL de db.ListVaultDocumentsByMTime.
+// com mtime = 0 no fim. Espelho PostgreSQL de db.ListVaultDocumentsByMTime —
+// inclusive na parte que importa: o COALESCE na chave de ordenação. No Postgres
+// `ORDER BY col DESC` põe NULL primeiro por padrão (o SQLite põe último), então
+// sem o COALESCE um mtime NULL de tabela legada abriria a lista. Ver a
+// justificativa completa e a medição do CASE morto removido em db.ListVaultDocumentsByMTime.
 func (s *PostgresStore) ListVaultDocumentsByMTime(ctx context.Context, repo string, limit int) ([]VaultDocument, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, path, COALESCE(title, ''), COALESCE(mtime, 0), COALESCE(size, 0)
 		FROM documents
 		WHERE ($1 = '' OR repository = $1)
-		ORDER BY CASE WHEN COALESCE(mtime, 0) <= 0 THEN 1 ELSE 0 END ASC,
-		         COALESCE(mtime, 0) DESC,
-		         path ASC
+		ORDER BY COALESCE(mtime, 0) DESC, path ASC
 		LIMIT $2
 	`, repo, limit)
 	if err != nil {
