@@ -656,3 +656,87 @@ Os negativos importam mais que os positivos — um detector que "corrige" palavr
 **Decisão pendente (produto, não documentação).** O escopo do `tasks.md` de `graph-view-vis-engine` é decisão do operador: (a) executar a feature como especificada — vendorizar os 652 kB, embutir, expor `--engine vis`; (b) rebaixar a ADR-058 para "Accepted, não implementada" e manter o motor legado como único; (c) superseder a ADR-058 se o motor vis-network for superado pela viewer React/Vite da ADR-059, que já desenha o grafo no navegador.
 
 **Reprodução:** `grep -r "go:embed" internal/graphview/` → 0 ocorrências; `internal/graphview/` → 8 arquivos `.go`, nenhum subdiretório.
+
+---
+
+## ISSUE-021 — O fallback SPA responde 200 com `index.html` para um asset faltante quando o navegador pede `Accept: text/html`
+
+- **Severidade:** 🟡 medium
+- **Status:** 🔵 open
+- **Achado em:** sessão 2026-10-19 — verificação adversarial da feature `mcp-static-serving` (verificador independente)
+- **Relacionada:** ADR-060 D-5 (a regra do fallback)
+
+**O que a ADR-060 registra.** O fallback SPA só se aplica quando a requisição declara `Accept: text/html`, e a justificativa escrita é que assim *"um asset faltando (`/assets/nao-existe.js`) continue sendo 404 honesto, e não HTML com 200"*.
+
+**O que acontece de verdade.**
+
+| Requisição | Resultado |
+|---|---|
+| `GET /assets/nao-existe.js` **sem** `Accept: text/html` | `404` + corpo `not found` — o AC é cumprido |
+| `GET /assets/nao-existe.js` **com** `Accept: text/html` | **`200` + `index.html`** (480 B, `Content-Type: text/html`) |
+
+O `Accept: text/html` é exatamente o que um **navegador** envia ao pedir um `.js`. Ou seja: a razão documentada não se sustenta para o cliente que importa. Um `404` de asset continua sendo `404` para quem não pede HTML — mas quem pede (o navegador) recebe o entrypoint com status de sucesso.
+
+**Impacto real:** baixo. `X-Content-Type-Options: nosniff` impede o navegador de executar o HTML como script, e o conteúdo servido é o entrypoint público da própria SPA. O custo real é **ruído**: cache e log passam a registrar 200 onde houve 404, e um asset sumido fica invisível para quem monitora status.
+
+**A correção padrão, que é uma mudança de contrato.** A regra usada pela maioria dos servidores SPA é: *só cai no fallback quando o path **não** tem extensão de arquivo* — rota (`/clusters`) cai, asset (`/assets/x.js`) não. Isso tornaria a justificativa da ADR-060 verdadeira. Mas muda o comportamento documentado, então **não foi feito sem decisão**.
+
+**Achado conexo (B8).** `GET /graph/../x` normaliza para fora do prefixo `/graph/` e **cai no fallback** (200 + entrypoint). Benigno — só entrega o entrypoint público, nunca um artefato de fora da raiz —, mas "o prefixo `/graph/` nunca cai no fallback" não é literal: a checagem do prefixo roda **depois** da normalização. `GET /graph/qualquer.html` devolve 404 corretamente.
+
+**Decisão pendente (produto).** (a) manter a regra como está e corrigir a **justificativa** da ADR-060 no índice; (b) adotar a regra da extensão e emendar a ADR-060; (c) deixar como está e aceitar o ruído de log/cache.
+
+---
+
+## ISSUE-022 — `memory_get_impact` e `memory_find_path` não emitem `structuredContent`: dois schemas da viewer nunca validam nada
+
+- **Severidade:** 🟡 medium
+- **Status:** 🔵 open
+- **Achado em:** sessão 2026-10-19 — verificação adversarial da feature `viewer-dashboard` (verificador independente)
+- **Relacionada:** ADR-060 (as 10 tools com `structuredContent`)
+
+**O fato.** Das 24 tools MCP, 10 emitem `structuredContent` (ADR-060). `memory_get_impact` e `memory_find_path` **não** estão entre elas. Mas a viewer tem `impactSchema` (`viewer/src/lib/schemas.ts:454`) e `pathSchema` (`:511`), usados em `viewer/src/lib/queries.ts:192,203` — e como as duas tools nunca emitem o payload estruturado, **esses dois schemas nunca validam nada**: a tela renderiza sempre o texto.
+
+**Por que importa.** A rota `/drift` da viewer promete blast radius e caminho entre dois nós. As duas informações chegam — mas como markdown, sem a estrutura que a tela foi desenhada para consumir. É a mesma classe de degradação que o defeito `null` do drift (corrigido nesta rodada), pelo caminho oposto: lá o payload existia e o schema rejeitava; aqui o schema existe e o payload não.
+
+**Por que não foi corrigido aqui.** A lista de 10 tools com `structuredContent` é o **escopo acordado** na ADR-060 e nas duas specs. Ampliá-la para 12 muda o contrato público do servidor (duas tools a mais passariam a ter `structuredContent`) e exige revisar a forma do payload de cada uma. Isso é decisão de produto.
+
+**Decisão pendente (produto).** (a) estender o `structuredContent` para as duas tools e atualizar a ADR-060 e as specs; (b) remover os dois schemas e a renderização estruturada correspondente da viewer, assumindo que a tela use texto; (c) deixar como está e registrar como limitação conhecida do painel `/drift`.
+
+---
+
+## ISSUE-023 — O servidor anuncia o protocolo MCP `2024-11-05`, mas emite `structuredContent` (campo de `2025-06-18`), e 4 das 10 tools o devolvem como array
+
+- **Severidade:** 🟡 medium
+- **Status:** 🔵 open
+- **Achado em:** sessão 2026-10-19 — verificação adversarial da feature `mcp-static-serving` (verificador independente)
+- **Relacionada:** ADR-060 · ADR-006 (MCP)
+
+**Defeito 1 — a versão anunciada não cobre o campo emitido.** `internal/mcp/server.go:15` declara `ProtocolVersion = "2024-11-05"`, mas `structuredContent` foi introduzido no protocolo MCP **2025-06-18**. Um cliente estrito que valida a versão anunciada não espera o campo; um cliente que o espere pode rejeitar a versão.
+
+**Defeito 2 — a forma do payload não é a que a spec do protocolo exige.** A spec MCP 2025-06-18 define `structuredContent` como **objeto**. Quatro das dez tools devolvem **array**: `memory_list_files`, `memory_note_outline`, `memory_get_hubs` (degree e pagerank) e `memory_get_insights`. Entre a SPA e o servidor isso funciona — o cliente é próprio, e os schemas da viewer aceitam array —, mas diverge da spec.
+
+**Por que não foi corrigido aqui.** Trocar a versão anunciada é uma mudança de contrato com clientes externos (Claude Desktop e afins negociam a versão no `initialize`). Envolver os arrays em um objeto quebra a forma que a viewer já consome e que as specs descrevem. As duas mudanças pedem uma **ADR própria** — é a terceira mudança de protocolo do transporte nesta rodada, e uma ADR é o registro que o repositório usa para esse tipo de decisão.
+
+**Decisão pendente (produto).** (a) emendar a ADR-060: subir o `ProtocolVersion` para `2025-06-18` e passar a embrulhar os arrays (`{"items": [...]}`), com a SPA e as specs atualizadas; (b) subir só a versão, aceitando a divergência de forma; (c) manter como está e registrar a limitação.
+
+---
+
+## ISSUE-024 — Caracteres CJK espúrios no texto de duas ADRs (ADRs são imutáveis)
+
+- **Severidade:** 🔵 low
+- **Status:** 🔵 open
+- **Achado em:** sessão 2026-10-19 — verificação adversarial (verificador independente)
+- **Relacionada:** ADR-036 · ADR-047
+
+**O fato.** Duas ADRs do repositório têm caracteres chineses/japoneses no lugar de palavras portuguesas:
+
+| Arquivo | Linha | Texto atual | Texto pretendido |
+|---|---|---|---|
+| `docs/adr/036-backlog-pos-release-v1.3.0-e-roadmap-v1.4.0.md` | 233 | `por未来的 leitor` | `por futuros leitores` |
+| `docs/adr/047-code-ast-tree-sitter-multi-linguagem.md` | 172 | `` `code_edges`参加的 na CTE `` | `` `code_edges` participa na CTE `` |
+
+**Por que não foi corrigido aqui.** A regra do repositório é que **ADRs são imutáveis**: o corpo registra a decisão como ela foi tomada, e correção de texto numa ADR já aceita reescreve o histórico do registro. O mecanismo correto é superseder ou registrar a correção no índice (`docs/adr/README.md`) — que é onde a ADR-060/059 já registram status e implementações.
+
+**O mesmo padrão apareceu nesta rodada** em `.specs/features/mcp-static-serving/spec.md:19` (`cujo uso尺尺 é fácil confundir` → `cujo uso é fácil`). Uma spec **não** é registro histórico, então essa foi corrigida direto. A lição para a próxima: specs e docs corrige-se; ADRs, só no índice.
+
+**Decisão pendente (produto).** Registrar a correção textual no índice de ADRs, ou superseder as duas ADRs.
