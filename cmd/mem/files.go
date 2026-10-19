@@ -20,6 +20,12 @@ import (
 // ser iguais em qualquer SO, então a comparação sempre acontece sobre a forma
 // com "/".
 func vaultSlash(path string) string {
+	// Normaliza o separador de qualquer plataforma ANTES do Clean. O
+	// filepath.ToSlash sozinho nao converte "\" no Linux, porque la a barra
+	// invertida e um caractere legal de nome de arquivo — resultado: um path
+	// Windows colado num vault Linux (ou o inverso) nunca casava com a pasta
+	// esperada e `mem files --folder` / `mem read` devolviam falso negativo.
+	path = strings.ReplaceAll(path, `\`, "/")
 	return filepath.ToSlash(filepath.Clean(path))
 }
 
