@@ -165,6 +165,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   040, 041, 042, 043, 044, 050) foram adicionadas com o status real; ADR-045
   corrigida de Proposed para Deferred; ADR-035 promovida para **Accepted**.
   O slot **ADR-052** está reservado e vazio — nenhum arquivo foi inventado.
+- **ADR-059 completada**: a decisão de servir a SPA React/Vite de `viewer/` pelo
+  transporte HTTP do MCP sai do esboço de 95 linhas e vira ADR completa (MADR,
+  13 seções), com a **superfície de ataque explicitada**.
+  - Registra a mudança de superfície — de "zero arquivos servidos" para "um
+    diretório dedicado" — e que o transporte **não tem autenticação**: lacuna
+    **pré-existente** da ADR-021, não criada por esta feature.
+  - O artefato de grafo expor títulos de nós do vault é registrado como o
+    aumento de exposição mais relevante, sem eufemismo.
+  - Registra a **divergência consciente** com a ADR-050: `default-src 'none'`
+    é incompatível com uma SPA JavaScript. A ADR propõe a baseline de CSP
+    aplicável e deixa a aplicação para a etapa de implementação.
+  - Fecha a lacuna de que o handler de `memory_visualize_graph` **não descobre**
+    host/porta: o mecanismo (endereço real do `net.Listener`) vira contrato.
+  - Corrige três afirmações do esboço: `viewer/` **ainda não está versionada**,
+    o alvo `make viewer` **não existe**, e quem especifica o path traversal é a
+    spec `mcp-static-serving` — não a ADR-058.
+  - A auditoria das citações encontrou uma **sexta** divergência, agora
+    registrada: o invariant de `internal/ci` **é** afetado por `viewer/`, porque
+    `go list ./...` enxerga o port Go que o pacote npm `flatted` distribui.
 - **Índice de ADRs**: a linha em branco entre ADR-057 e ADR-058 foi removida —
   ela encerrava a tabela markdown e deixava ADR-058 e ADR-059 sem cabeçalho.
 

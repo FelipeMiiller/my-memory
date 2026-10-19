@@ -58,9 +58,8 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-055](055-semantica-de-tag-consultavel-sem-nos-mortos.md)** | Semântica de tag consultável sem nós mortos (adenda da ADR-041) | Proposed | 2026-10-18 | `graph`, `tags`, `adr-041`, `semantics` |
 | **[ADR-056](056-persistencia-de-propriedades-de-frontmatter.md)** | Persistência de propriedades de frontmatter em tabela consultável | Aceito | 2026-10-18 | `schema`, `frontmatter`, `properties`, `obsidian` |
 | **[ADR-057](057-mtime-e-metadados-de-arquivo-no-indice.md)** | mtime e metadados de arquivo no índice | Aceito — **Implementado** | 2026-10-18 | `schema`, `metadata`, `staleness`, `obsidian` |
-
 | **[ADR-058](058-renderizador-vis-network-vendorizado-sem-build-step.md)** | Renderizador vis-network vendorizado, sem build step e sem CDN | Accepted | 2026-10-19 | `graphview`, `vis-network`, `vendorizado`, `go-embed`, `offline` |
-| **[ADR-059](059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** | SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP | Aceito | 2026-10-19 | `viewer`, `react`, `vite`, `mcp`, `http`, `build-estatico` |
+| **[ADR-059](059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** | SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP | Aceito | 2026-10-19 | `viewer`, `react`, `vite`, `mcp`, `http`, `build-estatico`, `seguranca` |
 > [!success]
 > **ADR-057: implementada.** `documents.mtime` e `documents.size` existem nos dois
 > engines (SQLite e PostgreSQL) e são preenchidos a partir do `stat` real do arquivo em
