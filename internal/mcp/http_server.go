@@ -316,6 +316,9 @@ func (h *HTTPServer) handleDirectRPC(w http.ResponseWriter, r *http.Request) {
 func (h *HTTPServer) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if h.corsEnabled {
+			// A baseline de seguranca vale para o preflight tambem: ele responde
+			// antes do handler estatico, que e quem a aplica nas demais rotas.
+			applySecurityHeaders(w)
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")

@@ -99,11 +99,6 @@ func NewStaticHandler(root string, logger *log.Logger) *StaticHandler {
 	}
 }
 
-// Root devolve a raiz servida, em caminho absoluto.
-func (s *StaticHandler) Root() string {
-	return s.root
-}
-
 // ServeHTTP atende as rotas estáticas do transporte MCP.
 func (s *StaticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.setSecurityHeaders(w)
@@ -238,6 +233,13 @@ func (s *StaticHandler) serveFile(w http.ResponseWriter, r *http.Request, path s
 // setSecurityHeaders aplica a baseline da ADR-059 (D-10) em todas as respostas
 // do handler.
 func (s *StaticHandler) setSecurityHeaders(w http.ResponseWriter) {
+	applySecurityHeaders(w)
+}
+
+// applySecurityHeaders aplica a baseline da ADR-059 (D-10). É uma função de
+// pacote, e não um método, porque o preflight CORS responde antes do handler
+// estático — e a baseline vale para ele também.
+func applySecurityHeaders(w http.ResponseWriter) {
 	header := w.Header()
 	header.Set("Content-Security-Policy", staticSecurityHeaders)
 	header.Set("X-Content-Type-Options", "nosniff")
