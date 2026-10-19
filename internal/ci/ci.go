@@ -16,6 +16,11 @@
 // como alvo de `go test`, seja exato ("./internal/db") ou como padrao de
 // subarvore ("./internal/graph/...").
 //
+// Pacotes de dependencia que por acaso moram dentro da arvore de trabalho --
+// hoje, codigo Go distribuido por um pacote npm sob `viewer/node_modules/` --
+// nao sao pacotes deste repositorio e sao filtrados antes da comparacao (ver
+// isThirdPartyPkg).
+//
 // Um pacote que deliberadamente nao roda na CI precisa estar listado em
 // excludedPackages, com o motivo declarado. Hoje a tabela e vazia de proposito:
 // nenhum pacote do repositorio fica de fora da CI.
@@ -91,6 +96,9 @@ func goOutput(dir string, args ...string) (string, error) {
 // The list comes from `go list ./...`, never from the filesystem or from the
 // workflow: the whole point of this package is to compare two independent
 // sources of truth.
+//
+// Packages living under a `node_modules` tree are filtered out. See
+// isThirdPartyPkg for why.
 func Packages(root string) ([]string, error) {
 	module, err := goOutput(root, "list", "-m")
 	if err != nil {
@@ -113,6 +121,9 @@ func Packages(root string) ([]string, error) {
 			}
 			imp = strings.TrimPrefix(imp, module+"/")
 		}
+		if isThirdPartyPkg(imp) {
+			continue
+		}
 		if seen[imp] {
 			continue
 		}
@@ -120,6 +131,35 @@ func Packages(root string) ([]string, error) {
 		pkgs = append(pkgs, imp)
 	}
 	return pkgs, nil
+}
+
+// isThirdPartyPkg reports whether a package path points inside a
+// `node_modules` tree.
+//
+// `go list ./...` walks the filesystem, so any dependency that ships Go files
+// is reported as a package of this module. The npm package `flatted` does
+// exactly that: it distributes a Go port under `golang/pkg/flatted`, and it
+// lands in `go list ./...` the moment someone runs `npm install` inside
+// `viewer/`.
+//
+// Those packages are third-party code that merely sits inside the working
+// tree. They are not part of this repository, the repository does not build
+// them on purpose, and whether they exist depends on the npm lockfile rather
+// than on the Go source tree.
+//
+// The invariant guarded by this package is about first-party code ("todo
+// pacote Go deste repositorio"), so a `node_modules` path is dropped before
+// the comparison. Filtering here rather than listing the package in
+// excludedPackages keeps the exclusion table explicit and reviewable: an
+// entry there would have to be rewritten whenever the npm tree changes, and
+// StaleExclusions would then report it as obsolete.
+func isThirdPartyPkg(pkg string) bool {
+	for _, segment := range strings.Split(pkg, "/") {
+		if segment == "node_modules" {
+			return true
+		}
+	}
+	return false
 }
 
 // ReadWorkflow returns the content of the CI workflow file.

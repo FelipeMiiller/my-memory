@@ -72,6 +72,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`go list ./...` enxergava código Go de dependência npm, e isso quebrava o
+  invariant do CI**. O pacote npm `flatted` distribui um port Go em
+  `golang/pkg/flatted`; assim que alguém rodava `npm install` dentro de
+  `viewer/`, `go list ./...` passava a devolver
+  `viewer/node_modules/flatted/golang/pkg/flatted` como pacote deste módulo, e
+  o teste `TestWorkflowCoversEveryPackage` (de `internal/ci`) falhava — o
+  `go test ./...` ficava **vermelho localmente**, com uma causa que não tinha
+  nada a ver com o workflow.
+  - `internal/ci` passa a descartar qualquer pacote sob `node_modules`
+    (`isThirdPartyPkg`): o invariant é sobre código **deste** repositório, e
+    pacote de dependência só está ali porque mora dentro da árvore de trabalho.
+  - A alternativa — declarar o pacote em `excludedPackages` — foi rejeitada: a
+    árvore npm muda com o lockfile e o `StaleExclusions` reportaria a exclusão
+    como obsoleta.
+  - Dois testes novos fixam a semântica (casos de filtro e varredura da lista
+    real de pacotes).
 - **`--decay` ordena por tempo de edição, não por instante de indexação
   (ADR-057)**. O decaimento temporal lia `documents.updated_at`, que guarda
   `time.Now().Unix()` da indexação: um `mem index` em vault inteiro dava a
@@ -149,6 +165,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   040, 041, 042, 043, 044, 050) foram adicionadas com o status real; ADR-045
   corrigida de Proposed para Deferred; ADR-035 promovida para **Accepted**.
   O slot **ADR-052** está reservado e vazio — nenhum arquivo foi inventado.
+- **Índice de ADRs**: a linha em branco entre ADR-057 e ADR-058 foi removida —
+  ela encerrava a tabela markdown e deixava ADR-058 e ADR-059 sem cabeçalho.
 
 ### CI
 
