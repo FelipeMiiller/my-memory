@@ -408,13 +408,16 @@ jobs:
 
       - name: Check bundle size budget
         run: |
-          # ADR-060 mediu o stack do frontend em +54,7 kB gzip sobre o
-          # baseline de 84,28 kB, com meta de ~139 kB. O orcamento de 180 kB
-          # existe para pegar o modo de falha mais provavel: importar o
-          # barrel do `zod` em vez de `zod/mini` custa +87,8 kB e passaria
-          # despercebida numa review de diff.
+          # O teto vem da spec da feature (AC VD-14: 160 kB gzip), nao de uma
+          # folga arbitraria: um gate mais permissivo que o contrato deixa
+          # passar um bundle que viola a spec. A medicao e a mesma que a
+          # ADR-060 usou — `gzip -9` sobre `dist/assets/*.js`.
+          #
+          # O que este orcamento existe para pegar: o modo de falha mais
+          # provavel e importar o barrel do `zod` em vez de `zod/mini`, que
+          # custa +87,8 kB e passaria despercebida numa review de diff.
           set -euo pipefail
-          budget=184320   # 180 kB
+          budget=163840   # 160 kB
           total=0
           for f in dist/assets/*.js; do
             [ -e "$f" ] || continue
@@ -424,7 +427,7 @@ jobs:
           done
           echo "Total: $total bytes gzip (budget $budget)"
           if [ "$total" -gt "$budget" ]; then
-            echo "FAIL: bundle gzip acima do orcamento de 180 kB"
+            echo "FAIL: bundle gzip acima do orcamento de 160 kB"
             exit 1
           fi
 
