@@ -317,7 +317,7 @@ go test -v -cover ./internal/turboquant/... ./internal/graph/... ./internal/pars
 ```
 
 A viewer tem gate próprio: `npm run typecheck && npm run test && npm run build` em
-`viewer/`, com orçamento de **180 kB gzip** para o bundle (job `frontend` do CI).
+`viewer/`, com orçamento de **160 kB gzip** para o bundle (job `frontend` do CI).
 
 ---
 

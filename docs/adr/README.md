@@ -92,7 +92,7 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > construída com o stack decidido — TanStack Query, Router, Zustand, `zod/mini`
 > e `@tanstack/markdown` — e o bundle final mede **133.086 bytes gzip -9** (a
 > mesma medição do job `frontend` do CI), contra a meta de ~139 kB registrada na
-> ADR-060 e o orçamento de 180 kB do CI. O relatório do próprio Vite, que
+> ADR-060 e o orçamento de 160 kB do CI. O relatório do próprio Vite, que
 > comprime em zlib nível 6, mostra 143,3 kB para os mesmos arquivos.
 >
 > A pendência é a D-1: `@tanstack/vite-config@0.6.0` **não foi adotado**, e a

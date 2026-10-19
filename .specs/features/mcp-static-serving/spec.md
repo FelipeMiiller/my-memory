@@ -14,9 +14,9 @@ Nenhuma serve arquivo estático. Isso cria uma fricção concreta para o consumi
 
 Enquanto isso, a lista de comandos que o MCP **não** expõe continua grande: `properties`, `tasks`, `bases`, `outlines`, `tags`, e o próprio `.base` que o projeto acabou de criar.
 
-Desde 2026-10-19 existe `viewer/` — uma SPA React 19 + Vite 8 + shadcn que compila para `viewer/dist/` (259,52 kB JS / 84,28 kB gzip), registrada na [ADR-059](../../../docs/adr/059-spa-react-vite-em-viewer-servida-pelo-mcp.md). Ela dá um destino concreto ao que esta spec pedia em abstrato: **`viewer/dist/` é o artefato servido**, e é onde um painel de Health Score, órfãs e modularidade pode viver.
+Desde 2026-10-19 existe `viewer/` — uma SPA React 19 + Vite 8 + shadcn que compila para `viewer/dist/` (com o stack da ADR-060: 441,5 kB JS / **133.086 bytes gzip -9**; o scaffold sem o stack media 259,52 kB JS / 84,28 kB gzip), registrada na [ADR-059](../../../docs/adr/059-spa-react-vite-em-viewer-servida-pelo-mcp.md). Ela dá um destino concreto ao que esta spec pedia em abstrato: **`viewer/dist/` é o artefato servido**, e é onde um painel de Health Score, órfãs e modularidade pode viver.
 
-Existe uma pergunta adjacente — "o MCP consegue servir uma aplicação React+Vite?" — cuja resposta é sim e é barata (~15 linhas de `http.FileServer`), mas cujo uso尺尺 é fácil confundir com "trazer o viewer de volta".
+Existe uma pergunta adjacente — "o MCP consegue servir uma aplicação React+Vite?" — cuja resposta é sim e é barata (~15 linhas de `http.FileServer`), mas cujo uso é fácil confundir com "trazer o viewer de volta".
 
 O repo já pagou esse experimento uma vez: `b477200` removeu 112 arquivos e 27.858 linhas de viewer Electron com React, Vite, Forge e Playwright. E a ADR-054, escrita em 2026-10-18, declara explicitamente que plugins, themes e `dev:*` estão **fora de escopo** porque "exigem uma instância Electron viva".
 

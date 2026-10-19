@@ -18,11 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   defasada, código sem cobertura, blast radius, caminho entre dois nós).
   - Stack: TanStack Query, TanStack Router, Zustand, `zod/mini` e
     `@tanstack/markdown`. Bundle final de **133.086 bytes gzip -9** — a mesma
-    medição que o job `frontend` do CI faz — contra o orçamento de 180 kB. A
+    medição que o job `frontend` do CI faz — contra o orçamento de 160 kB. A
     meta registrada na ADR-060 era ~139 kB; o relatório do próprio Vite, que
     comprime em zlib nível 6, mostra 143,3 kB para os mesmos arquivos.
   - `zod/mini` e não `zod`: medido 3,0 kB gzip contra 90,8 kB do barrel. O job de
-    frontend do CI impõe orçamento de **180 kB gzip** justamente para pegar essa
+    frontend do CI impõe orçamento de **160 kB gzip** justamente para pegar essa
     importação errada, que passaria despercebida numa revisão de diff.
   - O pré-processador de wikilinks espelha o parser Go: mesma regex, mesma lista
     de relações e os **mesmos quatro contextos sem link** (bloco de código,
@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   listener. Sem transporte HTTP ativo, devolve **só o caminho, sem erro** — a
   fricção real era um caminho não ser acionável para um agente em outra máquina.
 - **Job `frontend` no CI**: instala, typechecka, testa, linta e compila a viewer,
-  e impõe o orçamento de 180 kB gzip. O último step roda a invariante do
+  e impõe o orçamento de 160 kB gzip. O último step roda a invariante do
   `internal/ci` **com `node_modules` presente** — sem essa combinação, ela roda
   num checkout limpo, onde `go list ./...` não vê nenhum pacote de terceiro.
 - **`structuredContent` no envelope de resposta MCP** (ADR-060, MCP spec
@@ -115,6 +115,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **O servidor MCP serializava uma lista vazia como `null`, e a viewer rejeitava
+  o payload**. O `encoding/json` transforma slice nil em `null`, e o schema
+  `zod/mini` da viewer aceita `undefined` em `.optional()` mas **não** `null`:
+  a validação falhava, o cliente caía no fallback textual e o painel `/drift`
+  renderizava markdown cru em vez da UI estruturada.
+  - O caso não era hipotético: `memory_get_drift` constrói o relatório com duas
+    slices nils sempre que não há drift nenhum — que é o caso comum.
+  - A normalização ficou na **fronteira do wire**, em `NewStructuredResult`, e
+    não em cada produtor: o contrato do payload é que uma lista vazia é `[]`, e
+    vale para toda tool que um dia devolver uma lista. A função é pura — os
+    structs são copiados antes de normalizados.
+  - O teste de regressão cobre os oito payloads com listas, o handler real de
+    drift e a pureza da normalização. **Mutação provada**: sem a correção, os
+    oito casos falham com o payload `null` exato.
 - **`go list ./...` enxergava código Go de dependência npm, e isso quebrava o
   invariant do CI**. O pacote npm `flatted` distribui um port Go em
   `golang/pkg/flatted`; assim que alguém rodava `npm install` dentro de
@@ -131,15 +145,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     como obsoleta.
   - Dois testes novos fixam a semântica (casos de filtro e varredura da lista
     real de pacotes).
-- **O último step do job `frontend` do CI usava um `working-directory`
-  ambíguo**. O job declara `defaults.run.working-directory: viewer` e o step
-  que roda a invariante de `internal/ci` usava `working-directory: .` para
-  voltar à raiz do repositório — mas um caminho relativo de step herda a
-  resolução do default do job, o que faria `go test ./internal/ci/...` rodar
-  de dentro de `viewer/`, onde o pacote não existe. O job ficaria vermelho
-  **sem exercitar a invariante** que ele existe para exercitar.
-  - Trocado por `${{ github.workspace }}`, que é absoluto e não tem ambiguidade
-    de resolução.
+- **O último step do job `frontend` do CI passou a declarar o diretório de
+  trabalho de forma absoluta**. O job declara `defaults.run.working-directory:
+  viewer` e o step que roda a invariante de `internal/ci` usava
+  `working-directory: .` para voltar à raiz do repositório.
+  - Trocado por `${{ github.workspace }}`, que é absoluto: o step deixa de
+    depender de como o runner resolve um caminho relativo.
+  - **Correção do registro:** a justificativa original desta entrada estava
+    errada. O código do runner (`actions/runner`,
+    `src/Runner.Worker/Handlers/ScriptHandler.cs`) combina o `working-directory`
+    do step com o **workspace** (`Path.Combine(workspaceDir, workingDirectory)`),
+    e o `defaults.run.working-directory` do job só entra quando o step **não**
+    define o valor. Ou seja, o `working-directory: .` original já rodava na raiz
+    do repositório, e o job não teria ficado vermelho por causa disso. A troca
+    continua valendo — explicitar o caminho absoluto é melhor do que depender
+    de uma resolução implícita —, mas o defeito que ela supostamente corrigia
+    não existia.
 - **`--decay` ordena por tempo de edição, não por instante de indexação
   (ADR-057)**. O decaimento temporal lia `documents.updated_at`, que guarda
   `time.Now().Unix()` da indexação: um `mem index` em vault inteiro dava a
@@ -261,7 +282,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Varredura documental da viewer**: `README.md` passa a descrever os **7 pilares**
   — o painel é o sétimo — e lista as 59 ADRs; `AGENTS.md` registra as ADRs
   054–060, o **gate de frontend** (`npm run typecheck && npm run test &&
-  npm run build`, com orçamento de 180 kB gzip) e a regra de que
+  npm run build`, com orçamento de 160 kB gzip) e a regra de que
   `.mymemory/www/` é raiz servida, gerada e **nunca versionada**;
   `docs/README.md`, `docs/CLI_GUIDE.md`, `docs/AGENT_INTEGRATION_GUIDE.md`,
   `docs/ARCHITECTURE.md` e `docs/REPOSITORY_BRAIN.md` recebem o painel, a rota
