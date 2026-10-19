@@ -44,7 +44,7 @@ O repo já pagou esse experimento uma vez: `b477200` removeu 112 arquivos e 27.8
 | Assumption / decision | Chosen default | Rationale | Confirmed? |
 | --------------------- | --------------- | --------- | ---------- |
 | Forma servida | **build estático** de qualquer stack, servido por `http.FileServer` | Não acopla o produto a React/Vite; quem quiser React compila para estático | y |
-| Raiz servida | `viewer/dist/` (build da SPA da ADR-059), nunca a raiz do vault | Servir a raiz do vault transformaria o MCP num servidor de arquivos do vault inteiro | y |
+| Raiz servida | **`<repo>/.mymemory/www/`**, com `app/` (build da SPA) e `graph/` (artefatos), nunca a raiz do vault | Servir a raiz do vault transformaria o MCP num servidor de arquivos do vault inteiro. `.mymemory/www/` fica **fora do escopo de indexação**, então os artefatos gerados não poluem o grafo | y |
 | Autenticação | Fora de escopo, mas o bind padrão continua loopback | Ampliar a exposição é decisão de produto, não consequência desta feature | n |
 | `memory_visualize_graph` | Devolve URL **e** caminho | Um cliente MCP não-Windows ou sem acesso ao mesmo filesystem ainda usa o caminho | y |
 | React/Vite | **Nenhuma** dependência nova de runtime | `viewer/` já existe (ADR-059) e compila; o MyMemory apenas serve o resultado, não o compila | y |
@@ -85,8 +85,28 @@ O repo já pagou esse experimento uma vez: `b477200` removeu 112 arquivos e 27.8
 6. `go build ./...` and `go vet ./...` SHALL exit 0 with the feature absent from the codebase
 7. A unit test SHALL assert that a path traversal attempt is refused
 8. A unit test SHALL assert that a legitimate file under the served root IS served
+9. IF a request for a path that resolves to no existing file under the served root accepts `text/html` THEN the server SHALL respond with the SPA entrypoint and status 200
+10. A request that does not accept `text/html` SHALL NOT be answered with the SPA entrypoint; it SHALL return 404
+11. The path-traversal check SHALL be evaluated BEFORE the SPA fallback; a path resolving outside the served root SHALL return 404 and never the SPA entrypoint
 
 **Independent Test**: request `../../etc/passwd`-style paths and a known file under the root.
+
+> **Emenda ADR-060 (2026-10-19).** Os ACs 9 a 11 (SERV-23, SERV-24, SERV-25) foram
+> adicionados pela [ADR-060](../../../docs/adr/060-stack-do-frontend-da-viewer-e-fallback-spa.md),
+> que registra o stack do frontend da viewer com um roteador de cliente. Sem fallback,
+> recarregar em `/clusters` devolveria 404 em vez de renderizar a rota.
+>
+> A ordem de avaliação é o contrato, e ela é **não-negociável**:
+> **(1)** resolver e normalizar o path → **(2)** se escapa da raiz servida, **404** →
+> **(3)** se é arquivo existente, servir o arquivo → **(4)** se aceita `text/html`,
+> devolver o entrypoint com 200 → **(5)** senão, **404**.
+>
+> O fallback **não** aumenta o que é legível: entrega o mesmo entrypoint que `GET /`
+> já entregava. A distinção por `Accept: text/html` existe para que um asset
+> faltando (`/assets/nao-existe.js`) continue sendo 404 honesto, e não HTML com 200.
+>
+> O AC 4 é a duplicata de escrita já registrada na nota de Spec Precision abaixo; o
+> comportamento é um só, coberto por SERV-07.
 
 ---
 
@@ -129,12 +149,32 @@ O repo já pagou esse experimento uma vez: `b477200` removeu 112 arquivos e 27.8
 
 **Acceptance Criteria**
 
-1. The feature SHALL NOT add a `package.json`, bundler configuration, or Node dependency to the repository
+1. The Go module SHALL NOT gain a Node dependency: `go build ./...`, `go vet ./...` and `go test -count=1 ./...` SHALL exit 0 without `node_modules` being installed
 2. The feature SHALL NOT introduce any runtime CDN reference
 3. IF a React or Vite application is served THEN it SHALL have been compiled to static assets outside the MyMemory build
 4. The ADR SHALL state that the served artefact is framework-agnostic static output
 
-**Independent Test**: grep the diff for `package.json`, `node_modules`, `vite`, and remote origins; all must return zero.
+**Independent Test**: grep the Go-side diff for `package.json`, `node_modules`, `vite`, and remote origins; all must return zero.
+
+> **Emenda ADR-060 (2026-10-19).** O AC 1 era "The feature SHALL NOT add a
+> `package.json`, bundler configuration, or Node dependency to the repository".
+> Isso deixou de ser verdade — e a culpa é da spec, não do código: quando ela foi
+> escrita, `viewer/` ainda era só um plano, e hoje `viewer/package.json` existe e
+> vai ser versionado (ADR-059 e ADR-060).
+>
+> A **intenção** do AC é o que importa, e ela é o que fica: **o build do Go não
+> pode depender de Node**. A amendment reescreve o AC em termos verificáveis —
+> `go build`, `go vet` e `go test` passam sem `node_modules` instalado. A
+> toolchain `viewer/` é uma concern de repositório separada, com a ADR-059 e a
+> ADR-060 como registro, e o gate de frontend no CI (hoje inexistente) é a
+> task que fecha a conta.
+>
+> O que separa isso do `b477200` (112 arquivos e 27.858 linhas removidos) é que
+> o Electron **entrou no build e no CI** do produto. Aqui a toolchain fica
+> **fora** do módulo Go, com o `.gitignore` filtrando `node_modules` e `dist`.
+>
+> O Independent Test mudou junto: passa a valer para o **diff do lado Go**, e
+> não para o repositório inteiro.
 
 ---
 
@@ -173,8 +213,11 @@ O repo já pagou esse experimento uma vez: `b477200` removeu 112 arquivos e 27.8
 | SERV-20 | P3: Sem dependência nova | Execute | Pending |
 | SERV-21 | P3: Sem dependência nova | Execute | Pending |
 | SERV-22 | P3: Sem dependência nova | Execute | Pending |
+| SERV-23 | P1: Servir artefatos (fallback SPA) | Execute | Pending |
+| SERV-24 | P1: Servir artefatos (fallback SPA) | Execute | Pending |
+| SERV-25 | P1: Servir artefatos (fallback SPA) | Execute | Pending |
 
-**Coverage:** 22 total, 22 mapped to stories, 0 unmapped.
+**Coverage:** 25 total, 25 mapped to stories, 0 unmapped.
 
 > **Nota de Spec Precision:** o critério de recusa de path traversal aparece duas vezes
 > no P1, por erro de escrita. Está listado como um único comportamento; o requisito
