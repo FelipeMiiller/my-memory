@@ -1,7 +1,7 @@
 # ADR-055: Semântica de tag consultável sem nós mortos
 
 - **Data**: 2026-10-18
-- **Status**: Proposed
+- **Status**: Accepted (decidido em 2026-10-21; a pergunta em aberto foi resolvida — `resolved_doc_id` aponta para `documents.id`, com o título como rótulo)
 - **Decisores**: Felipe Miiller
 - **Tags**: grafo, tags, adr-041, semantica
 - **Adenda**: [ADR-041](041-issue-009-tag-sem-casa-removida-do-grafo.md)
@@ -36,7 +36,7 @@ O Obsidian lista **todas** as tags, inclusive órfãs. Logo, `mem tags` literal 
 
 ## Resultado da Decisão
 
-Proposta a **Opção A**. Uma tabela `document_tags(document_id, tag, resolved_doc_id, created_at)` é populada no `internal/watcher/indexer.go`, **antes** do passo fuzzy. O grafo continua recebendo apenas arestas resolvidas — ADR-041 intacta. A tabela serve de fonte para `mem tags` e para o filtro de `mem search`.
+Escolhida a **Opção A**. Uma tabela `document_tags(document_id, tag, resolved_doc_id, created_at)` é populada no `internal/watcher/indexer.go`, **antes** do passo fuzzy. O grafo continua recebendo apenas arestas resolvidas — ADR-041 intacta. A tabela serve de fonte para `mem tags` e para o filtro de `mem search`.
 
 O mapeamento passa a ser Many-to-One: uma tag literal pode apontar para zero, um ou vários documentos resolvidos, e a aresta do grafo é uma projeção desse vínculo, não a fonte da verdade.
 
@@ -66,9 +66,16 @@ O mapeamento passa a ser Many-to-One: uma tag literal pode apontar para zero, um
 - ✅ Status quo, zero risco
 - ❌ Mantém uma promessa formal não cumprida (DR-5 da ADR-041) e o gap `#20` da matriz
 
-## Pergunta em Aberto
+## Pergunta Resolvida
 
-**A coluna `resolved_doc_id` deve apontar para `documents.id` (hash estável) ou para o título resolvido?** Se apontar para `id`, renomear o documento deixa a tag órfã até a próxima reindexação —probably aceitável. Se apontar para o título, renomear quebra o vínculo silenciosamente. Recomendo `documents.id`, com a reindexação como reconciliador.
+**A coluna `resolved_doc_id` aponta para `documents.id` (hash estável), com o título
+guardado como rótulo.** Decidido em 2026-10-21.
+
+Renomear o documento deixa a tag órfã até a próxima reindexação, que é o
+reconciliador. A alternativa — apontar para o título resolvido — quebraria o
+vínculo silenciosamente: o título muda com o frontmatter, colide entre pastas e
+não é uma chave. `documents.id` é a única referência estável do schema, e é o
+que permite consultar por tag sem depender do texto.
 
 ## Links
 

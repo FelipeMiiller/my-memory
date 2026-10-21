@@ -232,6 +232,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **ADR-055 decidida**: a pergunta que a ADR deixou em aberto — para onde
+  `resolved_doc_id` aponta — foi respondida em 2026-10-21. Aponta para
+  **`documents.id`**, a única referência estável do schema, com o título
+  guardado como rótulo. O título resolveria o vínculo silenciosamente quando o
+  frontmatter muda e colide entre pastas; `documents.id` sobrevive à renomeação,
+  e a reindexação passa a ser o reconciliador explícito.
+  - A ADR sai de **Proposed** para **Aceito**, e a Opção A fica escolhida: a
+    tabela `document_tags` é populada *antes* do passo fuzzy de resolução.
+  - A **implementação** continua pendente: a migration nos dois engines
+    (SQLite e Postgres), a população no indexer e a superfície `mem tags` /
+    `mem search --tag` não existem.
 - **Nove comandos do CLI finalmente documentados**: `mem up`, `mem down`,
   `mem logs`, `mem profiles`, `mem events` e os quatro `mem code-*`
   (`code-index`, `code-search`, `code-graph`, `code-stats`). Todos já existiam
