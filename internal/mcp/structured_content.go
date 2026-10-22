@@ -26,6 +26,8 @@ func normalizeStructuredContent(structured any) any {
 	switch payload := structured.(type) {
 	case []store.VaultDocument:
 		return nonNilSlice(payload)
+	case []store.VaultTag:
+		return nonNilSlice(payload)
 	case []OutlineHeading:
 		return nonNilSlice(payload)
 	case []GodNode:

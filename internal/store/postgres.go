@@ -482,6 +482,14 @@ func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []f
 func (s *PostgresStore) SearchKNNWithOptions(ctx context.Context, repo string, queryVec []float32, limit int, searchOpts SearchOptions) ([]SearchResult, error) {
 	vecStr := FormatVector(queryVec)
 	cat := strings.TrimSpace(searchOpts.Category)
+	tag := strings.TrimSpace(searchOpts.Tag)
+	// O padrão casa as descendentes da tag (`inbox` → `inbox/to-read`). O
+	// escape é obrigatório: `_` e `%` são curingas do LIKE e a tag pode
+	// conter `_` (o formato do Obsidian permite).
+	tagPattern := ""
+	if tag != "" {
+		tagPattern = EscapeLikePattern(tag) + "/%"
+	}
 
 	query := `
 		SELECT c.id, c.document_id, c.repository, c.content, (c.embedding <=> $1::vector) AS distance,
@@ -491,11 +499,16 @@ func (s *PostgresStore) SearchKNNWithOptions(ctx context.Context, repo string, q
 		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
 		  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
+		  AND ($4 = '' OR EXISTS (
+		      SELECT 1 FROM document_tags dt
+		      WHERE dt.document_id = d.id AND dt.repository = c.repository
+		        AND (dt.tag_key = $5 OR dt.tag_key LIKE $6 ESCAPE '\')
+		  ))
 		ORDER BY c.embedding <=> $1::vector
-		LIMIT $4
+		LIMIT $7
 	`
 
-	rows, err := s.db.QueryContext(ctx, query, vecStr, repo, cat, limit)
+	rows, err := s.db.QueryContext(ctx, query, vecStr, repo, cat, tag, tag, tagPattern, limit)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca vetorial postgres: %w", err)
 	}
@@ -562,6 +575,14 @@ func (s *PostgresStore) SearchFTSWithOptions(ctx context.Context, repo string, q
 	}
 
 	cat := strings.TrimSpace(searchOpts.Category)
+	tag := strings.TrimSpace(searchOpts.Tag)
+	// O padrão casa as descendentes da tag (`inbox` → `inbox/to-read`). O
+	// escape é obrigatório: `_` e `%` são curingas do LIKE e a tag pode
+	// conter `_` (o formato do Obsidian permite).
+	tagPattern := ""
+	if tag != "" {
+		tagPattern = EscapeLikePattern(tag) + "/%"
+	}
 	q := `
 		SELECT c.id, c.document_id, c.repository, c.content,
 		       ts_rank(to_tsvector('simple', c.content), plainto_tsquery('simple', $1)) AS rank,
@@ -571,12 +592,17 @@ func (s *PostgresStore) SearchFTSWithOptions(ctx context.Context, repo string, q
 		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
 		  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
+		  AND ($4 = '' OR EXISTS (
+		      SELECT 1 FROM document_tags dt
+		      WHERE dt.document_id = d.id AND dt.repository = c.repository
+		        AND (dt.tag_key = $5 OR dt.tag_key LIKE $6 ESCAPE '\')
+		  ))
 		  AND to_tsvector('simple', c.content) @@ plainto_tsquery('simple', $1)
 		ORDER BY rank DESC
-		LIMIT $4
+		LIMIT $7
 	`
 
-	rows, err := s.db.QueryContext(ctx, q, query, repo, cat, limit)
+	rows, err := s.db.QueryContext(ctx, q, query, repo, cat, tag, tag, tagPattern, limit)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca textual postgres: %w", err)
 	}
@@ -646,6 +672,14 @@ func (s *PostgresStore) SearchHybridWithOptions(ctx context.Context, repo string
 	var graphResults []SearchResult
 	seenChunks := make(map[string]bool)
 	cat := strings.TrimSpace(searchOpts.Category)
+	tag := strings.TrimSpace(searchOpts.Tag)
+	// O padrão casa as descendentes da tag (`inbox` → `inbox/to-read`). O
+	// escape é obrigatório: `_` e `%` são curingas do LIKE e a tag pode
+	// conter `_` (o formato do Obsidian permite).
+	tagPattern := ""
+	if tag != "" {
+		tagPattern = EscapeLikePattern(tag) + "/%"
+	}
 	for seed := range seedDocs {
 		neighbors, err := s.GetNodeNeighbors(ctx, repo, seed, 1)
 		if err != nil {
@@ -660,9 +694,14 @@ func (s *PostgresStore) SearchHybridWithOptions(ctx context.Context, repo string
 				LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 				WHERE c.document_id = $1 AND ($2 = '' OR c.repository = $2)
 				  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
+				  AND ($4 = '' OR EXISTS (
+				      SELECT 1 FROM document_tags dt
+				      WHERE dt.document_id = d.id AND dt.repository = c.repository
+				        AND (dt.tag_key = $5 OR dt.tag_key LIKE $6 ESCAPE '\')
+				  ))
 				ORDER BY chunk_index
 				LIMIT 2
-			`, n, repo, cat)
+			`, n, repo, cat, tag, tag, tagPattern)
 			if err != nil {
 				continue
 			}

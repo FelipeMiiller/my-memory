@@ -31,6 +31,13 @@ type (
 	// VaultHeadingsFunc extrai os títulos ATX de um Markdown na ordem do
 	// documento.
 	VaultHeadingsFunc func(content string) []OutlineHeading
+	// VaultTagListFunc devolve o inventário de tags do vault com a contagem
+	// de documentos que carregam cada uma. O filtro restringe o inventário a
+	// um documento (as tags daquela nota) ou a uma pasta.
+	VaultTagListFunc func(ctx context.Context, repo string, filter store.TagFilter) ([]store.VaultTag, error)
+	// VaultTagDocumentsFunc devolve os documentos que carregam a tag pedida e
+	// as suas descendentes (`inbox` casa `inbox` e `inbox/to-read`).
+	VaultTagDocumentsFunc func(ctx context.Context, repo, tag string) ([]store.VaultDocument, error)
 )
 
 // OutlineHeading é um título de uma nota com a profundidade do nível ATX
@@ -67,15 +74,22 @@ type VaultAccess struct {
 	FindDocument  VaultDocumentFunc
 	ReadContent   VaultContentFunc
 	ParseHeadings VaultHeadingsFunc
+	// ListTags e FindDocumentsByTag são a superfície de leitura das tags do
+	// vault (`mem tags` e `mem tag`).
+	ListTags           VaultTagListFunc
+	FindDocumentsByTag VaultTagDocumentsFunc
 }
 
 // vaultToolParams são os argumentos que as quatro ferramentas compartilham.
 // `repository` é opcional nas quatro: vazio significa o repositório padrão ou
 // global, o mesmo idioma do resto do catálogo MCP.
+//
+// `name` é o identificador da tag, usado só por memory_get_tag.
 type vaultToolParams struct {
 	Path       string `json:"path"`
 	Ext        string `json:"ext"`
 	Folder     string `json:"folder"`
+	Name       string `json:"name"`
 	Repository string `json:"repository"`
 }
 
@@ -92,6 +106,7 @@ func decodeVaultParams(args json.RawMessage) (vaultToolParams, error) {
 	params.Path = strings.TrimSpace(params.Path)
 	params.Ext = strings.TrimSpace(params.Ext)
 	params.Folder = strings.TrimSpace(params.Folder)
+	params.Name = strings.TrimSpace(params.Name)
 	params.Repository = strings.TrimSpace(params.Repository)
 
 	return params, nil
@@ -292,6 +307,8 @@ func (s *Server) SetVaultAccess(access VaultAccess) {
 	s.RegisterToolHandler(ToolMemoryReadNote.Name, NewMemoryReadNoteHandler(access.FindDocument, access.ReadContent))
 	s.RegisterToolHandler(ToolMemoryNoteOutline.Name, NewMemoryNoteOutlineHandler(access.FindDocument, access.ReadContent, access.ParseHeadings))
 	s.RegisterToolHandler(ToolMemoryFileMetadata.Name, NewMemoryFileMetadataHandler(access.FindDocument))
+	s.RegisterToolHandler(ToolMemoryGetTags.Name, NewMemoryGetTagsHandler(access.ListTags, access.FindDocument))
+	s.RegisterToolHandler(ToolMemoryGetTag.Name, NewMemoryGetTagHandler(access.FindDocumentsByTag, access.ListTags))
 }
 
 func maxInt(a, b int) int {

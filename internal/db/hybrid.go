@@ -23,6 +23,14 @@ func SearchFTSWithOptions(ctx context.Context, database *sql.DB, query string, l
 	}
 
 	cat := strings.TrimSpace(searchOpts.Category)
+	tag := strings.TrimSpace(searchOpts.Tag)
+	// O padrão casa as descendentes da tag (`inbox` → `inbox/to-read`). O
+	// escape é obrigatório: `_` e `%` são curingas do LIKE e a tag pode
+	// conter `_` (o formato do Obsidian permite).
+	tagPattern := ""
+	if tag != "" {
+		tagPattern = store.EscapeLikePattern(tag) + "/%"
+	}
 	q := `
 	SELECT c.id, c.document_id, c.content, fts.rank, COALESCE(d.updated_at, 0),
 	       COALESCE(d.mtime, 0),
@@ -32,11 +40,16 @@ func SearchFTSWithOptions(ctx context.Context, database *sql.DB, query string, l
 	LEFT JOIN documents d ON d.id = c.document_id
 	WHERE chunks_fts MATCH ?
 	  AND (? = '' OR LOWER(d.category) = LOWER(?))
+	  AND (? = '' OR EXISTS (
+	      SELECT 1 FROM document_tags dt
+	      WHERE dt.document_id = d.id
+	        AND (dt.tag_key = ? OR dt.tag_key LIKE ? ESCAPE '\')
+	  ))
 	ORDER BY fts.rank
 	LIMIT ?
 	`
 
-	rows, err := database.QueryContext(ctx, q, sanitized, cat, cat, limit)
+	rows, err := database.QueryContext(ctx, q, sanitized, cat, cat, tag, tag, tagPattern, limit)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca textual FTS5: %w", err)
 	}
@@ -118,6 +131,11 @@ func SearchHybridRRFWithOptions(ctx context.Context, database *sql.DB, q *turboq
 	var graphResults []SearchResult
 	seenChunks := make(map[string]bool)
 	cat := strings.TrimSpace(searchOpts.Category)
+	tag := strings.TrimSpace(searchOpts.Tag)
+	tagPattern := ""
+	if tag != "" {
+		tagPattern = store.EscapeLikePattern(tag) + "/%"
+	}
 	for seed := range seedDocs {
 		neighbors, err := GetNodeNeighbors(ctx, database, seed, 1)
 		if err != nil {
@@ -133,9 +151,14 @@ func SearchHybridRRFWithOptions(ctx context.Context, database *sql.DB, q *turboq
 				LEFT JOIN documents d ON d.id = c.document_id
 				WHERE c.document_id = ?
 				  AND (? = '' OR LOWER(d.category) = LOWER(?))
+				  AND (? = '' OR EXISTS (
+				      SELECT 1 FROM document_tags dt
+				      WHERE dt.document_id = d.id
+				        AND (dt.tag_key = ? OR dt.tag_key LIKE ? ESCAPE '\')
+				  ))
 				ORDER BY c.chunk_index
 				LIMIT 2
-			`, n, cat, cat)
+			`, n, cat, cat, tag, tag, tagPattern)
 			if err != nil {
 				continue
 			}

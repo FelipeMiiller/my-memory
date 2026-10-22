@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -260,33 +262,24 @@ func main() {
 		}
 
 	case "search":
-		searchCmd := flag.NewFlagSet("search", flag.ExitOnError)
-		useTurbo := searchCmd.Bool("tq", false, "Usar busca via TurboQuant (4-bits, SQLite)")
-		mode := searchCmd.String("mode", "", "Modo de busca: 'hybrid' (FTS+vetor+grafo via RRF), 'vector' (apenas k-NN), 'fts' (apenas léxico)")
-		level := searchCmd.String("level", "", "Nível de densidade de contexto: 'l0' (micro-abstract cirúrgico), 'l1' (overview/tríptico padrão), 'l2' (detalhes completos)")
-		category := searchCmd.String("category", "", "Filtra por taxonomia de memória: 'resource', 'memory', 'skill' (padrão: todas)")
-		k := searchCmd.Int("k", 0, "Constante de suavização do algoritmo RRF (padrão: 60)")
-		limit := searchCmd.Int("limit", 0, "Número máximo de resultados (padrão: 5)")
-		decay := searchCmd.Bool("decay", false, "Ativa decaimento temporal exponencial para priorizar notas mais recentemente editadas (ordena pelo mtime do arquivo, ADR-057)")
-		halfLife := searchCmd.Float64("half-life", 0.0, "Tempo de meia-vida em dias para decaimento temporal (padrão: 30.0)")
-		decayWeight := searchCmd.Float64("decay-weight", -1.0, "Peso do fator temporal entre 0.0 e 1.0 (padrão: 0.3)")
-		dbPath := searchCmd.String("db", "", "Caminho do arquivo SQLite")
-		pgURL := searchCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
-		storage := searchCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
-		targetRepo := searchCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
-		showLinks := searchCmd.Bool("links", false, "Exibe deep links (Obsidian e VS Code) abaixo de cada resultado")
-		searchCmd.Parse(rearrangeSearchArgs(os.Args[2:]))
+		searchCmd, sf := newSearchFlagSet()
+		// A saída do FlagSet é descartada: quem parseia decide o que fazer com
+		// o erro (imprimir o uso e sair com código diferente de zero).
+		searchCmd.SetOutput(io.Discard)
+		if code := parseSearchFlags(searchCmd, os.Args[2:], os.Stderr); code != 0 {
+			os.Exit(code)
+		}
 
 		query := strings.Join(searchCmd.Args(), " ")
 		if query == "" {
-			fmt.Println("Uso: mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--links] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
+			printSearchUsage(os.Stdout)
 			return
 		}
 
 		cfg := resolveConfig()
-		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *sf.targetRepo, *sf.dbPath, *sf.pgURL, defaultRepo)
 		var errOverride error
-		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
+		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*sf.storage, resolvedDB, resolvedPG)
 		if errOverride != nil {
 			log.Println(errOverride)
 			os.Exit(1)
@@ -298,7 +291,7 @@ func main() {
 			setFlags[f.Name] = true
 		})
 
-		resolvedMode := *mode
+		resolvedMode := *sf.mode
 		if !setFlags["mode"] {
 			if cfg.Search.Mode != "" {
 				resolvedMode = cfg.Search.Mode
@@ -307,7 +300,7 @@ func main() {
 			}
 		}
 
-		resolvedLevel := *level
+		resolvedLevel := *sf.level
 		if !setFlags["level"] {
 			if cfg.Search.Level != "" {
 				resolvedLevel = cfg.Search.Level
@@ -320,19 +313,36 @@ func main() {
 			resolvedLevel = "l1"
 		}
 
-		resolvedCategory := *category
+		resolvedCategory := *sf.category
 		if !setFlags["category"] {
 			resolvedCategory = cfg.Search.Category
 		}
 		resolvedCategory = strings.ToLower(strings.TrimSpace(resolvedCategory))
 
+		// O filtro por tag (paridade com `obsidian search tag:X`): a tag
+		// canônica entra no push-down, que casa a tag e as descendentes.
+		//
+		// Tag fora do formato do Obsidian é erro de uso, não "filtro que não
+		// casa nada": um filtro vazio seria lido como "o vault não tem a tag".
+		resolvedTag := ""
+		if setFlags["tag"] && strings.TrimSpace(*sf.tag) != "" {
+			canonical, ok := parser.NormalizeTag(*sf.tag)
+			if !ok {
+				fmt.Fprintf(os.Stderr, "Erro: tag inválida: %q (use o formato do Obsidian, ex: projeto/alpha)\n", strings.TrimSpace(*sf.tag))
+				printSearchUsage(os.Stderr)
+				os.Exit(1)
+			}
+			resolvedTag = canonical
+		}
+
 		searchOpts := store.SearchOptions{
 			Level:     resolvedLevel,
 			Category:  resolvedCategory,
-			ShowLinks: *showLinks,
+			Tag:       resolvedTag,
+			ShowLinks: *sf.showLinks,
 		}
 
-		resolvedLimit := *limit
+		resolvedLimit := *sf.limit
 		if !setFlags["limit"] {
 			if cfg.Search.Limit > 0 {
 				resolvedLimit = cfg.Search.Limit
@@ -341,7 +351,7 @@ func main() {
 			}
 		}
 
-		resolvedK := *k
+		resolvedK := *sf.k
 		if !setFlags["k"] {
 			if cfg.Search.K > 0 {
 				resolvedK = cfg.Search.K
@@ -350,12 +360,12 @@ func main() {
 			}
 		}
 
-		resolvedDecay := *decay
+		resolvedDecay := *sf.decay
 		if !setFlags["decay"] {
 			resolvedDecay = cfg.Search.Decay
 		}
 
-		resolvedHalfLife := *halfLife
+		resolvedHalfLife := *sf.halfLife
 		if !setFlags["half-life"] {
 			if cfg.Search.HalfLife > 0 {
 				resolvedHalfLife = cfg.Search.HalfLife
@@ -364,7 +374,7 @@ func main() {
 			}
 		}
 
-		resolvedDecayWeight := *decayWeight
+		resolvedDecayWeight := *sf.decayWeight
 		if !setFlags["decay-weight"] {
 			if cfg.Search.DecayWeight >= 0 {
 				resolvedDecayWeight = cfg.Search.DecayWeight
@@ -373,7 +383,7 @@ func main() {
 			}
 		}
 
-		resolvedUseTurbo := *useTurbo
+		resolvedUseTurbo := *sf.useTurbo
 		if !setFlags["tq"] {
 			resolvedUseTurbo = cfg.Search.UseTurbo
 		}
@@ -894,8 +904,8 @@ func printHelp() {
 	fmt.Println("      Instala ou remove o Git pre-commit hook para indexação automática pré-commit")
 	fmt.Println("  mem doctor [--fix] [--events] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score). Use --events para inspecionar o event_runtime")
-	fmt.Println("  mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
-	fmt.Println("      Busca com Progressive Context Loading (L0/L1/L2), filtro de categoria, RRF, decaimento temporal e grafo")
+	fmt.Println("  mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [--tag <tag>] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
+	fmt.Println("      Busca com Progressive Context Loading (L0/L1/L2), filtro de categoria, filtro de tag (Obsidian), RRF, decaimento temporal e grafo")
 
 	fmt.Println("  mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Exibe os nós centrais por grau (God Nodes) ou por autoridade estrutural (PageRank ponderado)")
@@ -2305,6 +2315,82 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedde
 	}
 }
 
+// searchFlags são as flags do subcomando `mem search`.
+//
+// Elas ficam num struct só para que o parse possa ser exercitado pelos testes
+// sem passar pelo `os.Exit` do `main`.
+type searchFlags struct {
+	useTurbo    *bool
+	mode        *string
+	level       *string
+	category    *string
+	tag         *string
+	k           *int
+	limit       *int
+	decay       *bool
+	halfLife    *float64
+	decayWeight *float64
+	dbPath      *string
+	pgURL       *string
+	storage     *string
+	targetRepo  *string
+	showLinks   *bool
+}
+
+// newSearchFlagSet monta as flags de `mem search`.
+//
+// O FlagSet usa ContinueOnError: quem chama decide o que fazer com o erro
+// (imprimir o uso e sair com código diferente de zero). Com ExitOnError, o
+// `os.Exit` ficava dentro do parse e o comportamento de flag ausente
+// (`--tag` sem valor) não era testável.
+func newSearchFlagSet() (*flag.FlagSet, *searchFlags) {
+	fs := flag.NewFlagSet("search", flag.ContinueOnError)
+
+	sf := &searchFlags{
+		useTurbo:    fs.Bool("tq", false, "Usar busca via TurboQuant (4-bits, SQLite)"),
+		mode:        fs.String("mode", "", "Modo de busca: 'hybrid' (FTS+vetor+grafo via RRF), 'vector' (apenas k-NN), 'fts' (apenas léxico)"),
+		level:       fs.String("level", "", "Nível de densidade de contexto: 'l0' (micro-abstract cirúrgico), 'l1' (overview/tríptico padrão), 'l2' (detalhes completos)"),
+		category:    fs.String("category", "", "Filtra por taxonomia de memória: 'resource', 'memory', 'skill' (padrão: todas)"),
+		tag:         fs.String("tag", "", "Filtra por tag do Obsidian (ex: 'projeto/alpha'); casa a tag e suas descendentes"),
+		k:           fs.Int("k", 0, "Constante de suavização do algoritmo RRF (padrão: 60)"),
+		limit:       fs.Int("limit", 0, "Número máximo de resultados (padrão: 5)"),
+		decay:       fs.Bool("decay", false, "Ativa decaimento temporal exponencial para priorizar notas mais recentemente editadas (ordena pelo mtime do arquivo, ADR-057)"),
+		halfLife:    fs.Float64("half-life", 0.0, "Tempo de meia-vida em dias para decaimento temporal (padrão: 30.0)"),
+		decayWeight: fs.Float64("decay-weight", -1.0, "Peso do fator temporal entre 0.0 e 1.0 (padrão: 0.3)"),
+		dbPath:      fs.String("db", "", "Caminho do arquivo SQLite"),
+		pgURL:       fs.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)"),
+		storage:     fs.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)"),
+		targetRepo:  fs.String("repo", "", "Identificador/slug do repositório para filtrar"),
+		showLinks:   fs.Bool("links", false, "Exibe deep links (Obsidian e VS Code) abaixo de cada resultado"),
+	}
+
+	return fs, sf
+}
+
+// printSearchUsage imprime o uso de `mem search`.
+func printSearchUsage(w io.Writer) {
+	fmt.Fprintln(w, "Uso: mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [--tag <tag>] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--links] [--db <caminho>] [--postgres <url>] [--repo <nome>] \"sua pergunta aqui\"")
+	fmt.Fprintln(w, "    --tag filtra por tag do Obsidian e casa as descendentes (ex: --tag projeto/alpha)")
+}
+
+// parseSearchFlags parseia as flags de `mem search` e devolve o código de saída
+// do comando: 0 quando o parse deu certo, 1 quando deu erro.
+//
+// Flag ausente (`--tag` sem valor) é erro de uso: o comando imprime o uso e
+// sai com código diferente de zero, em vez de buscar sem o filtro pedido.
+func parseSearchFlags(fs *flag.FlagSet, args []string, errOut io.Writer) int {
+	if err := fs.Parse(rearrangeSearchArgs(args)); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			printSearchUsage(os.Stdout)
+			return 0
+		}
+		fmt.Fprintf(errOut, "Erro: %v\n", err)
+		printSearchUsage(errOut)
+		return 1
+	}
+	return 0
+}
+
 func rearrangeSearchArgs(args []string) []string {
 	var flags []string
 	var nonFlags []string
@@ -2316,6 +2402,7 @@ func rearrangeSearchArgs(args []string) []string {
 			if !strings.Contains(arg, "=") && (arg == "--mode" || arg == "-mode" ||
 				arg == "--level" || arg == "-level" ||
 				arg == "--category" || arg == "-category" ||
+				arg == "--tag" || arg == "-tag" ||
 				arg == "--k" || arg == "-k" ||
 				arg == "--limit" || arg == "-limit" ||
 				arg == "--half-life" || arg == "-half-life" ||
@@ -2349,6 +2436,7 @@ func buildSQLiteSearchFunc(database *sql.DB, emb embedder.Embedder, tq *turboqua
 		searchOpts := store.SearchOptions{
 			Level:    params.DetailLevel,
 			Category: params.Category,
+			Tag:      params.Tag,
 		}
 		if searchOpts.Level == "" {
 			searchOpts.Level = "l1"
@@ -2454,6 +2542,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			searchOpts := store.SearchOptions{
 				Level:    params.DetailLevel,
 				Category: params.Category,
+				Tag:      params.Tag,
 			}
 			if searchOpts.Level == "" {
 				searchOpts.Level = "l1"
@@ -2730,6 +2819,18 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				}
 				return resolveVaultDocumentFrom(candidates, path)
 			},
+			ListTags: func(ctx context.Context, repo string, filter store.TagFilter) ([]store.VaultTag, error) {
+				if repo == "" {
+					repo = defaultRepo
+				}
+				return pgStore.ListVaultTags(ctx, repo, filter)
+			},
+			FindDocumentsByTag: func(ctx context.Context, repo, tag string) ([]store.VaultDocument, error) {
+				if repo == "" {
+					repo = defaultRepo
+				}
+				return pgStore.FindVaultDocumentsByTag(ctx, repo, tag)
+			},
 			ReadContent: func(ctx context.Context, repo, docID string) (string, error) {
 				if repo == "" {
 					repo = defaultRepo
@@ -2902,6 +3003,12 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 					return store.VaultDocument{}, err
 				}
 				return resolveVaultDocumentFrom(candidates, path)
+			},
+			ListTags: func(ctx context.Context, _ string, filter store.TagFilter) ([]store.VaultTag, error) {
+				return db.ListVaultTags(ctx, database, filter)
+			},
+			FindDocumentsByTag: func(ctx context.Context, _ string, tag string) ([]store.VaultDocument, error) {
+				return db.FindVaultDocumentsByTag(ctx, database, tag)
 			},
 			ReadContent: func(ctx context.Context, _, docID string) (string, error) {
 				return db.ReadVaultDocumentContent(ctx, database, docID)

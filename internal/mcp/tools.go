@@ -61,6 +61,10 @@ var (
 					"enum":        []string{"resource", "memory", "skill"},
 					"description": "Filtra por taxonomia de conhecimento: 'resource' (especificações técnicas, arquitetura), 'memory' (regras de conduta, lições aprendidas, padrões) ou 'skill' (habilidades, comandos operacionais, procedimentos)",
 				},
+				"tag": map[string]any{
+					"type":        "string",
+					"description": "Filtra a busca por tag do Obsidian (ex: 'projeto/alpha'). Casa a tag e suas descendentes, como o `tag:` do Obsidian. O '#' inicial é opcional e o casing é ignorado.",
+				},
 				"include_code": map[string]any{
 					"type":        "boolean",
 					"description": "Quando verdadeiro, code_symbols competem em RRF com markdown chunks (CA-12, default: false)",
@@ -686,6 +690,45 @@ var (
 				},
 			},
 			"required": []string{"path"},
+		},
+	}
+
+	// Paridade com `mem tags` e `mem tag`: o inventário de tags do vault e a
+	// consulta de uma tag (com as descendentes), como no Obsidian.
+	ToolMemoryGetTags = Tool{
+		Name:        "memory_get_tags",
+		Description: "Lista as tags do vault com a contagem de documentos que carregam cada uma — use para descobrir a taxonomia do vault antes de filtrar uma busca por tag",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Caminho da nota no vault. Quando informado, devolve só as tags daquele documento; quando omitido, devolve o inventário inteiro do vault.",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório para contextualizar a listagem (opcional). Se omitido, usa o repositório padrão ou global.",
+				},
+			},
+		},
+	}
+
+	ToolMemoryGetTag = Tool{
+		Name:        "memory_get_tag",
+		Description: "Consulta uma tag do vault e devolve a contagem de documentos e a lista das notas que a carregam — casa a tag e suas descendentes, como o `tag:` do Obsidian",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{
+					"type":        "string",
+					"description": "Nome da tag (ex: 'inbox' ou '#inbox'). O '#' inicial é opcional, o casing é ignorado e a hierarquia é preservada ('projeto/alpha').",
+				},
+				"repository": map[string]any{
+					"type":        "string",
+					"description": "Slug ou identificador do repositório para contextualizar a consulta (opcional).",
+				},
+			},
+			"required": []string{"name"},
 		},
 	}
 

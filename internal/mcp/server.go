@@ -122,6 +122,10 @@ func NewServer(name, version string, in io.Reader, out io.Writer, errLog io.Writ
 	s.RegisterTool(ToolMemoryReadNote, NewMemoryReadNoteHandler(nil, nil))
 	s.RegisterTool(ToolMemoryNoteOutline, NewMemoryNoteOutlineHandler(nil, nil, nil))
 	s.RegisterTool(ToolMemoryFileMetadata, NewMemoryFileMetadataHandler(nil))
+	// Paridade com `mem tags` e `mem tag`: o inventário de tags do vault e a
+	// consulta de uma tag com as suas descendentes.
+	s.RegisterTool(ToolMemoryGetTags, NewMemoryGetTagsHandler(nil, nil))
+	s.RegisterTool(ToolMemoryGetTag, NewMemoryGetTagHandler(nil, nil))
 
 	return s
 }

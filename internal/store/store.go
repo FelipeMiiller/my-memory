@@ -48,9 +48,20 @@ type SearchResult struct {
 	Links      *deeplink.DeepLinks `json:"links,omitempty"`
 }
 
-// SearchOptions define critérios de filtragem por taxonomia e nível de densidade de contexto
+// SearchOptions define critérios de filtragem por taxonomia, tag e nível de densidade de contexto
 type SearchOptions struct {
-	Category  string `json:"category,omitempty"`   // "resource", "memory", "skill" ou "" (todas)
+	Category string `json:"category,omitempty"` // "resource", "memory", "skill" ou "" (todas)
+	// Tag é a tag canônica (minúsculas, sem '#') que filtra a busca. Vazio
+	// significa "sem filtro".
+	//
+	// O filtro é push-down: ele entra na consulta que gera os candidatos,
+	// junto com o filtro de categoria. Ele casa a tag e as descendentes
+	// (`inbox` casa `inbox` e `inbox/to-read`), como no Obsidian.
+	//
+	// Quem canonicaliza é o chamador (a CLI usa parser.NormalizeTag): aqui a
+	// chave é usada como está, porque o push-down compara com
+	// `document_tags.tag_key`, que já é a forma canônica.
+	Tag       string `json:"tag,omitempty"`        // tag canônica; "" = sem filtro
 	Level     string `json:"level,omitempty"`      // "l0", "l1", "l2" (default: "l1")
 	ShowLinks bool   `json:"show_links,omitempty"` // Exibe e preenche deep links nos resultados
 }

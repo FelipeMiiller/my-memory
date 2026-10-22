@@ -14,6 +14,7 @@ type SearchParams struct {
 	DecayWeight float64 // peso do decaimento temporal w in [0.0, 1.0] (padrão: 0.3)
 	DetailLevel string  // "l0", "l1", "l2" (default: "l1")
 	Category    string  // "resource", "memory", "skill" ou ""
+	Tag         string  // tag canônica (minúsculas, sem '#'); "" = sem filtro
 }
 
 // SearchResult representa um item de resultado de busca no vault

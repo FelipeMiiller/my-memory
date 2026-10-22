@@ -46,6 +46,14 @@ func SearchKNNWithOptions(ctx context.Context, db *sql.DB, queryVec []float32, l
 	}
 
 	cat := strings.TrimSpace(searchOpts.Category)
+	tag := strings.TrimSpace(searchOpts.Tag)
+	// O padrão casa as descendentes da tag (`inbox` → `inbox/to-read`). O
+	// escape é obrigatório: `_` e `%` são curingas do LIKE e a tag pode
+	// conter `_` (o formato do Obsidian permite).
+	tagPattern := ""
+	if tag != "" {
+		tagPattern = store.EscapeLikePattern(tag) + "/%"
+	}
 	query := `
 	SELECT c.id, c.document_id, c.content, v.distance, COALESCE(d.updated_at, 0),
 	       COALESCE(d.mtime, 0),
@@ -55,10 +63,15 @@ func SearchKNNWithOptions(ctx context.Context, db *sql.DB, queryVec []float32, l
 	LEFT JOIN documents d ON d.id = c.document_id
 	WHERE v.embedding MATCH ? AND k = ?
 	  AND (? = '' OR LOWER(d.category) = LOWER(?))
+	  AND (? = '' OR EXISTS (
+	      SELECT 1 FROM document_tags dt
+	      WHERE dt.document_id = d.id
+	        AND (dt.tag_key = ? OR dt.tag_key LIKE ? ESCAPE '\')
+	  ))
 	ORDER BY v.distance
 	`
 
-	rows, err := db.QueryContext(ctx, query, vecBlob, limit, cat, cat)
+	rows, err := db.QueryContext(ctx, query, vecBlob, limit, cat, cat, tag, tag, tagPattern)
 	if err != nil {
 		return nil, fmt.Errorf("erro na busca vetorial: %w", err)
 	}
@@ -91,6 +104,14 @@ func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, 
 func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, queryVec []float32, limit int, searchOpts store.SearchOptions) ([]SearchResult, error) {
 	rotatedQuery := q.RotateQuery(queryVec)
 	cat := strings.TrimSpace(searchOpts.Category)
+	tag := strings.TrimSpace(searchOpts.Tag)
+	// O padrão casa as descendentes da tag (`inbox` → `inbox/to-read`). O
+	// escape é obrigatório: `_` e `%` são curingas do LIKE e a tag pode
+	// conter `_` (o formato do Obsidian permite).
+	tagPattern := ""
+	if tag != "" {
+		tagPattern = store.EscapeLikePattern(tag) + "/%"
+	}
 
 	rows, err := db.QueryContext(ctx, `
 		SELECT tq.chunk_id, c.document_id, c.content, tq.scale, tq.data, COALESCE(d.updated_at, 0),
@@ -100,7 +121,12 @@ func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.
 		JOIN chunks c ON c.id = tq.chunk_id
 		LEFT JOIN documents d ON d.id = c.document_id
 		WHERE (? = '' OR LOWER(d.category) = LOWER(?))
-	`, cat, cat)
+		  AND (? = '' OR EXISTS (
+		      SELECT 1 FROM document_tags dt
+		      WHERE dt.document_id = d.id
+		        AND (dt.tag_key = ? OR dt.tag_key LIKE ? ESCAPE '\')
+		  ))
+	`, cat, cat, tag, tag, tagPattern)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao consultar chunks turboquant: %w", err)
 	}

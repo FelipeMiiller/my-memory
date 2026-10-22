@@ -10,6 +10,7 @@ import (
 
 	"github.com/FelipeMiiller/my-memory/internal/canvas"
 	"github.com/FelipeMiiller/my-memory/internal/federation"
+	"github.com/FelipeMiiller/my-memory/internal/parser"
 	"github.com/FelipeMiiller/my-memory/internal/staleness"
 )
 
@@ -365,6 +366,22 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 			}
 		}
 
+		// O filtro por tag (paridade com `obsidian search tag:X`): a tag
+		// canônica viaja para o push-down, que casa a tag e as descendentes.
+		// Tag fora do formato do Obsidian é erro de parâmetro — um filtro que
+		// não casa nada seria lido pelo agente como "o vault não tem a tag".
+		var tag string
+		if rawTag, hasTag := rawMap["tag"]; hasTag {
+			var t string
+			if err := json.Unmarshal(rawTag, &t); err == nil && strings.TrimSpace(t) != "" {
+				canonical, ok := parser.NormalizeTag(t)
+				if !ok {
+					return nil, NewError(CodeInvalidParams, fmt.Sprintf("Tag inválida: '%s'", strings.TrimSpace(t)), nil)
+				}
+				tag = canonical
+			}
+		}
+
 		// CA-12: include_code é flag aditiva (default false). Mantido aqui para
 		// que clientes MCP legados não precisem conhecer o novo campo — quando
 		// omitido, comportamento atual preservado. O verdadeiro fan-in RRF
@@ -401,6 +418,7 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 				DecayWeight: decayWeight,
 				DetailLevel: detailLevel,
 				Category:    category,
+				Tag:         tag,
 			})
 		case SearchFunc:
 			results, err = fn(ctx, repo, query, limit)

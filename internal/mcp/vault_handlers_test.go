@@ -10,14 +10,36 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/store"
 )
 
-// vaultToolsParity são as quatro ferramentas de leitura do vault (ADR-057).
-// A lista é explícita de propósito: uma ferramenta registrada e não listada
-// aqui escaparia do gate de documentação.
+// vaultToolsParity são as ferramentas de leitura do vault (ADR-057) e as de
+// tags (paridade com `mem tags` e `mem tag`). A lista é explícita de propósito:
+// uma ferramenta registrada e não listada aqui escaparia do gate de
+// documentação.
 var vaultToolsParity = []Tool{
 	ToolMemoryListFiles,
 	ToolMemoryReadNote,
 	ToolMemoryNoteOutline,
 	ToolMemoryFileMetadata,
+	ToolMemoryGetTags,
+	ToolMemoryGetTag,
+}
+
+// vaultToolRequirements descreve, por ferramenta, as propriedades que o
+// inputSchema precisa expor e os parâmetros obrigatórios.
+//
+// As quatro primeiras são as de ADR-057: três operam sobre uma nota (`path`
+// obrigatório) e uma lista o vault inteiro (`ext`/`folder` opcionais). As duas
+// de tag são diferentes: memory_get_tags aceita `path` como filtro opcional e
+// memory_get_tag exige `name`.
+var vaultToolRequirements = map[string]struct {
+	properties []string
+	required   []string
+}{
+	ToolMemoryListFiles.Name:    {properties: []string{"ext", "folder"}},
+	ToolMemoryReadNote.Name:     {properties: []string{"path"}, required: []string{"path"}},
+	ToolMemoryNoteOutline.Name:  {properties: []string{"path"}, required: []string{"path"}},
+	ToolMemoryFileMetadata.Name: {properties: []string{"path"}, required: []string{"path"}},
+	ToolMemoryGetTags.Name:      {properties: []string{"path"}},
+	ToolMemoryGetTag.Name:       {properties: []string{"name"}, required: []string{"name"}},
 }
 
 func TestVaultTools_RegistrationAndSchema(t *testing.T) {
@@ -55,24 +77,35 @@ func TestVaultTools_RegistrationAndSchema(t *testing.T) {
 			t.Errorf("%s: esperava propriedade 'repository' (todas as ferramentas do vault a aceitam)", got.Name)
 		}
 
-		// memory_list_files é a única sem path: as três outras operam sobre
-		// uma nota, então 'path' é obrigatório e precisa estar em required.
-		required, hasRequired := got.InputSchema["required"].([]string)
-		if got.Name == ToolMemoryListFiles.Name {
-			if _, ok := props["ext"]; !ok {
-				t.Errorf("%s: esperava filtro 'ext'", got.Name)
+		requirements, ok := vaultToolRequirements[want.Name]
+		if !ok {
+			t.Errorf("%s: está na lista de paridade mas não tem requisitos de schema declarados", got.Name)
+			continue
+		}
+
+		for _, property := range requirements.properties {
+			if _, ok := props[property]; !ok {
+				t.Errorf("%s: esperava propriedade '%s'", got.Name, property)
 			}
-			if _, ok := props["folder"]; !ok {
-				t.Errorf("%s: esperava filtro 'folder'", got.Name)
+		}
+
+		required, hasRequired := got.InputSchema["required"].([]string)
+		if len(requirements.required) == 0 {
+			if hasRequired {
+				t.Errorf("%s: esperava nenhum parâmetro obrigatório, obteve %v", got.Name, required)
 			}
 			continue
 		}
 
-		if _, ok := props["path"]; !ok {
-			t.Errorf("%s: esperava propriedade 'path'", got.Name)
+		if !hasRequired || len(required) != len(requirements.required) {
+			t.Errorf("%s: esperava required == %v, obteve %v", got.Name, requirements.required, got.InputSchema["required"])
+			continue
 		}
-		if !hasRequired || len(required) != 1 || required[0] != "path" {
-			t.Errorf("%s: esperava required == ['path'], obteve %v", got.Name, got.InputSchema["required"])
+		for i, wantRequired := range requirements.required {
+			if required[i] != wantRequired {
+				t.Errorf("%s: esperava required == %v, obteve %v", got.Name, requirements.required, required)
+				break
+			}
 		}
 	}
 }
