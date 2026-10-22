@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -1587,6 +1588,11 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 	fsTitles := preCollectDocTitles(rootDir)
 	availableTitles := mergeStringLists(dbTitles, fsTitles)
 
+	// Mapa título → id para resolver as tags: o que já está no banco, mais o que
+	// for indexado nesta execução. É o que permite gravar `resolved_doc_id` (o
+	// id do documento que a tag nomeia) em vez do título.
+	titleToID, _ := s.ListDocumentIDTitles(ctx, targetRepo)
+
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -1684,9 +1690,19 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 		if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category, fileMtime, fileSize); err != nil {
 			return err
 		}
+		// O documento recém-indexado entra no mapa de resolução: uma tag que o
+		// nomeia resolve para o id dele.
+		if _, exists := titleToID[title]; !exists {
+			titleToID[title] = docID
+		}
 
 		// 2. Extrai e salva conexões do grafo ([[wikilinks]], tags e relações tipadas)
 		connections := parser.ExtractConnections(content)
+
+		// Tags: a lista completa (órfãs incluídas) é gravada antes do fuzzy —
+		// a aresta `tagged_as` continua sendo só a das tags resolvidas (ADR-041).
+		_ = s.InsertDocumentTags(ctx, targetRepo, docID, buildTagBindings(connections.Tags, titleToID))
+
 		parser.ResolveTagConnections(&connections, availableTitles)
 		for _, edge := range connections.Edges {
 			_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
@@ -1745,6 +1761,9 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 		if err == nil && len(pruned) > 0 {
 			prunedCount = len(pruned)
 			for _, p := range pruned {
+				// Tags: o Postgres não tem cascade em `documents` — a remoção das
+				// tags do documento podado é explícita.
+				_ = s.DeleteDocumentTags(ctx, targetRepo, p)
 				fmt.Printf("🗑  [pruned] %s (removido do disco)\n", p)
 			}
 		}
@@ -1778,6 +1797,11 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 	dbTitles, _ := db.ListDocumentTitles(ctx, database, "")
 	fsTitles := preCollectDocTitles(rootDir)
 	availableTitles := mergeStringLists(dbTitles, fsTitles)
+
+	// Mapa título → id para resolver as tags: o que já está no banco, mais o que
+	// for indexado nesta execução. É o que permite gravar `resolved_doc_id` (o
+	// id do documento que a tag nomeia) em vez do título.
+	titleToID, _ := db.ListDocumentIDTitles(ctx, database)
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -1876,9 +1900,19 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		if err := db.InsertDocumentWithMeta(ctx, database, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category, fileMtime, fileSize); err != nil {
 			return err
 		}
+		// O documento recém-indexado entra no mapa de resolução: uma tag que o
+		// nomeia resolve para o id dele.
+		if _, exists := titleToID[title]; !exists {
+			titleToID[title] = docID
+		}
 
 		// 2. Extrai e salva conexões do grafo ([[wikilinks]], tags e relações tipadas)
 		connections := parser.ExtractConnections(content)
+
+		// Tags: a lista completa (órfãs incluídas) é gravada antes do fuzzy —
+		// a aresta `tagged_as` continua sendo só a das tags resolvidas (ADR-041).
+		_ = db.InsertDocumentTags(ctx, database, docID, buildTagBindings(connections.Tags, titleToID))
+
 		parser.ResolveTagConnections(&connections, availableTitles)
 		for _, edge := range connections.Edges {
 			_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
@@ -1940,12 +1974,59 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		if err == nil && len(pruned) > 0 {
 			prunedCount = len(pruned)
 			for _, p := range pruned {
+				// Tags: a remoção é explícita (o cascade do SQLite cobre, mas a
+				// chamada explícita é a garantia comum aos dois engines).
+				_ = db.DeleteDocumentTags(ctx, database, p)
 				fmt.Printf("🗑  [pruned] %s (removido do disco)\n", p)
 			}
 		}
 	}
 
 	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
+}
+
+// buildTagBindings monta os vínculos documento→tag a partir das tags cruas do
+// documento e do mapa título → id dos documentos indexados.
+//
+// A lista completa é gravada, tags órfãs incluídas: no Obsidian a tag existe
+// mesmo sem casa no grafo. A aresta `tagged_as` continua sendo só a das tags
+// resolvidas (ADR-041) — o que muda aqui é a tabela `document_tags` (ADR-055).
+//
+// `resolved_doc_id` é o id do documento que a tag NOMEIA (não do documento que
+// carrega a tag). Tag órfã fica com o campo vazio.
+func buildTagBindings(tags []string, titleToID map[string]string) []store.TagBinding {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	resolved := parser.ResolveTagTargets(tags, tagTargetTitles(titleToID))
+
+	bindings := make([]store.TagBinding, 0, len(tags))
+	for _, raw := range tags {
+		key, ok := parser.NormalizeTag(raw)
+		if !ok {
+			// Tag inválida segundo a norma do Obsidian não tem forma canônica,
+			// logo não tem identidade para ser gravada.
+			continue
+		}
+		binding := store.NormalizeTagBinding(store.TagBinding{Tag: raw, Key: key})
+		if title, found := resolved[key]; found && title != "" {
+			binding.ResolvedDocID = titleToID[title]
+		}
+		bindings = append(bindings, binding)
+	}
+	return bindings
+}
+
+// tagTargetTitles devolve os títulos do mapa título → id em ordem alfabética:
+// a lista alimenta o fuzzy resolve, que precisa ser determinístico.
+func tagTargetTitles(titleToID map[string]string) []string {
+	titles := make([]string, 0, len(titleToID))
+	for title := range titleToID {
+		titles = append(titles, title)
+	}
+	sort.Strings(titles)
+	return titles
 }
 
 func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.Embedder, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {

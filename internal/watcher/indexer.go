@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -102,7 +103,12 @@ func IndexSingleFileSQLite(
 	// 3. Extrai e salva conexões do grafo
 	connections := parser.ExtractConnections(content)
 
-	// 3.1 Fuzzy resolve de tags: edges `tagged_as` apontando para tags como
+	// 3.1 Tags: a lista completa (órfãs incluídas) é gravada antes do fuzzy —
+	// a aresta `tagged_as` continua sendo só a das tags resolvidas (ADR-041).
+	titleToID, _ := db.ListDocumentIDTitles(ctx, database)
+	_ = db.InsertDocumentTags(ctx, database, docID, buildTagBindings(connections.Tags, titleToID))
+
+	// 3.2 Fuzzy resolve de tags: edges `tagged_as` apontando para tags como
 	// `sqlite` são reescritas para o doc correspondente (ex: ADR-001) quando
 	// possível, evitando dead links e aumentando a densidade do grafo.
 	if titles, err := db.ListDocumentTitles(ctx, database, ""); err == nil {
@@ -156,6 +162,10 @@ func PurgeSingleFileSQLite(ctx context.Context, database *sql.DB, filePath strin
 	start := time.Now()
 	docID := filePath
 	title := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+
+	// Tags: remoção explícita. O cascade do SQLite cobre a purge, mas a chamada
+	// explícita é a garantia comum aos dois engines.
+	_ = db.DeleteDocumentTags(ctx, database, docID)
 
 	if err := db.DeleteDocumentComplete(ctx, database, docID); err != nil {
 		return nil, fmt.Errorf("erro ao purgar documento SQLite: %w", err)
@@ -237,6 +247,11 @@ func IndexSingleFilePostgres(
 	}
 	connections := parser.ExtractConnections(content)
 
+	// Tags: a lista completa (órfãs incluídas) é gravada antes do fuzzy — a
+	// aresta `tagged_as` continua sendo só a das tags resolvidas (ADR-041).
+	titleToID, _ := s.ListDocumentIDTitles(ctx, targetRepo)
+	_ = s.InsertDocumentTags(ctx, targetRepo, docID, buildTagBindings(connections.Tags, titleToID))
+
 	// Fuzzy resolve de tags: ver IndexSingleFileSQLite para detalhes.
 	if titles, err := s.ListDocumentTitles(ctx, targetRepo); err == nil {
 		parser.ResolveTagConnections(&connections, titles)
@@ -287,6 +302,10 @@ func PurgeSingleFilePostgres(
 	docID := filePath
 	title := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
 
+	// Tags: o Postgres não tem cascade em `documents`, então a remoção das tags do
+	// documento purgado é explícita.
+	_ = s.DeleteDocumentTags(ctx, targetRepo, docID)
+
 	_ = s.DeleteDocumentData(ctx, targetRepo, docID)
 
 	return &IndexResult{
@@ -295,4 +314,48 @@ func PurgeSingleFilePostgres(
 		Title:    title,
 		Duration: time.Since(start),
 	}, nil
+}
+
+// buildTagBindings monta os vínculos documento→tag a partir das tags cruas do
+// documento e do mapa título → id dos documentos indexados.
+//
+// A lista completa é gravada, tags órfãs incluídas: no Obsidian a tag existe
+// mesmo sem casa no grafo. A aresta `tagged_as` continua sendo só a das tags
+// resolvidas (ADR-041) — o que muda aqui é a tabela `document_tags` (ADR-055).
+//
+// `resolved_doc_id` é o id do documento que a tag NOMEIA (não do documento que
+// carrega a tag). Tag órfã fica com o campo vazio.
+func buildTagBindings(tags []string, titleToID map[string]string) []store.TagBinding {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	resolved := parser.ResolveTagTargets(tags, tagTargetTitles(titleToID))
+
+	bindings := make([]store.TagBinding, 0, len(tags))
+	for _, raw := range tags {
+		key, ok := parser.NormalizeTag(raw)
+		if !ok {
+			// Tag inválida segundo a norma do Obsidian não tem forma canônica,
+			// logo não tem identidade para ser gravada.
+			continue
+		}
+		binding := store.NormalizeTagBinding(store.TagBinding{Tag: raw, Key: key})
+		if title, found := resolved[key]; found && title != "" {
+			binding.ResolvedDocID = titleToID[title]
+		}
+		bindings = append(bindings, binding)
+	}
+	return bindings
+}
+
+// tagTargetTitles devolve os títulos do mapa título → id em ordem alfabética:
+// a lista alimenta o fuzzy resolve, que precisa ser determinístico.
+func tagTargetTitles(titleToID map[string]string) []string {
+	titles := make([]string, 0, len(titleToID))
+	for title := range titleToID {
+		titles = append(titles, title)
+	}
+	sort.Strings(titles)
+	return titles
 }
