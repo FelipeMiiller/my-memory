@@ -271,11 +271,20 @@ func (s *PostgresStore) ListVaultTags(ctx context.Context, repository string, fi
 		// e a resolução. O título vem do documento resolvido
 		// (COALESCE(title, id)) e fica vazio quando a tag não resolve para
 		// nenhum documento.
+		//
+		// O documento resolvido pode ter sido podado depois: a linha da tag
+		// sobrevive ao documento, porque a chave não é uma foreign key. O id
+		// pendurado não pode vazar para a saída, e `resolvedTitle` só é vazio
+		// quando o documento não existe mais.
+		resolvedID := resolvedDocID.String
+		if resolvedTitle == "" {
+			resolvedID = ""
+		}
 		tags = append(tags, VaultTag{
 			Tag:           tag,
 			Key:           key,
 			Count:         1,
-			ResolvedDocID: resolvedDocID.String,
+			ResolvedDocID: resolvedID,
 			ResolvedTitle: resolvedTitle,
 		})
 	}

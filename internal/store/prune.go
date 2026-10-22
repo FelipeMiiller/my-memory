@@ -256,7 +256,12 @@ func (s *PostgresStore) selectPrunableDocuments(ctx context.Context, repo, rootD
 	return candidates, nil
 }
 
-// deleteDocumentRows remove documento, chunks, arestas e nós numa única transação.
+// deleteDocumentRows remove documento, chunks, tags, arestas e nós numa única transação.
+//
+// As tags são removidas explicitamente: no Postgres `document_tags` não tem
+// foreign key para `documents` (a identidade do documento lá é
+// `(repository, id)`), então o prune apagaria o documento e deixaria as linhas
+// de tag órfãs.
 func (s *PostgresStore) deleteDocumentRows(ctx context.Context, repo, id string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -269,6 +274,7 @@ func (s *PostgresStore) deleteDocumentRows(ctx context.Context, repo, id string)
 		args  []any
 	}{
 		{`DELETE FROM chunks WHERE repository = $1 AND document_id = $2`, []any{repo, id}},
+		{`DELETE FROM document_tags WHERE repository = $1 AND document_id = $2`, []any{repo, id}},
 		{`DELETE FROM graph_edges WHERE repository = $1 AND (source_id = $2 OR target_id = $2)`, []any{repo, id}},
 		{`DELETE FROM documents WHERE repository = $1 AND id = $2`, []any{repo, id}},
 		{`DELETE FROM graph_nodes WHERE repository = $1 AND id = $2`, []any{repo, id}},

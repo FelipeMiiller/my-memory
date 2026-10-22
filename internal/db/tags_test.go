@@ -529,3 +529,40 @@ func TestDocumentTagsTable_CreatedOnLegacyDatabase(t *testing.T) {
 		t.Fatalf("inventario = %+v; esperava a tag 'legado'", inventory)
 	}
 }
+
+// TestListVaultTags_DanglingResolvedDocIsCleared cobre o caso em que o
+// documento resolvido foi removido depois que a tag foi gravada.
+//
+// A chave de `document_tags` nao e uma foreign key (a identidade do documento no
+// Postgres e `(repository, id)`), entao a linha da tag sobrevive ao documento.
+// O id pendurado nao pode vazar para a saida: o consumidor abriria um
+// documento que nao existe mais.
+func TestListVaultTags_DanglingResolvedDocIsCleared(t *testing.T) {
+	ctx := context.Background()
+	database := newTagsTestDB(t)
+	insertTagDocument(t, database, "doc-1", "notes/one.md", "Nota Um")
+	insertTagDocument(t, database, "adr-1", "docs/adr-001.md", "ADR 001")
+
+	if err := InsertDocumentTags(ctx, database, "doc-1", []store.TagBinding{{Tag: "ADR-001", ResolvedDocID: "adr-1"}}); err != nil {
+		t.Fatalf("InsertDocumentTags falhou: %v", err)
+	}
+
+	// O documento resolvido some do indice; a linha da tag fica.
+	if _, err := database.Exec(`DELETE FROM documents WHERE id = ?`, "adr-1"); err != nil {
+		t.Fatalf("remocao do documento falhou: %v", err)
+	}
+
+	inventory, err := ListVaultTags(ctx, database, store.TagFilter{})
+	if err != nil {
+		t.Fatalf("ListVaultTags falhou: %v", err)
+	}
+	if len(inventory) != 1 {
+		t.Fatalf("inventario = %+v; esperava 1 tag", inventory)
+	}
+	if inventory[0].ResolvedDocID != "" {
+		t.Errorf("resolved_doc_id = %q; esperava vazio (o documento foi removido)", inventory[0].ResolvedDocID)
+	}
+	if inventory[0].ResolvedTitle != "" {
+		t.Errorf("resolved_title = %q; esperava vazio (o documento foi removido)", inventory[0].ResolvedTitle)
+	}
+}
