@@ -31,7 +31,7 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 	exclude := fs.String("exclude", "", "Glob exclude adicional (sobrescreve config)")
 	astHash := fs.Bool("ast-hash", true, "Habilita cálculo e armazenamento de ast_hash (CA-04)")
 	noEmbed := fs.Bool("no-embed", true, "Desativa geração de embeddings para code_symbols (placeholder; v1 não embute symbols)")
-	jsonOut := fs.Bool("json", false, "Saída em JSON (placeholder)")
+	jsonOut := fs.Bool("json", false, "Reservada para a saída estruturada (sem efeito nesta versão)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

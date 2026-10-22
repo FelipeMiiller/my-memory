@@ -1057,9 +1057,11 @@ não para o começo.
 ```
 
 > [!NOTE]
-> Estas nove capacidades também estão expostas via MCP, sem shelling out:
+> Quatro destas nove capacidades também estão expostas via MCP, sem shelling out:
 > `memory_list_files`, `memory_read_note`, `memory_note_outline` e
-> `memory_file_metadata`.
+> `memory_file_metadata`. As outras cinco — `mem folders`, `mem wordcount`,
+> `mem random`, `mem deadends` e `mem recents` — existem **apenas** na CLI:
+> ainda não há tool MCP dedicada para elas.
 
 ---
 

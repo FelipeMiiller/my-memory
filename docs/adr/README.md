@@ -144,6 +144,26 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > e pelo MCP. Trate a ADR-044 como especificação não implementada, não como estado atual.
 > A observer levantou isso na análise de gap de 2026-10-18.
 
+> [!warning]
+> **ADR-054: duas correções factuais na medição de 2026-10-18.** O corpo da ADR é
+> imutável, mas duas afirmações dela não fecham e a medição de 2026-10-22 as corrige:
+> (1) a conta "~115 comandos" — "48 comandos de conteúdo de vault" + "os ~45 comandos
+> restantes" — dá 93, e a lista oficial do CLI do Obsidian tem **116** comandos;
+> (2) a lista de escopo "a construir" (linha 33) já lista **7 comandos que existem**
+> (`files`, `folders`, `read`, `wordcount`, `random`, `outline`, `deadends`), o que
+> sobrestima o trabalho pendente. A matriz vigente, com evidência `caminho:linha`, está
+> em [`docs/OBSIDIAN_PARITY_MATRIX.md`](../OBSIDIAN_PARITY_MATRIX.md) — é ela que
+> substitui a matriz de 2026-10-18 citada na linha 76, que nunca foi registrada no
+> repositório.
+
+> [!warning]
+> **ADR-056: decisão aceita, implementação ausente.** A tabela `document_properties`
+> que a ADR descreve (`document_id`, `key`, `value_type`, `value_text`, `created_at`)
+> **não existe** em nenhum dos dois motores, e os comandos `properties`,
+> `property:read`, `property:set` e `property:remove` **não existem** na CLI. Trate a
+> ADR-056 como especificação não implementada, não como estado atual. A medição
+> está em [`docs/OBSIDIAN_PARITY_MATRIX.md`](../OBSIDIAN_PARITY_MATRIX.md), seção 3.
+
 ---
 
 ## 🗄️ ADRs Obsoletas — viewer Electron (removido em 2026-10-18)

@@ -43,15 +43,15 @@ func runNoteCLI(ctx context.Context, emb embedder.Embedder, tq *turboquant.Quant
 		targetRepo := cmd.String("repo", "", "Identificador/slug do repositório")
 		vaultDir := cmd.String("vault", "", "Raiz do vault (padrão: descoberto via .memory/config.yaml)")
 		// ifMatch is parsed but not yet wired into the compiler path;
-		// the ADR-044 writer.Write flow consumes it via the new
-		// `mem write` subcommand (T11 follow-up). Until that wiring
+		// the ADR-044 writer.Write flow consumes it via a dedicated
+		// atomic-write command (T11 follow-up). Until that wiring
 		// lands, the flag is accepted and validated here so callers
 		// get a consistent surface across both paths.
 		ifMatch := cmd.Int64("if-match", -1, "Esperada revisão do documento (se != -1); conflito → exit 2")
 		cmd.Parse(args[1:])
 
 		if *ifMatch >= 0 {
-			fmt.Fprintf(os.Stderr, "⚠️  --if-match is parsed but not yet enforced on `mem note create`; use `mem write` (T11) for atomic precondition.\n")
+			fmt.Fprintf(os.Stderr, "⚠️  --if-match is parsed but not yet enforced on `mem note create`; the precondition is not applied yet.\n")
 		}
 
 		if cmd.NArg() < 1 {

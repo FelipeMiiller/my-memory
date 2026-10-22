@@ -803,3 +803,34 @@ o store real.
 
 **Nota.** A flakiness já tem precedente no repositório: a ISSUE-011 registrou um
 teste flaky em `internal/event_runtime` com taxa de falha de ~50%.
+
+---
+
+## ISSUE-026 — Matriz de paridade com o Obsidian: 5 decisões que exigem o dono
+
+- **Severidade:** 🟠 medium
+- **Status:** 🔵 open
+- **Achado em:** auditoria de paridade de 2026-10-22 (3 frentes independentes: sintaxe/parser, links/embeds/aliases/PDF/propriedades, CLI/MCP/documentação), contra as fontes primárias `obsidian.md/help/{syntax,links,tags,properties,embeds,aliases,pdf,cli}`
+- **Medição completa:** [`docs/OBSIDIAN_PARITY_MATRIX.md`](../docs/OBSIDIAN_PARITY_MATRIX.md)
+
+**Contexto.** A ADR-054 decide o escopo de paridade; este issue registra a
+distância medida e as decisões que **não são de implementação**. A matriz
+substitui a de 2026-10-18 citada na ADR-054:76, que nunca foi registrada no
+repositório.
+
+**As 5 decisões:**
+
+| # | Decisão | Alternativas | Bloqueia |
+|---|---------|--------------|----------|
+| D1 | **Assets não-Markdown**: indexar `.pdf`/imagem/áudio/`.canvas`, ou declará-los fora do escopo? | (a) indexar com `asset_kind`/`mime`; (b) "o My-Memory indexa só Markdown; assets são referenciados mas não ingeridos" | busca dentro de PDF, viewer de PDF, citação por seleção (`#selection=`), export de nota para PDF, import de `.canvas` |
+| D2 | **`move`/`rename`**: a ADR-054:33 lista como "a construir" e a :35 lista fora de escopo — a ADR contradiz a si mesma | (a) construir; (b) recusar e corrigir a ADR por supersession | paridade de manipulação de arquivo |
+| D3 | **`property:set`/`property:remove`**: a ADR-056:39 prevê escrita de propriedade | (a) construir (destrava `properties`); (b) recusar e manter só leitura | ADR-056 |
+| D4 | **`unresolved`/`orphans` isolados**: hoje vivem dentro de `mem doctor` e truncados em 15 itens | (a) comando dedicado; (b) manter como está | ADR-054:33 pede "isolado" |
+| D5 | **Comentário `%%` no texto indexado**: removê-lo do FTS deixa a busca igual à do Obsidian (que o esconde), mas muda resultados de busca existentes | (a) só da extração (feito na T1 da feature de tags); (b) também do índice | paridade da busca |
+
+**Além disso, 3 defeitos de parser corrigidos no mesmo ciclo** (feature
+`obsidian-tag-parity`, T1): a regex de tag truncava `#ação` para `"a"`; blocos
+`~~~` geravam tag e wikilink fantasma; comentários `%%` geravam tag real.
+
+**Direção.** As 5 decisões são de produto e travam o roadmap de paridade.
+A medição completa, com evidência `caminho:linha`, está na matriz.

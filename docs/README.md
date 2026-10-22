@@ -16,6 +16,7 @@ Este documento é o **mapa central de conhecimento** do projeto **My-Memory**. E
 | **[`docs/REPOSITORY_BRAIN.md`](REPOSITORY_BRAIN.md)** | Integração com IA | Como utilizar o `my-memory` como memória de contexto dentro de projetos via **Model Context Protocol (MCP)**. |
 | **[`docs/AGENT_INTEGRATION_GUIDE.md`](AGENT_INTEGRATION_GUIDE.md)** | Guia para Agentes | Manual completo de integração, comandos CLI, servidor MCP e instruções para `AGENTS.md`. |
 | **[`docs/REFERENCES.md`](REFERENCES.md)** | Arte Prévia & Referências | Referências técnicas e ecossistemas que inspiram e refinam o projeto (`graphify`, `ai-memory`, `obsidian-skills`, `codegraph`, `openviking`, `atlas`). |
+| **[`docs/OBSIDIAN_PARITY_MATRIX.md`](OBSIDIAN_PARITY_MATRIX.md)** | Paridade com o Obsidian | Levantamento completo da distância entre a superfície do Obsidian e o My-Memory, por área, com evidência `caminho:linha`. Medição vigente de 2026-10-22. |
 
 ---
 
@@ -78,7 +79,7 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-052`](adr/README.md#arquitecture-decision-records-adrs)** — *Slot reservado, sem arquivo*: citado por documentos do repositório, mas nenhum `052-*.md` existe. Ver a nota no [índice de ADRs](adr/README.md).
 * **[`ADR-053`](adr/053-viewer-v3-3-pane-layout-shell.md)** — ~~Layout Shell 3-pane + Dock~~ — *Obsoleta* (viewer removido do repositório)
 * **[`ADR-054`](adr/054-escopo-de-paridade-com-o-obsidian.md)** — Escopo de paridade com o Obsidian é o vault, não o aplicativo — *Aceito*
-* **[`ADR-055`](adr/055-semantica-de-tag-consultavel-sem-nos-mortos.md)** — Semântica de tag consultável sem nós mortos — *Proposed*
+* **[`ADR-055`](adr/055-semantica-de-tag-consultavel-sem-nos-mortos.md)** — Semântica de tag consultável sem nós mortos — *Aceito — não implementado* (a tabela `document_tags` e a superfície `mem tags` / `mem tag` / `mem search --tag` estão em execução; ver a [matriz de paridade](OBSIDIAN_PARITY_MATRIX.md))
 * **[`ADR-056`](adr/056-persistencia-de-propriedades-de-frontmatter.md)** — Persistência de propriedades de frontmatter em tabela consultável — *Aceito*
 * **[`ADR-057`](adr/057-mtime-e-metadados-de-arquivo-no-indice.md)** — mtime e metadados de arquivo no índice — *Aceito — Implementado*
 * **[`ADR-058`](adr/058-renderizador-vis-network-vendorizado-sem-build-step.md)** — Renderizador vis-network vendorizado, sem build step e sem CDN — *Accepted*
