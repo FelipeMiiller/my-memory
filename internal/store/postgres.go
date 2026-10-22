@@ -78,6 +78,20 @@ ALTER TABLE graph_edges ADD COLUMN IF NOT EXISTS weight REAL NOT NULL DEFAULT 1.
 
 CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(repository, target_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING gin(to_tsvector('simple', content));
+
+-- Tags literais do documento (ADR-055): a identidade do documento no postgres
+-- e (repository, id), entao repository entra na primary key.
+CREATE TABLE IF NOT EXISTS document_tags (
+    repository    TEXT NOT NULL,
+    document_id   TEXT NOT NULL,
+    tag           TEXT NOT NULL,
+    tag_key       TEXT NOT NULL,
+    resolved_doc_id TEXT,
+    created_at    BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (repository, document_id, tag_key)
+);
+CREATE INDEX IF NOT EXISTS idx_document_tags_key ON document_tags(repository, tag_key);
+CREATE INDEX IF NOT EXISTS idx_document_tags_document ON document_tags(repository, document_id);
 `
 
 var _ Store = (*PostgresStore)(nil)

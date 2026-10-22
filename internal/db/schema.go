@@ -147,6 +147,19 @@ CREATE TABLE IF NOT EXISTS code_edges_uncertain (
 );
 CREATE INDEX IF NOT EXISTS code_edges_uncertain_src_idx ON code_edges_uncertain(src_symbol_id);
 CREATE INDEX IF NOT EXISTS code_edges_uncertain_conf_idx ON code_edges_uncertain(confidence);
+
+-- Tags literais do documento (ADR-055): a tag existe mesmo quando nao casa
+-- com nenhum documento, e a identidade da linha e (document_id, tag_key).
+CREATE TABLE IF NOT EXISTS document_tags (
+    document_id    TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    tag           TEXT NOT NULL,
+    tag_key       TEXT NOT NULL,
+    resolved_doc_id TEXT,
+    created_at    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (document_id, tag_key)
+);
+CREATE INDEX IF NOT EXISTS idx_document_tags_key ON document_tags(tag_key);
+CREATE INDEX IF NOT EXISTS idx_document_tags_document ON document_tags(document_id);
 `
 
 const FallbackSchema = `
@@ -293,4 +306,17 @@ CREATE TABLE IF NOT EXISTS code_edges_uncertain (
 );
 CREATE INDEX IF NOT EXISTS code_edges_uncertain_src_idx ON code_edges_uncertain(src_symbol_id);
 CREATE INDEX IF NOT EXISTS code_edges_uncertain_conf_idx ON code_edges_uncertain(confidence);
+
+-- Tags literais do documento (ADR-055): a tag existe mesmo quando nao casa
+-- com nenhum documento, e a identidade da linha e (document_id, tag_key).
+CREATE TABLE IF NOT EXISTS document_tags (
+    document_id    TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    tag           TEXT NOT NULL,
+    tag_key       TEXT NOT NULL,
+    resolved_doc_id TEXT,
+    created_at    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (document_id, tag_key)
+);
+CREATE INDEX IF NOT EXISTS idx_document_tags_key ON document_tags(tag_key);
+CREATE INDEX IF NOT EXISTS idx_document_tags_document ON document_tags(document_id);
 `
