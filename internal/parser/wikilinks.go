@@ -11,34 +11,78 @@ var (
 	// Grupo 2: conteúdo interno entre [[ e ]]
 	wikilinkDetailedRegex = regexp.MustCompile(`(!)?\[\[([^\]\r\n]+)\]\]`)
 
-	// tagRegex captura #tag e #hierarquia/subtag (iniciando com letra)
-	tagRegex = regexp.MustCompile(`(?:^|[\s\(\[\{,;:])#([a-zA-Z][a-zA-Z0-9_\-\/]*)`)
+	// tagRegex captura #tag e #hierarquia/subtag no formato do Obsidian.
+	//
+	// O corpo da tag aceita o conjunto de caracteres da norma (tagAllowedChars):
+	// letras, números, '_', '-', '/' e Unicode/emoji. A tag precisa ter ao menos
+	// um caractere NÃO-numérico (tagNonNumericChars) — por isso `#1984` não
+	// casa e `#y1984` casa. O prefixo exige que o '#' venha no início da linha
+	// ou depois de espaço/pontuação: é o que impede "textoabc#teste" de virar
+	// tag.
+	//
+	// A forma canônica (minúsculas) é responsabilidade de NormalizeTag; aqui a
+	// tag sai **crua**, que é a forma de exibição de conn.Tags.
+	tagRegex = regexp.MustCompile(`(?:^|[\s\(\[\{,;:])#((?:[` + tagAllowedChars + `]*[` + tagNonNumericChars + `][` + tagAllowedChars + `]*))`)
 
 	// Regexes para ignorar contextos onde wikilinks devem ser tratados como texto
 	// literal, não como edges reais. Usado em stripCodeBlocks para defesa em
 	// profundidade contra falsos positivos em EARS notation, exemplos e placeholders.
-	fencedCodeRegex  = regexp.MustCompile("(?s)```.*?```")
-	inlineCodeRegex  = regexp.MustCompile("`[^`\r\n]+`")
-	htmlCommentRegex = regexp.MustCompile("(?s)<!--.*?-->")
-	tableRowRegex    = regexp.MustCompile(`(?m)^\s*\|.*$`)
+	fencedCodeRegex      = regexp.MustCompile("(?s)```.*?```")
+	tildeFenceRegex      = regexp.MustCompile("(?s)~~~.*?~~~")
+	inlineCodeRegex      = regexp.MustCompile("`[^`\r\n]+`")
+	htmlCommentRegex     = regexp.MustCompile("(?s)<!--.*?-->")
+	obsidianCommentRegex = regexp.MustCompile(`(?s)(?:^|[^\w])%%.*?%%`)
+	tableRowRegex        = regexp.MustCompile(`(?m)^\s*\|.*$`)
 )
+
+// stripFencedCode remove os blocos de código fenced (``` e ~~~) e o código
+// inline (`...`) do texto.
+//
+// O fence `~~~` é tratado igual ao ``` porque o Obsidian e o `mem outline`
+// (`cmd/mem/outline.go:61`) aceitam os dois formatos — o parser é que estava
+// atrás.
+func stripFencedCode(text string) string {
+	cleaned := fencedCodeRegex.ReplaceAllString(text, " ")
+	cleaned = tildeFenceRegex.ReplaceAllString(cleaned, " ")
+	cleaned = inlineCodeRegex.ReplaceAllString(cleaned, " ")
+	return cleaned
+}
 
 // stripCodeBlocks remove contextos onde wikilinks devem ser tratados como
 // texto literal (não como edges reais) do texto:
 //
-//   - Blocos de código fenced (```)
+//   - Blocos de código fenced (``` e ~~~)
 //   - Código inline (`...`)
 //   - Comentários HTML (<!-- ... -->)
+//   - Comentários do Obsidian (%% ... %%), inline e em bloco
 //   - Linhas de tabela Markdown (começam com `|`)
 //
 // Os placeholders de documentação (ex: `[[Target]]`, `[[rel:target]]`) em
-// EARS notation normalmente aparecem em uma dessas três formas. Strippá-los
+// EARS notation normalmente aparecem em uma dessas formas. Strippá-los
 // evita que virem edges fantasma que aparecem como dead links no `mem doctor`.
 func stripCodeBlocks(text string) string {
-	cleaned := fencedCodeRegex.ReplaceAllString(text, " ")
-	cleaned = inlineCodeRegex.ReplaceAllString(cleaned, " ")
+	cleaned := stripFencedCode(text)
 	cleaned = htmlCommentRegex.ReplaceAllString(cleaned, " ")
+	cleaned = obsidianCommentRegex.ReplaceAllString(cleaned, " ")
 	cleaned = tableRowRegex.ReplaceAllString(cleaned, " ")
+	return cleaned
+}
+
+// stripTagContexts remove os contextos em que uma tag do Obsidian NÃO é tag:
+//
+//   - Blocos de código fenced (``` e ~~~)
+//   - Código inline (`...`)
+//   - Comentários HTML (<!-- ... -->)
+//   - Comentários do Obsidian (%% ... %%), inline e em bloco
+//
+// Diferente de stripCodeBlocks, as **linhas de tabela não são removidas**: no
+// Obsidian uma tag dentro de uma célula de tabela é uma tag válida. O strip de
+// tabela continua valendo para a extração de wikilink (defesa contra link
+// fantasma).
+func stripTagContexts(text string) string {
+	cleaned := stripFencedCode(text)
+	cleaned = htmlCommentRegex.ReplaceAllString(cleaned, " ")
+	cleaned = obsidianCommentRegex.ReplaceAllString(cleaned, " ")
 	return cleaned
 }
 
@@ -225,7 +269,12 @@ func ExtractConnections(content string) ExtractedConnections {
 	}
 
 	// 3. Extrai tags inline do corpo (removendo wikilinks para não capturar âncoras [[#Secao]])
-	bodyWithoutWikilinks := wikilinkDetailedRegex.ReplaceAllString(cleanBody, " ")
+	//
+	// O contexto de tag é mais permissivo que o de wikilink: as linhas de tabela
+	// NÃO são removidas (no Obsidian uma tag dentro de uma célula de tabela é
+	// uma tag válida), mas blocos de código e comentários %% continuam fora.
+	tagBody := stripTagContexts(body)
+	bodyWithoutWikilinks := wikilinkDetailedRegex.ReplaceAllString(tagBody, " ")
 
 	seenTags := make(map[string]bool)
 	for _, t := range conn.Tags {
