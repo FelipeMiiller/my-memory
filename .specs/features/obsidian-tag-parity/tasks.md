@@ -336,8 +336,10 @@ mesma semântica do Obsidian (`tag:inbox` casa `#inbox` e `#inbox/to-read`).
 Tag inexistente → contagem 0, exit 0. Sem `<nome>` → uso e exit != 0.
 
 Estender a interface `vaultReader` (`cmd/mem/vault_source.go:20`) com os métodos
-de tag e implementar nos dois readers (SQLite e Postgres). A **ordenação mora
-no engine** (a API do store), não no comando.
+de tag e implementar nos dois readers (SQLite e Postgres). A **ordenação padrão**
+mora no engine (a API do store devolve por `tag_key` crescente); o `--sort=count`
+é a única reordenação do comando, e ela precisa de desempate determinístico
+(contagem DESC, depois tag ASC) para a saída ser estável entre execuções.
 
 **Where**: `cmd/mem/tags.go` (novo)
 **Depends on**: T3

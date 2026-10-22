@@ -724,6 +724,18 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "tags":
+		if err := runTagsCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "tag":
+		if err := runTagCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "note":
 		if err := runNoteCLI(ctx, emb, tq, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -928,6 +940,10 @@ func printHelp() {
 	fmt.Println("      Conta palavras e caracteres da nota indexada")
 	fmt.Println("  mem folders [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Lista as pastas do vault que contêm ao menos um documento indexado")
+	fmt.Println("  mem tags [--counts] [--sort name|count] [--file <caminho>] [--folder <pasta>] [--total] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Lista as tags do vault em ordem alfabética, com contagem de documentos por tag")
+	fmt.Println("  mem tag <nome> [--verbose] [--total] [--json] [--db <arq>] [--postgres <url>] [--repo <slug>]")
+	fmt.Println("      Consulta uma tag e suas descendentes, como o Obsidian (tag:inbox casa #inbox e #inbox/to-read)")
 	fmt.Println("  mem note <create|append> [opções] <caminho>")
 	fmt.Println("      Cria ou anexa seções em notas Markdown atômicas com frontmatter e sincronização imediata")
 	fmt.Println("  mem compile --topic \"<termo>\" --out \"<caminho.md>\" [--limit 5] [--mode hybrid|vector|fts]")

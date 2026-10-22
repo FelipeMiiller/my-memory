@@ -31,6 +31,10 @@ type vaultReader interface {
 	ListDeadends(ctx context.Context) ([]store.VaultDocument, error)
 	// ListRecent devolve os documentos por mtime decrescente, com mtime = 0 no fim.
 	ListRecent(ctx context.Context, limit int) ([]store.VaultDocument, error)
+	// ListTags devolve o inventário de tags do vault.
+	ListTags(ctx context.Context, filter store.TagFilter) ([]store.VaultTag, error)
+	// FindDocumentsByTag devolve os documentos que carregam a tag e suas descendentes.
+	FindDocumentsByTag(ctx context.Context, tag string) ([]store.VaultDocument, error)
 }
 
 type sqliteVaultReader struct {
@@ -64,6 +68,14 @@ func (r *sqliteVaultReader) ListRecent(ctx context.Context, limit int) ([]store.
 	return db.ListVaultDocumentsByMTime(ctx, r.db, limit)
 }
 
+func (r *sqliteVaultReader) ListTags(ctx context.Context, filter store.TagFilter) ([]store.VaultTag, error) {
+	return db.ListVaultTags(ctx, r.db, filter)
+}
+
+func (r *sqliteVaultReader) FindDocumentsByTag(ctx context.Context, tag string) ([]store.VaultDocument, error) {
+	return db.FindVaultDocumentsByTag(ctx, r.db, tag)
+}
+
 func (r *postgresVaultReader) Close() error { return r.store.Close() }
 
 func (r *postgresVaultReader) ListDocuments(ctx context.Context) ([]store.VaultDocument, error) {
@@ -84,6 +96,14 @@ func (r *postgresVaultReader) ListDeadends(ctx context.Context) ([]store.VaultDo
 
 func (r *postgresVaultReader) ListRecent(ctx context.Context, limit int) ([]store.VaultDocument, error) {
 	return r.store.ListVaultDocumentsByMTime(ctx, r.repo, limit)
+}
+
+func (r *postgresVaultReader) ListTags(ctx context.Context, filter store.TagFilter) ([]store.VaultTag, error) {
+	return r.store.ListVaultTags(ctx, r.repo, filter)
+}
+
+func (r *postgresVaultReader) FindDocumentsByTag(ctx context.Context, tag string) ([]store.VaultDocument, error) {
+	return r.store.FindVaultDocumentsByTag(ctx, r.repo, tag)
 }
 
 // vaultFlags são as flags de storage compartilhadas por todos os comandos de
