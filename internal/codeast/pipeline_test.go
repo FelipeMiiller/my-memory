@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -196,6 +197,107 @@ func TestPipelineStatsFinalize(t *testing.T) {
 }
 
 // --- helpers ------------------------------------------------------------------
+
+// TestListCodeFilesUsaCodeScopeNaoShouldIndex prova que a selecao de arquivos
+// do code pipeline e o escopo de codigo, nunca o filtro do pipeline Markdown
+// (ADR-061 §4, CG-01). O `include` global e escopo de NOTAS: ele nao escolhe
+// o que o code pipeline parseia, e o code scope nao escolhe o que o pipeline
+// Markdown indexa.
+func TestListCodeFilesUsaCodeScopeNaoShouldIndex(t *testing.T) {
+	tmp := t.TempDir()
+	mkGoFile(t, tmp, "main.go", "package x\n")
+	mkPyFile(t, tmp, "script.py", "def f():\n    return 1\n")
+	mkFile(t, tmp, "nota.md", "# Nota\n")
+
+	// O include global (escopo de notas) casa com o .go — isso NAO pode
+	// escolher o que o code pipeline parseia.
+	cfg := config.DefaultConfig()
+	cfg.Include = []string{"**/*.go", "**/*.md"}
+	// O escopo de codigo e que decide: aqui, so Python.
+	cfg.Code = config.CodeScopeConfig{Include: []string{"**/*.py"}}
+
+	files, err := ListCodeFiles(tmp, &cfg, nil)
+	if err != nil {
+		t.Fatalf("ListCodeFiles falhou: %v", err)
+	}
+	if len(files) != 1 || files[0] != "script.py" {
+		t.Fatalf("o code scope deve escolher apenas script.py; obteve %v", files)
+	}
+
+	// Escopo de codigo default (extensoes do backend ativo): entram os .go e
+	// .py, e a nota Markdown nunca entra.
+	cfg.Code = config.CodeScopeConfig{}
+	files, err = ListCodeFiles(tmp, &cfg, nil)
+	if err != nil {
+		t.Fatalf("ListCodeFiles falhou: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("o escopo de codigo default deve pegar main.go e script.py; obteve %v", files)
+	}
+	for _, f := range files {
+		if f == "nota.md" {
+			t.Errorf("nota Markdown nao pode entrar no code scope: %v", files)
+		}
+	}
+
+	// O include global de notas tambem nao EXCLUI arquivo de codigo: com
+	// include=["**/*.md"], o .go continua sendo selectionado pelo code scope.
+	cfg.Include = []string{"**/*.md"}
+	files, err = ListCodeFiles(tmp, &cfg, nil)
+	if err != nil {
+		t.Fatalf("ListCodeFiles falhou: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("o include global de notas nao pode excluir codigo do code scope; obteve %v", files)
+	}
+}
+
+// TestCodeScopeCobreExtensoesDoBackendAtivo garante que o escopo de codigo
+// padrao (config) e a tabela de linguagens do backend ativo (codeast) nao
+// divergem: toda extensao suportada tem um glob no escopo, e o escopo nao tem
+// glob sobrando (ADR-061 §4, CG-02).
+func TestCodeScopeCobreExtensoesDoBackendAtivo(t *testing.T) {
+	suportadas := map[string]bool{}
+	for _, ext := range SupportedExtensions() {
+		suportadas[strings.ToLower(strings.TrimPrefix(ext, "."))] = true
+	}
+
+	defaultCfg := config.DefaultConfig()
+	escopo := defaultCfg.CodeScope()
+	vistas := map[string]bool{}
+	for _, glob := range escopo.Include {
+		ext := strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(glob, "**/"), "*"), ".")
+		vistas[ext] = true
+		if !suportadas[ext] {
+			t.Errorf("o escopo de codigo padrao tem %q, que o backend ativo nao suporta", glob)
+		}
+	}
+	for ext := range suportadas {
+		if !vistas[ext] {
+			t.Errorf("o backend ativo suporta %q, mas o escopo de codigo padrao nao cobre", ext)
+		}
+	}
+}
+
+// TestIsCodeFileReconheceExtensoesDoBackend: o filtro que impede o pipeline
+// Markdown de indexar codigo como nota (CG-04) usa a mesma tabela de
+// linguagens do backend ativo.
+func TestIsCodeFileReconheceExtensoesDoBackend(t *testing.T) {
+	if !IsCodeFile("cmd/mem/main.go") {
+		t.Error("um .go deve ser reconhecido como arquivo de codigo")
+	}
+	if IsCodeFile("docs/adr/061-x.md") {
+		t.Error("um .md nao e arquivo de codigo")
+	}
+	if IsCodeFile("README") {
+		t.Error("um arquivo sem extensao nao e arquivo de codigo")
+	}
+	for _, ext := range SupportedExtensions() {
+		if !IsCodeFile("arquivo." + strings.TrimPrefix(ext, ".")) {
+			t.Errorf("a extensao %q do backend ativo deve ser reconhecida como codigo", ext)
+		}
+	}
+}
 
 func mkGoFile(t *testing.T, dir, rel, content string) {
 	t.Helper()

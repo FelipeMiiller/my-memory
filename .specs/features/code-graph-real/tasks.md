@@ -59,9 +59,14 @@ T3 -> T5
 
 **Where**: `internal/config/config.go`
 **Depends on**: none
-**Tests**: `internal/config/config_test.go` — `TestCodeScopeIndependenteDoIncludeGlobal`; `internal/codeast/pipeline_test.go` — `TestListCodeFilesUsaCodeScopeNaoShouldIndex`
+**Tests**: `internal/config/config_test.go` — `TestCodeScopeIndependenteDoIncludeGlobal`; `internal/codeast/pipeline_test.go` — `TestListCodeFilesUsaCodeScopeNaoShouldIndex`; `cmd/mem/index_code_scope_test.go` — `TestMemIndexNaoIndexaCodigoComoNota`
 **Gate**: `go test -count=1 ./internal/config/... ./internal/codeast/...`
 - **Do**: adicionar `CodeInclude`/`CodeExclude` ao config, com default igual às extensões de código do backend ativo; `ListCodeFiles` passa a filtrar pelo escopo de código e nunca por `cfg.ShouldIndex`; o `include` global de Markdown não pode selecionar arquivo de código para o pipeline de notas. Cobre CG-01, CG-02, CG-04.
+**Done when**:
+- [x] Seção `code.include`/`code.exclude` no config, independente de `include`/`exclude` (ADR-061 §4)
+- [x] Default do escopo de código = extensões do backend ativo (guardado por teste de paridade com a tabela de linguagens)
+- [x] `ListCodeFiles` filtra pelo escopo de código e nunca por `cfg.ShouldIndex`
+- [x] Arquivo de código nunca vira nota no pipeline Markdown, mesmo quando o `include` global casa com ele (CG-04)
 
 ### T2: O `mem index` executa o code stage
 

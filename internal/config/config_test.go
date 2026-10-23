@@ -733,3 +733,103 @@ func TestRegisterRepositoryInGlobalConfig_PreservesStorage(t *testing.T) {
 		t.Errorf("esperava nome atualizado, obteve '%s'", saved.Name)
 	}
 }
+
+// TestCodeScopeIndependenteDoIncludeGlobal trava a separacao de escopos da
+// ADR-061 §4: o escopo de codigo (`code.include`/`code.exclude`) e independente
+// do escopo de notas (`include`/`exclude`), e o default do escopo de codigo sao
+// as extensoes do backend ativo (CG-01, CG-02).
+func TestCodeScopeIndependenteDoIncludeGlobal(t *testing.T) {
+	cfg := DefaultConfig()
+
+	// Default: o escopo de notas continua sendo Markdown.
+	if len(cfg.Include) != 1 || cfg.Include[0] != "**/*.md" {
+		t.Errorf("o include global padrao deve continuar sendo **/*.md, obteve %v", cfg.Include)
+	}
+
+	// Default: o escopo de codigo e o do backend ativo.
+	scope := cfg.CodeScope()
+	if len(scope.Include) == 0 {
+		t.Fatal("o escopo de codigo padrao nao pode ser vazio: sao as extensoes do backend ativo")
+	}
+	if !scope.Matches("internal/config/config.go") {
+		t.Error("o escopo de codigo padrao deve casar com um arquivo .go")
+	}
+	if scope.Matches("docs/adr/061-x.md") {
+		t.Error("o escopo de codigo nao pode casar com uma nota Markdown")
+	}
+
+	// Trocar o include global NAO muda o escopo de codigo.
+	cfg.Include = []string{"**/*.go"}
+	if got := cfg.CodeScope(); len(got.Include) != len(scope.Include) {
+		t.Errorf("o include global nao pode alterar o escopo de codigo: %v", got.Include)
+	}
+
+	// O escopo de codigo configurado e independente e tem o proprio exclude.
+	cfg.Code = CodeScopeConfig{
+		Include: []string{"**/*.go"},
+		Exclude: []string{"**/vendor/**"},
+	}
+	if !cfg.CodeScope().Matches("cmd/mem/main.go") {
+		t.Error("code.include configurado deve casar com o arquivo .go")
+	}
+	if cfg.CodeScope().Matches("docs/adr/061-x.md") {
+		t.Error("code.include configurado nao pode casar com nota Markdown")
+	}
+	if cfg.CodeScope().Matches("vendor/lib.go") {
+		t.Error("code.exclude configurado deve excluir o arquivo")
+	}
+}
+
+// TestCodeScopeDeclaradoNoArquivoMarcaEscopoConfigurado: a secao `code` no
+// arquivo de configuracao e o que diz ao `mem index` que ha escopo de codigo
+// configurado. Sem ela, o index continua so Markdown (ADR-061 - compatibilidade).
+func TestCodeScopeDeclaradoNoArquivoMarcaEscopoConfigurado(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	comCode := filepath.Join(tmpDir, "com-code.yaml")
+	if err := os.WriteFile(comCode, []byte("version: 1\ncode:\n  include:\n    - '**/*.go'\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(comCode)
+	if err != nil {
+		t.Fatalf("erro ao carregar config: %v", err)
+	}
+	if !cfg.CodeScopeConfigured() {
+		t.Error("um arquivo com a secao `code` deve marcar o escopo como configurado")
+	}
+	if !cfg.CodeScope().Matches("main.go") {
+		t.Error("o escopo de codigo configurado deve casar com main.go")
+	}
+
+	semCode := filepath.Join(tmpDir, "sem-code.yaml")
+	if err := os.WriteFile(semCode, []byte("version: 1\ninclude:\n  - '**/*.md'\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfgSem, err := LoadConfig(semCode)
+	if err != nil {
+		t.Fatalf("erro ao carregar config: %v", err)
+	}
+	if cfgSem.CodeScopeConfigured() {
+		t.Error("sem a secao `code` o escopo de codigo nao esta configurado")
+	}
+}
+
+// TestSaveConfigNaoDeclaraSecaoCode: um config gerado (mem init) nao pode
+// declarar a secao `code` — ela ligaria o code stage do `mem index` sem o
+// operador pedir (ADR-061 - compatibilidade).
+func TestSaveConfigNaoDeclaraSecaoCode(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.yaml")
+
+	cfg := DefaultConfig()
+	if err := SaveConfig(cfgPath, &cfg); err != nil {
+		t.Fatalf("erro ao salvar config: %v", err)
+	}
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("erro ao ler config: %v", err)
+	}
+	if strings.Contains(string(data), "code:") {
+		t.Errorf("o config salvo nao deve declarar a secao `code`:\n%s", string(data))
+	}
+}

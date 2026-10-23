@@ -65,12 +65,13 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 		return nil
 	}
 
-	// Argumentos CLI sobrescrevem config (--include / --exclude / --lang)
+	// Argumentos CLI sobrescrevem o escopo de código (ADR-061 §4): o include
+	// do CLI de código é o escopo de código, não o escopo de notas.
 	if *include != "" {
-		cfg.Include = []string{*include}
+		cfg.Code.Include = []string{*include}
 	}
 	if *exclude != "" {
-		cfg.Exclude = []string{*exclude}
+		cfg.Code.Exclude = []string{*exclude}
 	}
 	langs := splitCSV(*lang)
 

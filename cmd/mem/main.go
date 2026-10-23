@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/canvas"
+	"github.com/FelipeMiiller/my-memory/internal/codeast"
 	"github.com/FelipeMiiller/my-memory/internal/compiler"
 	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
@@ -1669,6 +1670,15 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 			return nil
 		}
 
+		// CG-04: arquivo de código NUNCA vira nota, mesmo quando o `include`
+		// global de notas casa com ele (ex: `**/*.go`). O dono do código é o
+		// code stage (ADR-061 §4); o pipeline Markdown é o dono das notas —
+		// sem esta guarda, um .go entraria em documents, chunks, embeddings,
+		// arestas de grafo e drift.
+		if codeast.IsCodeFile(path) {
+			return nil
+		}
+
 		activeDocIDs = append(activeDocIDs, path)
 		contentBytes, err := os.ReadFile(path)
 		if err != nil {
@@ -1876,6 +1886,15 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		}
 
 		if !cfg.ShouldIndex(relPath) {
+			return nil
+		}
+
+		// CG-04: arquivo de código NUNCA vira nota, mesmo quando o `include`
+		// global de notas casa com ele (ex: `**/*.go`). O dono do código é o
+		// code stage (ADR-061 §4); o pipeline Markdown é o dono das notas —
+		// sem esta guarda, um .go entraria em documents, chunks, embeddings,
+		// arestas de grafo e drift.
+		if codeast.IsCodeFile(path) {
 			return nil
 		}
 

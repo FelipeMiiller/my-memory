@@ -321,7 +321,10 @@ func resolveAndInsertEdges(ctx context.Context, database *sql.DB, symbols []Symb
 //
 // Regras:
 //   - Ignora DefaultExcludedDirs (config.go) sempre.
-//   - Aplica cfg.Include/Exclude quando cfg != nil.
+//   - Filtra pelo **escopo de código** (`code.include`/`code.exclude`) e NUNCA
+//     por `cfg.ShouldIndex` — aquele é o filtro do pipeline Markdown (ADR-061
+//     §4, CG-01). Um `include` global como `**/*.go` não pode escolher o que o
+//     code pipeline parseia.
 //   - Quando langs != nil, restringe a arquivos cujas extensões batem com AllowList.
 //   - Filtra symlinks.
 func ListCodeFiles(rootDir string, cfg *config.Config, langs []string) ([]string, error) {
@@ -329,6 +332,8 @@ func ListCodeFiles(rootDir string, cfg *config.Config, langs []string) ([]string
 	if err != nil {
 		return nil, err
 	}
+	// Escopo de código efetivo (independente do escopo de notas).
+	scope := cfg.CodeScope()
 	allowedExt := map[string]bool{}
 	if len(langs) > 0 {
 		for _, lang := range langs {
@@ -372,8 +377,9 @@ func ListCodeFiles(rootDir string, cfg *config.Config, langs []string) ([]string
 		}
 		relSlash := filepath.ToSlash(rel)
 
-		// Config scope (ADR-016): se cfg disse para pular, skip
-		if cfg != nil && !cfg.ShouldIndex(relSlash) {
+		// Escopo de código (ADR-061 §4): o filtro é o code scope, nunca o
+		// ShouldIndex — que é o filtro do pipeline Markdown.
+		if !scope.Matches(relSlash) {
 			return nil
 		}
 

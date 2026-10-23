@@ -28,6 +28,31 @@ type CentralVaultConfig struct {
 	Include   []string `yaml:"include,omitempty" json:"include,omitempty"`       // Padrões glob específicos a indexar do cofre central
 }
 
+// CodeScopeConfig define o escopo de código do vault de repositório.
+//
+// O escopo de código é INDEPENDENTE do escopo de notas (ADR-061 §4): o
+// `include`/`exclude` global é o filtro do pipeline Markdown e nunca seleciona
+// arquivo de código; o code pipeline filtra por esta seção (CG-01).
+type CodeScopeConfig struct {
+	Include []string `yaml:"include,omitempty" json:"include,omitempty"` // Globs de código a indexar (default: extensões do backend ativo)
+	Exclude []string `yaml:"exclude,omitempty" json:"exclude,omitempty"` // Globs de código a ignorar
+}
+
+// DefaultCodeScopeGlobs é o escopo de código padrão: um glob por extensão das
+// linguagens realmente suportadas pelo backend ativo (ADR-061 §4 / CG-02).
+//
+// A lista mora em `config` porque `internal/codeast` importa `internal/config`
+// — inverter a dependência criaria ciclo de import. O teste
+// TestCodeScopeCobreExtensoesDoBackendAtivo (internal/codeast) garante que as
+// duas listas não divergem quando o backend troca de linguagens.
+var DefaultCodeScopeGlobs = []string{
+	"**/*.go", "**/*.py", "**/*.pyi", "**/*.ts", "**/*.tsx",
+	"**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/*.rs",
+	"**/*.java", "**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp",
+	"**/*.cc", "**/*.hh", "**/*.cxx", "**/*.rb", "**/*.php",
+	"**/*.sh", "**/*.bash",
+}
+
 // MCPConfig define preferências para o servidor Model Context Protocol (MCP)
 type MCPConfig struct {
 	Port int `yaml:"port,omitempty" json:"port,omitempty"` // Porta padrão de execução do servidor MCP (default: 8080)
@@ -99,6 +124,7 @@ type Config struct {
 	VaultName    string             `yaml:"vault_name,omitempty" json:"vault_name,omitempty"`       // Nome amigável do vault de notas
 	Include      []string           `yaml:"include,omitempty" json:"include,omitempty"`             // Padrões glob de arquivos a indexar
 	Exclude      []string           `yaml:"exclude,omitempty" json:"exclude,omitempty"`             // Padrões glob de pastas/arquivos a ignorar
+	Code         CodeScopeConfig    `yaml:"code,omitempty" json:"code,omitempty"`                   // Escopo de código do vault de repositório (independe do include/exclude de notas)
 	CentralVault CentralVaultConfig `yaml:"central_vault,omitempty" json:"central_vault,omitempty"` // Configuração de integração com o cofre central
 	Storage      StorageConfig      `yaml:"storage,omitempty" json:"storage,omitempty"`
 	Embedding    EmbeddingConfig    `yaml:"embedding,omitempty" json:"embedding,omitempty"`
@@ -106,6 +132,63 @@ type Config struct {
 	Watcher      WatcherConfig      `yaml:"watcher,omitempty" json:"watcher,omitempty"`
 	Editor       EditorConfig       `yaml:"editor,omitempty" json:"editor,omitempty"`
 	MCP          MCPConfig          `yaml:"mcp,omitempty" json:"mcp,omitempty"`
+
+	// CodeScopeExplicit marca que o arquivo de configuração declarou a seção
+	// `code`. Não é configuração — é estado de leitura (`yaml:"-"`), e por isso
+	// nunca é serializado. Decide se o `mem index` roda o code stage por
+	// padrão (ADR-061 — compatibilidade: sem escopo de código configurado o
+	// comportamento do `mem index` continua sendo só o pipeline Markdown).
+	CodeScopeExplicit bool `yaml:"-" json:"-"`
+}
+
+// CodeScope devolve o escopo de código efetivo (ADR-061 §4).
+//
+//   - `code.include` configurado → é o escopo;
+//   - seção `code` declarada e sem `include` → escopo vazio (o operador não
+//     quer code stage);
+//   - sem seção `code` → escopo padrão do backend ativo (CG-02).
+func (c *Config) CodeScope() CodeScopeConfig {
+	var scope CodeScopeConfig
+	if c != nil {
+		scope.Include = append([]string(nil), c.Code.Include...)
+		scope.Exclude = append([]string(nil), c.Code.Exclude...)
+		if len(scope.Include) == 0 && c.CodeScopeExplicit {
+			return scope
+		}
+	}
+	if len(scope.Include) == 0 {
+		scope.Include = append([]string(nil), DefaultCodeScopeGlobs...)
+	}
+	return scope
+}
+
+// CodeScopeConfigured devolve true quando o operador declarou um escopo de
+// código no arquivo de configuração (seção `code` presente).
+func (c *Config) CodeScopeConfigured() bool {
+	return c != nil && c.CodeScopeExplicit
+}
+
+// Matches devolve true quando relPath pertence ao escopo de código.
+// Um escopo sem `include` não casa com nada.
+func (s CodeScopeConfig) Matches(relPath string) bool {
+	norm := strings.ReplaceAll(relPath, "\\", "/")
+	norm = strings.TrimPrefix(norm, "./")
+	norm = strings.Trim(norm, "/")
+
+	for _, pattern := range s.Exclude {
+		if MatchGlob(pattern, norm) {
+			return false
+		}
+	}
+	if len(s.Include) == 0 {
+		return false
+	}
+	for _, pattern := range s.Include {
+		if MatchGlob(pattern, norm) {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultConfig retorna as configurações padrão do My-Memory
@@ -244,6 +327,27 @@ func FindConfigFile(startDir string) (string, error) {
 	return "", os.ErrNotExist
 }
 
+// hasTopLevelKey devolve true se o documento declara a chave informada no
+// primeiro nível. Serve para distinguir "seção ausente" de "seção vazia" —
+// o unmarshal não faz essa diferença, e o `mem index` precisa das duas para
+// saber se há escopo de código configurado.
+func hasTopLevelKey(data []byte, isJSON bool, key string) bool {
+	if isJSON {
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return false
+		}
+		_, ok := raw[key]
+		return ok
+	}
+	var raw map[string]yaml.Node
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return false
+	}
+	_, ok := raw[key]
+	return ok
+}
+
 // LoadConfig carrega a configuração a partir de um arquivo YAML ou JSON mesclando com os defaults
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -263,6 +367,10 @@ func LoadConfig(path string) (*Config, error) {
 			return nil, fmt.Errorf("erro ao decodificar YAML de '%s': %w", path, err)
 		}
 	}
+
+	// A presença da seção `code` é o que distingue "escopo configurado" de
+	// "escopo padrão do backend ativo" (ADR-061 §4).
+	cfg.CodeScopeExplicit = hasTopLevelKey(data, ext == ".json", "code")
 
 	// Garante que campos essenciais nunca fiquem vazios
 	if cfg.Storage.Engine == "" {
@@ -563,6 +671,12 @@ func LoadCascadingConfig(repoDir string) (*Config, string, error) {
 			}
 		}
 		localRepoID = check.RepoID
+
+		// A presença da seção `code` na config local é o que marca o escopo de
+		// código como configurado (ADR-061 §4).
+		if hasTopLevelKey(data, ext == ".json", "code") {
+			cfg.CodeScopeExplicit = true
+		}
 
 		// Se o repositório local declarar explicitamente storage: sqlite, limpa postgres_url herdado
 		if check.Storage != nil && check.Storage.Engine == "sqlite" {

@@ -155,6 +155,20 @@ func IsSupportedLanguage(lang string) bool {
 	return languageByName(strings.ToLower(lang)) != nil
 }
 
+// IsCodeFile devolve true quando o caminho tem a extensão de uma linguagem
+// suportada pelo backend ativo.
+//
+// É o filtro que impede o pipeline Markdown de indexar código como nota
+// quando o `include` global casa com um arquivo de código (ADR-061 §4,
+// CG-04): o código pertence ao code stage, nunca ao grafo de notas.
+func IsCodeFile(path string) bool {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path), "."))
+	if ext == "" {
+		return false
+	}
+	return languageByExt(ext) != nil
+}
+
 // LanguageSupportedExtensions retorna extensões canônicas (com ".") de lang.
 func LanguageSupportedExtensions(lang string) []string {
 	l := languageByName(strings.ToLower(lang))
