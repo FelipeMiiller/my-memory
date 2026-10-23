@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -57,6 +58,12 @@ func runTagsCommand(ctx context.Context, defaultRepo string, args []string, out 
 	flags := registerVaultFlags(tagsCmd)
 
 	if err := tagsCmd.Parse(args); err != nil {
+		// `--help` não é erro de uso: o FlagSet já imprimiu a ajuda, e o
+		// comando sai com código zero. Sem esta guarda, `mem tags --help`
+		// imprimia "Erro: flag: help requested" e saía com código 1.
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 
@@ -121,6 +128,11 @@ func runTagCommand(ctx context.Context, defaultRepo string, args []string, out i
 
 	name, err := parseTagArgs(tagCmd, args)
 	if err != nil {
+		// `--help` não é erro de uso: o FlagSet já imprimiu a ajuda, e o
+		// comando sai com código zero.
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 	if name == "" {

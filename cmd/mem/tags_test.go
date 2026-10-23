@@ -431,3 +431,30 @@ func TestRunTagCommand_TagInexistente(t *testing.T) {
 		t.Errorf("esperava contagem 0, obteve:\n%s", out)
 	}
 }
+
+// TestRunTagsCommand_AjudaNaoEhErro: `mem tags --help` imprime a ajuda e sai
+// com código zero. Pedir ajuda não é erro de uso.
+func TestRunTagsCommand_AjudaNaoEhErro(t *testing.T) {
+	dbPath := defaultTagFixture(t)
+
+	out, err := runTagsFixture(t, dbPath, []string{"--help"})
+	if err != nil {
+		t.Fatalf("`mem tags --help` deveria sair zero, obteve erro: %v", err)
+	}
+	if !strings.Contains(out, "Usage of tags") {
+		t.Errorf("esperava a ajuda na saída, obteve:\n%s", out)
+	}
+}
+
+// TestRunTagCommand_AjudaNaoEhErro: idem para `mem tag --help`.
+func TestRunTagCommand_AjudaNaoEhErro(t *testing.T) {
+	dbPath := defaultTagFixture(t)
+
+	out, err := runTagFixture(t, dbPath, []string{"--help"})
+	if err != nil {
+		t.Fatalf("`mem tag --help` deveria sair zero, obteve erro: %v", err)
+	}
+	if !strings.Contains(out, "Usage of tag") {
+		t.Errorf("esperava a ajuda na saída, obteve:\n%s", out)
+	}
+}

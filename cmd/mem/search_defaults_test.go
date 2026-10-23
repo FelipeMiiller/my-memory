@@ -147,8 +147,9 @@ func TestSearchDefaults_DefaultLevel(t *testing.T) {
 }
 
 func TestRearrangeSearchArgs(t *testing.T) {
+	searchCmd, _ := newSearchFlagSet()
 	input := []string{"minha busca", "--level", "l0", "--category", "memory", "-tq"}
-	rearranged := rearrangeSearchArgs(input)
+	rearranged := rearrangeSearchArgs(searchCmd, input)
 
 	// Flags devem vir antes da query
 	if len(rearranged) != 6 {

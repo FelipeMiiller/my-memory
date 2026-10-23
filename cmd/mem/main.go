@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -266,8 +267,16 @@ func main() {
 		// A saída do FlagSet é descartada: quem parseia decide o que fazer com
 		// o erro (imprimir o uso e sair com código diferente de zero).
 		searchCmd.SetOutput(io.Discard)
-		if code := parseSearchFlags(searchCmd, os.Args[2:], os.Stderr); code != 0 {
+		code, help := parseSearchFlags(searchCmd, os.Args[2:], os.Stderr)
+		if code != 0 {
 			os.Exit(code)
+		}
+		// `--help` já imprimiu o uso dentro do parse: o comando sai sem
+		// buscar. Sem esta guarda, o uso saía impresso duas vezes e a busca
+		// ainda rodava com a query que sobrou (`mem search algo --help`
+		// buscava "algo" em vez de mostrar a ajuda).
+		if help {
+			return
 		}
 
 		query := strings.Join(searchCmd.Args(), " ")
@@ -402,7 +411,9 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runSearchPostgres(ctx, pgStore, emb, query, resolvedRepo, resolvedMode, resolvedLimit, resolvedK, decayOpts, searchOpts)
+			if code := runSearchPostgres(ctx, pgStore, emb, query, resolvedRepo, resolvedMode, resolvedLimit, resolvedK, decayOpts, searchOpts); code != 0 {
+				os.Exit(code)
+			}
 		} else {
 			database, err := db.InitDB(resolvedDB)
 			if err != nil {
@@ -410,7 +421,9 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runSearchSQLite(ctx, database, emb, tq, query, resolvedMode, resolvedUseTurbo, resolvedLimit, resolvedK, decayOpts, searchOpts)
+			if code := runSearchSQLite(ctx, database, emb, tq, query, resolvedMode, resolvedUseTurbo, resolvedLimit, resolvedK, decayOpts, searchOpts); code != 0 {
+				os.Exit(code)
+			}
 		}
 
 	case "mcp":
@@ -2055,7 +2068,7 @@ func tagTargetTitles(titleToID map[string]string) []string {
 	return titles
 }
 
-func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.Embedder, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
+func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.Embedder, query, targetRepo, mode string, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) int {
 	decayInfo := ""
 	if decayOpts.Enabled {
 		decayInfo = fmt.Sprintf(" [Decay: ativo (meia-vida: %.1fd, peso: %.2f)]", decayOpts.HalfLife, decayOpts.Weight)
@@ -2075,31 +2088,42 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder
 	case "fts":
 		results, err = s.SearchFTSWithOptions(ctx, targetRepo, query, limit, searchOpts)
 	case "vector":
+		if emb == nil {
+			fmt.Fprintln(os.Stderr, "Erro: a busca vetorial exige um provider de embedding; use --mode hybrid ou --mode fts.")
+			return 1
+		}
 		queryVec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
-			fmt.Printf("Erro ao gerar embedding da busca: %v\n", embErr)
-			return
+			fmt.Fprintf(os.Stderr, "Erro ao gerar embedding da busca: %v\n", embErr)
+			return 1
 		}
 		results, err = s.SearchKNNWithOptions(ctx, targetRepo, queryVec, limit, searchOpts)
 	default: // hybrid
 		var queryVec []float32
-		vec, embErr := emb.GenerateEmbedding(query)
-		if embErr != nil {
-			fmt.Printf("Aviso: falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+		if emb == nil {
+			// Sem provider a busca é só léxica. Antes isto era um
+			// nil-pointer-dereference: o binário sem a tag de build do
+			// provider derrubava `mem search` inteiro.
+			fmt.Println("Aviso: sem provider de embedding; executando busca textual FTS.")
 		} else {
-			queryVec = vec
+			vec, embErr := emb.GenerateEmbedding(query)
+			if embErr != nil {
+				fmt.Printf("Aviso: falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+			} else {
+				queryVec = vec
+			}
 		}
 		results, err = s.SearchHybridWithOptions(ctx, targetRepo, query, queryVec, limit, k, decayOpts, searchOpts)
 	}
 
 	if err != nil {
-		fmt.Printf("Erro na busca: %v\n", err)
-		return
+		fmt.Fprintf(os.Stderr, "Erro na busca: %v\n", err)
+		return 1
 	}
 
 	if len(results) == 0 {
 		fmt.Println("Nenhum resultado encontrado.")
-		return
+		return 0
 	}
 
 	if strings.EqualFold(searchOpts.Level, "l0") {
@@ -2135,7 +2159,7 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder
 			}
 			fmt.Println()
 		}
-		return
+		return 0
 	}
 
 	for i, res := range results {
@@ -2179,9 +2203,10 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder
 		}
 		fmt.Println()
 	}
+	return 0
 }
 
-func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) {
+func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer, query, mode string, useTurbo bool, limit, k int, decayOpts store.DecayOptions, searchOpts store.SearchOptions) int {
 	vecSubmode := "sqlite-vec"
 	if useTurbo || !db.HasSqliteVec {
 		vecSubmode = "TurboQuant"
@@ -2205,10 +2230,14 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedde
 	case "fts":
 		results, err = db.SearchFTSWithOptions(ctx, database, query, limit, searchOpts)
 	case "vector":
+		if emb == nil {
+			fmt.Fprintln(os.Stderr, "Erro: a busca vetorial exige um provider de embedding; use --mode hybrid ou --mode fts.")
+			return 1
+		}
 		queryVec, embErr := emb.GenerateEmbedding(query)
 		if embErr != nil {
-			fmt.Printf("Erro ao gerar embedding da busca: %v\n", embErr)
-			return
+			fmt.Fprintf(os.Stderr, "Erro ao gerar embedding da busca: %v\n", embErr)
+			return 1
 		}
 		if useTurbo || !db.HasSqliteVec {
 			results, err = db.SearchTurboQuantWithOptions(ctx, database, tq, queryVec, limit, searchOpts)
@@ -2220,23 +2249,30 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedde
 		}
 	default: // hybrid
 		var queryVec []float32
-		vec, embErr := emb.GenerateEmbedding(query)
-		if embErr != nil {
-			fmt.Printf("Aviso: falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+		if emb == nil {
+			// Sem provider a busca é só léxica. Antes isto era um
+			// nil-pointer-dereference: o binário sem a tag de build do
+			// provider derrubava `mem search` inteiro.
+			fmt.Println("Aviso: sem provider de embedding; executando busca textual FTS.")
 		} else {
-			queryVec = vec
+			vec, embErr := emb.GenerateEmbedding(query)
+			if embErr != nil {
+				fmt.Printf("Aviso: falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+			} else {
+				queryVec = vec
+			}
 		}
 		results, err = db.SearchHybridRRFWithOptions(ctx, database, tq, query, queryVec, limit, k, useTurbo, decayOpts, searchOpts)
 	}
 
 	if err != nil {
-		fmt.Printf("Erro na busca: %v\n", err)
-		return
+		fmt.Fprintf(os.Stderr, "Erro na busca: %v\n", err)
+		return 1
 	}
 
 	if len(results) == 0 {
 		fmt.Println("Nenhum resultado encontrado.")
-		return
+		return 0
 	}
 
 	if strings.EqualFold(searchOpts.Level, "l0") {
@@ -2272,7 +2308,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedde
 			}
 			fmt.Println()
 		}
-		return
+		return 0
 	}
 
 	for i, res := range results {
@@ -2313,6 +2349,7 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedde
 		}
 		fmt.Println()
 	}
+	return 0
 }
 
 // searchFlags são as flags do subcomando `mem search`.
@@ -2374,24 +2411,100 @@ func printSearchUsage(w io.Writer) {
 }
 
 // parseSearchFlags parseia as flags de `mem search` e devolve o código de saída
-// do comando: 0 quando o parse deu certo, 1 quando deu erro.
+// do comando (0 quando o parse deu certo, 1 quando deu erro) e se o usuário
+// pediu ajuda (`--help`).
 //
 // Flag ausente (`--tag` sem valor) é erro de uso: o comando imprime o uso e
 // sai com código diferente de zero, em vez de buscar sem o filtro pedido.
-func parseSearchFlags(fs *flag.FlagSet, args []string, errOut io.Writer) int {
-	if err := fs.Parse(rearrangeSearchArgs(args)); err != nil {
+func parseSearchFlags(fs *flag.FlagSet, args []string, errOut io.Writer) (int, bool) {
+	// A checagem vem antes do parse: o pacote `flag` do Go só reclama de
+	// "flag needs an argument" quando não sobrou nenhum argumento, e aí a
+	// flag seguinte seria engolida como valor.
+	if err := validateSearchFlagValues(fs, args); err != nil {
+		fmt.Fprintf(errOut, "Erro: %v\n", err)
+		printSearchUsage(errOut)
+		return 1, false
+	}
+	if err := fs.Parse(rearrangeSearchArgs(fs, args)); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			printSearchUsage(os.Stdout)
-			return 0
+			return 0, true
 		}
 		fmt.Fprintf(errOut, "Erro: %v\n", err)
 		printSearchUsage(errOut)
-		return 1
+		return 1, false
 	}
-	return 0
+	return 0, false
 }
 
-func rearrangeSearchArgs(args []string) []string {
+// validateSearchFlagValues checa, antes do parse, que toda flag que espera
+// valor recebeu um.
+//
+// O pacote `flag` do Go só reclama de "flag needs an argument" quando não há
+// mais nenhum argumento depois da flag. Com `mem search --tag --mode hybrid`,
+// o valor de `--tag` virava "--mode": a flag engolia a seguinte e o comando
+// saía com código zero, buscando com uma tag que o usuário não pediu.
+//
+// A checagem é feita nos argumentos originais, antes do rearranjador: é lá
+// que está a ordem que o usuário digitou.
+func validateSearchFlagValues(fs *flag.FlagSet, args []string) error {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if len(arg) < 2 || !strings.HasPrefix(arg, "-") {
+			continue
+		}
+		name := strings.TrimLeft(arg, "-")
+		if idx := strings.Index(name, "="); idx >= 0 {
+			name = name[:idx]
+		}
+		if name == "" || !flagTakesValue(fs, name) {
+			continue
+		}
+		if strings.Contains(arg, "=") {
+			continue
+		}
+		if i+1 >= len(args) {
+			return fmt.Errorf("flag needs an argument: -%s", name)
+		}
+		// O valor de uma flag pode ser negativo (`--decay-weight -0.5`): o sinal
+		// de menos não a transforma em flag.
+		if next := args[i+1]; strings.HasPrefix(next, "-") && !isNegativeNumber(next) {
+			return fmt.Errorf("flag needs an argument: -%s", name)
+		}
+	}
+	return nil
+}
+
+// isNegativeNumber devolve true quando o argumento é um número negativo
+// ("-1", "-0.5").
+func isNegativeNumber(value string) bool {
+	if !strings.HasPrefix(value, "-") || len(value) < 2 {
+		return false
+	}
+	_, err := strconv.ParseFloat(value, 64)
+	return err == nil
+}
+
+// flagTakesValue devolve true quando a flag do FlagSet espera um valor.
+//
+// As flags booleanas do pacote `flag` implementam `IsBoolFlag`, que é a forma
+// canônica de distinguir um sinalizador de uma flag com valor. Consultar o
+// FlagSet — em vez de manter uma lista de nomes na mão — evita que uma flag
+// nova entre na CLI e fique sem valor quando aparece depois da query.
+func flagTakesValue(fs *flag.FlagSet, name string) bool {
+	f := fs.Lookup(name)
+	if f == nil {
+		return false
+	}
+	if bf, ok := f.Value.(interface{ IsBoolFlag() bool }); ok {
+		return !bf.IsBoolFlag()
+	}
+	return true
+}
+
+// rearrangeSearchArgs move as flags para a frente da query, para que a query
+// possa vir antes ou depois das flags (`mem search texto --tag inbox`).
+func rearrangeSearchArgs(fs *flag.FlagSet, args []string) []string {
 	var flags []string
 	var nonFlags []string
 	for i := 0; i < len(args); i++ {
@@ -2399,18 +2512,8 @@ func rearrangeSearchArgs(args []string) []string {
 		if strings.HasPrefix(arg, "-") {
 			flags = append(flags, arg)
 			// Se a flag espera um argumento posicional separado por espaço
-			if !strings.Contains(arg, "=") && (arg == "--mode" || arg == "-mode" ||
-				arg == "--level" || arg == "-level" ||
-				arg == "--category" || arg == "-category" ||
-				arg == "--tag" || arg == "-tag" ||
-				arg == "--k" || arg == "-k" ||
-				arg == "--limit" || arg == "-limit" ||
-				arg == "--half-life" || arg == "-half-life" ||
-				arg == "--decay-weight" || arg == "-decay-weight" ||
-				arg == "--db" || arg == "-db" ||
-				arg == "--postgres" || arg == "-postgres" ||
-				arg == "--repo" || arg == "-repo") {
-				if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			if !strings.Contains(arg, "=") && flagTakesValue(fs, strings.TrimLeft(arg, "-")) {
+				if i+1 < len(args) && (!strings.HasPrefix(args[i+1], "-") || isNegativeNumber(args[i+1])) {
 					flags = append(flags, args[i+1])
 					i++
 				}

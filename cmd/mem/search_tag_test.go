@@ -151,13 +151,35 @@ func TestSearchComTagSemValorEhErroDeUso(t *testing.T) {
 	searchCmd.SetOutput(io.Discard)
 
 	var buf bytes.Buffer
-	code := parseSearchFlags(searchCmd, []string{"--tag"}, &buf)
+	code, _ := parseSearchFlags(searchCmd, []string{"--tag"}, &buf)
 
 	if code == 0 {
 		t.Errorf("--tag sem valor deveria sair com código diferente de zero")
 	}
 	if !strings.Contains(buf.String(), "Uso: mem search") {
 		t.Errorf("esperava o uso na saída de erro, obteve:\n%s", buf.String())
+	}
+}
+
+// TestSearchComTagSemValorSeguidoDeOutraFlagEhErroDeUso: a flag seguinte não
+// pode virar o valor de `--tag`.
+//
+// O pacote `flag` do Go só reclama de argumento faltante quando não sobrou
+// nenhum argumento depois da flag; com `mem search --tag --mode hybrid`, o
+// `--mode` era engolido como valor de `--tag` e o comando saía com código
+// zero, buscando com uma tag que o usuário não pediu.
+func TestSearchComTagSemValorSeguidoDeOutraFlagEhErroDeUso(t *testing.T) {
+	searchCmd, _ := newSearchFlagSet()
+	searchCmd.SetOutput(io.Discard)
+
+	var buf bytes.Buffer
+	code, _ := parseSearchFlags(searchCmd, []string{"--tag", "--mode", "hybrid", "arquitetura"}, &buf)
+
+	if code == 0 {
+		t.Errorf("--tag sem valor deveria sair com código diferente de zero")
+	}
+	if !strings.Contains(buf.String(), "flag needs an argument") {
+		t.Errorf("esperava o erro de argumento faltante, obteve:\n%s", buf.String())
 	}
 }
 
@@ -168,7 +190,7 @@ func TestSearchComTagValidoNaoEhErroDeUso(t *testing.T) {
 	searchCmd.SetOutput(io.Discard)
 
 	var buf bytes.Buffer
-	code := parseSearchFlags(searchCmd, []string{"--tag", "inbox", "--category", "memory", "arquitetura"}, &buf)
+	code, _ := parseSearchFlags(searchCmd, []string{"--tag", "inbox", "--category", "memory", "arquitetura"}, &buf)
 
 	if code != 0 {
 		t.Errorf("esperava código zero, obteve %d (%s)", code, buf.String())
@@ -191,7 +213,7 @@ func TestSearchComTagDepoisDaQuery(t *testing.T) {
 	searchCmd.SetOutput(io.Discard)
 
 	var buf bytes.Buffer
-	code := parseSearchFlags(searchCmd, []string{"arquitetura", "--tag", "inbox"}, &buf)
+	code, _ := parseSearchFlags(searchCmd, []string{"arquitetura", "--tag", "inbox"}, &buf)
 
 	if code != 0 {
 		t.Errorf("esperava código zero, obteve %d (%s)", code, buf.String())
@@ -201,6 +223,44 @@ func TestSearchComTagDepoisDaQuery(t *testing.T) {
 	}
 	if len(searchCmd.Args()) != 1 || searchCmd.Args()[0] != "arquitetura" {
 		t.Errorf("esperava a query como argumento posicional, obteve %v", searchCmd.Args())
+	}
+}
+
+// TestSearchComHelpSinalizaAjuda: `--help` devolve código zero e o
+// sinalizador de ajuda.
+//
+// Sem o sinalizador, o comando imprimia o uso duas vezes — uma no parse e
+// outra porque a query ficava vazia — e ainda executava a busca com o termo
+// que sobrou (`mem search arquitetura --help` buscava "arquitetura").
+func TestSearchComHelpSinalizaAjuda(t *testing.T) {
+	searchCmd, _ := newSearchFlagSet()
+	searchCmd.SetOutput(io.Discard)
+
+	var buf bytes.Buffer
+	code, help := parseSearchFlags(searchCmd, []string{"arquitetura", "--help"}, &buf)
+
+	if code != 0 {
+		t.Errorf("--help deveria sair com código zero, obteve %d (%s)", code, buf.String())
+	}
+	if !help {
+		t.Errorf("--help deveria sinalizar ajuda para o comando sair sem buscar")
+	}
+}
+
+// TestSearchSemHelpNaoSinalizaAjuda: uma busca normal não é confundida com
+// pedido de ajuda.
+func TestSearchSemHelpNaoSinalizaAjuda(t *testing.T) {
+	searchCmd, _ := newSearchFlagSet()
+	searchCmd.SetOutput(io.Discard)
+
+	var buf bytes.Buffer
+	code, help := parseSearchFlags(searchCmd, []string{"arquitetura"}, &buf)
+
+	if code != 0 {
+		t.Errorf("esperava código zero, obteve %d (%s)", code, buf.String())
+	}
+	if help {
+		t.Errorf("uma busca normal não deveria sinalizar ajuda")
 	}
 }
 
