@@ -74,6 +74,21 @@ func (fs *FederatedSearcher) Search(ctx context.Context, params SearchParams) ([
 
 	// Busca concorrente no repositório local
 	go func() {
+		// Um pânico dentro da busca não pode derrubar o servidor: a goroutine
+		// é isolada e o pânico vira um erro da requisição. Sem este
+		// `recover`, um callback que entra em pânico — como a busca vetorial
+		// sem provider de embedding — mata o processo inteiro.
+		defer func() {
+			if r := recover(); r != nil {
+				select {
+				case localCh <- searchOutcome{err: fmt.Errorf("pânico na busca local: %v", r), origin: "local"}:
+				default:
+				}
+				if fs.logger != nil {
+					fs.logger("[federation] aviso: pânico na busca local recuperado: %v\n", r)
+				}
+			}
+		}()
 		if fs.localFn == nil {
 			localCh <- searchOutcome{results: nil, err: fmt.Errorf("sem local"), origin: "local"}
 			return
@@ -84,6 +99,17 @@ func (fs *FederatedSearcher) Search(ctx context.Context, params SearchParams) ([
 
 	// Busca concorrente no cofre central
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				select {
+				case centralCh <- searchOutcome{err: fmt.Errorf("pânico na busca central: %v", r), origin: "central"}:
+				default:
+				}
+				if fs.logger != nil {
+					fs.logger("[federation] aviso: pânico na busca central recuperado: %v\n", r)
+				}
+			}
+		}()
 		res, err := fs.centralFn(ctx, params)
 		centralCh <- searchOutcome{results: res, err: err, origin: "central"}
 	}()

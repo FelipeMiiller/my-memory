@@ -2552,6 +2552,9 @@ func buildSQLiteSearchFunc(database *sql.DB, emb embedder.Embedder, tq *turboqua
 		case "fts":
 			dbResults, err = db.SearchFTSWithOptions(ctx, database, params.Query, limit, searchOpts)
 		case "vector":
+			if emb == nil {
+				return nil, fmt.Errorf("a busca vetorial exige um provider de embedding; use --mode hybrid ou --mode fts")
+			}
 			queryVec, embErr := emb.GenerateEmbedding(params.Query)
 			if embErr != nil {
 				return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
@@ -2566,9 +2569,15 @@ func buildSQLiteSearchFunc(database *sql.DB, emb embedder.Embedder, tq *turboqua
 			}
 		default: // hybrid
 			var queryVec []float32
-			vec, embErr := emb.GenerateEmbedding(params.Query)
-			if embErr == nil {
-				queryVec = vec
+			// Sem provider de embedding a busca fica só textual (FTS5): o
+			// vetor nil é o caminho que o `SearchHybridRRFWithOptions`
+			// entende. Sem esta guarda, `emb.GenerateEmbedding` derrubava o
+			// servidor MCP inteiro com um nil-pointer-dereference.
+			if emb != nil {
+				vec, embErr := emb.GenerateEmbedding(params.Query)
+				if embErr == nil {
+					queryVec = vec
+				}
 			}
 			decayOpts := store.DefaultDecayOptions()
 			if params.Decay {
@@ -2658,6 +2667,9 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			case "fts":
 				pgResults, err = pgStore.SearchFTSWithOptions(ctx, repo, params.Query, limit, searchOpts)
 			case "vector":
+				if emb == nil {
+					return nil, fmt.Errorf("a busca vetorial exige um provider de embedding; use --mode hybrid ou --mode fts")
+				}
 				queryVec, embErr := emb.GenerateEmbedding(params.Query)
 				if embErr != nil {
 					return nil, fmt.Errorf("falha ao gerar embedding: %w", embErr)
@@ -2665,9 +2677,13 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				pgResults, err = pgStore.SearchKNNWithOptions(ctx, repo, queryVec, limit, searchOpts)
 			default: // hybrid
 				var queryVec []float32
-				vec, embErr := emb.GenerateEmbedding(params.Query)
-				if embErr == nil {
-					queryVec = vec
+				// Sem provider de embedding a busca fica só textual: o vetor
+				// nil é o caminho que o `SearchHybridWithOptions` entende.
+				if emb != nil {
+					vec, embErr := emb.GenerateEmbedding(params.Query)
+					if embErr == nil {
+						queryVec = vec
+					}
 				}
 				decayOpts := store.DefaultDecayOptions()
 				if params.Decay {

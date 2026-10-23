@@ -6,6 +6,7 @@ import (
 
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
+	"github.com/FelipeMiiller/my-memory/internal/mcp"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 )
@@ -66,5 +67,35 @@ func TestRunSearchSQLite_ModoVetorialSemProviderNaoQuebra(t *testing.T) {
 	// comando sai com código diferente de zero.
 	if code == 0 {
 		t.Errorf("modo vetorial sem provider deveria devolver código de erro")
+	}
+}
+
+// TestBuildSQLiteSearchFunc_SemProviderNaoQuebra cobre o caminho do servidor
+// MCP.
+//
+// A busca do servidor MCP roda em goroutine (`internal/federation/search.go`),
+// e um pânico dentro dela derrubava o **processo inteiro** — não só a
+// requisição. Sem provider de embedding, a busca chamava
+// `emb.GenerateEmbedding` sem guarda e o servidor MCP morria no primeiro
+// `memory_search`.
+func TestBuildSQLiteSearchFunc_SemProviderNaoQuebra(t *testing.T) {
+	dbPath := newVaultFixture(t, "nota.md")
+	database, err := db.InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	search := buildSQLiteSearchFunc(database, nil, turboquant.NewQuantizer(embedder.EmbeddingDim))
+	ctx := context.Background()
+
+	// Híbrido sem provider: a busca fica só textual e devolve.
+	if _, err := search(ctx, mcp.SearchParams{Query: "nota", Mode: "hybrid", Limit: 5}); err != nil {
+		t.Fatalf("a busca híbrida sem provider falhou: %v", err)
+	}
+
+	// Vetorial sem provider: erro de uso, não pânico.
+	if _, err := search(ctx, mcp.SearchParams{Query: "nota", Mode: "vector", Limit: 5}); err == nil {
+		t.Errorf("o modo vetorial sem provider deveria devolver erro")
 	}
 }

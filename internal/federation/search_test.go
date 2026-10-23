@@ -226,3 +226,53 @@ func TestResolveCentralSQLitePath(t *testing.T) {
 		t.Errorf("esperava %s, obteve %s", dbFile, resolved)
 	}
 }
+
+// TestFederatedSearcher_PanicoLocalNaoDerrubaOProcesso cobre o isolamento da
+// busca local.
+//
+// A busca federada roda as duas fontes em goroutines. Um pânico dentro de
+// qualquer uma delas — como a busca vetorial sem provider de embedding —
+// derrubava o **processo inteiro** (o servidor MCP morria junto), em vez de
+// virar um erro da requisição.
+func TestFederatedSearcher_PanicoLocalNaoDerrubaOProcesso(t *testing.T) {
+	ctx := context.Background()
+
+	localFn := func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		panic("falha simulada na busca local")
+	}
+	centralFn := func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		return []SearchResult{{ChunkID: "cen_1", DocumentID: "docs/central.md", Content: "conteudo central"}}, nil
+	}
+
+	fs := NewFederatedSearcher(localFn, centralFn, t.TempDir(), true)
+	results, err := fs.Search(ctx, SearchParams{Query: "arquitetura", Limit: 10, K: 60})
+	if err != nil {
+		t.Fatalf("um pânico na busca local não pode virar erro fatal, obteve: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("esperava o fallback para a busca central com 1 resultado, obteve %d", len(results))
+	}
+	if results[0].DocumentID != "[central] docs/central.md" {
+		t.Errorf("esperava o resultado anotado como central, obteve %q", results[0].DocumentID)
+	}
+}
+
+// TestFederatedSearcher_PanicoNasDuasFontesViraErro: quando as duas fontes
+// entram em pânico, a requisição falha com erro — mas o processo continua
+// vivo.
+func TestFederatedSearcher_PanicoNasDuasFontesViraErro(t *testing.T) {
+	ctx := context.Background()
+
+	panico := func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		panic("falha simulada")
+	}
+
+	fs := NewFederatedSearcher(panico, panico, t.TempDir(), true)
+	_, err := fs.Search(ctx, SearchParams{Query: "arquitetura", Limit: 10, K: 60})
+	if err == nil {
+		t.Fatal("esperava erro quando as duas fontes entram em pânico")
+	}
+	if !strings.Contains(err.Error(), "pânico") {
+		t.Errorf("esperava o erro mencionar o pânico, obteve: %v", err)
+	}
+}
