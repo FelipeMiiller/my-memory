@@ -41,7 +41,7 @@ O gate completo de fim de tarefa (benchmarks, smoke test do binário, pipeline C
 
 ### 2.3 ADRs vigentes
 
-ADR-001 SQLite unificado · ADR-002 Go · ADR-003 TurboQuant 4-bit · ADR-004 SQL recursivo (CTE) · ADR-005 `[[wikilinks]]` · ADR-006 MCP · ADR-016 auto-scoping (superseded by ADR-040) · ADR-018 compile-not-retrieve · ADR-024 `mem inspect` · ADR-025 contexto progressivo e taxonomia `category` · ADR-033/034 Federação e Central Vault · ADR-035 embedder builtin 384d · ADR-039 drift calibrado · ADR-040 config global única + Postgres opt-in · ADR-041 tags sem casa removidas do grafo
+ADR-001 SQLite unificado · ADR-002 Go · ADR-003 TurboQuant 4-bit · ADR-004 SQL recursivo (CTE) · ADR-005 `[[wikilinks]]` · ADR-006 MCP · ADR-016 auto-scoping (superseded by ADR-040) · ADR-018 compile-not-retrieve · ADR-024 `mem inspect` · ADR-025 contexto progressivo e taxonomia `category` · ADR-033/034 Federação e Central Vault · ADR-035 embedder builtin 384d · ADR-039 drift calibrado · ADR-040 config global única + Postgres opt-in · ADR-041 tags sem casa removidas do grafo · ADR-055 tag consultável sem nó morto · ADR-059/060 SPA React/Vite servida pelo MCP
 
 ### 2.4 Onde o resto mora
 

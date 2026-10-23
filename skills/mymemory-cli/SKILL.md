@@ -20,9 +20,10 @@ cd my-memory
 go build -tags onnx -o bin/mem ./cmd/mem
 ```
 
-A binary built **without** `-tags onnx` still runs and still returns exact-term results, but it
-silently has no vector layer — meaning-based retrieval quietly stops working. See
-`mymemory-config` for details.
+A binary built **without** `-tags onnx` has no vector layer at all. `mem search` in the default
+`hybrid` mode prints a warning and falls back to lexical FTS — exact-term results still come back,
+but semantic retrieval stops working. `mem search --mode vector` is an error and exits non-zero.
+See `mymemory-config` for details.
 
 ## The command surface
 
@@ -91,6 +92,8 @@ mem recents [--limit 10]               # most recently edited first
 mem tags                               # every tag in the vault, one per line
 mem tags --counts --sort=count         # tag<TAB>count, most used first
 mem tags --file <path>                 # only that note's tags
+mem tags --folder <folder>             # only the tags of notes under that folder
+mem tags --total                       # just the number of distinct tags
 mem tag <name>                         # how many notes carry the tag (and its descendants)
 mem tag <name> --verbose               # the count plus the notes themselves
 ```
@@ -100,6 +103,10 @@ path always wins; when only a basename matches and several notes share it, the c
 reports the ambiguity with the candidate paths instead of picking one. An extension or
 folder filter that matches nothing exits zero with an empty list — that is a valid answer
 about the vault, not a failure.
+
+A folder filter matches **whole path segments**: `docs` catches `docs/a.md` and
+`vault/docs/b.md`, but not `docs-old/c.md`. The same rule applies to `mem files --folder`
+and to the `folder` argument of `memory_list_files`.
 
 **Author**
 
@@ -131,6 +138,23 @@ mem code-search "renderNote"
 mem code-graph "SomeFunction"
 mem code-stats
 ```
+
+## Exit codes
+
+Scripts branch on the exit status, so it is part of the contract.
+
+| Situation | Exit |
+| --- | --- |
+| `mem search --tag` with no value | 1 — the flag never swallows the next argument (`mem search --tag --limit 3` does not search for `--limit`) |
+| `mem search --tag=` / `--tag ""` (empty value) | 1 — an empty filter is a usage error, not "no filter" |
+| `mem search --tag <malformed>` | 1 — a tag outside the Obsidian format is a usage error, not an empty result |
+| `mem search --mode vector` with no embedding provider | 1 |
+| `mem search` fails while searching | 1 |
+| `mem tag` with no tag name | 1 — the usage is printed on stdout |
+| `mem tags --sort <invalid>` | 1 — the accepted values are `name` and `count` |
+| `mem search` with no query | 0 — the usage is printed |
+| `mem tags` / `mem tag` filter matches nothing | 0 — an empty list, not a failure |
+| `--help` | 0 |
 
 ## Storage flags
 

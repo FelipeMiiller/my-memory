@@ -82,7 +82,7 @@ or when the operation has no tool equivalent — `mem install`, `mem watch`, `me
 
 | Intent | Tool |
 | --- | --- |
-| Find notes about a topic | `memory_search` (`detail_level` `l0` → `l1` → `l2`) |
+| Find notes about a topic | `memory_search` (`detail_level` `l0` → `l1` → `l2`; `tag` filters by Obsidian tag) |
 | List the vault's tags | `memory_get_tags` (with `path` for one note) |
 | Which notes carry a tag | `memory_get_tag` (matches the tag **and** its descendants) |
 | Find functions, methods, classes | `memory_code_search` |
@@ -154,8 +154,8 @@ path, and no error** — the transport simply is not there.
 
 ## Reference
 
-- [mcp-tools.md](references/mcp-tools.md) — all 26 tools with arguments, defaults, suggested flows
-  and gotchas
+- [mcp-tools.md](references/mcp-tools.md) — all 26 tools: argument tables for the retrieval
+  and vault tools, a summary table for the graph tools, plus suggested flows and gotchas
 
 ## Gotchas
 
@@ -167,3 +167,7 @@ path, and no error** — the transport simply is not there.
    puts the served root on the network, graph artefact titles included.
 6. **`structuredContent` is optional** — a tool that does not fill it omits the field
    entirely; keep the text fallback for clients that talk to an older server.
+7. **A binary without an embedding provider still serves** — a server built without
+   `-tags onnx` has no vector layer. `memory_search` with `mode=vector` then answers with a
+   JSON-RPC error (`-32603`) and the server keeps running; `mode=hybrid` falls back to the
+   lexical FTS search, so the call succeeds with weaker results.

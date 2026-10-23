@@ -51,6 +51,8 @@ k-NN vectors, and graph expansion.
 | `decay_weight` | number | `0.3` | `0.0` = no effect, `1.0` = maximum decay. |
 | `detail_level` | enum | `l1` | `l0` micro-abstract (~30-50 tokens, zero file reads) · `l1` overview with metadata + relevant excerpt · `l2` full detail. |
 | `category` | enum | — | `resource` · `memory` · `skill`. |
+| `tag` | string | — | Filters by Obsidian tag (`projeto/alpha`). Matches the tag **and** its descendants; the leading `#` is optional and casing is ignored. A tag outside the Obsidian format is an invalid-parameter error. An **empty** string counts as no filter and the search runs unfiltered — the CLI rejects the empty value as a usage error instead. |
+| `include_code` | boolean | `false` | Reserved for the code/markdown RRF fan-in — the response still carries the CA-12 placeholder warning. |
 
 > [!tip]
 > `detail_level` is the cheapest lever you have. `l0` returns micro-abstracts with **zero file
@@ -257,3 +259,7 @@ memory_search per source  →  memory_compile_note (one per topic)  →  memory_
 4. **`drift` is a release gate** — it catches documentation that fell behind code.
 5. **`detail_level` is the cost lever** — `l0` returns summaries with no file reads. Escalate
    to `l1`/`l2` only when the broad layer misses. (MCP: `detail_level`; CLI: `--level`.)
+6. **A server without an embedding provider still answers** — a binary built without
+   `-tags onnx` has no vector layer. `memory_search` with `mode=vector` returns a JSON-RPC
+   error (`-32603`) and the server keeps running; `mode=hybrid` falls back to the lexical FTS
+   search and returns weaker results instead of an error.

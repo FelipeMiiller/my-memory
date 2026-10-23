@@ -71,15 +71,18 @@ Edges extracted from a note are written with epistemic status `EXTRACTED` and we
 ADRs are the documented exception in this project: they link to file paths with Markdown
 links, by long-standing convention.
 
-## Tags must resolve to a node
+## Tags are queryable; only the resolved ones become nodes
 
-**ADR-041: a tag with no resolvable document is removed from the graph** rather than becoming
-a node or a dead link. A conceptual `#fuzzy-matching` stays searchable through FTS but has no
-graph presence unless a document matches it.
+**ADR-055: every tag of a document is recorded — including the one that names no note.** The
+orphan tag, a conceptual `#fuzzy-matching` that resolves to nothing, is still listed by
+`mem tags` and answered by `mem tag` / `memory_get_tag`. It is consultable, not dead.
 
-To make a tag a real node, create a stub note whose `title` is exactly that tag.
+**ADR-041: a tag with no resolvable document is not a graph node.** It creates no edge and no
+dead link, so it has no graph presence until a document matches it. To make a tag a real node,
+create a stub note whose `title` is exactly that tag.
 
 In frontmatter, write tags without `#`. In the body, inline tags are contextual to a paragraph.
+Tags are **case-insensitive** and **hierarchical**: `projeto` also matches `projeto/alpha`.
 
 > When documenting tag syntax, wrap it in inline code — `` `#foo` `` documents it, bare `#foo`
 > in prose is captured by the parser as a real tag. This holds inside code blocks too: the
@@ -92,7 +95,7 @@ carrier of something a reader must be able to find.
 
 | Syntax | Consequence |
 | --- | --- |
-| `%%comment%%` | **Not stripped — commented-out text is indexed and retrievable.** Stale knowledge commented out looks deleted but still answers searches. Delete it. |
+| `%%comment%%` | **Not stripped from the text** — commented-out content is indexed and retrievable, so stale knowledge looks deleted but still answers searches. The `%%` block is removed for **tag extraction only**: a tag inside a comment is not captured. Delete the comment. |
 | `![[embed]]` | Embedded content is not indexed and creates **no** edge. To display *and* link, add a separate `[[Note]]`. |
 | `==highlight==` | Indexed as text; the `==` is noise. |
 | `$$math$$` | Indexed as literal notation. |

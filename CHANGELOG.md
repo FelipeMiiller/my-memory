@@ -155,6 +155,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`mem search --tag=` descartava o filtro silenciosamente.** Com a flag presente e
+  o valor vazio (`--tag=` ou `--tag ""`), o comando ignorava o filtro pedido,
+  buscava sem ele e saía com código 0 — o resultado parecia o filtrado e não era.
+  O `--tag` sem argumento já era erro de uso; agora as duas formas são. O valor
+  passa a ser chegado em `canonicalSearchTag` / `validateSearchTag`
+  (`cmd/mem/main.go`), antes de abrir o índice.
 - **A flag `--storage` não aparecia na ajuda**, apesar de existir e funcionar em
   todos os comandos do vault. Agora ela é listada, com o conjunto de comandos a
   que se aplica.
@@ -311,6 +317,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Skills do repositório atualizadas com a superfície de tags**: `skills/**` e
+  `.agents/skills/my-memory/SKILL.md` ganharam `mem tags --folder` e
+  `mem tags --total`, a tabela de **exit codes** da superfície de tags e da busca,
+  o filtro `--tag` (CLI e MCP, com o argumento `tag` de `memory_search`), o
+  argumento `include_code` de `memory_search` marcado como *placeholder*, e o
+  gotcha do binário compilado sem provider de embedding — o híbrido cai para a
+  busca textual FTS com aviso, `--mode vector` sai com código diferente de zero, e
+  no MCP o `mode=vector` devolve erro JSON-RPC **sem derrubar o servidor**.
 - **ADR-055 decidida**: a pergunta que a ADR deixou em aberto — para onde
   `resolved_doc_id` aponta — foi respondida em 2026-10-21. Aponta para
   **`documents.id`**, a única referência estável do schema, com o título

@@ -69,6 +69,11 @@ mem search --category skill "note creation"
 mem search --tag projeto "architecture"   # Obsidian tag; matches the tag AND its descendants
 ```
 
+`--tag` is a **push-down** filter: it runs inside the SQL query, never after the results are
+merged. The tag is matched case-insensitively, the leading `#` is optional, and the filter
+catches the descendants (`projeto` matches `projeto/alpha`). A tag outside the Obsidian
+format is a usage error — it exits non-zero instead of searching without the filter.
+
 ---
 
 ## Tags
@@ -95,6 +100,9 @@ mem tag projeto --verbose
 Tags are **case-insensitive** (`#Tag` and `#TAG` are one tag), **hierarchical**
 (`projeto` matches `projeto/alpha`), and an orphan tag — one that names no note — still
 shows up in the inventory. A tag that matches nothing exits zero with an empty list.
+
+`--folder` matches whole path segments: `docs` catches `docs/a.md` and `vault/docs/b.md`,
+but not `docs-old/c.md`.
 
 ---
 
@@ -213,6 +221,23 @@ mem mcp --http 0.0.0.0:38400                     # network-exposed
 ```bash
 mem pack <note> --depth 2 --max-tokens 4000 --out subgraph.md
 ```
+
+---
+
+## Exit codes
+
+| Situation | Exit |
+| --- | --- |
+| `mem search --tag` with no value | 1 — the next argument is never swallowed as the tag |
+| `mem search --tag=` / `--tag ""` (empty value) | 1 — an empty filter is a usage error, not "no filter" |
+| `mem search --tag <malformed>` | 1 |
+| `mem search --mode vector` with no embedding provider | 1 |
+| `mem search` fails while searching | 1 |
+| `mem tag` with no tag name | 1 |
+| `mem tags --sort` with an invalid value | 1 — `name` and `count` are the accepted ones |
+| `mem search` with no query | 0 — the usage is printed |
+| A tag or folder filter that matches nothing | 0 — an empty list |
+| `--help` | 0 |
 
 ---
 

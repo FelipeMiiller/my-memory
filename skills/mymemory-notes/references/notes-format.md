@@ -102,11 +102,26 @@ tags:
 This document covers #fuzzy-matching and #parser in the vault context.
 ```
 
+### How a tag is captured
+
+| Source | Captured as |
+| --- | --- |
+| `tags:` in the frontmatter | The list, or a comma-separated string; a leading `#` is dropped |
+| `#tag` in the body | An inline tag, contextual to the paragraph |
+| `#tag` in a Markdown table cell | An inline tag — a table cell is a valid tag context |
+| `#tag` inside `%%comment%%` or `<!-- -->` | **Not captured** — the block is stripped for extraction only; the text itself stays indexed and retrievable |
+| `#tag` inside inline or fenced code | Not captured |
+
+Tags are **case-insensitive** — `#Tag` and `#TAG` are one tag, stored under one lowercase key
+— and **hierarchical**: the hierarchy is part of the name, so `projeto/alpha` is a tag of its
+own, and a query for `projeto` also matches `projeto/alpha`.
+
 > [!warning]
-> **Tags must resolve to a node, or they are dropped from the graph.** A conceptual tag with
-> no matching document is removed by the tag resolver rather than becoming a node. To make a
-> tag a real graph node, create a stub note whose `title` is exactly that tag. Without the
-> stub, the tag stays searchable by full-text search but has no graph presence.
+> **A tag only becomes a graph node when it resolves to a document.** A conceptual tag with
+> no matching document is removed by the tag resolver rather than becoming a node (ADR-041).
+> To make a tag a real graph node, create a stub note whose `title` is exactly that tag.
+> Without the stub, the tag has no graph presence — but it is still **consultable**: the tag
+> inventory lists it and `mem tag` / `memory_get_tag` answer it (ADR-055).
 
 > [!warning]
 > **Wrap tag syntax in inline code when documenting it.** Writing `` `#foo` `` documents the

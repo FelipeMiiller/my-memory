@@ -168,7 +168,7 @@ moment to correct it.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | Search returns nothing | `include` empty or too narrow | Widen `include`, `mem index --force` |
-| Search finds exact terms but no concepts | Binary built without `-tags onnx` | Rebuild with the tag; the builtin embedder is compiled out |
+| Search finds exact terms but no concepts | Binary built without `-tags onnx` | Rebuild with the tag: hybrid falls back to FTS with a warning, and `--mode vector` exits non-zero |
 | Note never appears | Excluded, or outside the vault | Check `exclude` and the `--vault` path |
 | Retrieval feels wrong | Embedding dimension changed | `mem index --force` after any model switch |
 | Graph looks disconnected | Orphans and missing indexes | `mem insights`, then add MOC entries |

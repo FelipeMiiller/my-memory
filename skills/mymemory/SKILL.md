@@ -31,7 +31,7 @@ This package is split by capability. Load exactly one; each is self-contained.
 
 | Skill | Load it when the task is about… |
 | --- | --- |
-| [`mymemory-cli`](../mymemory-cli/SKILL.md) | Running `mem` from a shell or script: install, `init`, `index`, `search`, `watch`, `hook`, flags, exit behaviour. Starts with the 60-second quickstart. |
+| [`mymemory-cli`](../mymemory-cli/SKILL.md) | Running `mem` from a shell or script: install, `init`, `index`, `search` (including the `--tag` filter), the tag inventory (`mem tags`, `mem tag`), `watch`, `hook`, flags, exit behaviour. Starts with the 60-second quickstart. |
 | [`mymemory-mcp`](../mymemory-mcp/SKILL.md) | An agent is calling the MCP server: wiring a client, choosing between a tool and the CLI, all 26 tools with their inputs and outputs. |
 | [`mymemory-notes`](../mymemory-notes/SKILL.md) | Writing or editing a note: frontmatter taxonomy, wikilinks, typed edges, tags, and the `mem note` / `mem compile` write paths. |
 | [`mymemory-graph`](../mymemory-graph/SKILL.md) | Understanding the graph or auditing the vault: `inspect`, `path`, `hubs`, `clusters`, `impact`, `drift`, `doctor`, and canvas export. |

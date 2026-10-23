@@ -32,8 +32,8 @@ skills/
 | Skill | Description |
 | --- | --- |
 | [`mymemory`](mymemory/) | Router. Load when you need to find which skill answers the task, or for the cross-cutting model: a note is only reachable if it is **indexed, linked and described**. |
-| [`mymemory-cli`](mymemory-cli/) | Run `mem` from a shell or script: install, `init`, `index`, `search`, `watch`, `hook`, every command and flag. Starts with a 60-second quickstart. |
-| [`mymemory-mcp`](mymemory-mcp/) | Wire an MCP client, decide between a tool and the CLI, read the full contract of all 26 tools, and find the metrics dashboard the server serves over HTTP. |
+| [`mymemory-cli`](mymemory-cli/) | Run `mem` from a shell or script: install, `init`, `index`, `search`, the tag inventory (`mem tags`, `mem tag`), `watch`, `hook`, every command and flag. Starts with a 60-second quickstart. |
+| [`mymemory-mcp`](mymemory-mcp/) | Wire an MCP client, decide between a tool and the CLI, read the contract of all 26 tools (argument tables for retrieval and vault tools, summary table for graph tools), and find the metrics dashboard the server serves over HTTP. |
 | [`mymemory-notes`](mymemory-notes/) | Write and edit notes: the `category` taxonomy, `summary`, wikilinks, typed edges, tags, and the `mem note` / `mem compile` write paths. |
 | [`mymemory-graph`](mymemory-graph/) | Query the graph and audit the vault: `inspect`, `path`, `hubs`, `clusters`, `impact`, `drift`, `doctor`, and `.canvas` export. |
 | [`mymemory-config`](mymemory-config/) | Where settings live and which one wins: precedence, the global/local split, SQLite vs Postgres, and the central vault. |

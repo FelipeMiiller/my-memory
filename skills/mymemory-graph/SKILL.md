@@ -24,6 +24,14 @@ query that topology and audit its integrity.
 | What fell behind the code? | `mem drift --since HEAD~5..HEAD` |
 | Is this shape worth drawing? | `mem export --canvas <note> --out graph.canvas` |
 
+## Tags are edges, not nodes
+
+A tag becomes a graph node only when it **resolves to a document** — the `tagged_as` edge is
+written for the resolved tags alone. A tag that names no note, a conceptual
+`#fuzzy-matching`, is **consultable** (`mem tags`, `mem tag`, `memory_get_tag`) but it is not
+a node, it has no edge, and it does not show up as a dangling link (ADR-041, ADR-055). To give
+it a graph presence, create a stub note whose `title` is exactly that tag.
+
 ## Reading the outputs
 
 `mem inspect` prints three columns: inbound, the node itself, and outbound. **Inbound empty

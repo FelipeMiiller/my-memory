@@ -68,7 +68,9 @@ dimension is not negotiable against the schema.
 > **A binary built without `-tags onnx` has no `builtin` embedder.** It does not fail loudly — it
 > prints a warning and falls back to lexical-only indexing, so `mem search` still returns results
 > but with **no semantic layer at all**. Exact-term queries keep working; everything that relied on
-> meaning quietly stops working. If search suddenly finds nothing by concept, check this first.
+> meaning quietly stops working. `mem search --mode vector` is the exception: it errors out and
+> exits non-zero, because there is no vector layer to query. If search suddenly finds nothing by
+> concept, check this first.
 >
 > ```bash
 > go build -tags onnx -o bin/mem ./cmd/mem
