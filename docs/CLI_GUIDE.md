@@ -189,7 +189,8 @@ Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato
 
 > [!NOTE]
 > `--tag` sem valor é erro de uso: o comando imprime o uso e sai com código
-> diferente de zero, em vez de buscar sem o filtro pedido. O mesmo vale para uma tag
+> diferente de zero, em vez de buscar sem o filtro pedido. Vale para `--tag` sem
+> argumento, para `--tag=` e para `--tag ""`. O mesmo vale para uma tag
 > que não segue o formato do Obsidian (só numérica, com espaço ou com pontuação).
 
 

@@ -331,13 +331,15 @@ func main() {
 		// O filtro por tag (paridade com `obsidian search tag:X`): a tag
 		// canônica entra no push-down, que casa a tag e as descendentes.
 		//
-		// Tag fora do formato do Obsidian é erro de uso, não "filtro que não
-		// casa nada": um filtro vazio seria lido como "o vault não tem a tag".
+		// O valor já foi validado no parse (`validateSearchTag`): sem valor ou
+		// fora do formato do Obsidian é erro de uso, e o comando já saiu com
+		// código diferente de zero.
 		resolvedTag := ""
-		if setFlags["tag"] && strings.TrimSpace(*sf.tag) != "" {
-			canonical, ok := parser.NormalizeTag(*sf.tag)
-			if !ok {
-				fmt.Fprintf(os.Stderr, "Erro: tag inválida: %q (use o formato do Obsidian, ex: projeto/alpha)\n", strings.TrimSpace(*sf.tag))
+		if setFlags["tag"] {
+			canonical, err := canonicalSearchTag(*sf.tag)
+			if err != nil {
+				// Defensivo: `parseSearchFlags` já rejeitou este caso.
+				fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
 				printSearchUsage(os.Stderr)
 				os.Exit(1)
 			}
@@ -2437,7 +2439,54 @@ func parseSearchFlags(fs *flag.FlagSet, args []string, errOut io.Writer) (int, b
 		printSearchUsage(errOut)
 		return 1, false
 	}
+	if err := validateSearchTag(fs); err != nil {
+		fmt.Fprintf(errOut, "Erro: %v\n", err)
+		printSearchUsage(errOut)
+		return 1, false
+	}
 	return 0, false
+}
+
+// canonicalSearchTag devolve a forma canônica da tag pedida no filtro e falha
+// quando o valor não serve.
+//
+// Sem valor — `--tag`, `--tag=` ou `--tag ""` — é erro de uso: um filtro vazio
+// seria lido como "o vault não tem tag nenhuma", e o comando buscaria sem o
+// filtro pedido, devolvendo resultado que parece filtrado e não é. Uma tag
+// fora do formato do Obsidian (só numérica, com espaço ou com pontuação) é o
+// mesmo caso: erro de uso, não "filtro que não casa nada".
+func canonicalSearchTag(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", errors.New("--tag exige um valor (ex: --tag projeto/alpha)")
+	}
+	canonical, ok := parser.NormalizeTag(trimmed)
+	if !ok {
+		return "", fmt.Errorf("tag inválida: %q (use o formato do Obsidian, ex: projeto/alpha)", trimmed)
+	}
+	return canonical, nil
+}
+
+// validateSearchTag checa o valor de `--tag` depois do parse.
+//
+// A checagem mora aqui, e não na resolução do filtro, porque é um erro de uso:
+// precisa ser detectável sem abrir o índice — e testável sem subir um banco.
+func validateSearchTag(fs *flag.FlagSet) error {
+	f := fs.Lookup("tag")
+	if f == nil {
+		return nil
+	}
+	set := false
+	fs.Visit(func(visited *flag.Flag) {
+		if visited.Name == "tag" {
+			set = true
+		}
+	})
+	if !set {
+		return nil
+	}
+	_, err := canonicalSearchTag(f.Value.String())
+	return err
 }
 
 // validateSearchFlagValues checa, antes do parse, que toda flag que espera

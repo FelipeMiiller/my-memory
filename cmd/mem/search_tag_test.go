@@ -183,6 +183,60 @@ func TestSearchComTagSemValorSeguidoDeOutraFlagEhErroDeUso(t *testing.T) {
 	}
 }
 
+// TestSearchComTagVazioEhErroDeUso: `--tag=` não pode virar "sem filtro".
+//
+// A flag vazia é um pedido explícito de filtro sem valor. Deixá-la passar
+// fazia o comando buscar sem o filtro pedido e sair com código zero: o
+// resultado parecia o filtrado, e não era.
+func TestSearchComTagVazioEhErroDeUso(t *testing.T) {
+	searchCmd, _ := newSearchFlagSet()
+	searchCmd.SetOutput(io.Discard)
+
+	var buf bytes.Buffer
+	code, _ := parseSearchFlags(searchCmd, []string{"--tag=", "arquitetura"}, &buf)
+
+	if code == 0 {
+		t.Errorf("--tag= vazio deveria sair com código diferente de zero")
+	}
+	if !strings.Contains(buf.String(), "Uso: mem search") {
+		t.Errorf("esperava o uso na saída de erro, obteve:\n%s", buf.String())
+	}
+}
+
+// TestSearchComTagVazioSeparadoEhErroDeUso: `--tag ""` é o mesmo caso do
+// `--tag=` — valor vazio é valor ausente.
+func TestSearchComTagVazioSeparadoEhErroDeUso(t *testing.T) {
+	searchCmd, _ := newSearchFlagSet()
+	searchCmd.SetOutput(io.Discard)
+
+	var buf bytes.Buffer
+	code, _ := parseSearchFlags(searchCmd, []string{"--tag", "", "arquitetura"}, &buf)
+
+	if code == 0 {
+		t.Errorf("--tag com valor vazio deveria sair com código diferente de zero")
+	}
+	if !strings.Contains(buf.String(), "Uso: mem search") {
+		t.Errorf("esperava o uso na saída de erro, obteve:\n%s", buf.String())
+	}
+}
+
+// TestSearchComTagMalformadaEhErroDeUso: uma tag fora do formato do Obsidian
+// é erro de uso, não "filtro que não casa nada".
+func TestSearchComTagMalformadaEhErroDeUso(t *testing.T) {
+	searchCmd, _ := newSearchFlagSet()
+	searchCmd.SetOutput(io.Discard)
+
+	var buf bytes.Buffer
+	code, _ := parseSearchFlags(searchCmd, []string{"--tag", "1984", "arquitetura"}, &buf)
+
+	if code == 0 {
+		t.Errorf("tag malformada deveria sair com código diferente de zero")
+	}
+	if !strings.Contains(buf.String(), "tag inválida") {
+		t.Errorf("esperava o erro de tag inválida, obteve:\n%s", buf.String())
+	}
+}
+
 // TestSearchComTagValidoNaoEhErroDeUso: o parse de --tag com valor funciona e
 // devolve código zero.
 func TestSearchComTagValidoNaoEhErroDeUso(t *testing.T) {
