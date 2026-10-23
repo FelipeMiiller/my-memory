@@ -133,22 +133,24 @@ ok  	github.com/FelipeMiiller/my-memory/internal/watcher	4.627s
 
 **TEST EXIT=0**
 
-> **Árvore de trabalho.** O gate rodou sobre a **working tree**, não só sobre o
-> `HEAD` (`93470c5`). A working tree tinha, além da documentação desta rodada, uma
-> correção **não commitada** em `cmd/mem/main.go` (guarda de embedder nulo nos
-> caminhos de busca) e o teste novo `cmd/mem/search_provider_test.go`. Essa correção
-> é alheia à feature de tags — o gate a incluiu, o que o torna **mais estrito**,
-> não menos. Nenhum arquivo Go foi alterado por esta validação.
+> **Árvore de trabalho.** O gate rodou sobre a **working tree**, que na altura
+> tinha, além da documentação da rodada, a correção da guarda de embedder nulo
+> nos caminhos de busca (`cmd/mem/main.go`) e o teste novo
+> `cmd/mem/search_provider_test.go`). Essa correção é alheia à feature de tags —
+> o gate a incluiu, o que o torna **mais estrito**, não menos. Desde então ela
+> foi commitada (`b8870a6`).
 >
-> **Números de linha.** Todas as referências `caminho:linha` apontam para a
-> **working tree** no momento da verificação. Um commit posterior não desloca
-> números de linha, então as referências continuam válidas. A única ressalva é
-> `cmd/mem/main.go`: ele recebeu, **durante** a verificação, uma correção **não
-> relacionada** (a guarda de embedder nulo nos caminhos de busca) vinda de outro
-> worker, que deslocou em +22 as linhas depois de ~2005. As referências a esse
-> arquivo foram **reconferidas** no fim da rodada e trazem o nome do símbolo
-> (`newSearchFlagSet`, `printSearchUsage`, `parseSearchFlags`), de modo que
-> continuam localizáveis mesmo que a linha se mova de novo.
+> **Números de linha — a ressalva é real.** As referências `caminho:linha` desta
+> tabela apontam para a árvore **no commit em que foram medidas**, e um commit
+> posterior que mexe no mesmo arquivo **desloca** as linhas. Foi exatamente o que
+> aconteceu: as referências foram medidas em `93470c5`, e o commit `b8870a6`
+> (+191 linhas em `cmd/mem/main.go`) as deslocou. Elas foram **reemitidas** no fim
+> desta rodada contra o `HEAD` corrente, e cada uma cita o **símbolo** além da
+> linha (`parseSearchFlags`, `printSearchUsage`, `newSearchFlagSet`,
+> `runTagsCommand`, `runTagCommand`, `ListVaultTags`,
+> `FindVaultDocumentsByTag`, `InsertDocumentTags`, `DeleteDocumentTags`), de modo
+> que continuam localizáveis mesmo que a linha se mova outra vez — com
+> `grep -n '<símbolo>'` ou `git show <commit>:<arquivo>`.
 
 ---
 
@@ -175,32 +177,32 @@ código, com o `caminho:linha` apontado.
 
 | ID | Critério | Veredito | Evidência |
 |---|---|---|---|
-| TAG-10 | `mem tag <nome>` imprime a contagem de documentos | **PASS** | `cmd/mem/tags.go:137-150` (busca + `Count: len(documents)`), `:175` (`fmt.Fprintln(out, result.Count)`); a contagem vem do engine: `internal/db/tags.go:188-203` |
-| TAG-11 | `--verbose` imprime a contagem **e** a lista de documentos | **PASS** | `cmd/mem/tags.go:117` (flag), `:175-180` (contagem e depois um caminho por linha) |
-| TAG-12 | A consulta conta a tag **e suas descendentes** | **PASS** | `internal/db/tags.go:198` (`dt.tag_key = ? OR dt.tag_key LIKE ? ESCAPE '\'`) com o padrão `key + "/%"` em `:200`; o mesmo predicado no Postgres em `internal/store/tags.go:303-338` |
-| TAG-13 | `--total` imprime só a contagem | **PASS** | `cmd/mem/tags.go:118` (flag), `:176` (`if *verbose && !*total` — com `--total` a lista de documentos não é impressa) |
-| TAG-14 | `--json` imprime nome, contagem, documentos e documento resolvido | **PASS** | `cmd/mem/tags.go:119` (flag), `:145-150` (montagem do `tagQueryResult`), `:158-167` (o documento resolvido vem do inventário), `:169-172` (JSON) |
-| TAG-15 | Tag inexistente → contagem 0, saída 0 | **PASS** | `cmd/mem/tags.go:112` ("Tag que não existe não é erro: contagem 0 e saída zero"); o caminho é `internal/db/tags.go:188-203` (SELECT sem linhas → lista vazia) |
-| TAG-16 | `mem tag` sem `<nome>` → imprime o uso e sai com código ≠ 0 | **PASS** | `cmd/mem/tags.go:126-129` (nome vazio → imprime o uso e devolve erro, que a CLI converte em saída ≠ 0) |
+| TAG-10 | `mem tag <nome>` imprime a contagem de documentos | **PASS** | `cmd/mem/tags.go:149` (busca por tag), `:157-160` (montagem do `tagQueryResult` com `Count: len(documents)`), `:187` (`fmt.Fprintln(out, result.Count)`); a contagem vem do engine: `internal/db/tags.go:197-215` |
+| TAG-11 | `--verbose` imprime a contagem **e** a lista de documentos | **PASS** | `cmd/mem/tags.go:124` (flag), `:187-192` (contagem e depois um caminho por linha) |
+| TAG-12 | A consulta conta a tag **e suas descendentes** | **PASS** | `internal/db/tags.go:207` (`dt.tag_key = ? OR dt.tag_key LIKE ? ESCAPE '\'`) com o padrão `key + "/%"` em `:209`; o mesmo predicado no Postgres em `internal/store/tags.go:323-325` |
+| TAG-13 | `--total` imprime só a contagem | **PASS** | `cmd/mem/tags.go:125` (flag), `:188` (`if *verbose && !*total` — com `--total` a lista de documentos não é impressa) |
+| TAG-14 | `--json` imprime nome, contagem, documentos e documento resolvido | **PASS** | `cmd/mem/tags.go:126` (flag), `:157-160` (montagem do `tagQueryResult`), `:181-185` (JSON) |
+| TAG-15 | Tag inexistente → contagem 0, saída 0 | **PASS** | `cmd/mem/tags.go:112` ("Tag que não existe não é erro: contagem 0 e saída zero"); o caminho é `internal/db/tags.go:197-215` (SELECT sem linhas → lista vazia) |
+| TAG-16 | `mem tag` sem `<nome>` → imprime o uso e sai com código ≠ 0 | **PASS** | `cmd/mem/tags.go:138-141` (nome vazio → devolve erro, que a CLI converte em saída ≠ 0) |
 
 ### P3 — Filtro por tag na busca (TAG-17 … TAG-21)
 
 | ID | Critério | Veredito | Evidência |
 |---|---|---|---|
-| TAG-17 | `mem search --tag <tag>` devolve só os documentos com a tag e suas descendentes | **PASS** | `cmd/mem/main.go:327-336` (bloco do filtro `--tag` em `runSearch`: canonicaliza via `parser.NormalizeTag`), `:341` (`Tag: resolvedTag` no `SearchOptions`); o filtro: `internal/db/hybrid.go:43-47` (`dt.tag_key = ? OR dt.tag_key LIKE ? ESCAPE '\'`) |
-| TAG-18 | `--tag` combina com `--category`, `--decay` e `--mode` | **PASS** | `cmd/mem/main.go:338-343` (as três opções convivem no mesmo `SearchOptions`); no SQL categoria e tag são o mesmo `WHERE`: `internal/db/hybrid.go:42-47` |
-| TAG-19 | `mem search --tag` sem valor → imprime o uso e sai com código ≠ 0 | **PASS** | `cmd/mem/main.go:2368-2369` (`flag.ContinueOnError`), `:2403-2414` (`parseSearchFlags`: erro → `printSearchUsage(errOut)` + `return 1`), `:2393-2396` (o uso já anuncia `--tag <tag>`) |
-| TAG-20 | Nenhuma nota com a tag → resultado vazio, saída 0 | **PASS** | o `EXISTS` do filtro não casa com ninguém (`internal/db/hybrid.go:43-47`) → nenhum documento entra no resultado; o filtro é ausência de linha, não erro |
-| TAG-21 | O filtro é push-down SQL, não filtro pós-fusão | **PASS** | os **7 pontos**, todos dentro do SQL: `internal/db/hybrid.go:43-47` (FTS5), `internal/db/hybrid.go:154-158` (expansão de grafo), `internal/db/graph.go:66-70` (k-NN vetorial), `internal/db/graph.go:124-128` (TurboQuant 4-bit), `internal/store/postgres.go:502-506` (vetor), `internal/store/postgres.go:595-599` (FTS), `internal/store/postgres.go:697-701` (expansão de grafo). Todos no formato `AND (? = '' OR EXISTS (SELECT 1 FROM document_tags ...))` |
+| TAG-17 | `mem search --tag <tag>` devolve só os documentos com a tag e suas descendentes | **PASS** | `cmd/mem/main.go:331-345` (bloco do filtro `--tag` em `runSearch`: canonicaliza via `parser.NormalizeTag`), `:350` (`Tag: resolvedTag` no `SearchOptions`); o filtro: `internal/db/hybrid.go:45-47` (`dt.tag_key = ? OR dt.tag_key LIKE ? ESCAPE '\'`) |
+| TAG-18 | `--tag` combina com `--category`, `--decay` e `--mode` | **PASS** | `cmd/mem/main.go:347-352` (as três opções convivem no mesmo `SearchOptions`); no SQL categoria e tag são o mesmo `WHERE`: `internal/db/hybrid.go:44-47` |
+| TAG-19 | `mem search --tag` sem valor → imprime o uso e sai com código ≠ 0 | **PASS** | `cmd/mem/main.go:2386-2387` (`flag.ContinueOnError`), `:2422-2437` (`parseSearchFlags`: erro → `printSearchUsage(errOut)` + `return 1`), `:2423-2431` (`validateSearchFlagValues`, que rejeita a flag sem valor **antes** do parse), `:2411-2412` (o uso já anuncia `--tag <tag>`) |
+| TAG-20 | Nenhuma nota com a tag → resultado vazio, saída 0 | **PASS** | o `EXISTS` do filtro não casa com ninguém (`internal/db/hybrid.go:45-47`) → nenhum documento entra no resultado; o filtro é ausência de linha, não erro |
+| TAG-21 | O filtro é push-down SQL, não filtro pós-fusão | **PASS** | os **7 pontos**, todos dentro do SQL: `internal/db/hybrid.go:45-47` (FTS5), `internal/db/hybrid.go:156-158` (expansão de grafo), `internal/db/graph.go:68-70` (k-NN vetorial), `internal/db/graph.go:126-128` (TurboQuant 4-bit), `internal/store/postgres.go:504-506` (vetor), `internal/store/postgres.go:597-599` (FTS), `internal/store/postgres.go:699-701` (expansão de grafo). Todos no formato `AND (? = '' OR EXISTS (SELECT 1 FROM document_tags ...))` |
 
 ### P4 — Persistência (TAG-22 … TAG-28)
 
 | ID | Critério | Veredito | Evidência |
 |---|---|---|---|
-| TAG-22 | O indexer grava todas as tags (frente e inline), órfãs incluídas, nos **quatro** caminhos | **PASS** | indexer SQLite `internal/watcher/indexer.go:109`; indexer Postgres `internal/watcher/indexer.go:253`; `mem index` em lote SQLite `cmd/mem/main.go:1940`; `mem index` em lote Postgres `cmd/mem/main.go:1730`. A lista completa vem de `internal/watcher/indexer.go:328-347` |
+| TAG-22 | O indexer grava todas as tags (frente e inline), órfãs incluídas, nos **quatro** caminhos | **PASS** | indexer SQLite `internal/watcher/indexer.go:109`; indexer Postgres `internal/watcher/indexer.go:253`; `mem index` em lote SQLite `cmd/mem/main.go:1956`; `mem index` em lote Postgres `cmd/mem/main.go:1746`. A lista completa vem de `internal/watcher/indexer.go:328-347` |
 | TAG-23 | A gravação acontece **antes** da resolução fuzzy; a aresta do grafo continua só das tags resolvidas | **PASS** | `internal/watcher/indexer.go:333` (`ResolveTagTargets`) resolve **à parte** e `:336-347` grava **todas** as tags do documento, resolvidas ou não; o comentário em `:322-324` fixa a regra: a aresta `tagged_as` continua sendo só da tag resolvida (ADR-041 intacta), o que muda é a tabela (ADR-055) |
-| TAG-24 | Reindexar substitui as tags anteriores, sem duplicar | **PASS** | `internal/db/tags.go:18-93` (a gravação roda em transação; `:32-46` lê as tags existentes e `:29-31`/`:76-78` preserva o `created_at`); a identidade `(document_id, tag_key` com guarda de duplicata em `:67-71` impede a linha duplicada. O caminho de remoção antes da gravação: `internal/watcher/indexer.go:168` e `cmd/mem/main.go:1792` |
-| TAG-25 | Documento removido → as tags dele são removidas, nos **três** caminhos (reindex, purge, prune) | **PASS** | `internal/db/tags.go:95` (`DeleteDocumentTags`); called em `internal/watcher/indexer.go:168` (reindex), `internal/watcher/indexer.go:307` (purge), `cmd/mem/main.go:1792` e `cmd/mem/main.go:2005` (prune) |
+| TAG-24 | Reindexar substitui as tags anteriores, sem duplicar | **PASS** | `internal/db/tags.go:18-93` (a gravação roda em transação; `:32-46` lê as tags existentes e `:29-31`/`:76-78` preserva o `created_at`); a identidade `(document_id, tag_key` com guarda de duplicata em `:67-71` impede a linha duplicada. O caminho de remoção antes da gravação: `internal/watcher/indexer.go:168` e `cmd/mem/main.go:1808` |
+| TAG-25 | Documento removido → as tags dele são removidas, nos **três** caminhos (reindex, purge, prune) | **PASS** | `internal/db/tags.go:95` (`DeleteDocumentTags`); chamada em `internal/watcher/indexer.go:168` (reindex), `internal/watcher/indexer.go:307` (purge), `cmd/mem/main.go:1808` e `cmd/mem/main.go:2021` (prune) |
 | TAG-26 | Tag que nomeia um documento → `resolved_doc_id` igual ao `documents.id` | **PASS** | `internal/watcher/indexer.go:344-346` (`binding.ResolvedDocID = titleToID[title]` — o id do documento **nomeado**, não o que carrega a tag); a coluna em `internal/db/schema.go:157` |
 | TAG-27 | Tag que não nomeia documento → `resolved_doc_id` nulo, e a tag continua no inventário | **PASS** | `internal/watcher/indexer.go:344` (só seta quando `found && title != ""`); `internal/db/tags.go:81-83` grava `nullIfEmpty(normalized.ResolvedDocID)`; o inventário usa `LEFT JOIN` (`internal/db/tags.go:124`), então a linha continua listada |
 | TAG-28 | A tabela existe nos dois engines ao abrir o índice, sem `mem index --force` | **PASS** | SQLite: `internal/db/schema.go:151-162` (`Schema`) e `:310-321` (`FallbackSchema`), ambas aplicadas na abertura por `internal/db/store.go:28-34` (`db.Exec(schemaToRun)`), com `CREATE TABLE IF NOT EXISTS`. Postgres: `internal/store/postgres.go:84-94` (`PostgresSchema`) |

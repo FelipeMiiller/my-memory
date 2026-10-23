@@ -1098,7 +1098,7 @@ Os dois aceitam as flags de seleção de engine (`--db`, `--postgres`, `--storag
 | --- | --- |
 | `mem tags` | Uma tag por linha, em ordem alfabética |
 | `mem tags --counts` | `tag<TAB>contagem` — quantos documentos carregam cada tag |
-| `mem tags --sort=count` | A mesma lista, ordenada por contagem decrescente |
+| `mem tags --sort=count` | A mesma lista, ordenada por contagem decrescente; empate desempata pela tag como ela é exibida |
 | `mem tags --file <caminho>` | Só as tags do documento desse caminho |
 | `mem tags --folder <pasta>` | Só as tags dos documentos sob essa pasta |
 | `mem tags --total` | Só a quantidade de tags distintas |
@@ -1124,9 +1124,21 @@ e as descendentes — ver a [seção 5](#5-mem-search-pergunta---levell0l1l2---c
 - **Tag órfã aparece.** A tag que não nomeia nenhuma nota continua listada, porque é o
   que o Obsidian lista. A resolução (`resolved_doc_id`) é a extensão do My-Memory:
   ela aponta para o `documents.id` da nota que a tag nomeia.
+- **A resolução por nome é aproximada.** O My-Memory casa a tag com o título de uma
+  nota por *fuzzy*: a tag precisa aparecer no título, em qualquer ordem de palavras.
+  Uma tag curta pode então resolver para uma nota que ela não pretendia nomear — a
+  tag `p` casa com o título "Alpha". A aresta `tagged_as` do grafo tem o mesmo
+  comportamento (pré-existente à superfície de tags); o `resolved_doc_id` apenas
+  torna o resultado visível no inventário e no MCP. Para uma resolução exata, use
+  o título completo da nota como tag.
 - **Filtro que não casa não é erro.** O comando sai com zero e lista vazia.
 - **Nome da tag sem valor é erro de uso.** `mem tag` sem `<nome>` imprime o uso e sai
   com código diferente de zero.
+- **A ordem depende da flag, e é sempre determinística.** Sem `--sort`, o
+  inventário sai na ordem da chave canônica (a ordem do engine). Com
+  `--sort=count`, sai por contagem decrescente e, no empate, pela tag como ela
+  é exibida. São duas ordens diferentes para o mesmo vault — por isso a
+  comparação entre as duas listas não é feita posicionalmente.
 
 ```bash
 # O inventário completo:

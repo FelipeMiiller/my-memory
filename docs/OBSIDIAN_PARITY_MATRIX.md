@@ -1,14 +1,14 @@
 ---
 title: "Matriz de Paridade com o Obsidian"
 category: resource
-summary: "Levantamento completo da distância entre a superfície do Obsidian e o My-Memory, por área, com evidência caminho:linha. Data base 2026-10-22, fontes primárias obsidian.md/help. Substitui a matriz de 2026-10-18 citada na ADR-054, que nunca foi registrada no repositório."
+summary: "Levantamento completo da distância entre a superfície do Obsidian e o My-Memory, por área, com evidência caminho:linha. Data base 2026-10-22, revisada em 2026-10-23 depois da feature obsidian-tag-parity (§4, §6 e §11.1 atualizados). Fontes primárias obsidian.md/help. Substitui a matriz de 2026-10-18 citada na ADR-054, que nunca foi registrada no repositório."
 tags: [obsidian, parity, gap-matrix, adr-054, roadmap]
 ---
 
 # Matriz de Paridade com o Obsidian
 
-- **Data base**: 2026-10-22
-- **Branch**: `develop` (HEAD `7e9e14f`)
+- **Data base**: 2026-10-22 · **revisada em 2026-10-23** (após a feature `obsidian-tag-parity`)
+- **Branch**: `develop`
 - **Escopo**: a ADR-054 decide o que é paridade. Este documento mede a distância.
 - **Método**: leitura estática do código, com auditoria independente em três
   frentes (sintaxe/parser · links/embeds/aliases/PDF/propriedades ·
@@ -61,7 +61,7 @@ ADR-054), **Adiar**, **Recusar** (fora de escopo) ou **Decidir** (exige o dono).
 | S12 | Código indentado (tab/4 espaços) | ✅ | AUSENTE | `internal/store/orthography.go:261-262` só no doctor de ortografia | Adiar |
 | S13 | Inline code `` `x` `` | ✅ | PARCIAL | `internal/parser/wikilinks.go:21,39` — removido só da extração de link/tag; o **conteúdo** entra inteiro no chunk indexado | Adiar |
 | S14 | Footnotes `[^1]` / `^[texto]` | ✅ | AUSENTE | grep `footnote` → zero matches; o marcador vira token `1` no FTS5 | Adiar |
-| S15 | Comentários `%%inline%%` / `%%bloco%%` | ✅ (invisível) | **AUSENTE (bug)** | grep `%%` em `*.go` → zero matches → comentário é **indexado, buscável** e suas `#tag` **viram tags reais** (`wikilinks.go:228-235` roda sobre `cleanBody`, que não remove `%%`) | **Construir** (T1) |
+| S15 | Comentários `%%inline%%` / `%%bloco%%` | ✅ (invisível) | **PARCIAL** | o comentário **não vira mais tag nem link real** (`internal/parser/wikilinks.go:34` remove o bloco antes da extração), mas o **texto** do comentário continua indexado e buscável — tirá-lo do índice é a decisão 5 da ISSUE-026 | Adiar |
 | S16 | Escapes `\*` `\_` `\#` `` \` `` `\|` `\~` | ✅ | AUSENTE | `internal/parser/wikilinks.go:12,100` — sem lógica de escape; `[[Note\|Alias]]` produz target `"Note\"` | Adiar |
 | S17 | Link Markdown `[t](url)` → aresta | ✅ (não é aresta no Obsidian também, mas é link) | AUSENTE | `internal/parser/markdown.go:10-11` — as regexes existem mas são usadas **só** por `CleanMarkdownText`; `ExtractConnections` usa só a regex de wikilink | Construir |
 | S18 | Heading de nota por link `[[##header]]` / `[[^^block]]` | ✅ | AUSENTE | `internal/parser/wikilinks.go:116-118` + `:267-268` — `IsSameDoc` impede a aresta | Adiar |
@@ -101,22 +101,25 @@ ADR-054), **Adiar**, **Recusar** (fora de escopo) ou **Decidir** (exige o dono).
 
 ## 4. Matriz — tags
 
+Medida em 2026-10-23, **depois** da feature `obsidian-tag-parity` (ADR-055,
+implementada). As 14 capacidades de tag estão cobertas.
+
 | # | Capacidade | Obsidian | My-Memory | Evidência | Destino |
 |---|-----------|----------|-----------|-----------|---------|
-| T1 | Lista as tags do vault | ✅ `obsidian tags` | AUSENTE | nenhum `case "tags"` em `cmd/mem/main.go:60-856` | **Construir** (T4) |
-| T2 | Consulta uma tag | ✅ `obsidian tag name=` | AUSENTE | idem | **Construir** (T4) |
-| T3 | Filtra a busca por tag | ✅ `tag:` | AUSENTE | flag `--tag` não existe (`main.go:263-276`); promessa DR-5 da ADR-041 | **Construir** (T5) |
-| T4 | Tag sobrevive à indexação | ✅ | AUSENTE | a tag é extraída (`wikilinks.go:235-244`) e **descartada** no passo fuzzy (`internal/parser/fuzzy.go:61-75`); a tabela `document_tags` **não existe** em nenhum motor | **Construir** (T2/T3) |
-| T5 | Tag órfã aparece na lista | ✅ | AUSENTE | ADR-041 remove a aresta; sem tabela, a tag não é consultável | **Construir** (T2) |
-| T6 | Hierarquia: `tag:inbox` casa `#inbox` e `#inbox/to-read` | ✅ | AUSENTE | sem semântica de prefixo | **Construir** (T4/T5) |
-| T7 | Caracteres permitidos (letras, números, `_`, `-`, `/`, Unicode) | ✅ | PARCIAL | `wikilinks.go:15` — ASCII apenas, **primeiro caractere** obrigatoriamente letra | **Construir** (T1) |
-| T8 | `#1a`, `#_tag`, `#ação`, `#Ω`, `#🚀` são válidas | ✅ | **AUSENTE (bug)** | a regex não captura; e `#ação` **trunca** para `"a"` (o `ç` está fora da classe) — cria tag espúria | **Construir** (T1) |
-| T9 | `#1984` (só numérica) é inválida | ✅ | COBERTO (por acidente) | a regex exige letra inicial | Construir (T1, regra explícita) |
-| T10 | Case-insensitive (`#tag` ≡ `#TAG`) | ✅ | **AUSENTE (bug)** | dedup case-sensitive (`wikilinks.go:230-233`); o frontmatter só remove o `#` (`frontmatter.go:92-94`) | **Construir** (T1/T2) |
-| T11 | Exibição com o casing da primeira criação | ✅ | AUSENTE | nada guarda a forma canônica | **Construir** (T2) |
-| T12 | Tag dentro de bloco de código não conta | ✅ | COBERTO | `stripCodeBlocks` roda antes da extração de tag (`wikilinks.go:228,235`) | — |
-| T13 | Tag dentro de comentário `%%` não conta | ✅ | **AUSENTE (bug)** | comentário não é removido → vira tag real | **Construir** (T1) |
-| T14 | Tag dentro de célula de tabela conta | ✅ | **AUSENTE (bug)** | `tableRowRegex` (`wikilinks.go:23`) remove as linhas `\|…\|` **antes** da extração de tag | Construir (T1) |
+| T1 | Lista as tags do vault | ✅ `obsidian tags` | **COBERTO** | `cmd/mem/tags.go:48` (`mem tags`) · inventário nos dois engines: `internal/db/tags.go:112` e `internal/store/tags.go:225` | — |
+| T2 | Consulta uma tag | ✅ `obsidian tag name=` | **COBERTO** | `cmd/mem/tags.go:120` (`mem tag <nome>`) · consulta nos dois engines: `internal/db/tags.go:197` e `internal/store/tags.go:303` | — |
+| T3 | Filtra a busca por tag | ✅ `tag:` | **COBERTO** | `cmd/mem/main.go:2394` (flag `--tag`) · push-down SQL nos **7** pontos: `internal/db/hybrid.go:45-47,156-158` · `internal/db/graph.go:68-70,126-128` · `internal/store/postgres.go:504-506,597-599,699-701` | — |
+| T4 | Tag sobrevive à indexação | ✅ | **COBERTO** | tabela `document_tags`: SQLite `internal/db/schema.go:151-162` e `:309-321`; Postgres `internal/store/postgres.go:84-94`. Gravação nos 4 caminhos de indexação: `internal/watcher/indexer.go:109,253` · `cmd/mem/main.go:1956,1746` | — |
+| T5 | Tag órfã aparece na lista | ✅ | **COBERTO** | ADR-055: a tag é gravada **antes** da resolução fuzzy (`internal/watcher/indexer.go:333-347`), então a tag que não nomeia nota continua no inventário | — |
+| T6 | Hierarquia: `tag:inbox` casa `#inbox` e `#inbox/to-read` | ✅ | **COBERTO** | predicado de descendentes nos dois engines: `internal/db/tags.go:207` e `internal/store/tags.go:324` (`tag_key = ? OR tag_key LIKE ?`) | — |
+| T7 | Caracteres permitidos (letras, números, `_`, `-`, `/`, Unicode) | ✅ | **COBERTO** | `internal/parser/tags.go:44` (`NormalizeTag`) valida o formato do Obsidian: letras/números/`_`/`-`/`/`/Unicode | — |
+| T8 | `#1a`, `#_tag`, `#ação`, `#Ω`, `#🚀` são válidas | ✅ | **COBERTO** | a regex que truncava `#ação` para `"a"` foi corrigida; a extração passa por `NormalizeTag` | — |
+| T9 | `#1984` (só numérica) é inválida | ✅ | **COBERTO** | `NormalizeTag` exige ao menos um caractere não-numérico — **regra explícita**, não acidente | — |
+| T10 | Case-insensitive (`#tag` ≡ `#TAG`) | ✅ | **COBERTO** | `internal/store/tags.go:45` (`CanonicalTagKey`): a identidade da linha é a chave canônica minúscula | — |
+| T11 | Exibição com o casing da primeira criação | ✅ | **COBERTO** | `internal/store/tags.go:52` (`DisplayTag`) · o `created_at` é preservado na substituição (`internal/db/tags.go:29-51,76-78`), então o casing não inverte a cada reindex | — |
+| T12 | Tag dentro de bloco de código não conta | ✅ | COBERTO | `stripCodeBlocks` roda antes da extração de tag (`internal/parser/wikilinks.go:63`) | — |
+| T13 | Tag dentro de comentário `%%` não conta | ✅ | **COBERTO** | o comentário não vira mais tag real (`internal/parser/wikilinks.go:34`) | — |
+| T14 | Tag dentro de célula de tabela conta | ✅ | **COBERTO** | o strip de tabela vale só para wikilink; a tag em célula é extraída (`internal/parser/wikilinks.go:82`) | — |
 
 ## 5. Matriz — assets, PDF e arquivos
 
@@ -153,8 +156,8 @@ A lista oficial do Obsidian tem **116 comandos**. Desses, a ADR-054:classifica
 | `backlinks`, `links` | PARCIAL (superior, mas sem comando isolado) | `cmd/mem/inspect.go:147-190` — só via tríptico | Construir |
 | `unresolved` | PARCIAL | dentro de `mem doctor` (`main.go:3119+`), truncado em 15 (`main.go:3125-3127`); a ADR-054:33 pede "isolado" | Construir |
 | `orphans` | PARCIAL | `main.go:3120-3129` — exclui docs by-design (`internal/store/doctor.go:51-54`) | Construir |
-| **`tags`, `tag`** | **AUSENTE** | §T1–T2 | **Construir (T4)** |
-| **`search --tag`** | **AUSENTE** | §T3 | **Construir (T5)** |
+| **`tags`, `tag`** | **COBERTO** | `cmd/mem/tags.go:48,120` · §T1–T2 | — |
+| **`search --tag`** | **COBERTO** | `cmd/mem/main.go:2394` · §T3 | — |
 | `aliases` | AUSENTE | §A3 | Construir |
 | `properties`, `property:read` | AUSENTE | §A4 | Construir |
 | `property:set`, `property:remove` | FORA* | ADR-056:39 prevê; é escrita | **Decidir** |
@@ -186,7 +189,7 @@ superfície de vault:
 | Capacidade | Tool MCP | Evidência |
 | ---------- | -------- | --------- |
 | Ler/listar notas | `memory_list_files`, `memory_read_note`, `memory_note_outline`, `memory_file_metadata` | `internal/mcp/tools.go:614-693` |
-| Buscar | `memory_search` (sem filtro por tag) | `tools.go:16` |
+| Buscar | `memory_search` (com filtro por tag) | `tools.go:16` · a propriedade `tag` filtra por `tag_key` e descendentes |
 | Gravar | `memory_write_note`, `memory_append_section`, `memory_compile_note` | `tools.go:248-392` |
 | Grafo | `memory_get_neighbors`, `memory_get_hubs`, `memory_get_clusters`, `memory_get_impact`, `memory_inspect_node`, `memory_find_path`, `memory_get_insights`, `memory_get_drift`, `memory_doctor`, `memory_export_canvas`, `memory_visualize_graph`, `memory_pack_context`, `memory_open_node`, `memory_reconcile` | `tools.go:106-613` |
 | Código | `memory_code_search`, `memory_code_neighbors` | `tools.go:74-129` |
@@ -260,7 +263,8 @@ Ordenado por (custo de schema ÷ valor), porque **cinco dos dez achados crítico
 são a mesma migration**:
 
 1. **Tags** — `document_tags` nos dois motores + `mem tags`/`mem tag` +
-   `mem search --tag` + 2 tools MCP. *(ADR-055 já decidida; em execução.)*
+   `mem search --tag` + 2 tools MCP. *(ADR-055 decidida e **implementada** em
+   2026-10-22; ver §4 e a feature `obsidian-tag-parity`.)*
 2. **Alias e propriedades** — `document_aliases` + `document_properties` + colunas
    `anchor`/`block_id`/`is_embed` em `graph_edges`. Fecha de uma vez os
    achados L4, L5, E1, A1, A2, A4 e o dead link de embed (E5).

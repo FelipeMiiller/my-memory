@@ -155,6 +155,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A flag `--storage` não aparecia na ajuda**, apesar de existir e funcionar em
+  todos os comandos do vault. Agora ela é listada, com o conjunto de comandos a
+  que se aplica.
 - **`mem tags --folder` não encontrava nada no Windows.** O filtro comparava
   `path LIKE 'pasta/%'`, mas o caminho indexado no Windows usa `\` como
   separador — o comando devolvia lista vazia em Windows e funcionava em Linux.

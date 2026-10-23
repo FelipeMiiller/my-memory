@@ -291,10 +291,10 @@ Semântica obrigatória:
 **What**: Gravar as tags de cada documento indexado. São **quatro** pontos de
 captura, não dois:
 
-1. `internal/watcher/indexer.go:103` — `IndexSingleFileSQLite`
-2. `internal/watcher/indexer.go:238` — `IndexSingleFilePostgres`
-3. `cmd/mem/main.go:1689` — `mem index` em lote, Postgres
-4. `cmd/mem/main.go:1881` — `mem index` em lote, SQLite
+1. `internal/watcher/indexer.go:109` — `IndexSingleFileSQLite`
+2. `internal/watcher/indexer.go:253` — `IndexSingleFilePostgres`
+3. `cmd/mem/main.go:1746` — `mem index` em lote, Postgres
+4. `cmd/mem/main.go:1956` — `mem index` em lote, SQLite
 
 Em cada um: montar os `TagBinding` a partir de `conn.Tags` (canonicalizados com
 `parser.NormalizeTag`) e gravá-los **antes** de `parser.ResolveTagConnections`,
