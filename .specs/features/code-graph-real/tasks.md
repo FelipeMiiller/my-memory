@@ -101,6 +101,10 @@ T3 -> T5
 **Tests**: `internal/db/code_migration_test.go` — `TestCodeTablesTemRepository`; `internal/store/code_test.go` — `TestFiltroPorRepository`
 **Gate**: `go test -count=1 ./internal/db/... ./internal/store/...`
 - **Do**: migração idempotente adicionando `repository` em `code_files`, `code_symbols` e `code_edges` (SQLite e Postgres), preenchida com o `repo_id` resolvido; as queries de código passam a filtrar por repositório, como já acontece com o grafo de notas. Cobre CG-06, CG-07.
+- **Done when**:
+  - [x] `code_files`, `code_symbols` e `code_edges` têm a coluna `repository` (SQLite e Postgres), criada por migração idempotente
+  - [x] O valor gravado é o `repo_id` resolvido do vault (via contexto, sem quebrar a assinatura dos helpers)
+  - [x] As queries de código (busca e travessia) filtram por repositório e não devolvem linhas de outro repositório
 
 ### T5: Os handlers MCP de código são injetados no servidor
 

@@ -75,6 +75,10 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 	}
 	langs := splitCSV(*lang)
 
+	// O code graph nasce no repositório do vault (ADR-061 — CG-06): o
+	// repo_id viaja no contexto até as tabelas code_*.
+	ctx = db.WithRepository(ctx, defaultRepo)
+
 	// O code graph é gravado no engine configurado (ADR-061): Postgres quando
 	// Postgres, SQLite quando SQLite. Nada de SQLite local paralelo.
 	engine, err := resolveCodeEngine(cfg, *storage, *pgURL, *dbPath)

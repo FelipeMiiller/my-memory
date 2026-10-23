@@ -1610,6 +1610,10 @@ func runIndexCLI(ctx context.Context, defaultRepo string, args []string) error {
 	if errOverride != nil {
 		return errOverride
 	}
+	// O code graph nasce no mesmo repositório resolvido pelo pipeline
+	// Markdown (ADR-061 — CG-06): o repo_id viaja no contexto até as
+	// tabelas code_*.
+	ctx = db.WithRepository(ctx, resolvedRepo)
 	emb, tq, _ := resolveEmbedder(cfg)
 
 	// Code stage (ADR-061, CG-03): o code graph nasce no mesmo repositorio

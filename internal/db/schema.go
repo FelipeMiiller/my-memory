@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS projection_cursor (
 -- via tree-sitter. Persistidas no mesmo memory.db (coerente com ADR-001).
 CREATE TABLE IF NOT EXISTS code_files (
     id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     path TEXT NOT NULL UNIQUE,
     language TEXT NOT NULL,
     size_bytes INTEGER NOT NULL,
@@ -100,6 +101,7 @@ CREATE INDEX IF NOT EXISTS code_files_content_hash_idx ON code_files(content_has
 
 CREATE TABLE IF NOT EXISTS code_symbols (
     id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     file_id INTEGER NOT NULL REFERENCES code_files(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
     name TEXT NOT NULL,
@@ -119,6 +121,7 @@ CREATE INDEX IF NOT EXISTS code_symbols_file_id_idx ON code_symbols(file_id);
 
 CREATE TABLE IF NOT EXISTS code_edges (
     id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     src_symbol_id INTEGER NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
     dst_symbol_id INTEGER NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
@@ -136,6 +139,7 @@ CREATE INDEX IF NOT EXISTS code_graph_dst_idx ON code_edges(dst_symbol_id);
 -- revisão manual sem poluir o grafo principal (ADR-047 §Consequences — Negative).
 CREATE TABLE IF NOT EXISTS code_edges_uncertain (
     id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     src_symbol_id INTEGER NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
     dst_candidate_name TEXT NOT NULL,
     kind TEXT NOT NULL,
@@ -249,6 +253,7 @@ CREATE TABLE IF NOT EXISTS projection_cursor (
 -- Code AST (ADR-047, FallbackSchema): mesmas tabelas code_* — DDL portável.
 CREATE TABLE IF NOT EXISTS code_files (
     id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     path TEXT NOT NULL UNIQUE,
     language TEXT NOT NULL,
     size_bytes INTEGER NOT NULL,
@@ -261,6 +266,7 @@ CREATE INDEX IF NOT EXISTS code_files_content_hash_idx ON code_files(content_has
 
 CREATE TABLE IF NOT EXISTS code_symbols (
     id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     file_id INTEGER NOT NULL REFERENCES code_files(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
     name TEXT NOT NULL,
@@ -280,6 +286,7 @@ CREATE INDEX IF NOT EXISTS code_symbols_file_id_idx ON code_symbols(file_id);
 
 CREATE TABLE IF NOT EXISTS code_edges (
     id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     src_symbol_id INTEGER NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
     dst_symbol_id INTEGER NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
@@ -295,6 +302,7 @@ CREATE INDEX IF NOT EXISTS code_graph_dst_idx ON code_edges(dst_symbol_id);
 
 CREATE TABLE IF NOT EXISTS code_edges_uncertain (
     id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     src_symbol_id INTEGER NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
     dst_candidate_name TEXT NOT NULL,
     kind TEXT NOT NULL,

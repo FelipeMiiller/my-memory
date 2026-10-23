@@ -98,18 +98,23 @@ CREATE INDEX IF NOT EXISTS idx_document_tags_document ON document_tags(repositor
 -- consultava (CG-05).
 CREATE TABLE IF NOT EXISTS code_files (
     id BIGSERIAL PRIMARY KEY,
-    path TEXT NOT NULL UNIQUE,
+    repository TEXT NOT NULL DEFAULT 'default',
+    path TEXT NOT NULL,
     language TEXT NOT NULL,
     size_bytes BIGINT NOT NULL,
     content_hash TEXT NOT NULL,
     ast_hash TEXT,
     indexed_at BIGINT NOT NULL
 );
+ALTER TABLE code_files ADD COLUMN IF NOT EXISTS repository TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE code_files DROP CONSTRAINT IF EXISTS code_files_path_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_code_files_repository_path ON code_files(repository, path);
 CREATE INDEX IF NOT EXISTS idx_code_files_language ON code_files(language);
 CREATE INDEX IF NOT EXISTS idx_code_files_content_hash ON code_files(content_hash);
 
 CREATE TABLE IF NOT EXISTS code_symbols (
     id BIGSERIAL PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     file_id BIGINT NOT NULL REFERENCES code_files(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
     name TEXT NOT NULL,
@@ -123,12 +128,14 @@ CREATE TABLE IF NOT EXISTS code_symbols (
     parent_symbol_id BIGINT REFERENCES code_symbols(id) ON DELETE SET NULL,
     UNIQUE (file_id, kind, qualified_name, start_line)
 );
+ALTER TABLE code_symbols ADD COLUMN IF NOT EXISTS repository TEXT NOT NULL DEFAULT 'default';
 CREATE INDEX IF NOT EXISTS idx_code_symbols_kind_name ON code_symbols(kind, name);
 CREATE INDEX IF NOT EXISTS idx_code_symbols_qualified_name ON code_symbols(qualified_name);
 CREATE INDEX IF NOT EXISTS idx_code_symbols_file_id ON code_symbols(file_id);
 
 CREATE TABLE IF NOT EXISTS code_edges (
     id BIGSERIAL PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     src_symbol_id BIGINT NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
     dst_symbol_id BIGINT NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
@@ -138,12 +145,14 @@ CREATE TABLE IF NOT EXISTS code_edges (
     confidence REAL NOT NULL DEFAULT 1.0,
     UNIQUE (src_symbol_id, dst_symbol_id, kind)
 );
+ALTER TABLE code_edges ADD COLUMN IF NOT EXISTS repository TEXT NOT NULL DEFAULT 'default';
 CREATE INDEX IF NOT EXISTS idx_code_edges_kind ON code_edges(kind);
 CREATE INDEX IF NOT EXISTS idx_code_edges_src ON code_edges(src_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_code_edges_dst ON code_edges(dst_symbol_id);
 
 CREATE TABLE IF NOT EXISTS code_edges_uncertain (
     id BIGSERIAL PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
     src_symbol_id BIGINT NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
     dst_candidate_name TEXT NOT NULL,
     kind TEXT NOT NULL,
@@ -153,6 +162,7 @@ CREATE TABLE IF NOT EXISTS code_edges_uncertain (
     start_line INTEGER NOT NULL,
     UNIQUE (src_symbol_id, dst_candidate_name, kind)
 );
+ALTER TABLE code_edges_uncertain ADD COLUMN IF NOT EXISTS repository TEXT NOT NULL DEFAULT 'default';
 CREATE INDEX IF NOT EXISTS idx_code_edges_uncertain_src ON code_edges_uncertain(src_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_code_edges_uncertain_conf ON code_edges_uncertain(confidence);
 `

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/FelipeMiiller/my-memory/internal/db"
 )
 
 // CodeSearchFunc é a assinatura da função que executa busca em code_symbols
@@ -218,7 +220,17 @@ func (s *Server) SetCodeNeighborsHandler(fn CodeNeighborsFunc) {
 //
 // Esta função é exportada para permitir que outros pontos do código
 // (ex: mem code-search CLI, testes MCP) reutilizem a mesma lógica.
+//
+// Sem filtro de repositório: use SQLCodeSearchScoped para isolar o vault.
 func SQLCodeSearch(ctx context.Context, database *sql.DB, query, language, kind string, limit int, includeBoost bool) ([]CodeSymbolResult, error) {
+	return SQLCodeSearchScoped(ctx, database, query, language, kind, limit, includeBoost, "")
+}
+
+// SQLCodeSearchScoped é o SQLCodeSearch com filtro de repositório (CG-07).
+//
+// repository vazio = sem filtro (comportamento legado). Com repository
+// preenchido, só as linhas do mesmo repo_id entram no resultado.
+func SQLCodeSearchScoped(ctx context.Context, database *sql.DB, query, language, kind string, limit int, includeBoost bool, repository string) ([]CodeSymbolResult, error) {
 	if database == nil {
 		return nil, errors.New("SQLCodeSearch: database == nil")
 	}
@@ -242,6 +254,10 @@ func SQLCodeSearch(ctx context.Context, database *sql.DB, query, language, kind 
 		where = append(where, "s.kind = ?")
 		args = append(args, strings.TrimSpace(kind))
 	}
+	if repo := strings.TrimSpace(repository); repo != "" {
+		where = append(where, "f.repository = ? AND s.repository = ?")
+		args = append(args, repo, repo)
+	}
 
 	if len(where) == 0 {
 		where = append(where, "1=1")
@@ -257,7 +273,7 @@ WHERE ` + strings.Join(where, " AND ") + `
 ORDER BY score DESC, s.id ASC
 LIMIT ?`
 
-	rows, err := database.QueryContext(ctx, sqlQuery, args...)
+	rows, err := database.QueryContext(ctx, bindCodeQuery(ctx, database, sqlQuery), args...)
 	if err != nil {
 		return nil, fmt.Errorf("SQLCodeSearch: %w", err)
 	}
@@ -313,6 +329,12 @@ LIMIT ?`
 //
 // Devolve (neighbors, root, err). root pode ser nil quando o símbolo não existe.
 func SQLCodeNeighbors(ctx context.Context, database *sql.DB, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
+	return SQLCodeNeighborsScoped(ctx, database, symbol, depth, direction, "")
+}
+
+// SQLCodeNeighborsScoped é o SQLCodeNeighbors com filtro de repositório
+// (CG-07): a raiz e as arestaspertencecem só ao repositório pedido.
+func SQLCodeNeighborsScoped(ctx context.Context, database *sql.DB, symbol string, depth int, direction string, repository string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
 	if database == nil {
 		return nil, nil, errors.New("SQLCodeNeighbors: database == nil")
 	}
@@ -328,7 +350,7 @@ func SQLCodeNeighbors(ctx context.Context, database *sql.DB, symbol string, dept
 	}
 
 	// Resolve root symbol (mesma política do CLI: exact qualified_name → suffix fallback).
-	root, err := resolveCodeSymbolRow(ctx, database, symbol)
+	root, err := resolveCodeSymbolRow(ctx, database, symbol, repository)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -339,14 +361,14 @@ func SQLCodeNeighbors(ctx context.Context, database *sql.DB, symbol string, dept
 	var neighbors []CodeNeighborResult
 
 	if direction == "out" || direction == "both" {
-		out, err := walkCodeEdges(ctx, database, root.SymbolID, depth, "out")
+		out, err := walkCodeEdges(ctx, database, root.SymbolID, depth, "out", repository)
 		if err != nil {
 			return nil, nil, err
 		}
 		neighbors = append(neighbors, out...)
 	}
 	if direction == "in" || direction == "both" {
-		in, err := walkCodeEdges(ctx, database, root.SymbolID, depth, "in")
+		in, err := walkCodeEdges(ctx, database, root.SymbolID, depth, "in", repository)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -357,21 +379,27 @@ func SQLCodeNeighbors(ctx context.Context, database *sql.DB, symbol string, dept
 }
 
 // resolveCodeSymbolRow devolve o code_symbol resolvido (ou nil).
-func resolveCodeSymbolRow(ctx context.Context, database *sql.DB, symbol string) (*CodeSymbolResult, error) {
+func resolveCodeSymbolRow(ctx context.Context, database *sql.DB, symbol, repository string) (*CodeSymbolResult, error) {
 	symbol = strings.TrimSpace(symbol)
 	if symbol == "" {
 		return nil, nil
 	}
-	rows, err := database.QueryContext(ctx,
-		`SELECT s.id, s.kind, s.name, s.qualified_name, s.signature, s.doc_comment,
+	query := `
+		SELECT s.id, s.kind, s.name, s.qualified_name, s.signature, s.doc_comment,
                 s.start_line, s.end_line, f.path, f.language
            FROM code_symbols s
            JOIN code_files f ON f.id = s.file_id
-          WHERE s.qualified_name = ? OR s.name = ?
-          ORDER BY (CASE WHEN s.qualified_name = ? THEN 0 ELSE 1 END), s.id ASC
-          LIMIT 1`,
-		symbol, lastSegment(symbol), symbol,
-	)
+          WHERE (s.qualified_name = ? OR s.name = ?)`
+	args := []any{symbol, lastSegment(symbol)}
+	if repo := strings.TrimSpace(repository); repo != "" {
+		query += ` AND f.repository = ? AND s.repository = ?`
+		args = append(args, repo, repo)
+	}
+	query += ` ORDER BY (CASE WHEN s.qualified_name = ? THEN 0 ELSE 1 END), s.id ASC
+          LIMIT 1`
+	args = append(args, symbol)
+
+	rows, err := database.QueryContext(ctx, bindCodeQuery(ctx, database, query), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -403,48 +431,57 @@ func resolveCodeSymbolRow(ctx context.Context, database *sql.DB, symbol string) 
 }
 
 // walkCodeEdges executa a CTE recursiva de saída OU entrada.
-func walkCodeEdges(ctx context.Context, database *sql.DB, rootID int64, depth int, dir string) ([]CodeNeighborResult, error) {
+func walkCodeEdges(ctx context.Context, database *sql.DB, rootID int64, depth int, dir, repository string) ([]CodeNeighborResult, error) {
 	var q string
+	var args []any
 	if dir == "out" {
 		q = `
 WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop) AS (
     SELECT src_symbol_id, dst_symbol_id, kind, file_id, start_line, 1
       FROM code_edges
-     WHERE src_symbol_id = ?
+     WHERE src_symbol_id = ?`
+		args = append(args, rootID)
+		if repo := strings.TrimSpace(repository); repo != "" {
+			q += ` AND repository = ?`
+			args = append(args, repo)
+		}
+		q += `
     UNION ALL
     SELECT e.src_symbol_id, e.dst_symbol_id, e.kind, e.file_id, e.start_line, w.hop + 1
       FROM code_edges e
       JOIN code_walk w ON e.src_symbol_id = w.dst
-     WHERE w.hop < ?
-)
-SELECT 'out' AS direction, w.kind,
-       COALESCE(s.qualified_name, s.name) AS symbol,
-       f.path AS file_path, w.line, w.hop
-  FROM code_walk w
-  JOIN code_symbols s ON s.id = w.dst
-  JOIN code_files f   ON f.id = w.file_id
- ORDER BY w.hop ASC, w.kind ASC, symbol ASC`
+     WHERE w.hop < ?`
+		args = append(args, depth)
 	} else {
 		q = `
 WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop) AS (
     SELECT src_symbol_id, dst_symbol_id, kind, file_id, start_line, 1
       FROM code_edges
-     WHERE dst_symbol_id = ?
+     WHERE dst_symbol_id = ?`
+		args = append(args, rootID)
+		if repo := strings.TrimSpace(repository); repo != "" {
+			q += ` AND repository = ?`
+			args = append(args, repo)
+		}
+		q += `
     UNION ALL
     SELECT e.src_symbol_id, e.dst_symbol_id, e.kind, e.file_id, e.start_line, w.hop + 1
       FROM code_edges e
       JOIN code_walk w ON e.dst_symbol_id = w.src
-     WHERE w.hop < ?
+     WHERE w.hop < ?`
+		args = append(args, depth)
+	}
+	q += `
 )
-SELECT 'in' AS direction, w.kind,
+SELECT '` + dir + `' AS direction, w.kind,
        COALESCE(s.qualified_name, s.name) AS symbol,
        f.path AS file_path, w.line, w.hop
   FROM code_walk w
-  JOIN code_symbols s ON s.id = w.src
+  JOIN code_symbols s ON s.id = w.` + walkTarget(dir) + `
   JOIN code_files f   ON f.id = w.file_id
  ORDER BY w.hop ASC, w.kind ASC, symbol ASC`
-	}
-	rows, err := database.QueryContext(ctx, q, rootID, depth)
+
+	rows, err := database.QueryContext(ctx, bindCodeQuery(ctx, database, q), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -458,6 +495,22 @@ SELECT 'in' AS direction, w.kind,
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// walkTarget devolve a coluna da CTE que é o símbolo destination da
+// travessia: "out" olha o destino da aresta, "in" olha a origem.
+func walkTarget(dir string) string {
+	if dir == "in" {
+		return "src"
+	}
+	return "dst"
+}
+
+// bindCodeQuery reescreve os placeholders "?" para o dialeto do engine ativo:
+// o SQLite aceita "?", o lib/pq exige "$1" (o mesmo code graph nos dois
+// engines).
+func bindCodeQuery(ctx context.Context, database *sql.DB, query string) string {
+	return db.DetectDialect(ctx, database).Bind(query)
 }
 
 func lastSegment(s string) string {

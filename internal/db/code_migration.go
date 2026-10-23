@@ -65,6 +65,10 @@ func EnsureCodeTables(ctx context.Context, db *sql.DB) error {
 	}{
 		{"code_files", "ast_hash", "ALTER TABLE code_files ADD COLUMN ast_hash TEXT"},
 		{"code_edges", "confidence", "ALTER TABLE code_edges ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0"},
+		// CG-06: o code graph entra na federação de repo_id.
+		{"code_files", "repository", "ALTER TABLE code_files ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'"},
+		{"code_symbols", "repository", "ALTER TABLE code_symbols ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'"},
+		{"code_edges", "repository", "ALTER TABLE code_edges ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'"},
 	}
 
 	for _, m := range additiveMigrations {
@@ -76,6 +80,19 @@ func EnsureCodeTables(ctx context.Context, db *sql.DB) error {
 			if _, err := store.exec(ctx, m.ddl); err != nil {
 				return fmt.Errorf("EnsureCodeTables: ALTER %s.%s falhou: %w", m.table, m.column, err)
 			}
+		}
+	}
+
+	// O code graph é multi-tenant: a identidade do arquivo é (repository, path).
+	// No PostgreSQL a chave única antiga (path) é substituída por um índice
+	// único composto; no SQLite o UNIQUE(path) original permanece (o banco
+	// local é de um vault só).
+	if store.dialect.IsPostgres() {
+		if _, err := store.exec(ctx, `ALTER TABLE code_files DROP CONSTRAINT IF EXISTS code_files_path_key`); err != nil {
+			return fmt.Errorf("EnsureCodeTables: drop code_files_path_key falhou: %w", err)
+		}
+		if _, err := store.exec(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS idx_code_files_repository_path ON code_files(repository, path)`); err != nil {
+			return fmt.Errorf("EnsureCodeTables: idx_code_files_repository_path falhou: %w", err)
 		}
 	}
 	return nil
@@ -99,22 +116,33 @@ func (c codeStore) columnExists(ctx context.Context, table, column string) (int,
 }
 
 // UpsertCodeFile insere (ou atualiza) uma linha em code_files usando
-// (path) como chave natural (UNIQUE). Devolve o id da linha.
+// (repository, path) como chave natural (UNIQUE). Devolve o id da linha.
+//
+// O repository gravado é o repo_id resolvido do vault, carregado pelo
+// contexto (ADR-061 — o code graph entra na federação).
 func UpsertCodeFile(ctx context.Context, db *sql.DB, path, language, contentHash, astHash string, sizeBytes, indexedAt int64) (int64, error) {
 	store, err := newCodeStore(ctx, db)
 	if err != nil {
 		return 0, err
 	}
-	res, err := store.exec(ctx, `
-		INSERT INTO code_files (path, language, size_bytes, content_hash, ast_hash, indexed_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(path) DO UPDATE SET
+	repository := RepositoryFromContext(ctx)
+	// No SQLite o UNIQUE original é do path; no PostgreSQL a identidade é
+	// (repository, path) — o conflict target precisa casar com o índice.
+	conflict := "(path)"
+	if store.dialect.IsPostgres() {
+		conflict = "(repository, path)"
+	}
+	res, err := store.exec(ctx, fmt.Sprintf(`
+		INSERT INTO code_files (repository, path, language, size_bytes, content_hash, ast_hash, indexed_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT %s DO UPDATE SET
+			repository = excluded.repository,
 			language = excluded.language,
 			size_bytes = excluded.size_bytes,
 			content_hash = excluded.content_hash,
 			ast_hash = excluded.ast_hash,
 			indexed_at = excluded.indexed_at
-	`, path, language, sizeBytes, contentHash, nullString(astHash), indexedAt)
+	`, conflict), repository, path, language, sizeBytes, contentHash, nullString(astHash), indexedAt)
 	if err != nil {
 		return 0, fmt.Errorf("UpsertCodeFile falhou: %w", err)
 	}
@@ -122,7 +150,9 @@ func UpsertCodeFile(ctx context.Context, db *sql.DB, path, language, contentHash
 	if id == 0 {
 		// ON CONFLICT (UPDATE) em SQLite devolve LastInsertId = 0; resolve.
 		// O lib/pq não implementa LastInsertId — o mesmo fallback vale lá.
-		if err := store.queryRow(ctx, `SELECT id FROM code_files WHERE path = ?`, path).Scan(&id); err != nil {
+		if err := store.queryRow(ctx,
+			`SELECT id FROM code_files WHERE repository = ? AND path = ?`, repository, path,
+		).Scan(&id); err != nil {
 			return 0, fmt.Errorf("UpsertCodeFile: locate id pós-conflict falhou: %w", err)
 		}
 	}
@@ -137,16 +167,17 @@ func UpsertCodeSymbol(ctx context.Context, db *sql.DB, fileID int64, kind, name,
 		return 0, err
 	}
 	res, err := store.exec(ctx, `
-		INSERT INTO code_symbols (file_id, kind, name, qualified_name, signature, doc_comment, start_line, end_line, start_col, end_col)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO code_symbols (repository, file_id, kind, name, qualified_name, signature, doc_comment, start_line, end_line, start_col, end_col)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(file_id, kind, qualified_name, start_line) DO UPDATE SET
+			repository = excluded.repository,
 			name = excluded.name,
 			signature = excluded.signature,
 			doc_comment = excluded.doc_comment,
 			end_line = excluded.end_line,
 			start_col = excluded.start_col,
 			end_col = excluded.end_col
-	`, fileID, kind, name, nullString(qualifiedName), nullString(signature), nullString(docComment), startLine, endLine, startCol, endCol)
+	`, RepositoryFromContext(ctx), fileID, kind, name, nullString(qualifiedName), nullString(signature), nullString(docComment), startLine, endLine, startCol, endCol)
 	if err != nil {
 		return 0, fmt.Errorf("UpsertCodeSymbol falhou: %w", err)
 	}
@@ -177,14 +208,15 @@ func UpsertCodeEdge(ctx context.Context, db *sql.DB, srcSymbolID, dstSymbolID, f
 		return err
 	}
 	_, err = store.exec(ctx, `
-		INSERT INTO code_edges (src_symbol_id, dst_symbol_id, kind, file_id, start_line, end_line, confidence)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO code_edges (repository, src_symbol_id, dst_symbol_id, kind, file_id, start_line, end_line, confidence)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(src_symbol_id, dst_symbol_id, kind) DO UPDATE SET
+			repository = excluded.repository,
 			file_id = excluded.file_id,
 			start_line = excluded.start_line,
 			end_line = excluded.end_line,
 			confidence = excluded.confidence
-	`, srcSymbolID, dstSymbolID, kind, fileID, startLine, endLine, confidence)
+	`, RepositoryFromContext(ctx), srcSymbolID, dstSymbolID, kind, fileID, startLine, endLine, confidence)
 	return err
 }
 
@@ -195,19 +227,21 @@ func InsertCodeEdgeUncertain(ctx context.Context, db *sql.DB, srcSymbolID, fileI
 		return err
 	}
 	_, err = store.exec(ctx, `
-		INSERT INTO code_edges_uncertain (src_symbol_id, dst_candidate_name, kind, file_id, confidence, reason, start_line)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO code_edges_uncertain (repository, src_symbol_id, dst_candidate_name, kind, file_id, confidence, reason, start_line)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(src_symbol_id, dst_candidate_name, kind) DO UPDATE SET
+			repository = excluded.repository,
 			file_id = excluded.file_id,
 			confidence = excluded.confidence,
 			reason = excluded.reason,
 			start_line = excluded.start_line
-	`, srcSymbolID, dstCandidateName, kind, fileID, confidence, reason, startLine)
+	`, RepositoryFromContext(ctx), srcSymbolID, dstCandidateName, kind, fileID, confidence, reason, startLine)
 	return err
 }
 
 // GetCodeFileHash devolve (content_hash, ast_hash) do code_files.path.
-// Retorna ("", "", false) quando o path não foi indexado.
+// Retorna ("", "", false) quando o path não foi indexado no repositório
+// carregado pelo contexto.
 func GetCodeFileHash(ctx context.Context, db *sql.DB, path string) (contentHash, astHash string, ok bool, err error) {
 	store, err := newCodeStore(ctx, db)
 	if err != nil {
@@ -215,7 +249,8 @@ func GetCodeFileHash(ctx context.Context, db *sql.DB, path string) (contentHash,
 	}
 	var ah sql.NullString
 	err = store.queryRow(ctx,
-		`SELECT content_hash, ast_hash FROM code_files WHERE path = ?`, path,
+		`SELECT content_hash, ast_hash FROM code_files WHERE repository = ? AND path = ?`,
+		RepositoryFromContext(ctx), path,
 	).Scan(&contentHash, &ah)
 	if err == sql.ErrNoRows {
 		return "", "", false, nil
@@ -235,7 +270,10 @@ func DeleteCodeFile(ctx context.Context, db *sql.DB, path string) error {
 	if err != nil {
 		return err
 	}
-	_, err = store.exec(ctx, `DELETE FROM code_files WHERE path = ?`, path)
+	_, err = store.exec(ctx,
+		`DELETE FROM code_files WHERE repository = ? AND path = ?`,
+		RepositoryFromContext(ctx), path,
+	)
 	return err
 }
 
