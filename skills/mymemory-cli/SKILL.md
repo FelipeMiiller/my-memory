@@ -71,6 +71,7 @@ mem search --mode vector "how ranking works"           # meaning
 mem search --level l0 "config"                        # summaries only, cheapest layer
 mem search --decay --half-life 14 "recent ADR"        # bias toward recently EDITED notes (file mtime)
 mem search --category skill "note creation"           # resource | memory | skill
+mem search --tag projeto "architecture"              # Obsidian tag; matches the tag AND its descendants
 ```
 
 **Read the vault** — every one of these queries the index, never the filesystem, so they
@@ -87,6 +88,11 @@ mem random [--json]                    # one randomly selected note
 mem deadends                           # notes with out-edges but no in-edges
 mem file <path>                        # path, title, size, mtime (ADR-057)
 mem recents [--limit 10]               # most recently edited first
+mem tags                               # every tag in the vault, one per line
+mem tags --counts --sort=count         # tag<TAB>count, most used first
+mem tags --file <path>                 # only that note's tags
+mem tag <name>                         # how many notes carry the tag (and its descendants)
+mem tag <name> --verbose               # the count plus the notes themselves
 ```
 
 `read`, `outline`, `wordcount` and `file` take a full path or just the basename. An exact

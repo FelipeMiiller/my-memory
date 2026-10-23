@@ -474,3 +474,12 @@ como o Obsidian faz, para que a reconciliação entre os dois seja real.
 | TAG-46 | P7: Formato da tag | Execute | Pending |
 
 **Coverage:** 46 total, 46 mapped to stories, 0 unmapped.
+
+> **Status `Pending` por convenção do repositório.** A feature foi implementada e
+> validada: os 46 ACs estão **PASS**, com evidência `caminho:linha` por critério em
+> [`validation.md`](validation.md) e o gate Go verde (`go build` 0 · `go vet` 0 ·
+> `go test -count=1 ./...` 25/25 pacotes, 0 falhas). A coluna `Status` continua
+> `Pending` porque é assim que o repo registra: as features concluídas
+> `obsidian-parity-foundation` e `mcp-static-serving` mantêm o mesmo desenho — o
+> veredito vive no `validation.md`, e a spec é documento de planejamento
+> (achado B2 da auditoria da `mcp-static-serving`).

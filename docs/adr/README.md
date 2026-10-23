@@ -55,25 +55,26 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-047](047-code-ast-tree-sitter-multi-linguagem.md)** | Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem) | Aceito | 2026-09-21 | `code-intelligence`, `tree-sitter`, `ast`, `multi-language`, `cgo`, `search`, `hybrid-ranking`, `code-graph` |
 | **[ADR-050](050-threat-model-owasp-llm-aplicado-ao-mymemory.md)** | Threat Model — OWASP LLM Top 10 Aplicado ao MyMemory | Proposed | 2026-09-19 | `security`, `threat-model`, `owasp`, `llm`, `sandbox`, `egress`, `policy`, `red-team` |
 | **[ADR-054](054-escopo-de-paridade-com-o-obsidian.md)** | Escopo de paridade com o Obsidian é o vault, não o aplicativo | Aceito | 2026-10-18 | `scope`, `product`, `vault`, `obsidian`, `parity` |
-| **[ADR-055](055-semantica-de-tag-consultavel-sem-nos-mortos.md)** | Semântica de tag consultável sem nós mortos (adenda da ADR-041) | Aceito | 2026-10-18 | `graph`, `tags`, `adr-041`, `semantics` |
+| **[ADR-055](055-semantica-de-tag-consultavel-sem-nos-mortos.md)** | Semântica de tag consultável sem nós mortos (adenda da ADR-041) | Aceito — **Implementado** | 2026-10-18 | `graph`, `tags`, `adr-041`, `semantics`, `document_tags` |
 | **[ADR-056](056-persistencia-de-propriedades-de-frontmatter.md)** | Persistência de propriedades de frontmatter em tabela consultável | Aceito | 2026-10-18 | `schema`, `frontmatter`, `properties`, `obsidian` |
 | **[ADR-057](057-mtime-e-metadados-de-arquivo-no-indice.md)** | mtime e metadados de arquivo no índice | Aceito — **Implementado** | 2026-10-18 | `schema`, `metadata`, `staleness`, `obsidian` |
 | **[ADR-058](058-renderizador-vis-network-vendorizado-sem-build-step.md)** | Renderizador vis-network vendorizado, sem build step e sem CDN | Accepted | 2026-10-19 | `graphview`, `vis-network`, `vendorizado`, `go-embed`, `offline` |
 | **[ADR-059](059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** | SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP | Aceito — **Emendado pela ADR-060** | 2026-10-19 | `viewer`, `react`, `vite`, `mcp`, `http`, `build-estatico`, `seguranca` |
 | **[ADR-060](060-stack-do-frontend-da-viewer-e-fallback-spa.md)** | Stack do frontend da viewer (TanStack) e a rota de fallback SPA | Aceito | 2026-10-19 | `viewer`, `react`, `tanstack`, `router`, `query`, `zustand`, `zod`, `markdown`, `wikilinks`, `spa` |
 > [!success]
-> **ADR-055: decidida, ainda não implementada.** A pergunta que a ADR deixou em
+> **ADR-055: implementada.** A pergunta que a ADR deixou em
 > aberto — para onde `resolved_doc_id` aponta — foi respondida em 2026-10-21:
 > para **`documents.id`**, que é a única referência estável do schema, com o
 > título guardado como rótulo. O título resolveria o vínculo silenciosamente
 > quando o frontmatter muda e colide entre pastas; `documents.id` sobrevive à
 > renomeação, e a reindexação passa a ser o reconciliador explícito.
 >
-> A **Opção A** da ADR está escolhida: uma tabela `document_tags` populada
-> *antes* do passo fuzzy de resolução, o que destrava `mem tags` e
-> `mem search --tag` sem reintroduzir nós mortos no grafo (a ADR-041 continua
-> intacta). A implementação — a migration nos dois engines, a população no
-> indexer e a nova superfície de leitura — ainda não existe.
+> A **Opção A** da ADR está implementada: a tabela `document_tags` existe nos dois
+> engines e é populada *antes* do passo fuzzy de resolução, o que destrava
+> `mem tags` e `mem search --tag` sem reintroduzir nós mortos no grafo (a ADR-041
+> continua intacta). A superfície de leitura existe nos dois motores e nos dois
+> transportes: `mem tags`, `mem tag <nome>`, `mem search --tag <tag>` e as tools
+> MCP `memory_get_tags` e `memory_get_tag`.
 >
 > [!success]
 > **ADR-057: implementada.** `documents.mtime` e `documents.size` existem nos dois

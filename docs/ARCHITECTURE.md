@@ -85,7 +85,41 @@ O **My-Memory** é uma engine de memória semântica e relacional local desenvol
 - `graph_nodes`: Vértices do grafo (`note`, `tag`, `concept`, `decision`).
 - `graph_edges`: Arestas direcionadas tipadas com status epistêmico (`EXTRACTED`, `INFERRED`, `TAG`) e pesos associados.
 
-### 6. Code AST (ADR-047 / feat-code-ast)
+### 6. Tags do documento (`document_tags`, ADR-055)
+
+As tags literais de cada documento ficam numa tabela própria, **em vez de** virarem
+um nó do grafo:
+
+```sql
+CREATE TABLE IF NOT EXISTS document_tags (
+    document_id    TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    tag           TEXT NOT NULL,
+    tag_key       TEXT NOT NULL,
+    resolved_doc_id TEXT,
+    created_at    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (document_id, tag_key)
+);
+CREATE INDEX IF NOT EXISTS idx_document_tags_key ON document_tags(tag_key);
+CREATE INDEX IF NOT EXISTS idx_document_tags_document ON document_tags(document_id);
+```
+
+> Fonte: `internal/db/schema.go:151-162` (SQLite) e `internal/store/postgres.go:84-94`
+> (PostgreSQL — lá a identidade do documento é `(repository, id)`, e `repository` entra
+> na chave primária).
+
+A identidade da linha é `(document_id, tag_key)`: `tag_key` é a forma **canônica**
+(minúscula) da tag, o que faz `#Tag` e `#TAG` serem a mesma linha, com `tag`
+guardando a forma de exibição (o casing da primeira criação).
+
+**A tag sobrevive à indexação antes da resolução fuzzy.** As linhas são gravadas
+*antes* do passo que resolve a tag contra os títulos do vault — por isso a tag
+**órfã**, a que não nomeia nenhuma nota, também fica registrada e é consultável
+(`mem tags`, `mem tag`, `mem search --tag`, `memory_get_tags` / `memory_get_tag`).
+A aresta do grafo continua sendo criada **só** para as tags **resolvidas**: a tabela
+não reinstala o nó morto que a ADR-041 eliminou, e o Health Score não muda
+(ADR-041 / ADR-055).
+
+### 7. Code AST (ADR-047 / feat-code-ast)
 
 Quando o binário é compilado com `-tags treesitter`, o `mem index` orquestra um segundo estágio (`code_pipeline`) que faz parsing sintático dos arquivos-fonte e persiste metadados estruturados nas tabelas `code_*`:
 

@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-The MyMemory MCP server exposes **24 tools**. Start the server with:
+The MyMemory MCP server exposes **26 tools**. Start the server with:
 
 ```bash
 mem mcp                                # stdio, resolves vault from working directory
@@ -120,6 +120,31 @@ its last edit (ADR-057). Use it to answer "when was this last edited?".
 > index — and report the ambiguity, listing the candidates, when a basename matches more
 > than one note. A `mtime` of `0` means the note was indexed before file metadata existed;
 > the tool says so instead of printing a 1970 date.
+
+### `memory_get_tags`
+
+Every tag in the vault with the number of documents carrying it, alphabetical. The
+**orphan tag** — one that names no note — is in the list: that is what Obsidian shows.
+Reads the index, never the filesystem.
+
+| Argument | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `path` | string | — | Vault path. When given, only that document's tags; when omitted, the whole vault inventory. |
+| `repository` | string | — | Slug or name; omit for the default/global repository. |
+
+### `memory_get_tag`
+
+One tag, its document count and the notes that carry it. Matches the tag **and its
+descendants** — `inbox` matches `inbox` and `inbox/to-read`, like Obsidian's `tag:`.
+
+| Argument | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `name` | string | — | Required. The tag name (`inbox` or `#inbox`). The leading `#` is optional, casing is ignored, hierarchy is preserved (`projeto/alpha`). |
+| `repository` | string | — | Slug or name; omit for the default/global repository. |
+
+> [!note]
+> Unlike the four path tools above, an **empty answer is not an error**: a vault with no
+> tags, or a tag that names no note, returns an empty list and a sentence saying so.
 
 ---
 

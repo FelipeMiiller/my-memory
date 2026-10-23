@@ -96,7 +96,7 @@ roteador é a entrada: carregue **uma** skill por tarefa.
 | :--- | :--- | :--- |
 | **`mymemory`** ⭐ roteador | [`skills/mymemory/SKILL.md`](skills/mymemory/SKILL.md) | **Primeiro ponto de entrada** do pacote: instala, configura, usa a CLI, integra via MCP e cria documentos no vault. Decide qual das seis irmãs responde à tarefa. |
 | **`mymemory-cli`** | [`skills/mymemory-cli/SKILL.md`](skills/mymemory-cli/SKILL.md) | Rodar `mem` a partir de um shell ou script: instalação, flags, `init`, `index`, `search`, `watch`, `hook` e códigos de saída. |
-| **`mymemory-mcp`** | [`skills/mymemory-mcp/SKILL.md`](skills/mymemory-mcp/SKILL.md) | Quando um agente **chama o servidor MCP**: ligar um cliente, escolher entre tool e CLI, as 24 tools com entradas e saídas, o `structuredContent` e a URL servida. |
+| **`mymemory-mcp`** | [`skills/mymemory-mcp/SKILL.md`](skills/mymemory-mcp/SKILL.md) | Quando um agente **chama o servidor MCP**: ligar um cliente, escolher entre tool e CLI, as 26 tools com entradas e saídas, o `structuredContent` e a URL servida. |
 | **`mymemory-notes`** | [`skills/mymemory-notes/SKILL.md`](skills/mymemory-notes/SKILL.md) | Escrever ou editar uma nota: taxonomia de frontmatter, wikilinks, arestas tipadas, tags e os caminhos de escrita `mem note` / `mem compile`. |
 | **`mymemory-graph`** | [`skills/mymemory-graph/SKILL.md`](skills/mymemory-graph/SKILL.md) | Entender o grafo ou auditar o vault: `inspect`, `path`, `hubs`, `clusters`, `impact`, `drift`, `doctor` e exportação para canvas. |
 | **`mymemory-config`** | [`skills/mymemory-config/SKILL.md`](skills/mymemory-config/SKILL.md) | Onde cada configuração mora e qual vence: precedência de config, split global/local, SQLite vs Postgres, cofre central. |

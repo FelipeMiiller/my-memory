@@ -79,7 +79,7 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-052`](adr/README.md#arquitecture-decision-records-adrs)** — *Slot reservado, sem arquivo*: citado por documentos do repositório, mas nenhum `052-*.md` existe. Ver a nota no [índice de ADRs](adr/README.md).
 * **[`ADR-053`](adr/053-viewer-v3-3-pane-layout-shell.md)** — ~~Layout Shell 3-pane + Dock~~ — *Obsoleta* (viewer removido do repositório)
 * **[`ADR-054`](adr/054-escopo-de-paridade-com-o-obsidian.md)** — Escopo de paridade com o Obsidian é o vault, não o aplicativo — *Aceito*
-* **[`ADR-055`](adr/055-semantica-de-tag-consultavel-sem-nos-mortos.md)** — Semântica de tag consultável sem nós mortos — *Aceito — não implementado* (a tabela `document_tags` e a superfície `mem tags` / `mem tag` / `mem search --tag` estão em execução; ver a [matriz de paridade](OBSIDIAN_PARITY_MATRIX.md))
+* **[`ADR-055`](adr/055-semantica-de-tag-consultavel-sem-nos-mortos.md)** — Semântica de tag consultável sem nós mortos — *Aceito — Implementado* (a tabela `document_tags` e a superfície `mem tags` / `mem tag` / `mem search --tag` + as tools MCP `memory_get_tags` / `memory_get_tag` existem; ver a [matriz de paridade](OBSIDIAN_PARITY_MATRIX.md))
 * **[`ADR-056`](adr/056-persistencia-de-propriedades-de-frontmatter.md)** — Persistência de propriedades de frontmatter em tabela consultável — *Aceito*
 * **[`ADR-057`](adr/057-mtime-e-metadados-de-arquivo-no-indice.md)** — mtime e metadados de arquivo no índice — *Aceito — Implementado*
 * **[`ADR-058`](adr/058-renderizador-vis-network-vendorizado-sem-build-step.md)** — Renderizador vis-network vendorizado, sem build step e sem CDN — *Accepted*

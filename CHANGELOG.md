@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Superfície de tags do Obsidian (ADR-055, adenda da ADR-041)**: a tag deixa de ser
+  descartada na indexação e vira **dado consultável**. A promessa DR-5 da ADR-041
+  (`mem search --tag X`) e a paridade com `obsidian tags` / `obsidian tag name=`
+  ficam entregues.
+  - **Tabela `document_tags`** nos dois engines (SQLite e PostgreSQL), com a identidade
+    da linha em `(document_id, tag_key)`. Ela é populada **antes** da resolução fuzzy,
+    então a tag **órfã** — a que não nomeia nenhuma nota — também sobrevive e aparece
+    no inventário. A aresta `tagged_as` do grafo continua sendo criada **só** para as
+    tags resolvidas: a tabela não reinstala o nó morto que a ADR-041 eliminou, nem
+    altera o Health Score.
+  - **`mem tags`** — o inventário de tags do vault: uma tag por linha em ordem
+    alfabética, com `--counts`, `--sort=count`, `--file <caminho>`, `--folder <pasta>`,
+    `--total` e `--json`.
+  - **`mem tag <nome>`** — a contagem de documentos que carregam a tag, com
+    `--verbose`, `--total` e `--json`. Casa a tag **e as descendentes** (`projeto` conta
+    `projeto/alpha`), como o `tag:inbox` do Obsidian.
+  - **`mem search --tag <tag>`** — filtro por tag na busca, combinável com
+    `--category`, `--decay` e `--mode`. É **push-down** SQL nos mesmos pontos em que o
+    filtro de categoria é aplicado, e não um filtro pós-fusão. `--tag` sem valor é erro
+    de uso: o comando imprime o uso e sai com código diferente de zero.
+  - **Tools MCP `memory_get_tags` e `memory_get_tag`** — o inventário de tags e a
+    consulta de uma tag, no `content` legível e no `structuredContent`. O número de
+    tools do servidor MCP subiu de **24 para 26**.
+  - **O formato da tag segue a norma do Obsidian** (`obsidian.md/help/tags`):
+    **case-insensitive** (`#Tag` e `#TAG` são a mesma tag, exibida com o casing da
+    primeira criação), **hierárquica** (`#a/b` preserva o caminho e a consulta casa as
+    descendentes) e com o **conjunto de caracteres permitido** — letras de qualquer
+    script, números, `_`, `-`, `/` e Unicode/emoji. Uma tag só numérica (`#1984`) é
+    inválida; `#y1984` é válida.
+- **Correções de parser no mesmo passo** (a superfície de tags só é confiável se a
+  extração parar de produzir tag falsa):
+  - A regex de tag **truncava** `#ação` para a tag espúria `a` — `ç` estava fora da
+    classe de caracteres. Agora a tag é capturada inteira, e `#1a`, `#_tag` e `#🚀`
+    também são capturadas.
+  - Blocos de código delimitados por `~~~` **não eram removidos** antes da extração:
+    uma tag ou um wikilink dentro de um fence `~~~` viravam tag e aresta reais. O
+    `mem outline` já tratava os dois formatos; o parser estava atrás.
+  - Comentários `%%` do Obsidian **não tinham tratamento nenhum**: o comentário era
+    indexado, buscável, e as tags dentro dele viravam tags reais. Agora `%%` é removido
+    antes da extração de tag e de link (inline e em bloco).
 - **Painel de métricas da memória (`viewer/`, ADR-059 e ADR-060)**: SPA React 19 +
   Vite 8 que **o próprio MCP serve**, sem processo extra, sem CDN e sem runtime de
   aplicação. Quatro visões: **Overview** (prontidão e Health Score com dead links,
@@ -115,6 +155,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`mem search` derrubava com nil-pointer-dereference quando o binário é compilado
+  sem a tag de build `onnx`** (isto é, sem provider de embedding). A busca chamava
+  `emb.GenerateEmbedding` sem guarda; o modo híbrido agora cai para a busca textual
+  FTS5 com aviso, e o modo vetorial explica que precisa de provider e sai com
+  código de erro. Nenhum teste pegava: os testes de busca sempre rodavam com
+  provider, e o caminho sem provider só aparece em máquina sem ONNX instalado.
+- **`mem search --tag` sem valor saía com código 0**, e o filtro pedido não era
+  aplicado. O pacote `flag` do Go só reclama de argumento faltante quando não
+  sobrou nenhum argumento depois da flag, então a flag seguinte (`--mode`) era
+  engolida como valor de `--tag`. Agora a checagem roda antes do parse e o
+  comando sai com código diferente de zero, como o AC TAG-19 exige.
+- **Erro de busca devolvia código de saída 0** e ia para a stdout. O modo vetorial
+  sem provider imprimia "Erro" e saía com zero; agora a busca devolve o código de
+  saída e as mensagens de erro vão para o `stderr`, como no resto da CLI.
+- **`--help` imprimia o uso duas vezes** e, no `mem search`, ainda executava a
+  busca com a query que sobrou (`mem search algo --help` buscava "algo"). `mem
+  tags --help` e `mem tag --help` saíam com código 1 e a mensagem "Erro: flag:
+  help requested". Os três comandos agora imprimem o uso uma vez e saem com
+  código 0.
 - **A rota `/graph` da viewer devolvia 404 em texto puro quando a URL era aberta
   ou recarregada direto**. O prefixo `/graph/` é reservado para os artefatos de
   grafo, e o path **exato** `/graph` — que é uma rota da SPA — caía dentro desse

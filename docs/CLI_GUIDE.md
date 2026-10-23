@@ -142,13 +142,14 @@ Gerencia a instalação do Git Pre-Commit Hook para garantir integridade do índ
 
 ---
 
-### 5. `mem search "<pergunta>" [--level l0|l1|l2] [--category resource|memory|skill] [--mode hybrid|vector|fts] [--links] [--decay] [--half-life 30] [--decay-weight 0.3]`
+### 5. `mem search "<pergunta>" [--level l0|l1|l2] [--category resource|memory|skill] [--tag <tag>] [--mode hybrid|vector|fts] [--links] [--decay] [--half-life 30] [--decay-weight 0.3]`
 Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato FTS5/tsvector, vetores semânticos k-NN, Progressive Context Loading e expansão de grafo:
 * `--level <l0|l1|l2>`: Define a densidade de contexto do resultado:
   * `l0`: Micro-abstract cirúrgico (1 a 2 frases, ~30-50 tokens) com deduplicação por documento e sem despejo de texto bruto (*Zero File Reads*).
   * `l1`: Overview estrutural padrão com metadados, resumo L0, trecho relevante e conexões do grafo.
   * `l2`: Detalhes completos e conteúdo integral.
 * `--category <resource|memory|skill>`: Filtra por taxonomia de conhecimento (recursos técnicos, memórias de regras/hábitos ou habilidades operacionais).
+* `--tag <tag>`: Filtra por tag do Obsidian (paridade com `obsidian search tag:X`). Casa a tag **e as descendentes** — `--tag projeto` traz `projeto/alpha`, a mesma semântica do `tag:inbox` do Obsidian, que casa `#inbox` e `#inbox/to-read`. Combina com `--category`, `--decay` e `--mode`: todos os filtros valem ao mesmo tempo. O filtro é **push-down** na consulta (entra nos mesmos pontos em que entra o filtro de categoria), e não um filtro pós-fusão. Tag fora do formato do Obsidian (ex: `1984`, só numérica) é erro de uso.
 * `--mode`: Escolhe entre `hybrid` (padrão, fusão RRF), `vector` (apenas semântico k-NN) ou `fts` (apenas texto exato).
 * `--decay`: Ativa o decaimento temporal exponencial ponderado (ADR-015) para priorizar notas **mais recentemente editadas** no ranking final. A ordenação temporal usa o `mtime` do arquivo, não o instante da indexação (ADR-057) — um `mem index` em vault inteiro não iguala mais o score temporal de todas as notas.
 * `--half-life <dias>`: Tempo de meia-vida da curva em dias (padrão: 30.0 dias).
@@ -178,7 +179,18 @@ Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato
 
 # 7. Exibindo deep links (Obsidian / VS Code) abaixo de cada resultado:
 ./bin/mem.exe search --links "cache incremental"
+
+# 8. Busca filtrada por tag do Obsidian (casa a tag e as descendentes):
+./bin/mem.exe search --tag projeto "arquitetura"
+
+# 9. Tag combinada com outra flag de filtro:
+./bin/mem.exe search --tag projeto/alpha --category resource "decisoes"
 ```
+
+> [!NOTE]
+> `--tag` sem valor é erro de uso: o comando imprime o uso e sai com código
+> diferente de zero, em vez de buscar sem o filtro pedido. O mesmo vale para uma tag
+> que não segue o formato do Obsidian (só numérica, com espaço ou com pontuação).
 
 
 ---
@@ -1070,6 +1082,75 @@ não para o começo.
 
 ---
 
+
+### 34. `mem tags` e `mem tag <nome>` — a superfície de tags do Obsidian
+
+Dois comandos de leitura do vault que dão **paridade com o CLI do Obsidian**
+(`obsidian tags` e `obsidian tag name=`). As tags são consultáveis porque a
+indexação grava cada tag do documento na tabela `document_tags` (ADR-055), **antes**
+da resolução fuzzy — inclusive a tag órfã, a que não nomeia nenhuma nota. Essa tag
+continua **não** virando aresta no grafo (ADR-041): ela é consultável, não é nó.
+
+Os dois aceitam as flags de seleção de engine (`--db`, `--postgres`, `--storage`,
+`--repo`), resolvidas na ordem da seção [Storage](#-seleção-de-storage-adr-040).
+
+| Comando | O que devolve |
+| --- | --- |
+| `mem tags` | Uma tag por linha, em ordem alfabética |
+| `mem tags --counts` | `tag<TAB>contagem` — quantos documentos carregam cada tag |
+| `mem tags --sort=count` | A mesma lista, ordenada por contagem decrescente |
+| `mem tags --file <caminho>` | Só as tags do documento desse caminho |
+| `mem tags --folder <pasta>` | Só as tags dos documentos sob essa pasta |
+| `mem tags --total` | Só a quantidade de tags distintas |
+| `mem tags --json` | O inventário em JSON |
+| `mem tag <nome>` | A contagem de documentos que carregam a tag |
+| `mem tag <nome> --verbose` | A contagem e a lista de documentos |
+| `mem tag <nome> --total` | Só a contagem |
+| `mem tag <nome> --json` | Nome, contagem, documentos e documento resolvido |
+
+A terceira superfície da mesma taxonomia é o **filtro da busca**:
+`mem search --tag <tag>` restringe os resultados aos documentos que carregam a tag
+e as descendentes — ver a [seção 5](#5-mem-search-pergunta---levell0l1l2---category-resourcememoryskill---tag-tag----mode-hybridvectorfts---links---decay---half-life-30---decay-weight-03).
+
+#### Regras que valem para os dois
+
+- **Case-insensitive.** As tags do Obsidian não distinguem maiúsculas: `#Tag` e
+  `#TAG` são a mesma tag. O inventário mostra **uma** entrada, com o casing com que
+  a tag foi criada primeiro.
+- **Hierarquia.** `mem tag projeto` conta `projeto` **e** `projeto/alpha` — a mesma
+  semântica do `tag:inbox` do Obsidian, que casa `#inbox` e `#inbox/to-read`. O
+  inventário (`mem tags`) lista as tags **literais**: `projeto/alpha` aparece como
+  entrada própria.
+- **Tag órfã aparece.** A tag que não nomeia nenhuma nota continua listada, porque é o
+  que o Obsidian lista. A resolução (`resolved_doc_id`) é a extensão do My-Memory:
+  ela aponta para o `documents.id` da nota que a tag nomeia.
+- **Filtro que não casa não é erro.** O comando sai com zero e lista vazia.
+- **Nome da tag sem valor é erro de uso.** `mem tag` sem `<nome>` imprime o uso e sai
+  com código diferente de zero.
+
+```bash
+# O inventário completo:
+./bin/mem.exe tags
+
+# As tags mais usadas:
+./bin/mem.exe tags --counts --sort=count
+
+# As tags de uma nota:
+./bin/mem.exe tags --file docs/adr/055-semantica-de-tag-consultavel-sem-nos-mortos.md
+
+# Uma tag e suas descendentes:
+./bin/mem.exe tag projeto --verbose
+
+# O inventário em JSON:
+./bin/mem.exe tags --json
+```
+
+> [!NOTE]
+> As tags só existem no índice **depois** de uma indexação. Um vault indexado antes
+> desta feature precisa de `mem index` para ter as tags — a tabela é criada ao abrir
+> o índice, mas as linhas são populadas na indexação.
+
+---
 
 ## 🗄️ Seleção de Storage (ADR-040)
 

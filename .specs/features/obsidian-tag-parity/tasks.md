@@ -105,6 +105,31 @@ T6
 
 ---
 
+## Status da execução
+
+| Task | Escopo | Status | Evidência |
+| ---- | ------ | ------ | --------- |
+| T1: formato da tag e resolução no parser | `internal/parser/tags.go` | ✅ Concluída | `internal/parser/tags.go:44` (`NormalizeTag`), `:107` (`ResolveTagTargets`); `internal/parser/tags_test.go` |
+| T2: tabela `document_tags` e API nos dois engines | `internal/store/tags.go`, `internal/db/tags.go` | ✅ Concluída | `internal/db/schema.go:151-162` e `:310-321`; `internal/store/postgres.go:84-94` |
+| T3: captura das tags nos 4 caminhos de indexação | `internal/watcher/indexer.go`, `cmd/mem/main.go` | ✅ Concluída | `internal/watcher/indexer.go:109`, `:253`; `cmd/mem/main.go:1730`, `:1940` |
+| T4: `mem tags` e `mem tag` na CLI | `cmd/mem/tags.go` | ✅ Concluída | `cmd/mem/tags.go:35` (`runTagsCLI`), `:101` (`runTagCLI`); `cmd/mem/tags_test.go` |
+| T5: filtro `--tag` na busca e tools MCP | `internal/mcp/`, `internal/db/`, `internal/store/`, `cmd/mem/main.go` | ✅ Concluída | os 7 pontos de push-down (`internal/db/hybrid.go:43`, `:154`; `internal/db/graph.go:66`, `:124`; `internal/store/postgres.go:502`, `:595`, `:697`); `internal/mcp/tools.go:698`, `:716`; `internal/mcp/server.go:127-128` |
+| T6: verificação e documentação | `docs/**`, `README.md`, `CHANGELOG.md`, `skills/**`, `.specs/**` | ✅ Concluída | `.specs/features/obsidian-tag-parity/validation.md` (46/46 ACs PASS); `CHANGELOG.md:12-51`; `docs/CLI_GUIDE.md:145-193` e `:1086-1152`; `docs/adr/README.md:58` |
+
+**Veredito da execução: PASS** — 46/46 critérios de aceitação, gate Go verde
+(`go build` 0 · `go vet` 0 · `go test -count=1 ./...` **25/25 pacotes, 0 falhas**).
+A prova por critério, com evidência `caminho:linha`, está em
+[`validation.md`](validation.md).
+
+> **Por que os checkboxes de "Done when" continuam desmarcados.** É a convenção do
+> repositório: as features concluídas `mcp-static-serving`, `viewer-dashboard` e
+> `obsidian-parity-foundation` mantêm os checkboxes do plano intactos, e o
+> registro de conclusão fica no `validation.md` e no `.specs/STATE.md`. O
+> `tasks.md` é o **plano**; o `validation.md` é a **prova**. Desmarcar os
+> checkboxes aqui seria inventar um formato que o repo não usa.
+
+---
+
 ## Task Breakdown
 
 ### T1: Formato da tag e resolução do documento-alvo no parser

@@ -276,6 +276,9 @@ Mais detalhes em `docs/CLI_GUIDE.md` seção "Seleção de Storage".
 | `mem code-search` | Busca híbrida de símbolos com boost RRF 2× em `qualified_name` (CA-05). | `mem code-search "Parser.Parse" --kind=function` |
 | `mem code-graph` | Vizinhança recursiva de um símbolo via CTE sobre `code_edges`. | `mem code-graph internal/parser.Parser.Parse --depth 2` |
 | `mem code-stats` | Distribuição por linguagem/kind e arquivos órfãos sem símbolos. | `mem code-stats --json` |
+| `mem tags` | Inventário de tags do vault, uma por linha, com a contagem de documentos de cada uma — inclui a tag órfã (ADR-055). | `mem tags --counts --sort=count` |
+| `mem tag <nome>` | Quantas notas carregam a tag — casa a tag **e as descendentes**, como o `tag:` do Obsidian (ADR-055). | `mem tag projeto --verbose` |
+| `mem search --tag <tag>` | Filtra a busca por tag do Obsidian (push-down na consulta, combinável com `--category`/`--decay`/`--mode`) (ADR-055). | `mem search --tag projeto "arquitetura"` |
 | `mem mcp` | Inicia o servidor MCP via stdio (para IDEs) ou HTTP/SSE com federação RRF. | `mem mcp --port 38400` |
 
 ---
@@ -306,6 +309,9 @@ Quando o `my-memory` roda como servidor MCP (`mem mcp`), o Agente de IA tem aces
 | `memory_code_search` | Para localizar símbolos de código (funções, classes, structs) por nome/linguagem/kind com boost RRF 2× em `qualified_name` (CA-10, ADR-047). Requer build com `-tags treesitter`; no build padrão devolve lista vazia com aviso. | `query` (string), `language` (string opcional), `kind` (string opcional), `limit` (int opcional) |
 | `memory_code_neighbors` | Para inspecionar o sub-grafo de chamadas/referências (in+out) de um símbolo até `depth` hops via CTE recursivo (CA-11, ADR-047). | `symbol` (string), `depth` (int opcional, padrão 1, máx 5) |
 | `memory_search` (com `include_code`) | Estende a busca híbrida existente para que `code_symbols` concorram no ranqueamento RRF quando `include_code=true` (CA-12, default `false` para preservar comportamento de clientes legados). | `query` (string), `include_code` (bool opcional) |
+| `memory_search` (com `tag`) | Filtra a busca por tag do Obsidian — casa a tag **e as descendentes** (ADR-055). | `query` (string), `tag` (string opcional) |
+| `memory_get_tags` | Para descobrir a taxonomia de tags do vault antes de filtrar uma busca — devolve cada tag com a contagem de documentos, inclusive a tag órfã (ADR-055). | `path` (string opcional), `repository` (string opcional) |
+| `memory_get_tag` | Para saber quais notas carregam uma tag — casa a tag **e as descendentes** (ADR-055). | `name` (string), `repository` (string opcional) |
 
 ### 7.1 `structuredContent`: a segunda camada da resposta
 
@@ -330,7 +336,7 @@ emitindo exatamente o mesmo JSON, porque o campo é omitido quando vazio
 > contrato. A viewer replica essa forma em `viewer/src/lib/schemas.ts` com
 > `zod/mini`, e é a validação de frente que garante que as duas não divirjam.
 
-As **dez** tools que preenchem o campo:
+As **doze** tools que preenchem o campo:
 
 | Tool | `structuredContent` |
 |---|---|
@@ -344,6 +350,8 @@ As **dez** tools que preenchem o campo:
 | `memory_note_outline` | `[{level, text}]` |
 | `memory_file_metadata` | `{path, title, size, mtime}` |
 | `memory_visualize_graph` | `{url?, path, total_nodes, total_edges, hub_count, density}` |
+| `memory_get_tags` | `[{tag, key, count, resolved_doc_id?, resolved_title?}]` |
+| `memory_get_tag` | `{tag, key, count, documents[], resolved_doc_id?, resolved_title?}` |
 
 **Regra de ouro para o agente:** se você é um cliente de máquina, use o
 `structuredContent` e **não** raspe o texto. O texto é a camada legível, e

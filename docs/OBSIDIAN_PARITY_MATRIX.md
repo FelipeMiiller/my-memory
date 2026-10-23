@@ -180,7 +180,7 @@ A lista oficial do Obsidian tem **116 comandos**. Desses, a ADR-054:classifica
 
 ## 7. Matriz — tools MCP
 
-O servidor registra **24 tools** (`internal/mcp/server.go:98-124`). Cobertura da
+O servidor registra **26 tools** (`internal/mcp/server.go:98-128`). Cobertura da
 superfície de vault:
 
 | Capacidade | Tool MCP | Evidência |
@@ -190,8 +190,9 @@ superfície de vault:
 | Gravar | `memory_write_note`, `memory_append_section`, `memory_compile_note` | `tools.go:248-392` |
 | Grafo | `memory_get_neighbors`, `memory_get_hubs`, `memory_get_clusters`, `memory_get_impact`, `memory_inspect_node`, `memory_find_path`, `memory_get_insights`, `memory_get_drift`, `memory_doctor`, `memory_export_canvas`, `memory_visualize_graph`, `memory_pack_context`, `memory_open_node`, `memory_reconcile` | `tools.go:106-613` |
 | Código | `memory_code_search`, `memory_code_neighbors` | `tools.go:74-129` |
+| Tags | `memory_get_tags`, `memory_get_tag` | `tools.go:698-729` |
 
-**Sem tool MCP**: tags (T4/T5), aliases, properties, tasks, backlinks/links
+**Sem tool MCP**: aliases, properties, tasks, backlinks/links
 dedicados, wordcount, random, folders, deadends, recents, `unresolved`/`orphans`
 isolados.
 
@@ -203,17 +204,17 @@ CHANGELOG desta rodada.
 | # | Onde | Promete | Reality | Severidade |
 |---|------|---------|----------|-----------|
 | A1 | `docs/CLI_GUIDE.md:1059-1062` | "Estas **nove** capacidades também estão expostas via MCP" e lista 4 tools | Só 4 dos 9 comandos de leitura de vault têm tool. `folders`, `wordcount`, `random`, `deadends`, `recents` não têm tool nenhuma | **ALTA** |
-| A2 | `docs/adr/054-...:42` | "`mem tags` e `mem search --tag` deixam de prometer compatibilidade literal" — como se já existissem | `mem tags` **não existe** | **ALTA** |
+| A2 | `docs/adr/054-...:42` | "`mem tags` e `mem search --tag` deixam de prometer compatibilidade literal" — como se já existissem | `mem tags` **não existe** | **ALTA** — **resolvido** em 2026-10-22 pela feature `obsidian-tag-parity` (`mem tags`, `mem tag`, `mem search --tag` existem) |
 | A3 | `docs/adr/054-...:76` | A matriz de gap está "registrada em `.specs/ISSUES.md`" | **Não está em lugar nenhum** do repo — este documento é a correção | **ALTA** |
 | A4 | `docs/adr/054-...:10,12` | "O Obsidian expõe ~115 comandos" · "48 comandos de conteúdo de vault" + "os ~45 comandos restantes são de estado do aplicativo" | Aritmética inconsistente: 48 + 45 = 93, não ~115. A lista oficial tem **116** | **ALTA** |
 | A5 | `docs/adr/054-...:33` | Escopo "a construir": `files`, `folders`, `read`, `wordcount`, `random`, `outline`, `deadends`, … | **7 dos 16 itens listados já existem** — a lista sobrestima o trabalho pendente | MÉDIA |
-| A6 | `README.md:61` | "Extrai conexões explícitas de notas (`[[links]]` e `#tags`)" | `#tags` só vira aresta **se casar com um título** (`internal/parser/fuzzy.go:61-75`); sem tabela de tags, tags **não são consultáveis** | MÉDIA |
-| A7 | `docs/REPOSITORY_BRAIN.md:141-149` | Lista de tools MCP "com escopo de repositório" (9 tools) | O servidor registra **24** | MÉDIA |
+| A6 | `README.md:61` | "Extrai conexões explícitas de notas (`[[links]]` e `#tags`)" | `#tags` só vira aresta **se casar com um título** (`internal/parser/fuzzy.go:61-75`); sem tabela de tags, tags **não são consultáveis** | MÉDIA — **resolvido** em 2026-10-22: a tabela `document_tags` existe e a tag é consultável (`mem tags`, `mem search --tag`); a aresta continua só para a tag resolvida |
+| A7 | `docs/REPOSITORY_BRAIN.md:141-149` | Lista de tools MCP "com escopo de repositório" (9 tools) | O servidor registra **26** | MÉDIA |
 | A8 | `cmd/mem/note.go:54` | Erro manda usar "`mem write` (T11)" | **`mem write` não existe** — nenhum `case "write"`; referência órfã | MÉDIA |
-| A9 | `docs/README.md:81` vs `docs/adr/README.md:58` | ADR-055 = *Proposed* vs *Aceito* | Divergência direta; o estado real é Aceito (2026-10-21), ainda não implementado | BAIXA |
+| A9 | `docs/README.md:81` vs `docs/adr/README.md:58` | ADR-055 = *Proposed* vs *Aceito* | Divergência direta; o estado real é Aceito (2026-10-21) e **implementado** (2026-10-22) — os dois documentos já dizem *Aceito — Implementado* | BAIXA — **resolvido** |
 | A10 | `cmd/mem/codeindex.go:34,42` | `--json` "Saída em JSON (placeholder)" | Flag parseada e **descartada** (`_ = jsonOut`) → no-op silencioso | BAIXO |
 
-**Verificadas e NÃO infladas**: "24 tools MCP" (confere em `README.md:290`,
+**Verificadas e NÃO infladas**: "26 tools MCP" (confere em `README.md:293`,
 `AGENTS.md:99`, `skills/mymemory-mcp/SKILL.md:9`, `CHANGELOG.md`) e "45 comandos"
 (ADR-054:10). O README **não** afirma "paridade total" nem "superset" — essa
 alegação vive só na ADR-054:10 e é contradita pela própria ADR (:31, :63).

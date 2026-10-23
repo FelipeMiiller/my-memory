@@ -22,7 +22,7 @@ O **My-Memory** resolve isso unificando **busca vetorial**, **grafo de conhecime
 
 ---
 
-## ⚡ Arquitetura em 7 Pilares
+## ⚡ Arquitetura em 8 Pilares
 
 ```
                                 [ Arquivos Markdown / Notas ]
@@ -63,6 +63,7 @@ O **My-Memory** resolve isso unificando **busca vetorial**, **grafo de conhecime
 5. **🏛️ Federação, Cofre Central e Wikilinks Cross-Vault:** Vincula um Cofre Central de padrões corporativos (Google Drive / OneDrive para Obsidian) a repositórios satélites com `repo_id` criptográfico imutável, catálogo global (`~/.memory/config.yaml`), zero-credentials no Git, busca híbrida federada via RRF e protocolo canônico universal `memory://<repo>/<path>` para resolução transparente de wikilinks cross-vault em editores e MCP.
 6. **🌳 Code AST Indexing (tree-sitter, opt-in via `-tags treesitter`):** Parser sintático multi-linguagem (Go, Python, TS/JS, Rust, Java, C/C++, Ruby, PHP, Shell, C#) com persistência de símbolos/arestas em `code_files`/`code_symbols`/`code_edges`, boost RRF 2× em `qualified_name` e ferramentas CLI/MCP dedicadas (`mem code-index`/`code-search`/`code-graph`/`code-stats`, `memory_code_search`/`memory_code_neighbors`). Build padrão (sem tag) continua CGO-free e mantém o pipeline Markdown 100% funcional (CA-14, ADR-047).
 7. **🖥️ Painel de Métricas da Memória (`viewer/`):** SPA React 19 + Vite 8 que **o próprio MCP serve** — sem processo extra, sem CDN, sem runtime de aplicação. Quatro visões: Health Score e prontidão, hubs e comunidades do grafo, leitura de notas com `[[wikilinks]]` navegáveis, e drift semântico. Build estático local, publicado em `.mymemory/www/app/` (ADR-059, ADR-060).
+8. **🏷️ Superfície de Tags do Obsidian:** A tag deixa de ser descartada na indexação e vira **dado consultável**: a tabela `document_tags` guarda cada tag do documento, inclusive a órfã, gravada **antes** da resolução fuzzy (ADR-055). A superfície expõe `mem tags` (inventário), `mem tag <nome>` (a tag e suas descendentes), `mem search --tag <tag>` (filtro push-down da busca) e as tools MCP `memory_get_tags` e `memory_get_tag`. A aresta `tagged_as` do grafo continua sendo criada **só** para as tags resolvidas — a tabela não reinstala o nó morto que a ADR-041 eliminou.
 
 ---
 
@@ -226,10 +227,10 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 
 ## 🤖 Ferramentas MCP para Assistentes de IA
 
-Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 24 ferramentas para o ecossistema de IA:
+Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 26 ferramentas para o ecossistema de IA:
 
 > [!tip]
-> **Duas camadas na mesma resposta.** As dez ferramentas de leitura devolvem, além do
+> **Duas camadas na mesma resposta.** As doze ferramentas de leitura devolvem, além do
 > texto legível, o campo **`structuredContent`** — o payload estruturado definido pelo
 > MCP spec 2025-06-18. O texto serve ao humano e ao LLM; o `structuredContent` serve ao
 > cliente de máquina, que valida o JSON em vez de raspar texto. A forma do payload é o
@@ -240,9 +241,10 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 24 fer
 > Ferramentas com `structuredContent`: `memory_doctor`, `memory_get_hubs`,
 > `memory_get_clusters`, `memory_get_insights`, `memory_get_drift`,
 > `memory_list_files`, `memory_read_note`, `memory_note_outline`,
-> `memory_file_metadata` e `memory_visualize_graph`.
+> `memory_file_metadata`, `memory_visualize_graph`, `memory_get_tags` e
+> `memory_get_tag`.
 
-- `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional, que ordena por **tempo de edição** do arquivo (ADR-057). Aceita `include_code: true` (default `false`, CA-12) para que `code_symbols` concorram no ranqueamento.
+- `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional, que ordena por **tempo de edição** do arquivo (ADR-057). Aceita `include_code: true` (default `false`, CA-12) para que `code_symbols` concorram no ranqueamento, e `tag` (ADR-055) para filtrar por tag do Obsidian — a tag e as descendentes.
 - `memory_get_neighbors`: Expansão recursiva de nós e dependências conectadas via SQL recursivo (CTEs) com marcação `is_federated: true`.
 - `memory_find_path`: Descoberta do caminho mais curto entre duas notas via BFS bidirecional com pesos epistêmicos.
 - `memory_get_impact`: Análise de raio de destruição (*Blast Radius*) e dependentes reversos com risk scoring.
@@ -255,6 +257,8 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 24 fer
 - `memory_read_note` *(ADR-057)*: Devolve o Markdown bruto de uma nota pelo caminho do vault, sem fragmentar em chunks.
 - `memory_note_outline` *(ADR-057)*: Retorna a estrutura de títulos de uma nota com o nível de cada heading, ignorando blocos de código.
 - `memory_file_metadata` *(ADR-057)*: Retorna path, title, size em bytes e `mtime` da última edição de uma nota.
+- `memory_get_tags` *(ADR-055)*: Lista as tags do vault com a contagem de documentos que carregam cada uma — inclusive a tag órfã, que não nomeia nenhuma nota. Aceita `path` para devolver só as tags de um documento.
+- `memory_get_tag` *(ADR-055)*: Consulta uma tag e devolve a contagem e a lista das notas que a carregam — casa a tag **e as descendentes**, como o `tag:` do Obsidian.
 - `memory_reconcile`: Reconciliação do vault com o índice PostgreSQL sem reindexar — remove só documentos cujo arquivo sumiu do disco (`dry_run` por padrão, aborta se o vault não existir ou se a varredura do disco retornar 0 arquivos).
 - `memory_get_drift`: Auditoria de desvio semântico e divergência entre código e documentação.
 - `memory_write_note`: Criação de notas atômicas estruturadas com sincronização e indexação instantâneas.
@@ -287,7 +291,7 @@ my-memory/
 │   ├── federation/     # Federação multirrepositório, RRF e resolução de URIs canônicas memory://
 │   ├── graph/          # Algoritmos de grafo (LPA, modularidade Q, PageRank, Blast Radius, Inspector)
 │   ├── graphview/      # Visualizador interativo HTML/SVG standalone com física de forças
-│   ├── mcp/            # Servidor Model Context Protocol com 24 tools (stdio + HTTP/SSE) e serving estático da viewer
+│   ├── mcp/            # Servidor Model Context Protocol com 26 tools (stdio + HTTP/SSE) e serving estático da viewer
 │   ├── parser/         # Extração de wikilinks, tags, metadados e chunking
 │   ├── repo/           # Scanner de arquivos do repositório respeitando escopo e gitignore
 │   ├── staleness/      # Rastreamento de desatualização temporal de notas e links quebrados

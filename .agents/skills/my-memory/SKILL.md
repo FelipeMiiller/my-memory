@@ -17,7 +17,7 @@ description: Skill de uso do My-Memory neste repositório. É um ponteiro para a
 | Skill | Assunto |
 | --- | --- |
 | [`mymemory-cli`](../../../skills/mymemory-cli/SKILL.md) | Rodar `mem` no shell/script: install, init, index, search, watch, hook, flags |
-| [`mymemory-mcp`](../../../skills/mymemory-mcp/SKILL.md) | Cliente MCP, escolha entre tool e CLI, os 24 tools com entradas e saídas |
+| [`mymemory-mcp`](../../../skills/mymemory-mcp/SKILL.md) | Cliente MCP, escolha entre tool e CLI, os 26 tools com entradas e saídas |
 | [`mymemory-notes`](../../../skills/mymemory-notes/SKILL.md) | Escrever nota: taxonomia de frontmatter, wikilinks, arestas tipadas, tags |
 | [`mymemory-graph`](../../../skills/mymemory-graph/SKILL.md) | Grafo e saúde do vault: inspect, path, hubs, clusters, impact, drift, doctor |
 | [`mymemory-config`](../../../skills/mymemory-config/SKILL.md) | Precedência de config, split global/local, SQLite vs Postgres, cofre central |

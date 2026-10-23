@@ -1,12 +1,12 @@
 ---
 name: mymemory-mcp
-description: Configure and use the MyMemory MCP server, which exposes the 24 `memory_*` tools for hybrid search, graph traversal, note authoring, and drift detection to any MCP-capable agent. Use when wiring an MCP client to the vault, choosing between an MCP tool and shelling out to the `mem` CLI, or mapping an intent such as "search the vault", "write a note", "what breaks if I change this note" onto a `memory_*` tool.
+description: Configure and use the MyMemory MCP server, which exposes the 26 `memory_*` tools for hybrid search, graph traversal, note authoring, and drift detection to any MCP-capable agent. Use when wiring an MCP client to the vault, choosing between an MCP tool and shelling out to the `mem` CLI, or mapping an intent such as "search the vault", "write a note", "what breaks if I change this note" onto a `memory_*` tool.
 ---
 
 # MyMemory MCP Server
 
 `mem mcp` starts a Model Context Protocol server over the same index the CLI uses. It exposes
-**24 tools** to the agent so retrieval and note authoring happen as structured tool calls instead
+**26 tools** to the agent so retrieval and note authoring happen as structured tool calls instead
 of shell output that has to be re-parsed.
 
 ## Configure a client
@@ -83,6 +83,8 @@ or when the operation has no tool equivalent — `mem install`, `mem watch`, `me
 | Intent | Tool |
 | --- | --- |
 | Find notes about a topic | `memory_search` (`detail_level` `l0` → `l1` → `l2`) |
+| List the vault's tags | `memory_get_tags` (with `path` for one note) |
+| Which notes carry a tag | `memory_get_tag` (matches the tag **and** its descendants) |
 | Find functions, methods, classes | `memory_code_search` |
 | What links to / from this note | `memory_get_neighbors`, `memory_inspect_node` |
 | Code dependency neighbourhood | `memory_code_neighbors` |
@@ -112,7 +114,7 @@ compiled note on later interactions instead of re-querying N sources.
 
 ## Two layers in one response
 
-The ten read tools return **both** a human-readable `content` block and a
+The twelve read tools return **both** a human-readable `content` block and a
 machine-readable **`structuredContent`** — the field the MCP spec (2025-06-18)
 defines and this server now fills (ADR-060).
 
@@ -130,7 +132,7 @@ of truth, not the documentation.
 Tools that fill it: `memory_doctor`, `memory_get_hubs`, `memory_get_clusters`,
 `memory_get_insights`, `memory_get_drift`, `memory_list_files`,
 `memory_read_note`, `memory_note_outline`, `memory_file_metadata`,
-`memory_visualize_graph`.
+`memory_visualize_graph`, `memory_get_tags` and `memory_get_tag`.
 
 The field is **omitted** when a tool does not fill it, so the JSON of the other
 fourteen tools is byte-identical to what it was before.
@@ -152,7 +154,7 @@ path, and no error** — the transport simply is not there.
 
 ## Reference
 
-- [mcp-tools.md](references/mcp-tools.md) — all 24 tools with arguments, defaults, suggested flows
+- [mcp-tools.md](references/mcp-tools.md) — all 26 tools with arguments, defaults, suggested flows
   and gotchas
 
 ## Gotchas

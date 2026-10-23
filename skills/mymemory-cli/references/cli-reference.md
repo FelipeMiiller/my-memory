@@ -66,7 +66,35 @@ mem search --mode vector "how ranking works"
 mem search --decay --half-life 14 "recent decision"  # ranks by file edit time (mtime), not index time
 mem search --level l0 "config"
 mem search --category skill "note creation"
+mem search --tag projeto "architecture"   # Obsidian tag; matches the tag AND its descendants
 ```
+
+---
+
+## Tags
+
+| Command | Purpose |
+| --- | --- |
+| `mem tags` | Every tag in the vault, one per line, alphabetical |
+| `mem tags --counts` | `tag<TAB>count` — how many notes carry each tag |
+| `mem tags --sort=count` | Same list, most used first |
+| `mem tags --file <path>` | Only that note's tags |
+| `mem tags --folder <folder>` | Only the tags of notes under that folder |
+| `mem tags --total` | Just the number of distinct tags |
+| `mem tags --json` | The inventory as JSON |
+| `mem tag <name>` | How many notes carry the tag (and its descendants) |
+| `mem tag <name> --verbose` | The count plus the notes themselves |
+| `mem tag <name> --total` | Just the count |
+| `mem tag <name> --json` | Name, count, documents and the resolved note |
+
+```bash
+mem tags --counts --sort=count
+mem tag projeto --verbose
+```
+
+Tags are **case-insensitive** (`#Tag` and `#TAG` are one tag), **hierarchical**
+(`projeto` matches `projeto/alpha`), and an orphan tag — one that names no note — still
+shows up in the inventory. A tag that matches nothing exits zero with an empty list.
 
 ---
 
