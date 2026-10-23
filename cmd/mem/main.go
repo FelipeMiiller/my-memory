@@ -89,73 +89,9 @@ func main() {
 		}
 
 	case "index":
-		indexCmd := flag.NewFlagSet("index", flag.ExitOnError)
-		dirPath := indexCmd.String("dir", "", "Caminho da pasta com arquivos Markdown")
-		force := indexCmd.Bool("force", false, "Força a reindexação completa ignorando o cache SHA-256")
-		noPrune := indexCmd.Bool("no-prune", false, "Desativa a exclusão de notas que foram removidas do disco")
-		dbPath := indexCmd.String("db", "", "Caminho do arquivo SQLite")
-		pgURL := indexCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
-		storage := indexCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
-		targetRepo := indexCmd.String("repo", "", "Identificador/slug do repositório")
-		indexCmd.Parse(os.Args[2:])
-
-		target := *dirPath
-		if target == "" && indexCmd.NArg() > 0 {
-			target = indexCmd.Arg(0)
-		}
-
-		// Descoberta e resolução automática de configuração do vault em cascata
-		searchDir := target
-		if searchDir == "" {
-			searchDir = "."
-		}
-		_, _ = config.FindAndLoadDotEnv(searchDir)
-		cfg, cfgPath, _ := config.LoadCascadingConfig(searchDir)
-		if cfgPath != "" && target == "" {
-			dirOfCfg := filepath.Dir(cfgPath)
-			if filepath.Base(dirOfCfg) == ".memory" {
-				target = filepath.Dir(dirOfCfg)
-			} else {
-				target = dirOfCfg
-			}
-		}
-
-		if cfg == nil {
-			def := config.DefaultConfig()
-			cfg = &def
-		}
-
-		if target == "" {
-			fmt.Println("Uso: mem index [--force] [--no-prune] [--db <caminho>] [--postgres <url>] [--repo <nome>] [<pasta_com_markdown>]")
-			fmt.Println("     Dica: execute 'mem init' para criar um arquivo de configuração declarativa.")
-			return
-		}
-
-		resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
-		var errOverride error
-		resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
-		if errOverride != nil {
-			log.Println(errOverride)
+		if err := runIndexCLI(ctx, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
 			os.Exit(1)
-		}
-		emb, tq, _ = resolveEmbedder(cfg)
-
-		if resolvedPG != "" {
-			pgStore, err := store.NewPostgresStore(resolvedPG)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Erro ao conectar no PostgreSQL: %v\n", err)
-				os.Exit(1)
-			}
-			defer pgStore.Close()
-			runIndexPostgres(ctx, pgStore, emb, cfg, resolvedRepo, target, *force, !*noPrune)
-		} else {
-			database, err := db.InitDB(resolvedDB)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Erro ao inicializar banco SQLite: %v\n", err)
-				os.Exit(1)
-			}
-			defer database.Close()
-			runIndexSQLite(ctx, database, emb, tq, cfg, target, *force, !*noPrune)
 		}
 
 	case "watch":
@@ -908,8 +844,8 @@ func printHelp() {
 	fmt.Println("Comandos disponíveis:")
 	fmt.Println("  mem init [--repo <slug>] [--db <arq>] [--force] [--vscode] [--copilot] [--cursor] [--all] [<pasta>]")
 	fmt.Println("      Inicializa novo vault (.memory/config.yaml) e opcionalmente gera integrações para VS Code Copilot e Cursor")
-	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
-	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados")
+	fmt.Println("  mem index [--force] [--no-prune] [--db <arq>] [--postgres <url>] [--repo <slug>] [--code-ast[=true|false]] [<pasta>]")
+	fmt.Println("      Indexa notas Markdown com cache incremental SHA-256 e pruning de arquivos deletados; roda o code stage (code graph) quando há escopo de código configurado")
 	fmt.Println("  mem status [--json] [--db <arq>] [--postgres <url>] [--repo <slug>] [<pasta>]")
 	fmt.Println("      Exibe o status de sincronização e detecção de desatualização do vault em tempo real")
 	fmt.Println("  mem events <tail|inspect|replay|trace|last-sequence|stats> [opções]")
@@ -1608,6 +1544,135 @@ func indexCacheHit(epochGate bool, storedHash, currentHash, storedEpoch, current
 		return false
 	}
 	return true
+}
+
+// runIndexCLI implementa `mem index`: o pipeline Markdown (as notas do vault) e,
+// como estagio, o code stage (o code graph do repositorio) — ADR-061
+// §Implementation Plan, CG-03.
+//
+// O code stage roda por padrao quando ha escopo de codigo configurado (a secao
+// `code` do config) e pode ser ligado ou desligado pela flag `--code-ast`.
+// Quando o escopo de codigo esta vazio, o comportamento e exatamente o de
+// antes: apenas o pipeline Markdown, byte a byte igual.
+func runIndexCLI(ctx context.Context, defaultRepo string, args []string) error {
+	indexCmd := flag.NewFlagSet("index", flag.ContinueOnError)
+	dirPath := indexCmd.String("dir", "", "Caminho da pasta com arquivos Markdown")
+	force := indexCmd.Bool("force", false, "Força a reindexação completa ignorando o cache SHA-256")
+	noPrune := indexCmd.Bool("no-prune", false, "Desativa a exclusão de notas que foram removidas do disco")
+	dbPath := indexCmd.String("db", "", "Caminho do arquivo SQLite")
+	pgURL := indexCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
+	storage := indexCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
+	targetRepo := indexCmd.String("repo", "", "Identificador/slug do repositório")
+	codeAST := indexCmd.Bool("code-ast", false, "Executa o code stage (code graph) no mesmo repositório. Default: ligado quando há escopo de código configurado")
+	if err := indexCmd.Parse(args); err != nil {
+		return err
+	}
+
+	// Quais flags foram informadas de fato — o default do code stage depende
+	// disso (flag explicita vence; nao informada, vale o escopo configurado).
+	setFlags := make(map[string]bool)
+	indexCmd.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
+
+	target := *dirPath
+	if target == "" && indexCmd.NArg() > 0 {
+		target = indexCmd.Arg(0)
+	}
+
+	// Descoberta e resolução automática de configuração do vault em cascata
+	searchDir := target
+	if searchDir == "" {
+		searchDir = "."
+	}
+	_, _ = config.FindAndLoadDotEnv(searchDir)
+	cfg, cfgPath, _ := config.LoadCascadingConfig(searchDir)
+	if cfgPath != "" && target == "" {
+		dirOfCfg := filepath.Dir(cfgPath)
+		if filepath.Base(dirOfCfg) == ".memory" {
+			target = filepath.Dir(dirOfCfg)
+		} else {
+			target = dirOfCfg
+		}
+	}
+
+	if cfg == nil {
+		def := config.DefaultConfig()
+		cfg = &def
+	}
+
+	if target == "" {
+		fmt.Println("Uso: mem index [--force] [--no-prune] [--db <caminho>] [--postgres <url>] [--repo <nome>] [--code-ast[=true|false]] [<pasta_com_markdown>]")
+		fmt.Println("     Dica: execute 'mem init' para criar um arquivo de configuração declarativa.")
+		return nil
+	}
+
+	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	resolvedDB, resolvedPG, errOverride := applyStorageOverride(*storage, resolvedDB, resolvedPG)
+	if errOverride != nil {
+		return errOverride
+	}
+	emb, tq, _ := resolveEmbedder(cfg)
+
+	// Code stage (ADR-061, CG-03): o code graph nasce no mesmo repositorio
+	// resolvido pelo pipeline Markdown. Escopo de codigo vazio = comportamento
+	// de sempre (so notas).
+	scope := cfg.CodeScope()
+	codeStage := *codeAST
+	if !setFlags["code-ast"] {
+		codeStage = cfg.CodeScopeConfigured() && len(scope.Include) > 0
+	}
+	if len(scope.Include) == 0 {
+		codeStage = false
+	}
+
+	if resolvedPG != "" {
+		pgStore, err := store.NewPostgresStore(resolvedPG)
+		if err != nil {
+			return fmt.Errorf("erro ao conectar no PostgreSQL: %w", err)
+		}
+		defer pgStore.Close()
+		runIndexPostgres(ctx, pgStore, emb, cfg, resolvedRepo, target, *force, !*noPrune)
+		if codeStage {
+			// A escrita do code graph no engine configurado (Postgres) e a T3
+			// da feature. ate la, rodar o code stage aqui escreveria num
+			// SQLite local que nada consulta — pior do que nao rodar.
+			fmt.Fprintf(os.Stderr, "[code-stage] engine=postgres: code graph no Postgres ainda nao suportado — etapa ignorada\n")
+		}
+		return nil
+	}
+
+	database, err := db.InitDB(resolvedDB)
+	if err != nil {
+		return fmt.Errorf("erro ao inicializar banco SQLite: %w", err)
+	}
+	defer database.Close()
+	runIndexSQLite(ctx, database, emb, tq, cfg, target, *force, !*noPrune)
+	if codeStage {
+		runCodeStage(ctx, database, target, cfg)
+	}
+	return nil
+}
+
+// runCodeStage executa o code pipeline (o code graph do repositorio) como
+// estagio do `mem index`.
+//
+// O code stage NUNCA derruba o `mem index`: erro e logado e o pipeline Markdown
+// — que ja rodou — permanece intacto. E a mesma politica do embedder ausente:
+// o que e acessorio nao derruba o principal.
+func runCodeStage(ctx context.Context, database *sql.DB, rootDir string, cfg *config.Config) {
+	if database == nil || rootDir == "" {
+		return
+	}
+	pipe, err := codeast.NewPipeline(codeast.PipelineOptions{DB: database})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[code-stage] pipeline indisponivel: %v\n", err)
+		return
+	}
+	if err := pipe.Run(ctx, rootDir, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "[code-stage] falhou: %v\n", err)
+		return
+	}
+	stats := pipe.Stats()
+	fmt.Printf("[code-stage] code graph atualizado: %d arquivos, %d simbolos\n", stats.FilesIndexed, stats.SymbolsTotal)
 }
 
 func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.Embedder, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {

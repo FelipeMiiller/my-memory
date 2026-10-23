@@ -72,9 +72,14 @@ T3 -> T5
 
 **Where**: `cmd/mem/main.go`
 **Depends on**: T1
-**Tests**: `cmd/mem/codeindex_test.go` — `TestMemIndexExecutaCodeStage`
+**Tests**: `cmd/mem/index_code_scope_test.go` — `TestMemIndexExecutaCodeStage`; `TestMemIndexSemEscopoDeCodigoNaoRodaCodeStage`
 **Gate**: `go test -count=1 ./cmd/mem/...`
 - **Do**: `mem index` passa a rodar o code pipeline como estágio (opt-in por flag, default ligado quando há escopo de código configurado), no mesmo repositório resolvido pelo pipeline Markdown; o behaviour atual (só Markdown) permanece quando o escopo de código está vazio. Cobre CG-03.
+**Done when**:
+- [x] `mem index` roda o code stage no mesmo repositório resolvido pelo pipeline Markdown (persistindo `code_files`/`code_symbols`/`code_edges`)
+- [x] Escopo de código configurado liga o estágio por default; a flag `--code-ast[=true|false]` liga ou desliga explicitamente
+- [x] Escopo de código vazio: o `mem index` continua sendo byte-a-byte o pipeline Markdown de antes
+- [x] Falha do code stage é logada e não derruba o `mem index` (mesma política do embedder ausente)
 
 ### T3: O code pipeline escreve no engine configurado
 
