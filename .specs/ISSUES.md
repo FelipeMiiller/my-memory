@@ -834,3 +834,50 @@ repositório.
 
 **Direção.** As 5 decisões são de produto e travam o roadmap de paridade.
 A medição completa, com evidência `caminho:linha`, está na matriz.
+
+---
+
+## ISSUE-027 — O code graph do vault de repositório está inerte: motor ausente e ligação quebrada
+
+- **Severidade:** 🔴 crítica
+- **Status:** 🔵 open (decisão de arquitetura tomada na ADR-061; execução por abrir)
+- **Achado em:** auditoria comparativa de 2026-10-23 entre o `my-memory` e o [Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify) `v0.9.94` (clone em `D:\.minimax\scratch\subagents\graphify-study\graphify`), com **verificador independente** que refutou 6 de 7 hipóteses da análise inicial
+- **Decisão de arquitetura:** [ADR-061](../docs/adr/061-dois-conceitos-de-memoria-vault-central-e-code-graph.md) — vault central = memória de aprendizagem (Obsidian); vault de repositório = code graph (conceito do Graphify, motor do my-memory)
+
+**Contexto.** A ADR-047 (code AST via tree-sitter) está **Accepted**, mas o
+binding real nunca foi implementado: o que roda é um mock regex. A ADR-061
+decide o caminho (motor AST real em Go puro, fases de ligação → motor →
+superfície). Este issue registra **os 12 gaps concretos** que a execução tem de
+fechar, cada um com a evidência.
+
+**Medição empírica (verificador, sobre o próprio repo):** `mem code-index
+--include='**/*.go' --lang=go` → **331 arquivos, 2595 símbolos, 120 arestas**;
+`db.InitDB`, a função mais chamada do repo, **não tem nenhum vizinho** — não
+existe aresta de chamada real em lugar nenhum.
+
+| # | Gap | Evidência | Gravidade |
+|---|-----|-----------|-----------|
+| **C1** | O motor AST nunca foi implementado: `newBackendParser()` devolve `ErrTreesitterDisabled` mesmo com `-tags treesitter` **e não tem nenhum call site** — o caminho de produção é sempre o `MockParser` regex ("walker regex-by-line") | `internal/codeast/treesitter_enabled.go:57`, `internal/codeast/pipeline.go:69-71`, `internal/codeast/mock_parser.go:82` | 🔴 crítica |
+| **C2** | **Não existe call graph.** As arestas são `references` por igualdade de nome; `imports` é explicitamente pulado ("imports tratados separadamente em T+") | `internal/codeast/pipeline.go:279-281, 299` | 🔴 crítica |
+| **C3** | **As 2 tools MCP de código estão mortas**: registradas com handler `nil`; `SetCodeSearchHandler`/`SetCodeNeighborsHandler` só são chamados em teste → respondem "indisponível" (CA-14) | `internal/mcp/server.go:116-117`, `internal/mcp/code_handlers_test.go:312` | 🔴 crítica |
+| **C4** | **`mem code-index` indexa 0 arquivos por default**: filtra por `cfg.ShouldIndex`, cujo `include` default é `**/*.md`. E `mem index` **nunca** chama o code pipeline (só `mem code-index`) | `internal/codeast/pipeline.go:376`, `internal/config/config.go:116`, `cmd/mem/main.go:864` | 🔴 crítica |
+| **C5** | **Em Postgres o code graph fica vazio**: o pipeline abre o store PG e o descarta ("code_* tabelas via SQLite local (v1)"), escrevendo num SQLite local que nada consulta. As tabelas `code_*` são criadas no Postgres (`internal/db/schema.go:250-296`) e **permanecem vazias** | `cmd/mem/codeindex.go:83-95` | 🔴 crítica |
+| **C6** | **`code_files`/`code_symbols`/`code_edges` não têm coluna `repository`** — o code graph está fora da federação `repo_id` | `internal/db/schema.go:89-133` | 🟠 alta |
+| **C7** | **Dois grafos disjuntos**: `graph_edges` (notas, epistêmicas) e `code_edges` (símbolos) não têm ponte — o "Repository Brain" não existe como grafo único | `internal/graph` não menciona `code_*` (0 ocorrências) | 🟠 alta |
+| **C8** | **`code_edges` não tem `epistemic_status`** e a resposta MCP **não expõe `confidence` nem call-site** — só `file`/`line` do símbolo destino. A proveniência que a ADR-011 dá ao grafo de notas não alcança o de código | `internal/db/code_migration.go:118-134`, `internal/mcp/code_handlers.go:41-49` | 🟠 alta |
+| **C9** | **`include_code` da busca híbrida é placeholder**: o fan-in RRF code+markdown não existe, só um aviso "agendado para backlog (CA-12 placeholder)" | `internal/mcp/handlers.go:385-399` | 🟠 alta |
+| **C10** | **A viewer não tem superfície de código**: nenhuma ocorrência de `code_symbol`/`code_edges`/`code_search` em `viewer/src`; rotas = index/notes/graph/drift. O code graph não tem rosto visual | `viewer/src` (0 ocorrências) | 🟡 média |
+| **C11** | **`mem drift` ↔ `ast_hash` desligados**: `internal/drift` não referencia `ast_hash` nem `code_files` — o drift liga nota↔código por git, não por estrutura | `internal/drift` (0 ocorrências) | 🟡 média |
+| **C12** | **Flags mortas no CLI de código**: `--repo`, `--ast-hash`, `--no-embed` e `--json` são aceitos e descartados (`_ = repoSlug` etc.). `--json` ainda avisa "sem efeito nesta versão" | `cmd/mem/codeindex.go:39-42` | 🟡 média |
+
+**Armadilha de escopo (o erro mais caro possível aqui).** O `include` global é
+compartilhado com o pipeline Markdown (`cmd/mem/main.go:1668`, `:1878`): incluir
+`**/*.go` no `include` global faria o Go ser indexado **como nota**, poluindo o
+grafo de notas, os embeddings e o drift. O escopo de código tem de ser
+**separado** (`code.include`/`code.exclude`), conforme a ADR-061 §4.
+
+**Direção.** A ADR-061 decide o *quê*. Este issue vira a spec
+`.specs/features/code-graph-real/` (Specify → Design → Tasks → Execute), com os
+12 gaps como requisitos rastreáveis, em três fases: **ligação** (C3, C4, C5, C6,
+C12), **motor** (C1, C2, C8) e **superfície** (C7, C9, C10, C11).
+
