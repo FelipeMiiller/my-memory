@@ -61,6 +61,7 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-058](058-renderizador-vis-network-vendorizado-sem-build-step.md)** | Renderizador vis-network vendorizado, sem build step e sem CDN | Accepted | 2026-10-19 | `graphview`, `vis-network`, `vendorizado`, `go-embed`, `offline` |
 | **[ADR-059](059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** | SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP | Aceito — **Emendado pela ADR-060** | 2026-10-19 | `viewer`, `react`, `vite`, `mcp`, `http`, `build-estatico`, `seguranca` |
 | **[ADR-060](060-stack-do-frontend-da-viewer-e-fallback-spa.md)** | Stack do frontend da viewer (TanStack) e a rota de fallback SPA | Aceito | 2026-10-19 | `viewer`, `react`, `tanstack`, `router`, `query`, `zustand`, `zod`, `markdown`, `wikilinks`, `spa` |
+| **[ADR-061](061-dois-conceitos-de-memoria-vault-central-e-code-graph.md)** | Dois conceitos de memória — Vault Central (aprendizagem) e Vault de Repositório (code graph) | Aceito | 2026-10-23 | `code-graph`, `central-vault`, `obsidian`, `graphify`, `provenance`, `federation`, `cgo`, `adr-047` |
 > [!success]
 > **ADR-055: implementada.** A pergunta que a ADR deixou em
 > aberto — para onde `resolved_doc_id` aponta — foi respondida em 2026-10-21:
@@ -123,6 +124,25 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > SPA**. O `@tanstack/config` está deprecado no npm ("Package no longer
 > supported") e o sucessor é de biblioteca. A `vite.config.ts` da viewer segue
 > explícita e local — 56 linhas, sem preset.
+
+> [!warning]
+> **ADR-047: decisão mantida, motor ausente — e a ADR-054:37 afirma o contrário.**
+> A ADR-047 decide indexar código via tree-sitter e traz um plano de deferral
+> ("Plano Real tree-sitter Binding") com 3 gatilhos, hoje **0 de 3** disparados.
+> O que roda em produção é o `MockParser` regex: `newBackendParser()` devolve
+> `ErrTreesitterDisabled` mesmo compilado com `-tags treesitter` e **não tem
+> nenhum call site** (`internal/codeast/treesitter_enabled.go:57`,
+> `internal/codeast/pipeline.go:69-71`). As arestas são `references` por
+> igualdade de nome — não existe `calls` nem `imports` — e as 2 tools MCP de
+> código respondem "indisponível" porque são registradas com handler `nil`
+> (`internal/mcp/server.go:116-117`).
+>
+> Consequência: a **ADR-054:37**, que lista `code-*` (AST tree-sitter) entre os
+> recursos "superiores já hoje", é **factualmente falsa** — o texto das ADRs é
+> imutável, então a correção fica aqui. O estado real do code graph e o que
+> passa a valer estão na [ADR-061](061-dois-conceitos-de-memoria-vault-central-e-code-graph.md),
+> que decide o motor em Go puro (ADR-022) e mantém o plano de deferral do
+> tree-sitter intacto.
 
 > [!warning]
 > **ADR-058: decisão aceita, implementação ausente.** A ADR decide vendorizar o
