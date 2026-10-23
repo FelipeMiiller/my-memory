@@ -388,11 +388,13 @@ estão cobertos por teste.
 
 ## O que não foi verificado
 
-1. **O motor PostgreSQL não foi exercitado em execução.** O gate roda em SQLite.
-   O código do Postgres (`internal/store/tags.go`, `internal/store/postgres.go:84-94`,
-   `:502-506`, `:595-599`, `:697-701`) foi lido e conferido campo a campo contra o
-   SQLite, mas **não** houve um banco Postgres de pé para validar o
-   `INSERT ... ON CONFLICT` e os três pontos de push-down.
+1. **O caminho de busca completo não foi exercitado contra o Postgres em
+   execução.** O Postgres **foi** exercitado — pelo teste de integração do
+   filtro por pasta (`internal/store/tags_folder_pg_test.go`, que rodou contra
+   o Postgres real e provou o literal `E'\\'` e o `REPLACE`) —, mas o smoke test
+   de 13 casos rodou no SQLite local, e os três pontos de push-down do Postgres
+   (`internal/store/postgres.go:502-506`, `:595-599`, `:697-701`) e o
+   `INSERT ... ON CONFLICT` continuam apoiados em **leitura de código**.
 2. **O `mem tag`/`mem tags` foi rodado contra um vault real** com o binário
    compilado nesta rodada — ver a seção de smoke test acima, 13 casos. A
    evidência dos TAG-01 … TAG-16 não depende só de teste unitário
@@ -431,3 +433,5 @@ estão cobertos por teste.
 | **B6** (MÉDIO) | Erro de busca devolvia código de saída 0 e ia para a stdout | **Corrigido** — `runSearchSQLite`/`runSearchPostgres` devolvem o código; mensagens para o `stderr` |
 | **B7** (BAIXO) | `--help` imprimia o uso duas vezes; `mem search algo --help` ainda buscava "algo"; `mem tags --help` saía com código 1 | **Corrigido** — sinalizador de ajuda no parse; `flag.ErrHelp` tratado como sucesso nos três comandos |
 | **B8** (BAIXO) | `internal/db` não tinha nenhum benchmark, e a feature tocou o pacote (T2 e T5) | **Corrigido** — `internal/db/tags_bench_test.go` com três benchmarks do caminho quente de tags |
+| **B9** (BLOQUEANTE) | `memory_search` derrubava o **processo do servidor MCP** com panic quando o binário é compilado sem a tag `onnx`: `emb.GenerateEmbedding` sem guarda, em goroutine sem `recover()` | **Corrigido** — guarda `emb == nil` nos 4 pontos do MCP e `recover()` nas goroutines da busca federada; reverificado com cliente JSON-RPC real (o servidor responde e continua de pé) |
+| **B10** (ALTO) | `mem tags --folder` não casava nada no Windows: a comparação era `path LIKE 'pasta/%'` e o path indexado usa `\` — os fixtures da suíte usavam `/`, então o bug nunca era reproduzido | **Corrigido** — comparação sobre a forma com `/` nos dois engines, com a pasta como segmento inteiro; teste de regressão com path Windows no SQLite e integração real no Postgres |
