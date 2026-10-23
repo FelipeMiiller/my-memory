@@ -155,6 +155,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`mem tags --folder` não encontrava nada no Windows.** O filtro comparava
+  `path LIKE 'pasta/%'`, mas o caminho indexado no Windows usa `\` como
+  separador — o comando devolvia lista vazia em Windows e funcionava em Linux.
+  A comparação passa a ser feita sobre a forma com `/` nos dois engines, e a
+  pasta precisa ser um segmento inteiro (`docs` não casa `docs-outro`), com a
+  mesma regra já usada por `mem files --folder`.
+- **`memory_search` derrubava o servidor MCP inteiro com panic** quando o binário é
+  compilado sem a tag de build `onnx` (isto é, sem provider de embedding). A busca
+  do servidor chamava `emb.GenerateEmbedding` sem guarda — e, como ela roda em
+  goroutine sem `recover()`, o pânico derrubava o **processo**, não só a
+  requisição: o servidor MCP morria no primeiro `memory_search` de um cliente.
+  - A causa raiz foi corrigida nos quatro pontos do MCP (modos `vector` e
+    `hybrid`, engines SQLite e Postgres): sem provider, o vetorial devolve erro
+    de uso e o híbrido cai para a busca textual.
+  - Em profundidade, as goroutines da busca federada agora isolam o pânico: ele
+    vira um erro da requisição e o servidor continua de pé.
+  - Verificado com um cliente JSON-RPC real contra o servidor MCP HTTP.
 - **`mem search` derrubava com nil-pointer-dereference quando o binário é compilado
   sem a tag de build `onnx`** (isto é, sem provider de embedding). A busca chamava
   `emb.GenerateEmbedding` sem guarda; o modo híbrido agora cai para a busca textual

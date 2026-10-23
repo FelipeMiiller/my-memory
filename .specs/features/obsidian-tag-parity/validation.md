@@ -294,6 +294,75 @@ busca textual FTS.` e o comando **não** quebra.
 
 ---
 
+## O caminho MCP, exercitado com um cliente real
+
+A validação declarava, com honestidade, que o caminho MCP **não tinha sido
+exercitado em execução**. Essa lacuna foi fechada nesta rodada — e ela tinha
+um preço.
+
+Servidor MCP HTTP real (`mem mcp --http 127.0.0.1:39321`), mesmo binário
+compilado sem a tag `onnx`, mesmo vault do smoke test, cliente JSON-RPC por
+HTTP:
+
+| Chamada | Resultado |
+|---|---|
+| `tools/list` | **26 tools**, com `memory_get_tags` e `memory_get_tag` presentes |
+| `tools/call` → `memory_get_tags` | inventário com as 3 tags, contagens e o `resolved_doc_id`/`resolved_title` das que casaram com um documento |
+| `tools/call` → `memory_get_tag` (`name=projeto`) | contagem 2 e os 2 documentos — a semântica de descendentes funciona pelo MCP |
+| `tools/call` → `memory_search` com `tag` | **o servidor morreu com panic** |
+
+### O BLOQUEANTE: `memory_search` derrubava o servidor MCP inteiro
+
+```
+panic: runtime error: invalid memory address or nil pointer dereference
+main.buildSQLiteSearchFunc.func1(...)
+	C:/repository/my-memory/cmd/mem/main.go:2569
+github.com/FelipeMiiller/my-memory/internal/federation.(*FederatedSearcher).Search.func2()
+	C:/repository/my-memory/internal/federation/search.go:87
+```
+
+Causa: o mesmo bug da CLI, no caminho do servidor. `buildSQLiteSearchFunc` e
+`buildPostgresSearchFunc` chamavam `emb.GenerateEmbedding` **sem guarda**, e
+sem provider de embedding o `emb` é `nil`. A busca do servidor MCP roda em
+goroutine (`internal/federation/search.go:76` e `:86`), e essas goroutines
+**não tinham `recover()`** — então o pânico derrubava o **processo inteiro**,
+não só a requisição. O servidor MCP morria no primeiro `memory_search` de um
+cliente.
+
+Por que ninguém tinha visto: o binário de desenvolvimento é compilado com a
+tag `onnx`, então `emb` nunca é `nil`; e o caminho MCP não era exercitado por
+cliente real — só por teste unitário, que sempre passa um embedder.
+
+**Correção, em duas camadas:**
+
+1. **Causa raiz** — `emb == nil` é tratado como "sem provider" nos quatro
+   pontos do MCP (`cmd/mem/main.go`, modos `vector` e `hybrid`, engines SQLite
+   e Postgres). O vetorial devolve erro de uso; o híbrido cai para a busca
+   textual.
+2. **Defesa em profundidade** — as goroutines da busca federada agora isolam o
+   pânico: ele vira um erro da requisição (`internal/federation/search.go`), e
+   o servidor continua de pé. Um `memory_search` malformado não pode mais
+   derrubar o servidor.
+
+### Re-verificação depois da correção
+
+Servidor MCP HTTP novo, mesmo binário, mesmo vault:
+
+| Chamada | Resultado |
+|---|---|
+| `tools/list` | 26 tools, com as duas de tag |
+| `memory_get_tags` | inventário com as 3 tags e as contagens |
+| `memory_get_tag` (`projeto`) | 2 documentos — descendentes pelo MCP |
+| `memory_search` com `tag=backend` | acha `alpha.md` |
+| `memory_search` sem `tag` | acha `alpha.md` |
+| `memory_search` com `tag=naoexiste` | `Nenhum resultado encontrado.` |
+| `memory_search` com `mode=vector` | erro JSON-RPC `-32603` com a mensagem do provider — **servidor de pé** |
+
+O filtro por tag está confirmado pelo caminho do MCP, e o servidor sobrevive a
+todas as chamadas.
+
+---
+
 ## Defeitos encontrados pelo gate e corrigidos
 
 O gate e o smoke test acharam quatro defeitos **na própria feature** (e um
@@ -302,6 +371,8 @@ estão cobertos por teste.
 
 | # | Defeito | Gravidade | Correção |
 |---|---|---|---|
+| 0 | **`memory_search` derrubava o servidor MCP inteiro com panic** quando o binário é compilado sem a tag `onnx`: `emb.GenerateEmbedding` sem guarda, em goroutine sem `recover()` | **BLOQUEANTE** | guarda `emb == nil` nos 4 pontos do MCP; `recover()` nas goroutines da busca federada, para que um pânico vire erro de requisição e o servidor não morra |
+| 0b | **`mem tags --folder` não casava nada no Windows**: a comparação era `path LIKE 'pasta/%'`, e o path indexado no Windows usa `\` — o filtro devolvia lista vazia | **ALTO** | a comparação passa a ser feita sobre a forma com `/` (`REPLACE` nos dois engines) e a pasta precisa ser um segmento inteiro, com a mesma regra de `matchesFolder` (`cmd/mem/files.go`); teste de regressão com path Windows no SQLite e integração real no Postgres |
 | 1 | **`mem search` derrubava com nil-pointer-dereference** quando o binário é compilado sem a tag `onnx` | **ALTO** | guarda `emb == nil` nos dois caminhos de busca (`cmd/mem/main.go`, `runSearchSQLite` e `runSearchPostgres`): no híbrido, cai para a busca léxica com aviso; no vetorial, explica e sai com código de erro |
 | 2 | **`mem search --tag` sem valor saía com código 0** — o pacote `flag` do Go só reclama de argumento faltante quando não sobrou nenhum argumento, então a flag seguinte (`--mode`) era engolida como valor de `--tag` | **ALTO** (violava o TAG-19) | `validateSearchFlagValues` roda **antes** do parse e rejeita flag sem valor; o rearranjador de argumentos passou a consultar o FlagSet (`flagTakesValue`) em vez de manter a lista de nomes na mão |
 | 3 | **Erro de busca saía com código 0** — o modo vetorial sem provider imprimia "Erro" e devolvia zero | MÉDIO | `runSearchSQLite` e `runSearchPostgres` devolvem o código de saída; o `main` propaga. As mensagens de erro também foram para o `stderr`, como no resto da CLI |
@@ -340,9 +411,11 @@ estão cobertos por teste.
 6. **O número de tools MCP (26) foi conferido por contagem de texto** nos
    documentos, e não por introspecção do servidor (`tools/list`). A lista
    canônica continua sendo `internal/mcp/server.go:104-128`.
-7. **O caminho MCP não foi exercitado em execução** — as duas tools novas
-   (`memory_get_tags`, `memory_get_tag`) foram verificadas por teste unitário e
-   por introspecção do registro, mas não por uma chamada real a um cliente MCP.
+7. **O caminho MCP foi exercitado com um cliente real** (HTTP/JSON-RPC contra
+   um servidor MCP de verdade) — ver a seção acima. A primeira chamada de
+   `memory_search` matou o servidor; o defeito foi corrigido e re-verificado.
+   O que **não** foi exercitado é o **transporte stdio** do MCP, que segue o
+   mesmo caminho de código mas não foi conectado a um cliente nesta rodada.
 
 ---
 
