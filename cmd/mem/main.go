@@ -1632,10 +1632,10 @@ func runIndexCLI(ctx context.Context, defaultRepo string, args []string) error {
 		defer pgStore.Close()
 		runIndexPostgres(ctx, pgStore, emb, cfg, resolvedRepo, target, *force, !*noPrune)
 		if codeStage {
-			// A escrita do code graph no engine configurado (Postgres) e a T3
-			// da feature. ate la, rodar o code stage aqui escreveria num
-			// SQLite local que nada consulta — pior do que nao rodar.
-			fmt.Fprintf(os.Stderr, "[code-stage] engine=postgres: code graph no Postgres ainda nao suportado — etapa ignorada\n")
+			// O code stage grava no engine configurado (ADR-061): aqui, o
+			// proprio Postgres. O code graph deixa de ser um SQLite local
+			// que nada consulta.
+			runCodeStage(ctx, pgStore.DB(), target, cfg)
 		}
 		return nil
 	}

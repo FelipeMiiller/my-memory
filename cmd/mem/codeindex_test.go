@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/FelipeMiiller/my-memory/internal/config"
+	"github.com/FelipeMiiller/my-memory/internal/db"
 )
 
 // TestCodeIndexCommand_ArgsParsing cobre:
@@ -120,4 +123,80 @@ func mkLocalGoFile(t *testing.T, dir, name, content string) error {
 	t.Helper()
 	p := filepath.Join(dir, name)
 	return os.WriteFile(p, []byte(content), 0o644)
+}
+
+// TestCodeIndexEscreveNoEngineConfigurado prova que o code stage grava no
+// engine configurado (CG-05): com engine=postgres sem URL o comando falha em
+// vez de cair num SQLite local silencioso, e com o SQLite escolhido as linhas
+// vão para o arquivo apontado.
+func TestCodeIndexEscreveNoEngineConfigurado(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Storage.Engine = "postgres"
+	cfg.Storage.PostgresURL = ""
+
+	// Caso 1: engine=postgres sem URL → erro explícito (nenhum SQLite local).
+	engine, err := resolveCodeEngine(&cfg, "", "", "")
+	if err == nil {
+		engine.Close()
+		t.Fatal("engine=postgres sem URL: esperava erro, não um engine resolvido")
+	}
+
+	// Caso 2: --storage=sqlite → o engine é o SQLite local pedido.
+	dbFile := filepath.Join(t.TempDir(), "code-engine.db")
+	engine2, err := resolveCodeEngine(&cfg, "sqlite", "", dbFile)
+	if err != nil {
+		t.Fatalf("resolveCodeEngine(sqlite) falhou: %v", err)
+	}
+	defer engine2.Close()
+	if engine2.name != "sqlite" {
+		t.Fatalf("engine = %q; want sqlite", engine2.name)
+	}
+
+	ctx := context.Background()
+	if _, err := db.UpsertCodeFile(ctx, engine2.db, "a/b.go", "go", "h", "ast", 10, 1); err != nil {
+		t.Fatalf("UpsertCodeFile falhou: %v", err)
+	}
+	n, err := db.CountCodeFiles(ctx, engine2.db)
+	if err != nil {
+		t.Fatalf("CountCodeFiles falhou: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("code_files = %d; want 1 (o code stage grava no engine resolvido)", n)
+	}
+}
+
+// TestCodeIndexGravaNoSQLiteEscolhido fecha o caminho testável localmente:
+// `mem code-index --storage=sqlite` grava as tabelas code_* no arquivo pedido.
+func TestCodeIndexGravaNoSQLiteEscolhido(t *testing.T) {
+	vault := t.TempDir()
+	dbFile := filepath.Join(t.TempDir(), "code-index.db")
+	if err := mkLocalGoFile(t, vault, "main.go", "package test\n\nfunc Hi() {}\n"); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	err := runCodeIndexCLI(context.Background(), "FelipeMiiller/my-memory", []string{
+		"--storage=sqlite",
+		"--db=" + dbFile,
+		"--lang=go",
+		"--include=**/*.go",
+		vault,
+	})
+	if err != nil {
+		t.Fatalf("runCodeIndexCLI falhou: %v", err)
+	}
+
+	d, err := db.InitDB(dbFile)
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer d.Close()
+
+	ctx := context.Background()
+	files, err := db.CountCodeFiles(ctx, d)
+	if err != nil {
+		t.Fatalf("CountCodeFiles falhou: %v", err)
+	}
+	if files == 0 {
+		t.Fatal("code_files vazio: o code stage não gravou no engine escolhido")
+	}
 }

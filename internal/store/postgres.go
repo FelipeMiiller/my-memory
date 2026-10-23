@@ -92,6 +92,69 @@ CREATE TABLE IF NOT EXISTS document_tags (
 );
 CREATE INDEX IF NOT EXISTS idx_document_tags_key ON document_tags(repository, tag_key);
 CREATE INDEX IF NOT EXISTS idx_document_tags_document ON document_tags(repository, document_id);
+
+-- Code AST (ADR-047, ADR-061): o code graph mora no mesmo engine do resto.
+-- Sem estas tabelas o code pipeline escrevia num SQLite local que nada
+-- consultava (CG-05).
+CREATE TABLE IF NOT EXISTS code_files (
+    id BIGSERIAL PRIMARY KEY,
+    path TEXT NOT NULL UNIQUE,
+    language TEXT NOT NULL,
+    size_bytes BIGINT NOT NULL,
+    content_hash TEXT NOT NULL,
+    ast_hash TEXT,
+    indexed_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_code_files_language ON code_files(language);
+CREATE INDEX IF NOT EXISTS idx_code_files_content_hash ON code_files(content_hash);
+
+CREATE TABLE IF NOT EXISTS code_symbols (
+    id BIGSERIAL PRIMARY KEY,
+    file_id BIGINT NOT NULL REFERENCES code_files(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    qualified_name TEXT,
+    signature TEXT,
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    start_col INTEGER,
+    end_col INTEGER,
+    doc_comment TEXT,
+    parent_symbol_id BIGINT REFERENCES code_symbols(id) ON DELETE SET NULL,
+    UNIQUE (file_id, kind, qualified_name, start_line)
+);
+CREATE INDEX IF NOT EXISTS idx_code_symbols_kind_name ON code_symbols(kind, name);
+CREATE INDEX IF NOT EXISTS idx_code_symbols_qualified_name ON code_symbols(qualified_name);
+CREATE INDEX IF NOT EXISTS idx_code_symbols_file_id ON code_symbols(file_id);
+
+CREATE TABLE IF NOT EXISTS code_edges (
+    id BIGSERIAL PRIMARY KEY,
+    src_symbol_id BIGINT NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
+    dst_symbol_id BIGINT NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    file_id BIGINT NOT NULL REFERENCES code_files(id) ON DELETE CASCADE,
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    UNIQUE (src_symbol_id, dst_symbol_id, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_code_edges_kind ON code_edges(kind);
+CREATE INDEX IF NOT EXISTS idx_code_edges_src ON code_edges(src_symbol_id);
+CREATE INDEX IF NOT EXISTS idx_code_edges_dst ON code_edges(dst_symbol_id);
+
+CREATE TABLE IF NOT EXISTS code_edges_uncertain (
+    id BIGSERIAL PRIMARY KEY,
+    src_symbol_id BIGINT NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
+    dst_candidate_name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    reason TEXT,
+    file_id BIGINT NOT NULL REFERENCES code_files(id) ON DELETE CASCADE,
+    start_line INTEGER NOT NULL,
+    UNIQUE (src_symbol_id, dst_candidate_name, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_code_edges_uncertain_src ON code_edges_uncertain(src_symbol_id);
+CREATE INDEX IF NOT EXISTS idx_code_edges_uncertain_conf ON code_edges_uncertain(confidence);
 `
 
 var _ Store = (*PostgresStore)(nil)

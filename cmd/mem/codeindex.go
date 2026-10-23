@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/FelipeMiiller/my-memory/internal/codeast"
@@ -22,7 +22,7 @@ import (
 func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) error {
 	fs := flag.NewFlagSet("code-index", flag.ContinueOnError)
 	dir := fs.String("dir", "", "Diretório do vault (padrão: auto-detect via .memory/config.yaml)")
-	dbPath := fs.String("db", "", "Caminho do arquivo SQLite (padrão: memory.db)")
+	dbPath := fs.String("db", "", "Caminho do arquivo SQLite (padrão: memory.db); implica --storage=sqlite")
 	pgURL := fs.String("postgres", "", "URL PostgreSQL com pgvector (alternativa ao SQLite)")
 	storage := fs.String("storage", "", "Força engine: 'sqlite' ou 'postgres'")
 	repoSlug := fs.String("repo", "", "Identificador/slug do repositório (multi-tenant)")
@@ -75,35 +75,101 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 	}
 	langs := splitCSV(*lang)
 
-	resolvedDB := *dbPath
-	if resolvedDB == "" {
-		resolvedDB = cfg.Storage.SQLitePath
+	// O code graph é gravado no engine configurado (ADR-061): Postgres quando
+	// Postgres, SQLite quando SQLite. Nada de SQLite local paralelo.
+	engine, err := resolveCodeEngine(cfg, *storage, *pgURL, *dbPath)
+	if err != nil {
+		return err
 	}
+	defer engine.Close()
 
-	resolvedPG := *pgURL
-	if *storage == "postgres" || (cfg.Storage.Engine == "postgres" && *storage != "sqlite") {
-		if resolvedPG == "" {
-			resolvedPG = cfg.Storage.PostgresURL
-		}
-		if resolvedPG != "" {
-			pgStore, err := store.NewPostgresStore(resolvedPG)
-			if err != nil {
-				return fmt.Errorf("postgres: %w", err)
-			}
-			defer pgStore.Close()
-			fmt.Println("[code-index] engine=postgres detectado — code_* tabelas via SQLite local (v1)")
-		}
-	}
-
-	return runCodeIndexPipeline(ctx, resolvedDB, target, cfg, langs)
+	return runCodeIndexPipeline(ctx, engine.db, target, cfg, langs)
 }
 
-func runCodeIndexPipeline(ctx context.Context, dbPath, dir string, cfg *config.Config, langs []string) error {
+// codeEngine é o engine resolvido para o code stage.
+type codeEngine struct {
+	name  string // "sqlite" | "postgres"
+	db    *sql.DB
+	close func()
+}
+
+// Close fecha a conexão do engine (idempotente para o chamador).
+func (e *codeEngine) Close() {
+	if e == nil || e.close == nil {
+		return
+	}
+	e.close()
+}
+
+// resolveCodeEngine decide onde o code graph é gravado.
+//
+// Precedência (ADR-040): --storage=sqlite|postgres vence; depois, um --db
+// explícito (que é a forma de pedir o SQLite local); sem nenhum dos dois, vale
+// o engine configurado. O caminho --storage=sqlite é o usado em teste/CI.
+func resolveCodeEngine(cfg *config.Config, storageFlag, pgURLFlag, dbPathFlag string) (*codeEngine, error) {
+	engine := ""
+	if cfg != nil {
+		engine = strings.ToLower(strings.TrimSpace(cfg.Storage.Engine))
+	}
+	switch strings.ToLower(strings.TrimSpace(storageFlag)) {
+	case "sqlite":
+		engine = "sqlite"
+	case "postgres":
+		engine = "postgres"
+	default:
+		// --db=<arquivo> nomeia um arquivo SQLite: é a escolha explícita do
+		// SQLite local (e impede que o code stage caia no Postgres do vault
+		// sem o usuário pedir).
+		if strings.TrimSpace(dbPathFlag) != "" {
+			engine = "sqlite"
+		}
+	}
+	if engine != "postgres" {
+		engine = "sqlite"
+	}
+
+	if engine == "postgres" {
+		pgURL := strings.TrimSpace(pgURLFlag)
+		if pgURL == "" && cfg != nil {
+			pgURL = strings.TrimSpace(cfg.Storage.PostgresURL)
+		}
+		if pgURL == "" {
+			return nil, errors.New("engine=postgres sem URL: defina storage.postgres_url, use --postgres=<url> ou force --storage=sqlite")
+		}
+		pgStore, err := store.NewPostgresStore(pgURL)
+		if err != nil {
+			return nil, fmt.Errorf("postgres: %w", err)
+		}
+		return &codeEngine{
+			name:  "postgres",
+			db:    pgStore.DB(),
+			close: func() { _ = pgStore.Close() },
+		}, nil
+	}
+
+	dbPath := strings.TrimSpace(dbPathFlag)
+	if dbPath == "" && cfg != nil {
+		dbPath = strings.TrimSpace(cfg.Storage.SQLitePath)
+	}
+	if dbPath == "" {
+		dbPath = "memory.db"
+	}
 	database, err := db.InitDB(dbPath)
 	if err != nil {
-		return fmt.Errorf("InitDB(%s) falhou: %w", dbPath, err)
+		return nil, fmt.Errorf("InitDB(%s) falhou: %w", dbPath, err)
 	}
-	defer database.Close()
+	return &codeEngine{
+		name:  "sqlite",
+		db:    database,
+		close: func() { _ = database.Close() },
+	}, nil
+}
+
+// runCodeIndexPipeline roda o code pipeline contra a conexão já resolvida.
+func runCodeIndexPipeline(ctx context.Context, database *sql.DB, dir string, cfg *config.Config, langs []string) error {
+	if database == nil {
+		return errors.New("code index: database == nil")
+	}
 
 	pipe, err := codeast.NewPipeline(codeast.PipelineOptions{
 		DB:        database,
@@ -141,7 +207,3 @@ func splitCSV(s string) []string {
 	}
 	return out
 }
-
-// reachableForCI garante compilação de imports usados em tools estáticas.
-var _ = (*sql.DB)(nil)
-var _ = os.Exit

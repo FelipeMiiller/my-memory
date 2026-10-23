@@ -88,6 +88,11 @@ T3 -> T5
 **Tests**: `cmd/mem/codeindex_test.go` — `TestCodeIndexEscreveNoEngineConfigurado`
 **Gate**: `go test -count=1 ./cmd/mem/...`
 - **Do**: quando o engine configurado é Postgres, o pipeline grava `code_files`/`code_symbols`/`code_edges` no Postgres, em vez de abrir e descartar o store e escrever num SQLite local; o caminho `--storage=sqlite` continua existindo e é o usado em teste/CI. Cobre CG-05.
+- **Done when**:
+  - [x] O code stage grava `code_files`/`code_symbols`/`code_edges` no engine configurado (Postgres quando Postgres, SQLite quando SQLite)
+  - [x] As tabelas `code_*` existem no Postgres (DDL no schema do store) e o mesmo caminho de escrita roda nos dois engines
+  - [x] Engine Postgres sem URL é erro explícito — nunca um fallback silencioso para um SQLite local
+  - [x] O caminho `--storage=sqlite` continua existindo e é o usado em teste/CI
 
 ### T4: `repository` nas tabelas `code_*` e filtro por repositório
 
