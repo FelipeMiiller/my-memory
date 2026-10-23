@@ -251,9 +251,11 @@ func writeTagInventory(out io.Writer, tags []store.VaultTag, total, jsonOut, cou
 
 // sortTagsByCount ordena o inventário por contagem decrescente.
 //
-// O desempate é a tag ascendente: sem ele, duas tags com a mesma contagem
-// trocariam de lugar entre execuções e a saída do comando não seria
-// reproduzível.
+// O desempate é a tag ascendente, na forma de exibição: sem ele, duas tags com
+// a mesma contagem trocariam de lugar entre execuções e a saída do comando não
+// seria reproduzível. O inventário **sem** `--sort` sai na ordem da chave
+// canônica (a do engine); com `--sort=count`, o desempate é pela forma que o
+// usuário lê.
 func sortTagsByCount(tags []store.VaultTag) {
 	sort.SliceStable(tags, func(i, j int) bool {
 		if tags[i].Count != tags[j].Count {

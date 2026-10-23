@@ -114,7 +114,6 @@ func fuzzyResolveTag(tag string, norm map[string]string, originals []string) str
 	if doc, ok := norm[key]; ok {
 		return doc
 	}
-	_ = "DEBUG: tag=" + tag + " key=" + key
 
 	// 2. Substring match
 	for _, d := range originals {

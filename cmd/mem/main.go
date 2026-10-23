@@ -1003,6 +1003,9 @@ func printHelp() {
 	fmt.Println("Variáveis de ambiente:")
 	fmt.Println("  MY_MEMORY_PG_URL - URL de conexão padrão para o PostgreSQL (ex: postgres://user:pass@localhost:5432/memory?sslmode=disable)")
 	fmt.Println("  MY_MEMORY_REPO   - Força o slug do repositório atual (sobrescreve auto-detecção git)")
+	fmt.Println()
+	fmt.Println("Flags de armazenamento (comandos do vault: files, folders, read, outline, wordcount, tags, tag, search, recents, deadends, random):")
+	fmt.Println("  --storage sqlite|postgres - Força o engine, ignorando a auto-detecção (ADR-040). Útil em CI e sandbox.")
 }
 
 func runInit(targetDir, repoSlug, dbPath string, force bool, vscode, copilot, cursor bool) error {
