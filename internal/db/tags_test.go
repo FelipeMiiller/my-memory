@@ -371,6 +371,61 @@ func TestListVaultTags_Filters(t *testing.T) {
 	}
 }
 
+// TestListVaultTags_FolderAceitaPathWindows cobre o path indexado no Windows.
+//
+// O walker grava o caminho com o separador da plataforma, e no Windows esse
+// separador é "\". A comparação por pasta é feita sobre a forma com "/", então
+// um path com backslash precisa casar do mesmo jeito — e a pasta precisa ser
+// um segmento inteiro: "docs" não casa "docs-outro".
+//
+// Os fixtures da suíte usam paths com "/" (o caminho relativo que o Linux
+// produz), então sem este teste o filtro por pasta nunca era exercitado com
+// o separador do Windows — que é justamente o SO em que o bug aparecia.
+func TestListVaultTags_FolderAceitaPathWindows(t *testing.T) {
+	ctx := context.Background()
+	database := newTagsTestDB(t)
+	insertTagDocument(t, database, "doc-1", `vault\notas\sub\um.md`, "Nota Um")
+	insertTagDocument(t, database, "doc-2", `vault\docs-outro\x.md`, "Outro")
+	insertTagDocument(t, database, "doc-3", `outros\y.md`, "Y")
+
+	if err := InsertDocumentTags(ctx, database, "doc-1", []store.TagBinding{{Tag: "tag-um"}}); err != nil {
+		t.Fatalf("InsertDocumentTags falhou: %v", err)
+	}
+	if err := InsertDocumentTags(ctx, database, "doc-2", []store.TagBinding{{Tag: "tag-docs"}}); err != nil {
+		t.Fatalf("InsertDocumentTags falhou: %v", err)
+	}
+	if err := InsertDocumentTags(ctx, database, "doc-3", []store.TagBinding{{Tag: "tag-y"}}); err != nil {
+		t.Fatalf("InsertDocumentTags falhou: %v", err)
+	}
+
+	// A pasta "notas" casa o path com backslash.
+	inventory, err := ListVaultTags(ctx, database, store.TagFilter{Folder: "notas"})
+	if err != nil {
+		t.Fatalf("ListVaultTags falhou: %v", err)
+	}
+	if len(inventory) != 1 || inventory[0].Key != "tag-um" {
+		t.Fatalf("filtro por pasta 'notas' = %+v; esperava so 'tag-um'", inventory)
+	}
+
+	// O filtro também aceita a pasta escrita com o separador do Windows.
+	inventory, err = ListVaultTags(ctx, database, store.TagFilter{Folder: `notas\sub`})
+	if err != nil {
+		t.Fatalf("ListVaultTags falhou: %v", err)
+	}
+	if len(inventory) != 1 || inventory[0].Key != "tag-um" {
+		t.Fatalf("filtro por pasta 'notas\\sub' = %+v; esperava so 'tag-um'", inventory)
+	}
+
+	// "docs" é um segmento inteiro: não casa "docs-outro".
+	inventory, err = ListVaultTags(ctx, database, store.TagFilter{Folder: "docs"})
+	if err != nil {
+		t.Fatalf("ListVaultTags falhou: %v", err)
+	}
+	if len(inventory) != 0 {
+		t.Fatalf("filtro por pasta 'docs' = %+v; esperava vazio ('docs' não casa 'docs-outro')", inventory)
+	}
+}
+
 func TestListVaultTags_DisplayCasingIsDeterministic(t *testing.T) {
 	ctx := context.Background()
 	database := newTagsTestDB(t)

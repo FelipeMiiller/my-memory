@@ -62,10 +62,11 @@ func DisplayTag(tag string) string {
 // casaria `aXb` e a busca por tag devolveria documentos que não carregam a
 // tag pedida.
 
-// normalizeFolder canonicaliza o filtro de pasta: sem espaços nas pontas e sem
-// barras nas pontas. Pasta vazia significa "todas".
+// normalizeFolder canonicaliza o filtro de pasta: sem espaços nas pontas, com o
+// separador "/" e sem barras nas pontas. Pasta vazia significa "todas".
 func normalizeFolder(folder string) string {
 	folder = strings.TrimSpace(folder)
+	folder = strings.ReplaceAll(folder, `\`, "/")
 	folder = strings.Trim(folder, "/")
 	return folder
 }
@@ -224,9 +225,17 @@ func (s *PostgresStore) DeleteDocumentTags(ctx context.Context, repository, docu
 // regra determinística e idêntica à do engine SQLite.
 func (s *PostgresStore) ListVaultTags(ctx context.Context, repository string, filter TagFilter) ([]VaultTag, error) {
 	folder := normalizeFolder(filter.Folder)
-	folderPattern := ""
+	folderPrefix := ""
+	folderInner := ""
 	if folder != "" {
-		folderPattern = EscapeLikePattern(folder) + "/%"
+		// O path indexado usa o separador da plataforma e pode ser absoluto
+		// ou relativo ao vault. A comparação acontece sobre a forma com "/",
+		// e a pasta precisa ser um segmento inteiro — "docs" não pode casar
+		// "docs-old". É a mesma regra de `matchesFolder`, em
+		// `cmd/mem/files.go`.
+		escaped := EscapeLikePattern(folder)
+		folderPrefix = escaped + "/%"
+		folderInner = "%/" + escaped + "/%"
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
@@ -237,9 +246,10 @@ func (s *PostgresStore) ListVaultTags(ctx context.Context, repository string, fi
 		LEFT JOIN documents r ON r.id = dt.resolved_doc_id AND r.repository = dt.repository
 		WHERE ($1 = '' OR dt.repository = $1)
 		  AND ($2 = '' OR dt.document_id = $2)
-		  AND ($3 = '' OR d.path LIKE $4 ESCAPE '\')
+		  AND ($3 = '' OR REPLACE(d.path, E'\\', '/') LIKE $4 ESCAPE '\'
+		            OR REPLACE(d.path, E'\\', '/') LIKE $5 ESCAPE '\')
 		ORDER BY dt.tag_key ASC, dt.created_at ASC, dt.document_id ASC, dt.tag ASC
-	`, repository, filter.DocumentID, folder, folderPattern)
+	`, repository, filter.DocumentID, folder, folderPrefix, folderInner)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao listar tags do vault no postgres: %w", err)
 	}

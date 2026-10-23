@@ -111,9 +111,17 @@ func DeleteDocumentTags(ctx context.Context, database *sql.DB, documentID string
 // regra determinística e idêntica à do engine Postgres.
 func ListVaultTags(ctx context.Context, database *sql.DB, filter store.TagFilter) ([]store.VaultTag, error) {
 	folder := normalizeTagFolder(filter.Folder)
-	folderPattern := ""
+	folderPrefix := ""
+	folderInner := ""
 	if folder != "" {
-		folderPattern = store.EscapeLikePattern(folder) + "/%"
+		// O path indexado usa o separador da plataforma e pode ser absoluto
+		// ou relativo ao vault. A comparação acontece sobre a forma com "/",
+		// e a pasta precisa ser um segmento inteiro — "docs" não pode casar
+		// "docs-old". É a mesma regra de `matchesFolder`, em
+		// `cmd/mem/files.go`.
+		escaped := store.EscapeLikePattern(folder)
+		folderPrefix = escaped + "/%"
+		folderInner = "%/" + escaped + "/%"
 	}
 
 	rows, err := database.QueryContext(ctx, `
@@ -123,9 +131,10 @@ func ListVaultTags(ctx context.Context, database *sql.DB, filter store.TagFilter
 		JOIN documents d ON d.id = dt.document_id
 		LEFT JOIN documents r ON r.id = dt.resolved_doc_id
 		WHERE (? = '' OR dt.document_id = ?)
-		  AND (? = '' OR d.path LIKE ? ESCAPE '\')
+		  AND (? = '' OR REPLACE(d.path, '\', '/') LIKE ? ESCAPE '\'
+		            OR REPLACE(d.path, '\', '/') LIKE ? ESCAPE '\')
 		ORDER BY dt.tag_key ASC, dt.created_at ASC, dt.document_id ASC, dt.tag ASC
-	`, filter.DocumentID, filter.DocumentID, folder, folderPattern)
+	`, filter.DocumentID, filter.DocumentID, folder, folderPrefix, folderInner)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao listar tags do vault no sqlite: %w", err)
 	}
@@ -255,9 +264,10 @@ func nullIfEmpty(value string) interface{} {
 	return value
 }
 
-// normalizeTagFolder canonicaliza o filtro de pasta: sem espaços nas pontas e
-// sem barras nas pontas. Pasta vazia significa "todas".
+// normalizeTagFolder canonicaliza o filtro de pasta: sem espaços nas pontas,
+// com o separador "/" e sem barras nas pontas. Pasta vazia significa "todas".
 func normalizeTagFolder(folder string) string {
 	folder = strings.TrimSpace(folder)
+	folder = strings.ReplaceAll(folder, `\`, "/")
 	return strings.Trim(folder, "/")
 }
