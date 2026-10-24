@@ -704,6 +704,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "lesson":
+		if err := runLessonCLI(ctx, emb, tq, defaultRepo, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "compile":
 		if err := runCompileCLI(ctx, emb, tq, defaultRepo, os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -908,6 +914,8 @@ func printHelp() {
 	fmt.Println("      Consulta uma tag e suas descendentes, como o Obsidian (tag:inbox casa #inbox e #inbox/to-read)")
 	fmt.Println("  mem note <create|append> [opções] <caminho>")
 	fmt.Println("      Cria ou anexa seções em notas Markdown atômicas com frontmatter e sincronização imediata")
+	fmt.Println("  mem lesson <título> [--summary \"<resumo>\"] [--content \"<texto>\"] [--file <arquivo>] [--tags \"t1,t2\"] [--tag <tag>] [--folder <pasta>] [--overwrite] [--db <arq>] [--postgres <url>] [--storage sqlite|postgres] [--repo <slug>]")
+	fmt.Println("      Registra uma lição aprendida como nota (category: memory + summary + timestamp) no cofre central e indexa na hora")
 	fmt.Println("  mem compile --topic \"<termo>\" --out \"<caminho.md>\" [--limit 5] [--mode hybrid|vector|fts]")
 	fmt.Println("      Compila e sintetiza fragmentos de busca em uma nota atômica com backlinks (Compile-not-Retrieve)")
 	fmt.Println("  mem mcp [--port <porta>] [--host <ip>] [--http <addr>] [--cors] [--db <arq>] [--postgres <url>] [--repo <slug>]")
