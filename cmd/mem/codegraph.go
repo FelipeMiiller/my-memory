@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/FelipeMiiller/my-memory/internal/codeast"
+	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 )
 
@@ -21,14 +22,22 @@ import (
 //
 // Flags:
 //
-//	--depth=N      profundidade máxima (padrão 1, máx 5)
-//	--db=<arq>     caminho do SQLite (padrão memory.db)
-//	--direction    in | out | both (padrão both)
-//	--repo=<slug>  slug multi-tenant (placeholder)
+//	--depth=N       profundidade máxima (padrão 1, máx 5)
+//	--direction     in | out | both (padrão both)
+//	--storage       sqlite | postgres (padrão: engine configurado)
+//	--db=<arq>      caminho do SQLite (implica --storage=sqlite)
+//	--postgres=<url> URL PostgreSQL com pgvector (alternativa ao SQLite)
+//	--repo=<slug>   repositório consultado (padrão: repo_id do vault)
+//
+// Nenhuma flag é aceita e descartada (CG-09): o `--repo` filtra a consulta
+// (o code graph é repo-scoped) e o `--storage`/`--db`/`--postgres` escolhem o
+// engine — como no `mem code-index` (ADR-061).
 func runCodeGraphCLI(ctx context.Context, defaultRepo string, args []string) error {
 	codeast.LogTreesitterBootStatus() // CA-14: boot log uniforme em todos os code-*
 	fs := flag.NewFlagSet("code-graph", flag.ContinueOnError)
-	dbPath := fs.String("db", "", "Caminho do arquivo SQLite (padrão: memory.db)")
+	dbPath := fs.String("db", "", "Caminho do arquivo SQLite (implica --storage=sqlite)")
+	pgURL := fs.String("postgres", "", "URL PostgreSQL com pgvector (alternativa ao SQLite)")
+	storage := fs.String("storage", "", "Força engine: 'sqlite' ou 'postgres'")
 	repoSlug := fs.String("repo", "", "Identificador/slug do repositório")
 	depth := fs.Int("depth", 1, "Profundidade máxima de travessia (padrão: 1, máx: 5)")
 	direction := fs.String("direction", "both", "Direção: 'in', 'out' ou 'both'")
@@ -36,12 +45,9 @@ func runCodeGraphCLI(ctx context.Context, defaultRepo string, args []string) err
 		return err
 	}
 
-	_ = defaultRepo
-	_ = repoSlug
-
 	symbol := strings.TrimSpace(strings.Join(fs.Args(), " "))
 	if symbol == "" {
-		fmt.Println("Uso: mem code-graph [--depth=N] [--direction=in|out|both] [--db=<arq>] [--repo=<slug>] <qualified_name>")
+		fmt.Println("Uso: mem code-graph [--depth=N] [--direction=in|out|both] [--storage=sqlite|postgres] [--db=<arq>] [--postgres=<url>] [--repo=<slug>] <qualified_name>")
 		return errors.New("symbol vazio")
 	}
 
@@ -52,18 +58,29 @@ func runCodeGraphCLI(ctx context.Context, defaultRepo string, args []string) err
 		*depth = 5
 	}
 
-	target := *dbPath
-	if target == "" {
-		target = "memory.db"
+	// CG-09: o --repo vale de verdade — o code graph é repo-scoped e a
+	// consulta é filtrada pelo repositório pedido (padrão: o repo_id do
+	// vault).
+	repository := strings.TrimSpace(*repoSlug)
+	if repository == "" {
+		repository = strings.TrimSpace(defaultRepo)
 	}
+	ctx = db.WithRepository(ctx, repository)
 
-	database, err := db.InitDB(target)
+	// O code graph é consultado no engine configurado (ADR-061), como no
+	// `mem code-index`: Postgres quando Postgres, SQLite quando SQLite.
+	cfg, _, _ := config.LoadCascadingConfig(".")
+	if cfg == nil {
+		def := config.DefaultConfig()
+		cfg = &def
+	}
+	engine, err := resolveCodeEngine(cfg, *storage, *pgURL, *dbPath)
 	if err != nil {
-		return fmt.Errorf("InitDB(%s) falhou: %w", target, err)
+		return err
 	}
-	defer database.Close()
+	defer engine.Close()
 
-	rows, err := runCodeGraphQuery(ctx, database, symbol, *depth, *direction)
+	rows, err := runCodeGraphQuery(ctx, engine.db, symbol, *depth, *direction)
 	if err != nil {
 		return err
 	}
@@ -87,6 +104,10 @@ type CodeGraphRow struct {
 //  1. exact match em qualified_name
 //  2. fallback: suffix match em name (último segmento do qualified_name == name)
 //
+// A busca é filtrada pelo repositório do contexto (o code graph é
+// repo-scoped — ADR-061): o mesmo qualified_name pode existir em repositórios
+// diferentes, e cada um tem o seu próprio símbolo.
+//
 // Devolve -1 quando não acha (caller deve emitir mensagem amigável).
 func resolveCodeSymbol(ctx context.Context, database *sql.DB, symbol string) (int64, error) {
 	if database == nil {
@@ -96,12 +117,14 @@ func resolveCodeSymbol(ctx context.Context, database *sql.DB, symbol string) (in
 	if symbol == "" {
 		return -1, errors.New("resolveCodeSymbol: symbol vazio")
 	}
+	dialect := db.DetectDialect(ctx, database)
+	repository := db.RepositoryFromContext(ctx)
 
 	// 1. Exact qualified_name match.
 	var id int64
 	err := database.QueryRowContext(ctx,
-		`SELECT id FROM code_symbols WHERE qualified_name = ? ORDER BY id LIMIT 1`,
-		symbol,
+		dialect.Bind(`SELECT id FROM code_symbols WHERE qualified_name = ? AND repository = ? ORDER BY id LIMIT 1`),
+		symbol, repository,
 	).Scan(&id)
 	if err == nil {
 		return id, nil
@@ -116,8 +139,8 @@ func resolveCodeSymbol(ctx context.Context, database *sql.DB, symbol string) (in
 		suffix = symbol[idx+1:]
 	}
 	err = database.QueryRowContext(ctx,
-		`SELECT id FROM code_symbols WHERE name = ? ORDER BY id LIMIT 1`,
-		suffix,
+		dialect.Bind(`SELECT id FROM code_symbols WHERE name = ? AND repository = ? ORDER BY id LIMIT 1`),
+		suffix, repository,
 	).Scan(&id)
 	if err == nil {
 		return id, nil
@@ -130,6 +153,8 @@ func resolveCodeSymbol(ctx context.Context, database *sql.DB, symbol string) (in
 
 // runCodeGraphQuery executa o CTE recursivo (ADR-004) sobre code_edges e
 // devolve a vizinhança do símbolo.
+//
+// A travessia é filtrada pelo repositório do contexto (repo-scoped).
 func runCodeGraphQuery(ctx context.Context, database *sql.DB, symbol string, depth int, direction string) ([]CodeGraphRow, error) {
 	if database == nil {
 		return nil, errors.New("runCodeGraphQuery: database == nil")
@@ -153,6 +178,9 @@ func runCodeGraphQuery(ctx context.Context, database *sql.DB, symbol string, dep
 		return nil, fmt.Errorf("símbolo %q não encontrado em code_symbols", symbol)
 	}
 
+	repository := db.RepositoryFromContext(ctx)
+	dialect := db.DetectDialect(ctx, database)
+
 	var rows []CodeGraphRow
 
 	appendRows := func(rowsIter *sql.Rows) error {
@@ -169,7 +197,8 @@ func runCodeGraphQuery(ctx context.Context, database *sql.DB, symbol string, dep
 
 	// OUT edges: src_symbol_id == rootID (CTE recursivo)
 	if direction == "out" || direction == "both" {
-		outRows, err := database.QueryContext(ctx, outEdgesCTE(), rootID, depth)
+		outRows, err := database.QueryContext(ctx, dialect.Bind(outEdgesCTE()),
+			rootID, repository, depth, repository)
 		if err != nil {
 			return nil, fmt.Errorf("query out edges: %w", err)
 		}
@@ -180,7 +209,8 @@ func runCodeGraphQuery(ctx context.Context, database *sql.DB, symbol string, dep
 
 	// IN edges: dst_symbol_id == rootID (CTE recursivo reverso)
 	if direction == "in" || direction == "both" {
-		inRows, err := database.QueryContext(ctx, inEdgesCTE(), rootID, depth)
+		inRows, err := database.QueryContext(ctx, dialect.Bind(inEdgesCTE()),
+			rootID, repository, depth, repository)
 		if err != nil {
 			return nil, fmt.Errorf("query in edges: %w", err)
 		}
@@ -194,17 +224,19 @@ func runCodeGraphQuery(ctx context.Context, database *sql.DB, symbol string, dep
 
 // outEdgesCTE devolve a CTE recursiva de saída (root → dst).
 // Esquema: direction | kind | symbol | file_path | start_line | hop
+//
+// Parâmetros: src_symbol_id, repository, depth, repository.
 func outEdgesCTE() string {
 	return `
 WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop) AS (
     SELECT src_symbol_id, dst_symbol_id, kind, file_id, start_line, 1
       FROM code_edges
-     WHERE src_symbol_id = ?
+     WHERE src_symbol_id = ? AND repository = ?
     UNION ALL
     SELECT e.src_symbol_id, e.dst_symbol_id, e.kind, e.file_id, e.start_line, w.hop + 1
       FROM code_edges e
       JOIN code_walk w ON e.src_symbol_id = w.dst
-     WHERE w.hop < ?
+     WHERE w.hop < ? AND e.repository = ?
 )
 SELECT 'out' AS direction,
        w.kind,
@@ -220,17 +252,18 @@ SELECT 'out' AS direction,
 }
 
 // inEdgesCTE devolve a CTE recursiva de entrada (src → root).
+// Parâmetros: dst_symbol_id, repository, depth, repository.
 func inEdgesCTE() string {
 	return `
 WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop) AS (
     SELECT src_symbol_id, dst_symbol_id, kind, file_id, start_line, 1
       FROM code_edges
-     WHERE dst_symbol_id = ?
+     WHERE dst_symbol_id = ? AND repository = ?
     UNION ALL
     SELECT e.src_symbol_id, e.dst_symbol_id, e.kind, e.file_id, e.start_line, w.hop + 1
       FROM code_edges e
       JOIN code_walk w ON e.dst_symbol_id = w.src
-     WHERE w.hop < ?
+     WHERE w.hop < ? AND e.repository = ?
 )
 SELECT 'in' AS direction,
        w.kind,

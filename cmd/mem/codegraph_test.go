@@ -10,6 +10,15 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/db"
 )
 
+// codeGraphTestRepo é o repositório usado pelo fixture: o code graph é
+// repo-scoped (ADR-061), então as consultas são filtradas por ele.
+const codeGraphTestRepo = "FelipeMiiller/my-memory"
+
+// codeGraphRepoCtx devolve um contexto com o repo_id do fixture.
+func codeGraphRepoCtx() context.Context {
+	return db.WithRepository(context.Background(), codeGraphTestRepo)
+}
+
 // codeGraphTestFixture cria vault + popula code_symbols + cria edges
 // manuais para exercitar o CTE recursivo sem depender de heurística do mock.
 func codeGraphTestFixture(t *testing.T) (string, []int64) {
@@ -58,7 +67,7 @@ func Baz() {}
 	}
 	defer database.Close()
 
-	ctx := context.Background()
+	ctx := codeGraphRepoCtx()
 	idHello, err := resolveCodeSymbol(ctx, database, "foo.Hello")
 	if err != nil || idHello <= 0 {
 		t.Fatalf("resolveCodeSymbol(foo.Hello) = (%d, %v)", idHello, err)
@@ -104,7 +113,7 @@ func TestCodeGraph_ResolveSymbol_ExactMatch(t *testing.T) {
 	}
 	defer database.Close()
 
-	ctx := context.Background()
+	ctx := codeGraphRepoCtx()
 	got, err := resolveCodeSymbol(ctx, database, "foo.Hello")
 	if err != nil {
 		t.Fatalf("resolveCodeSymbol: %v", err)
@@ -122,7 +131,7 @@ func TestCodeGraph_ResolveSymbol_SuffixFallback(t *testing.T) {
 	}
 	defer database.Close()
 
-	ctx := context.Background()
+	ctx := codeGraphRepoCtx()
 	got, err := resolveCodeSymbol(ctx, database, "Foo.Hello") // case errado
 	if err != nil {
 		t.Fatalf("resolveCodeSymbol: %v", err)
@@ -140,7 +149,7 @@ func TestCodeGraph_ResolveSymbol_NotFound(t *testing.T) {
 	}
 	defer database.Close()
 
-	got, err := resolveCodeSymbol(context.Background(), database, "nonexistent.Symbol")
+	got, err := resolveCodeSymbol(codeGraphRepoCtx(), database, "nonexistent.Symbol")
 	if err != nil {
 		t.Fatalf("resolveCodeSymbol: %v", err)
 	}
@@ -157,7 +166,7 @@ func TestCodeGraph_Depth1_OutOnly(t *testing.T) {
 	}
 	defer database.Close()
 
-	rows, err := runCodeGraphQuery(context.Background(), database, "foo.Hello", 1, "out")
+	rows, err := runCodeGraphQuery(codeGraphRepoCtx(), database, "foo.Hello", 1, "out")
 	if err != nil {
 		t.Fatalf("runCodeGraphQuery: %v", err)
 	}
@@ -183,7 +192,7 @@ func TestCodeGraph_Depth2_OutRecursive(t *testing.T) {
 	}
 	defer database.Close()
 
-	rows, err := runCodeGraphQuery(context.Background(), database, "foo.Hello", 2, "out")
+	rows, err := runCodeGraphQuery(codeGraphRepoCtx(), database, "foo.Hello", 2, "out")
 	if err != nil {
 		t.Fatalf("runCodeGraphQuery: %v", err)
 	}
@@ -212,7 +221,7 @@ func TestCodeGraph_InDirection(t *testing.T) {
 	defer database.Close()
 
 	// Quem chama bar.Bar?
-	rows, err := runCodeGraphQuery(context.Background(), database, "bar.Bar", 1, "in")
+	rows, err := runCodeGraphQuery(codeGraphRepoCtx(), database, "bar.Bar", 1, "in")
 	if err != nil {
 		t.Fatalf("runCodeGraphQuery: %v", err)
 	}
@@ -235,7 +244,7 @@ func TestCodeGraph_NotFound_ReturnsError(t *testing.T) {
 	}
 	defer database.Close()
 
-	_, err = runCodeGraphQuery(context.Background(), database, "nope.NotFound", 1, "out")
+	_, err = runCodeGraphQuery(codeGraphRepoCtx(), database, "nope.NotFound", 1, "out")
 	if err == nil {
 		t.Fatal("esperava erro para símbolo inexistente")
 	}
@@ -273,7 +282,7 @@ func TestCodeGraph_DepthClampedAt5(t *testing.T) {
 	defer database.Close()
 
 	// depth=10 deve ser clampado para 5; query não deve explodir.
-	_, err = runCodeGraphQuery(context.Background(), database, "foo.Hello", 10, "out")
+	_, err = runCodeGraphQuery(codeGraphRepoCtx(), database, "foo.Hello", 10, "out")
 	if err != nil {
 		t.Fatalf("runCodeGraphQuery: %v", err)
 	}
