@@ -137,6 +137,24 @@ func (s *Server) SetStalenessDetector(d *staleness.Detector) {
 	s.stalenessDetector = d
 }
 
+// CodeAccess carrega os executores do code graph (ADR-061).
+//
+// NewServer publica os schemas das tools de código; os executores entram
+// depois, em SetCodeAccess, quando o engine do servidor está resolvido —
+// sem eles as tools respondem "indisponível".
+type CodeAccess struct {
+	// Search executa memory_code_search.
+	Search CodeSearchFunc
+	// Neighbors executa memory_code_neighbors.
+	Neighbors CodeNeighborsFunc
+}
+
+// SetCodeAccess registra os executores do code graph no servidor MCP.
+func (s *Server) SetCodeAccess(access CodeAccess) {
+	s.RegisterTool(ToolMemoryCodeSearch, NewMemoryCodeSearchHandler(access.Search))
+	s.RegisterTool(ToolMemoryCodeNeighbors, NewMemoryCodeNeighborsHandler(access.Neighbors))
+}
+
 // StalenessDetector retorna o detector configurado (se houver)
 func (s *Server) StalenessDetector() *staleness.Detector {
 	s.mu.RLock()

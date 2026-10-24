@@ -14,7 +14,7 @@ import (
 )
 
 // codeHandlersTestFixture cria vault + indexa via mock + injeta edges manuais.
-func codeHandlersTestFixture(t *testing.T) (*sql.DB, string) {
+func codeHandlersTestFixture(t testing.TB) (*sql.DB, string) {
 	t.Helper()
 	tmpVault := t.TempDir()
 	dbDir := t.TempDir()
@@ -395,4 +395,57 @@ func TestHasQualifiedNameShapeMCP(t *testing.T) {
 	if HasQualifiedNameShapeMCP("") {
 		t.Error("vazio não é valid")
 	}
+}
+
+// TestServerInjetaHandlersDeCodigo cobre CG-08: com os executores de código
+// injetados no servidor, memory_code_search e memory_code_neighbors devolvem
+// resultados — e não a mensagem "indisponível".
+func TestServerInjetaHandlersDeCodigo(t *testing.T) {
+	database, _ := codeHandlersTestFixture(t)
+	defer database.Close()
+
+	srv := NewServer("test", "0.0.0", os.Stdin, os.Stdout, nil)
+	srv.SetCodeAccess(CodeAccess{
+		Search: func(ctx context.Context, query, language, kind string, limit int, includeBoost bool) ([]CodeSymbolResult, error) {
+			return SQLCodeSearch(ctx, database, query, language, kind, limit, includeBoost)
+		},
+		Neighbors: func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
+			return SQLCodeNeighbors(ctx, database, symbol, depth, direction)
+		},
+	})
+
+	searchText := callCodeTool(t, srv, "memory_code_search", `{"query":"Hello"}`)
+	if strings.Contains(searchText, "indisponível") {
+		t.Fatalf("memory_code_search ainda responde indisponível: %s", searchText)
+	}
+	if !strings.Contains(searchText, "Hello") {
+		t.Fatalf("memory_code_search sem o símbolo esperado: %s", searchText)
+	}
+
+	neighborsText := callCodeTool(t, srv, "memory_code_neighbors", `{"symbol":"foo.Hello"}`)
+	if strings.Contains(neighborsText, "indisponível") {
+		t.Fatalf("memory_code_neighbors ainda responde indisponível: %s", neighborsText)
+	}
+	if !strings.Contains(neighborsText, "foo.Hello") {
+		t.Fatalf("memory_code_neighbors sem a raiz esperada: %s", neighborsText)
+	}
+}
+
+// callCodeTool executa uma tool via tools/call e devolve o texto da
+// resposta.
+func callCodeTool(t *testing.T, srv *Server, name, args string) string {
+	t.Helper()
+	payload := `{"name":"` + name + `","arguments":` + args + `}`
+	res, err := srv.handleToolsCall(context.Background(), json.RawMessage(payload))
+	if err != nil {
+		t.Fatalf("tools/call %s falhou: %v", name, err)
+	}
+	result, ok := res.(CallToolResult)
+	if !ok {
+		t.Fatalf("tools/call %s devolveu %T; want CallToolResult", name, res)
+	}
+	if len(result.Content) == 0 {
+		t.Fatalf("tools/call %s devolveu resposta sem conteúdo", name)
+	}
+	return result.Content[0].Text
 }

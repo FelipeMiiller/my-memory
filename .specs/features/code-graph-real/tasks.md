@@ -113,6 +113,10 @@ T3 -> T5
 **Tests**: `internal/mcp/code_handlers_test.go` — `TestServerInjetaHandlersDeCodigo`
 **Gate**: `go test -count=1 ./internal/mcp/...`
 - **Do**: `SetCodeSearchHandler`/`SetCodeNeighborsHandler` deixam de ser chamados só em teste: o servidor MCP, tanto no CLI quanto no daemon, injeta os executores de código resolvidos a partir do engine ativo; `memory_code_search` e `memory_code_neighbors` passam a devolver resultados em vez da mensagem "indisponível". Cobre CG-08.
+- **Done when**:
+  - [x] O servidor MCP injeta os executores de código resolvidos a partir do engine ativo (Postgres quando Postgres, SQLite quando SQLite) — no caminho stdio e no transporte HTTP
+  - [x] `memory_code_search` e `memory_code_neighbors` devolvem resultados em vez da mensagem "indisponível"
+  - [x] `internal/mcp` tem benchmark do caminho injetado (o pacote não tinha nenhum)
 
 ### T6: As flags do CLI de código deixam de ser descartadas
 

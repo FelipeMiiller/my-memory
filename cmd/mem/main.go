@@ -2776,6 +2776,23 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 	stalenessDetector := staleness.NewDetector(vaultRoot, mcpCfg, database, pgStore, defaultRepo)
 	srv.SetStalenessDetector(stalenessDetector)
 
+	// Code graph (ADR-061 — CG-08): as tools de código são executores
+	// resolvidos a partir do engine ativo. Sem esta injeção elas respondem
+	// "indisponível".
+	if codeDB := codeEngineDB(pgStore, database); codeDB != nil {
+		if err := db.EnsureCodeTables(ctx, codeDB); err != nil {
+			fmt.Fprintf(os.Stderr, "[mcp] code tables indisponíveis: %v\n", err)
+		}
+		srv.SetCodeAccess(mcp.CodeAccess{
+			Search: func(ctx context.Context, query, language, kind string, limit int, includeBoost bool) ([]mcp.CodeSymbolResult, error) {
+				return mcp.SQLCodeSearchScoped(ctx, codeDB, query, language, kind, limit, includeBoost, defaultRepo)
+			},
+			Neighbors: func(ctx context.Context, symbol string, depth int, direction string) ([]mcp.CodeNeighborResult, *mcp.CodeSymbolResult, error) {
+				return mcp.SQLCodeNeighborsScoped(ctx, codeDB, symbol, depth, direction, defaultRepo)
+			},
+		})
+	}
+
 	if pgStore != nil {
 		pgSearchFunc := func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
 			repo := params.Repo
