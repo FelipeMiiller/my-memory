@@ -558,3 +558,127 @@ export const visualizeGraphSchema: MiniSchema<VisualizeGraphResult> = z.object({
   hub_count: z.number(),
   density: z.number(),
 })
+
+/* -------------------------------------------------------------------------- */
+/* memory_code_search — mcp.CodeSymbolResult (internal/mcp/code_handlers.go)   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * mcp.CodeSymbolResult
+ * {symbol_id, qualified_name, name, kind, language, file, start_line, end_line,
+ *  signature?, doc_comment?, score, boosted}
+ *
+ * `signature` e `doc_comment` são `omitempty` no Go: somem quando vazios.
+ */
+export interface CodeSymbol {
+  symbol_id: number
+  qualified_name: string
+  name: string
+  kind: string
+  language: string
+  file: string
+  start_line: number
+  end_line: number
+  signature?: string
+  doc_comment?: string
+  score: number
+  boosted: boolean
+}
+
+/**
+ * mcp.MemoryCodeSearchResponse — {query, count, results[]}
+ *
+ * `results` é uma lista no contrato, mas o Go serializa slice nil como
+ * `null` (não `[]`); o schema tolera as duas formas.
+ */
+export interface CodeSearchResponse {
+  query: string
+  count: number
+  results: CodeSymbol[]
+}
+
+const codeSymbolSchema = z.object({
+  symbol_id: z.number(),
+  qualified_name: z.string(),
+  name: z.string(),
+  kind: z.string(),
+  language: z.string(),
+  file: z.string(),
+  start_line: z.number(),
+  end_line: z.number(),
+  signature: z.optional(z.string()),
+  doc_comment: z.optional(z.string()),
+  score: z.number(),
+  boosted: z.boolean(),
+})
+
+/** Lista de símbolos que tolera o `null` do Go e devolve sempre uma lista. */
+const codeSymbolListSchema = z.pipe(
+  z.nullish(z.array(codeSymbolSchema)),
+  z.transform<CodeSymbol[] | null | undefined, CodeSymbol[]>(
+    (value) => value ?? []
+  )
+)
+
+export const codeSearchSchema: MiniSchema<CodeSearchResponse> = z.object({
+  query: z.string(),
+  count: z.number(),
+  results: codeSymbolListSchema,
+})
+
+/* -------------------------------------------------------------------------- */
+/* memory_code_neighbors — mcp.CodeNeighborResult (internal/mcp/code_handlers.go) */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * mcp.CodeNeighborResult
+ * {direction, kind, symbol, file, line, hop}
+ *
+ * `kind` é o **tipo da aresta** (`calls`, `imports`, `inherits`, `uses_type`,
+ * `references`) e `file` + `line` são o **call-site** da aresta.
+ */
+export interface CodeNeighbor {
+  direction: string
+  kind: string
+  symbol: string
+  file: string
+  line: number
+  hop: number
+}
+
+/**
+ * mcp.MemoryCodeNeighborsResponse
+ * {root?, neighbors[], depth, direction}
+ *
+ * `root` é `omitempty`: some quando o símbolo não existe.
+ */
+export interface CodeNeighborsResponse {
+  root?: CodeSymbol
+  neighbors: CodeNeighbor[]
+  depth: number
+  direction: string
+}
+
+const codeNeighborSchema = z.object({
+  direction: z.string(),
+  kind: z.string(),
+  symbol: z.string(),
+  file: z.string(),
+  line: z.number(),
+  hop: z.number(),
+})
+
+/** Lista de vizinhos que tolera o `null` do Go e devolve sempre uma lista. */
+const codeNeighborListSchema = z.pipe(
+  z.nullish(z.array(codeNeighborSchema)),
+  z.transform<CodeNeighbor[] | null | undefined, CodeNeighbor[]>(
+    (value) => value ?? []
+  )
+)
+
+export const codeNeighborsSchema: MiniSchema<CodeNeighborsResponse> = z.object({
+  root: z.optional(codeSymbolSchema),
+  neighbors: codeNeighborListSchema,
+  depth: z.number(),
+  direction: z.string(),
+})

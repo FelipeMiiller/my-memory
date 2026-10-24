@@ -1,6 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { callTool, getHealth } from "./mcp-client"
 import type {
+  CodeNeighborsResponse,
+  CodeSearchResponse,
   CommunityResult,
   DoctorReport,
   DriftReport,
@@ -18,6 +20,8 @@ import type {
 } from "./schemas"
 import {
   clustersSchema,
+  codeNeighborsSchema,
+  codeSearchSchema,
   doctorReportSchema,
   driftReportSchema,
   fileMetadataSchema,
@@ -54,6 +58,10 @@ export const queryKeys = {
   impact: (node: string) => ["impact", node] as const,
   path: (source: string, target: string) => ["path", source, target] as const,
   graph: ["graph"] as const,
+  codeSearch: (query: string, limit: number) =>
+    ["code", "search", query, limit] as const,
+  codeNeighbors: (symbol: string, depth: number, direction: string) =>
+    ["code", "neighbors", symbol, depth, direction] as const,
 }
 
 export function useHealth() {
@@ -219,5 +227,51 @@ export function useVisualizeGraph() {
         {},
         visualizeGraphSchema
       ),
+  })
+}
+
+/**
+ * Busca estrutural de símbolos do code graph (ADR-047).
+ *
+ * `memory_code_search` exige `query` — por isso a query só roda com texto
+ * não-vazio. Os filtros de tipo e de linguagem são aplicados no cliente
+ * (`filterSymbols`), para que a lista não dependa do servidor ter indexado o
+ * repositório inteiro.
+ */
+export function useCodeSearch(query: string, limit: number) {
+  return useQuery({
+    queryKey: queryKeys.codeSearch(query, limit),
+    queryFn: () =>
+      callTool<CodeSearchResponse>(
+        "memory_code_search",
+        { query, limit },
+        codeSearchSchema
+      ),
+    enabled: query.trim() !== "",
+    staleTime: 30_000,
+  })
+}
+
+/**
+ * Vizinhos estruturais de um símbolo: o tipo da aresta e o call-site.
+ *
+ * A tool devolve hoje o JSON no texto (sem `structuredContent`); a
+ * normalização para os dois formatos vive em `src/lib/code-view.ts`.
+ */
+export function useCodeNeighbors(
+  symbol: string,
+  depth: number,
+  direction: string
+) {
+  return useQuery({
+    queryKey: queryKeys.codeNeighbors(symbol, depth, direction),
+    queryFn: () =>
+      callTool<CodeNeighborsResponse>(
+        "memory_code_neighbors",
+        { symbol, depth, direction },
+        codeNeighborsSchema
+      ),
+    enabled: symbol.trim() !== "",
+    staleTime: 30_000,
   })
 }

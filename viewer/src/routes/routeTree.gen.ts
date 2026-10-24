@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './__root'
 import { Route as IndexRouteImport } from './index'
+import { Route as CodeRouteImport } from './code'
 import { Route as DriftRouteImport } from './drift'
 import { Route as GraphRouteImport } from './graph'
 import { Route as NotesRouteImport } from './notes'
@@ -17,6 +18,11 @@ import { Route as NotesRouteImport } from './notes'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CodeRoute = CodeRouteImport.update({
+  id: '/code',
+  path: '/code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DriftRoute = DriftRouteImport.update({
@@ -37,12 +43,14 @@ const NotesRoute = NotesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/code': typeof CodeRoute
   '/drift': typeof DriftRoute
   '/graph': typeof GraphRoute
   '/notes': typeof NotesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/code': typeof CodeRoute
   '/drift': typeof DriftRoute
   '/graph': typeof GraphRoute
   '/notes': typeof NotesRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/code': typeof CodeRoute
   '/drift': typeof DriftRoute
   '/graph': typeof GraphRoute
   '/notes': typeof NotesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/drift' | '/graph' | '/notes'
+  fullPaths: '/' | '/code' | '/drift' | '/graph' | '/notes'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/drift' | '/graph' | '/notes'
-  id: '__root__' | '/' | '/drift' | '/graph' | '/notes'
+  to: '/' | '/code' | '/drift' | '/graph' | '/notes'
+  id: '__root__' | '/' | '/code' | '/drift' | '/graph' | '/notes'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CodeRoute: typeof CodeRoute
   DriftRoute: typeof DriftRoute
   GraphRoute: typeof GraphRoute
   NotesRoute: typeof NotesRoute
@@ -76,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/code': {
+      id: '/code'
+      path: '/code'
+      fullPath: '/code'
+      preLoaderRoute: typeof CodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/drift': {
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CodeRoute: CodeRoute,
   DriftRoute: DriftRoute,
   GraphRoute: GraphRoute,
   NotesRoute: NotesRoute,

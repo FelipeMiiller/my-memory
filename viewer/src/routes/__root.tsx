@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { to: "/graph", label: "Grafo" },
   { to: "/notes", label: "Notas" },
   { to: "/drift", label: "Drift" },
+  { to: "/code", label: "Código" },
 ] as const
 
 export const Route = createRootRoute({
