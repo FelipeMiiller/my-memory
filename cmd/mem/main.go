@@ -2683,8 +2683,24 @@ func rearrangeSearchArgs(fs *flag.FlagSet, args []string) []string {
 	return append(flags, nonFlags...)
 }
 
-func buildSQLiteSearchFunc(database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer) func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+// buildSQLiteSearchFunc liga a busca SQLite ao servidor MCP.
+//
+// O `repository` é o repo_id do VAULT (o mesmo que o `mem index` grava no
+// code graph). Ele viaja no contexto porque a fonte lexical de código
+// (code_symbols) é repo-scoped: sem ele, `RepositoryFromContext` devolvia
+// "default" e o fan-in de `include_code=true` era um no-op em qualquer vault
+// cujo repo_id não fosse "default" (defeito D2).
+//
+// O repo_id explícito da chamada (`params.Repo`) tem precedência — é o mesmo
+// contrato do caminho Postgres (internal/store/postgres.go).
+func buildSQLiteSearchFunc(database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer, vaultRepository string) func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
 	return func(ctx context.Context, params mcp.SearchParams) ([]mcp.SearchResult, error) {
+		repository := strings.TrimSpace(params.Repo)
+		if repository == "" {
+			repository = strings.TrimSpace(vaultRepository)
+		}
+		ctx = db.WithRepository(ctx, repository)
+
 		limit := params.Limit
 		if limit <= 0 {
 			limit = 5
@@ -3156,7 +3172,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 		if tq == nil {
 			tq = turboquant.NewQuantizer(embedder.EmbeddingDim)
 		}
-		dbSearchFunc := buildSQLiteSearchFunc(database, emb, tq)
+		dbSearchFunc := buildSQLiteSearchFunc(database, emb, tq, defaultRepo)
 		var effectiveSearchFunc mcp.AdvancedSearchFunc = dbSearchFunc
 
 		if mcpCfg != nil && mcpCfg.CentralVault.Path != "" {
@@ -3166,7 +3182,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			if _, statErr := os.Stat(centralDBPath); statErr == nil {
 				if centralDB, dbErr := db.InitDB(centralDBPath); dbErr == nil {
 					defer centralDB.Close()
-					centralSearchFunc = buildSQLiteSearchFunc(centralDB, emb, tq)
+					centralSearchFunc = buildSQLiteSearchFunc(centralDB, emb, tq, "repo_central")
 				}
 			}
 			fedSearcher := federation.NewFederatedSearcher(dbSearchFunc, centralSearchFunc, expandedCentral, mcpCfg.CentralVault.ReadOnly)

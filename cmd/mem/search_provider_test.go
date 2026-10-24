@@ -86,7 +86,7 @@ func TestBuildSQLiteSearchFunc_SemProviderNaoQuebra(t *testing.T) {
 	}
 	defer database.Close()
 
-	search := buildSQLiteSearchFunc(database, nil, turboquant.NewQuantizer(embedder.EmbeddingDim))
+	search := buildSQLiteSearchFunc(database, nil, turboquant.NewQuantizer(embedder.EmbeddingDim), "default")
 	ctx := context.Background()
 
 	// Híbrido sem provider: a busca fica só textual e devolve.
