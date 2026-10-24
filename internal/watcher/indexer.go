@@ -147,6 +147,12 @@ func IndexSingleFileSQLite(
 		}
 	}
 
+	// 5. Ponte notas↔código (CG-17/CG-18): o documento novo é casado contra
+	// os code_symbols já indexados e ganha a aresta tipada
+	// `references_code` no grafo único. Idempotente — uma falha aqui não
+	// derruba a indexação da nota.
+	_, _ = db.BuildCodeBridgeForDocument(ctx, database, docID)
+
 	return &IndexResult{
 		Action:      "indexed",
 		DocID:       docID,
@@ -280,6 +286,11 @@ func IndexSingleFilePostgres(
 
 		_ = s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec)
 	}
+
+	// Ponte notas↔código (CG-17/CG-18) — o mesmo contrato do caminho
+	// SQLite. O contexto carrega o repository do vault porque a ponte, no
+	// PostgreSQL, é escopada por repositório.
+	_, _ = db.BuildCodeBridgeForDocument(db.WithRepository(ctx, targetRepo), s.DB(), docID)
 
 	return &IndexResult{
 		Action:      "indexed",
