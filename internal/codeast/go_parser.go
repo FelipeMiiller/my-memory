@@ -50,6 +50,8 @@ func (g *GoParser) ParseFile(path string, content []byte) (*FileResult, error) {
 	v.buildImportMap()
 	v.collectSymbols()
 	v.collectCalls()
+	v.collectImports()
+	v.collectTypeEdges()
 
 	res := &FileResult{
 		Path:     path,
@@ -351,6 +353,232 @@ var goBuiltins = map[string]bool{
 // isGoBuiltin devolve true se o nome é um builtin da linguagem.
 func isGoBuiltin(name string) bool {
 	return goBuiltins[name]
+}
+
+// collectImports extrai as arestas `imports` e os símbolos sintéticos que dão
+// corpo ao grafo de imports.
+//
+// DECISÃO (Fase 2, decision 6 — opção (a)): como `code_edges` exige um
+// `dst_symbol_id` que aponte para `code_symbols`, e um pacote importado de
+// fora do repositório NÃO tem símbolo, cada import produz DOIS símbolos
+// sintéticos de kind `import`:
+//
+//  1. a DECLARAÇÃO de import (a origem da aresta) — qualified_name
+//     "import:<path>", signature `import "<path>"`;
+//  2. o PACOTE importado (o destino da aresta) — qualified_name "<path>",
+//     signature `package "<path>"`.
+//
+// A aresta `imports` liga a declaração ao pacote, na posição do import
+// (linha/coluna do spec). O nó do pacote é POR ARQUIVO: o mesmo pacote
+// importado por N arquivos tem N nós — a resolução da aresta é escopada pelo
+// file_id, então nunca vira "ambíguo" por engano.
+func (v *goFileVisitor) collectImports() {
+	for _, spec := range v.file.Imports {
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		local := ""
+		if spec.Name != nil {
+			local = spec.Name.Name
+		}
+		base := pathBase(path)
+		if local == "" {
+			local = base
+		}
+		pos := v.pos(spec.Pos())
+		declQN := "import:" + path
+
+		v.symbols = append(v.symbols, Symbol{
+			Kind:          KindImport,
+			Name:          local,
+			QualifiedName: declQN,
+			Signature:     "import " + strconv.Quote(path),
+			StartLine:     pos.Line,
+			EndLine:       pos.Line,
+			StartCol:      pos.Column,
+			EndCol:        pos.Column,
+		})
+		v.symbols = append(v.symbols, Symbol{
+			Kind:          KindImport,
+			Name:          local,
+			QualifiedName: path,
+			Signature:     "package " + strconv.Quote(path),
+			StartLine:     pos.Line,
+			EndLine:       pos.Line,
+			StartCol:      pos.Column,
+			EndCol:        pos.Column,
+		})
+		v.edges = append(v.edges, Edge{
+			Kind:             EdgeImports,
+			SrcQualifiedName: declQN,
+			DstName:          local,
+			DstQualifiedName: path,
+			Line:             pos.Line,
+			Column:           pos.Column,
+		})
+	}
+}
+
+// collectTypeEdges extrai as arestas `inherits` (embedding de struct e de
+// interface) e `uses_type` (campo de struct, parâmetro, resultado e tipo de
+// variável).
+//
+// A satisfação de interface em geral (um tipo que implementa uma interface
+// sem embedding) NÃO é decidível sem type-checking — o backend AST é
+// deliberadamente escopado ao que a AST prova.
+func (v *goFileVisitor) collectTypeEdges() {
+	for _, decl := range v.file.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			qname := v.funcQualifiedName(d)
+			v.addFieldTypeEdges(qname, d.Type.Params)
+			v.addFieldTypeEdges(qname, d.Type.Results)
+		case *ast.GenDecl:
+			for _, spec := range d.Specs {
+				switch s := spec.(type) {
+				case *ast.TypeSpec:
+					v.addTypeSpecEdges(s)
+				case *ast.ValueSpec:
+					if s.Type == nil {
+						continue
+					}
+					for _, name := range s.Names {
+						v.addTypeEdges(v.pkg+"."+name.Name, s.Type)
+					}
+				}
+			}
+		}
+	}
+}
+
+// addTypeSpecEdges extrai as arestas de um type (struct ou interface).
+func (v *goFileVisitor) addTypeSpecEdges(ts *ast.TypeSpec) {
+	qname := v.pkg + "." + ts.Name.Name
+	switch t := ts.Type.(type) {
+	case *ast.StructType:
+		for _, f := range t.Fields.List {
+			if len(f.Names) == 0 {
+				// campo EMBUTIDO → o struct herda o tipo embutido
+				v.addTypeEdge(EdgeInherits, qname, f.Type)
+				continue
+			}
+			for range f.Names {
+				v.addTypeEdge(EdgeUsesType, qname, f.Type)
+			}
+		}
+	case *ast.InterfaceType:
+		for _, f := range t.Methods.List {
+			if len(f.Names) == 0 {
+				// interface EMBUTIDA → a interface herda a interface embutida
+				v.addTypeEdge(EdgeInherits, qname, f.Type)
+				continue
+			}
+			ft, ok := f.Type.(*ast.FuncType)
+			if !ok {
+				continue
+			}
+			v.addFieldTypeEdges(qname, ft.Params)
+			v.addFieldTypeEdges(qname, ft.Results)
+		}
+	}
+}
+
+// addFieldTypeEdges extrai arestas `uses_type` dos tipos de uma lista de
+// campos/parâmetros.
+func (v *goFileVisitor) addFieldTypeEdges(src string, fl *ast.FieldList) {
+	if fl == nil {
+		return
+	}
+	for _, f := range fl.List {
+		v.addTypeEdges(src, f.Type)
+	}
+}
+
+// addTypeEdges extrai uma aresta `uses_type` para o tipo de uma expressão.
+func (v *goFileVisitor) addTypeEdges(src string, expr ast.Expr) {
+	name, qualified := v.typeTarget(expr)
+	if name == "" {
+		return
+	}
+	pos := v.pos(expr.Pos())
+	v.edges = append(v.edges, Edge{
+		Kind:             EdgeUsesType,
+		SrcQualifiedName: src,
+		DstName:          name,
+		DstQualifiedName: qualified,
+		Line:             pos.Line,
+		Column:           pos.Column,
+	})
+}
+
+// addTypeEdge extrai uma aresta de herança (ou de uso) para um tipo.
+func (v *goFileVisitor) addTypeEdge(kind EdgeKind, src string, expr ast.Expr) {
+	name, qualified := v.typeTarget(expr)
+	if name == "" {
+		return
+	}
+	pos := v.pos(expr.Pos())
+	v.edges = append(v.edges, Edge{
+		Kind:             kind,
+		SrcQualifiedName: src,
+		DstName:          name,
+		DstQualifiedName: qualified,
+		Line:             pos.Line,
+		Column:           pos.Column,
+	})
+}
+
+// typeTarget devolve o nome e o qualified name do tipo de uma expressão.
+//
+// Tipos da linguagem (string, int, error, ...) e pacotes não são símbolos do
+// repositório: eles não geram aresta.
+func (v *goFileVisitor) typeTarget(expr ast.Expr) (name string, qualified string) {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		if isBuiltinType(t.Name) {
+			return "", ""
+		}
+		if _, isImport := v.importPackageBase(t.Name); isImport {
+			return "", ""
+		}
+		return t.Name, v.pkg + "." + t.Name
+	case *ast.StarExpr:
+		return v.typeTarget(t.X)
+	case *ast.SelectorExpr:
+		if pkgIdent, ok := t.X.(*ast.Ident); ok {
+			if base, isImport := v.importPackageBase(pkgIdent.Name); isImport {
+				return t.Sel.Name, base + "." + t.Sel.Name
+			}
+		}
+		return "", ""
+	case *ast.IndexExpr:
+		return v.typeTarget(t.X)
+	case *ast.IndexListExpr:
+		return v.typeTarget(t.X)
+	case *ast.ArrayType:
+		return v.typeTarget(t.Elt)
+	case *ast.MapType:
+		return v.typeTarget(t.Value)
+	case *ast.ChanType:
+		return v.typeTarget(t.Value)
+	}
+	return "", ""
+}
+
+// goBuiltinTypes são os tipos predeclados da linguagem: não são símbolos do
+// repositório, então não geram aresta `uses_type`.
+var goBuiltinTypes = map[string]bool{
+	"bool": true, "byte": true, "complex64": true, "complex128": true,
+	"error": true, "float32": true, "float64": true, "int": true, "int8": true,
+	"int16": true, "int32": true, "int64": true, "rune": true, "string": true,
+	"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
+	"uintptr": true, "any": true, "comparable": true,
+}
+
+// isBuiltinType devolve true se o nome é um tipo predeclado da linguagem.
+func isBuiltinType(name string) bool {
+	return goBuiltinTypes[name]
 }
 
 // pos devolve a posição (linha/coluna) de um token.

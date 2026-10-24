@@ -261,6 +261,136 @@ func Caller2() error {
 	}
 }
 
+// TestGoParserExtraiImportsEInherits cobre T10: o backend emite `imports`
+// (arquivo importador → pacote importado, com os símbolos sintéticos que dão
+// corpo ao grafo) e `inherits`/`uses_type` (embedding de struct/interface e
+// tipos usados).
+func TestGoParserExtraiImportsEInherits(t *testing.T) {
+	src := `package example
+
+import (
+	"fmt"
+	"strings"
+)
+
+// Base é a base.
+type Base struct {
+	ID   int
+	Next *Base
+}
+
+// Derived embuta Base.
+type Derived struct {
+	Base
+	Name string
+}
+
+// Reader é uma interface.
+type Reader interface {
+	Read() error
+}
+
+// ReadCloser embuta Reader.
+type ReadCloser interface {
+	Reader
+	Close() error
+}
+
+// Use usa Base.
+func Use(b Base) *Base {
+	return &b
+}
+
+// Format formata.
+func Format(s string) string {
+	return strings.TrimSpace(s)
+}
+`
+	p := NewGoParser()
+	res, err := p.ParseFile("internal/example/types.go", []byte(src))
+	if err != nil {
+		t.Fatalf("ParseFile falhou: %v", err)
+	}
+
+	byKind := map[EdgeKind][]Edge{}
+	for _, e := range res.Edges {
+		byKind[e.Kind] = append(byKind[e.Kind], e)
+	}
+
+	// imports: dois imports, cada um com a declaração como origem e o
+	// pacote como destino.
+	imports := byKind[EdgeImports]
+	if len(imports) != 2 {
+		t.Fatalf("arestas imports = %d; want 2; got %+v", len(imports), imports)
+	}
+	if imports[0].SrcQualifiedName != "import:fmt" || imports[0].DstQualifiedName != "fmt" {
+		t.Errorf("imports[0] = %s -> %s; want import:fmt -> fmt", imports[0].SrcQualifiedName, imports[0].DstQualifiedName)
+	}
+	if imports[0].Line != 4 {
+		t.Errorf("imports[0].Line = %d; want 4 (a posição do import)", imports[0].Line)
+	}
+	if imports[1].SrcQualifiedName != "import:strings" || imports[1].DstQualifiedName != "strings" {
+		t.Errorf("imports[1] = %s -> %s; want import:strings -> strings", imports[1].SrcQualifiedName, imports[1].DstQualifiedName)
+	}
+
+	// Os símbolos sintéticos do import existem (a origem e o destino).
+	var hasDecl, hasPkg bool
+	for _, s := range res.Symbols {
+		if s.Kind != KindImport {
+			continue
+		}
+		if s.QualifiedName == "import:fmt" {
+			hasDecl = true
+		}
+		if s.QualifiedName == "fmt" {
+			hasPkg = true
+		}
+	}
+	if !hasDecl || !hasPkg {
+		t.Errorf("faltam os símbolos sintéticos do import (decl=%v pkg=%v)", hasDecl, hasPkg)
+	}
+
+	// inherits: embedding de struct e de interface.
+	inherits := byKind[EdgeInherits]
+	if len(inherits) != 2 {
+		t.Fatalf("arestas inherits = %d; want 2 (Derived→Base, ReadCloser→Reader); got %+v", len(inherits), inherits)
+	}
+	found := map[string]bool{}
+	for _, e := range inherits {
+		found[e.SrcQualifiedName+"->"+e.DstQualifiedName] = true
+	}
+	if !found["example.Derived->example.Base"] {
+		t.Errorf("faltou a herança example.Derived->example.Base: %+v", inherits)
+	}
+	if !found["example.ReadCloser->example.Reader"] {
+		t.Errorf("faltou a herança example.ReadCloser->example.Reader: %+v", inherits)
+	}
+
+	// uses_type: campo de struct e parâmetros/resultados.
+	usesType := byKind[EdgeUsesType]
+	if len(usesType) < 3 {
+		t.Fatalf("arestas uses_type = %d; want ≥3 (campo Next, param e resultado de Use)", len(usesType))
+	}
+	uses := map[string]bool{}
+	for _, e := range usesType {
+		uses[e.SrcQualifiedName+"->"+e.DstQualifiedName] = true
+	}
+	if !uses["example.Base->example.Base"] {
+		t.Errorf("faltou o uso de tipo example.Base->example.Base (campo Next): %+v", usesType)
+	}
+	if !uses["example.Use->example.Base"] {
+		t.Errorf("faltou o uso de tipo example.Use->example.Base (parâmetro): %+v", usesType)
+	}
+
+	// Tipos da linguagem (string, int) não geram aresta: não são símbolos do
+	// repositório.
+	for _, e := range usesType {
+		if e.DstName == "string" || e.DstName == "int" {
+			t.Errorf("tipo builtin não deve gerar aresta: %+v", e)
+		}
+	}
+}
+
 // TestGoParserNaoCriaArestaParaBuiltin: builtins não são símbolos do
 // repositório e não geram aresta `calls`.
 func TestGoParserNaoCriaArestaParaBuiltin(t *testing.T) {

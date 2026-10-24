@@ -249,6 +249,48 @@ func TestPipelineGravaCallsComCallSiteEProveniencia(t *testing.T) {
 	}
 }
 
+// TestPipelineGravaImportsComDestinoQueExiste cobre T10: a aresta `imports`
+// aponta para um símbolo que EXISTE em code_symbols (o nó do pacote
+// importado) — nunca para uma aresta órfã — e a provenance é EXTRACTED.
+func TestPipelineGravaImportsComDestinoQueExiste(t *testing.T) {
+	tmp := t.TempDir()
+	mkGoFile(t, tmp, "a.go", "package x\n\nimport \"fmt\"\n\nfunc A() {\n\tfmt.Println(\"oi\")\n}\n")
+
+	h := newCodeastPipelineTestDB(t)
+	pipe, err := NewPipeline(PipelineOptions{DB: h})
+	if err != nil {
+		t.Fatalf("NewPipeline falhou: %v", err)
+	}
+	if err := pipe.Run(context.Background(), tmp, nil); err != nil {
+		t.Fatalf("Run falhou: %v", err)
+	}
+
+	var total, orfas int
+	if err := h.QueryRow(`SELECT COUNT(*) FROM code_edges WHERE kind = 'imports'`).Scan(&total); err != nil {
+		t.Fatalf("SELECT imports falhou: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("arestas imports = %d; want 1", total)
+	}
+	if err := h.QueryRow(`
+		SELECT COUNT(*) FROM code_edges e
+		 WHERE e.kind = 'imports'
+		   AND NOT EXISTS (SELECT 1 FROM code_symbols s WHERE s.id = e.dst_symbol_id)`).Scan(&orfas); err != nil {
+		t.Fatalf("SELECT órfãs falhou: %v", err)
+	}
+	if orfas != 0 {
+		t.Errorf("arestas imports apontando para símbolo inexistente = %d; want 0", orfas)
+	}
+
+	var status string
+	if err := h.QueryRow(`SELECT epistemic_status FROM code_edges WHERE kind = 'imports'`).Scan(&status); err != nil {
+		t.Fatalf("SELECT status falhou: %v", err)
+	}
+	if status != "EXTRACTED" {
+		t.Errorf("epistemic_status = %q; want EXTRACTED", status)
+	}
+}
+
 func TestPipelineInvalidVaultPath(t *testing.T) {
 	h := newCodeastPipelineTestDB(t)
 	pipe, _ := NewPipeline(PipelineOptions{DB: h, Parser: NewMockParser(false)})

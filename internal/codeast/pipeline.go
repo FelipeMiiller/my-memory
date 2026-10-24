@@ -415,6 +415,40 @@ func (r *edgeResolver) lookup(column, value string) ([]int64, error) {
 	return ids, nil
 }
 
+// lookupInFile devolve os ids dos símbolos que casam com a coluna no
+// ARQUIVO informado.
+//
+// É o lookup usado pelas arestas `imports`: o nó do pacote importado é por
+// arquivo (o mesmo pacote importado por N arquivos tem N nós), então o
+// escopo do arquivo é o que desambigua — sem ele, todo import seria
+// "ambíguo" e cairia no bucket de incertas.
+func (r *edgeResolver) lookupInFile(fileID int64, column, value string) ([]int64, error) {
+	key := fmt.Sprintf("file=%d|%s=%s", fileID, column, value)
+	if ids, ok := r.cache[key]; ok {
+		return ids, nil
+	}
+	query := `SELECT id FROM code_symbols WHERE repository = ? AND file_id = ? AND ` + column + ` = ? ORDER BY id LIMIT 3`
+	rows, err := r.db.QueryContext(r.ctx, db.DetectDialect(r.ctx, r.db).Bind(query),
+		db.RepositoryFromContext(r.ctx), fileID, value)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	r.cache[key] = ids
+	return ids, nil
+}
+
 // resolveEdge resolve UMA aresta nos três níveis de resolução e grava o
 // resultado:
 //
@@ -424,6 +458,19 @@ func (r *edgeResolver) lookup(column, value string) ([]int64, error) {
 //
 // O nível 3 NUNCA promove o candidato a aresta resolvida.
 func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolver *edgeResolver) error {
+	// As arestas `imports` apontam para o nó do pacote importado que vive NO
+	// MESMO arquivo do importador: o lookup é escopado pelo file_id.
+	if pe.kind == EdgeImports && pe.dstQualifiedName != "" {
+		ids, err := resolver.lookupInFile(pe.fileID, "qualified_name", pe.dstQualifiedName)
+		if err != nil {
+			return err
+		}
+		if len(ids) == 1 {
+			return db.UpsertCodeEdgeWithStatus(ctx, fp.db, pe.srcSymbolID, ids[0], pe.fileID,
+				string(pe.kind), pe.line, pe.line, 1.0, db.EpistemicExtracted)
+		}
+	}
+
 	// Nível 1: escopo de pacote.
 	if pe.dstQualifiedName != "" {
 		ids, err := resolver.lookup("qualified_name", pe.dstQualifiedName)
