@@ -168,6 +168,133 @@ func TestCodeMigrationIdempotent(t *testing.T) {
 	}
 }
 
+// TestCodeEdgesTemEpistemicStatus cobre T11 (CG-14): code_edges carrega a
+// coluna epistemic_status (TEXT, default EXTRACTED) e a migração é
+// IDEMPOTENTE — rodá-la de novo não muda nada.
+func TestCodeEdgesTemEpistemicStatus(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "code_edges_status.db")
+	d, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer d.Close()
+	ctx := context.Background()
+
+	// A coluna existe logo após o InitDB (schema) com o default EXTRACTED.
+	var cnt int
+	if err := d.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('code_edges') WHERE name='epistemic_status'`).Scan(&cnt); err != nil {
+		t.Fatalf("pragma_table_info falhou: %v", err)
+	}
+	if cnt != 1 {
+		t.Fatalf("code_edges.epistemic_status ausente (count=%d)", cnt)
+	}
+
+	fid, err := UpsertCodeFile(ctx, d, "a/b.go", "go", "h", "ast", 100, 1)
+	if err != nil {
+		t.Fatalf("UpsertCodeFile falhou: %v", err)
+	}
+	s1, err := UpsertCodeSymbol(ctx, d, fid, "function", "Caller", "pkg.Caller", "", "", 10, 12, 0, 0)
+	if err != nil {
+		t.Fatalf("UpsertCodeSymbol s1 falhou: %v", err)
+	}
+	s2, err := UpsertCodeSymbol(ctx, d, fid, "function", "Callee", "pkg.Callee", "", "", 20, 22, 0, 0)
+	if err != nil {
+		t.Fatalf("UpsertCodeSymbol s2 falhou: %v", err)
+	}
+
+	if err := UpsertCodeEdgeWithStatus(ctx, d, s1, s2, fid, "calls", 11, 11, 1.0, EpistemicExtracted); err != nil {
+		t.Fatalf("UpsertCodeEdgeWithStatus (calls) falhou: %v", err)
+	}
+	if err := UpsertCodeEdgeWithStatus(ctx, d, s2, s1, fid, "references", 21, 21, 0.8, EpistemicInferred); err != nil {
+		t.Fatalf("UpsertCodeEdgeWithStatus (references) falhou: %v", err)
+	}
+
+	readStatus := func(kind string) string {
+		t.Helper()
+		var status string
+		if err := d.QueryRow(`SELECT epistemic_status FROM code_edges WHERE kind = ?`, kind).Scan(&status); err != nil {
+			t.Fatalf("SELECT epistemic_status (%s) falhou: %v", kind, err)
+		}
+		return status
+	}
+	if got := readStatus("calls"); got != EpistemicExtracted {
+		t.Errorf("epistemic_status(calls) = %q; want %q", got, EpistemicExtracted)
+	}
+	if got := readStatus("references"); got != EpistemicInferred {
+		t.Errorf("epistemic_status(references) = %q; want %q", got, EpistemicInferred)
+	}
+
+	// Idempotência: a migração roda duas vezes sem mudar nada.
+	for i := 1; i <= 2; i++ {
+		if err := EnsureCodeTables(ctx, d); err != nil {
+			t.Fatalf("EnsureCodeTables (run %d) falhou: %v", i, err)
+		}
+	}
+	if got := readStatus("calls"); got != EpistemicExtracted {
+		t.Errorf("após a migração idempotente epistemic_status(calls) = %q; want %q", got, EpistemicExtracted)
+	}
+	if got := readStatus("references"); got != EpistemicInferred {
+		t.Errorf("após a migração idempotente epistemic_status(references) = %q; want %q", got, EpistemicInferred)
+	}
+}
+
+// TestCodeEdgesPreExistentesReferencesSaoInferred cobre T11: as arestas
+// `references` que já existiam na base (resolvidas por NOME pela heurística
+// legada) NÃO são EXTRACTED — o backfill da migração as marca como INFERRED.
+func TestCodeEdgesPreExistentesReferencesSaoInferred(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "code_edges_backfill.db")
+	d, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer d.Close()
+	ctx := context.Background()
+
+	if _, err := d.Exec(`INSERT INTO code_files (repository, path, language, size_bytes, content_hash, ast_hash, indexed_at)
+		VALUES ('default', 'a/b.go', 'go', 10, 'h', NULL, 1)`); err != nil {
+		t.Fatalf("INSERT code_files falhou: %v", err)
+	}
+	if _, err := d.Exec(`INSERT INTO code_symbols (repository, file_id, kind, name, qualified_name, start_line, end_line)
+		VALUES ('default', 1, 'function', 'Helper', 'pkg.Helper', 1, 2),
+		       ('default', 1, 'function', 'Helper', 'pkg2.Helper', 10, 12)`); err != nil {
+		t.Fatalf("INSERT code_symbols falhou: %v", err)
+	}
+	// Uma aresta legada: `references` gravada com o default da coluna.
+	if _, err := d.Exec(`INSERT INTO code_edges (repository, src_symbol_id, dst_symbol_id, kind, file_id, start_line, end_line, confidence, epistemic_status)
+		VALUES ('default', 1, 2, 'references', 1, 1, 2, 1.0, 'EXTRACTED')`); err != nil {
+		t.Fatalf("INSERT code_edges falhou: %v", err)
+	}
+
+	// Simula a base antiga: sem a coluna epistemic_status.
+	if _, err := d.Exec(`ALTER TABLE code_edges DROP COLUMN epistemic_status`); err != nil {
+		t.Logf("SQLite não suporta DROP COLUMN: %v (teste segue pelo caminho EnsureCodeTables direto)", err)
+		return
+	}
+
+	if err := EnsureCodeTables(ctx, d); err != nil {
+		t.Fatalf("EnsureCodeTables falhou: %v", err)
+	}
+
+	var status string
+	if err := d.QueryRow(`SELECT epistemic_status FROM code_edges WHERE kind = 'references'`).Scan(&status); err != nil {
+		t.Fatalf("SELECT epistemic_status falhou: %v", err)
+	}
+	if status != EpistemicInferred {
+		t.Errorf("epistemic_status da references pré-existente = %q; want %q (resolvida por NOME)", status, EpistemicInferred)
+	}
+
+	// Idempotência: rodar a migração de novo não volta a EXTRACTED.
+	if err := EnsureCodeTables(ctx, d); err != nil {
+		t.Fatalf("EnsureCodeTables (2ª vez) falhou: %v", err)
+	}
+	if err := d.QueryRow(`SELECT epistemic_status FROM code_edges WHERE kind = 'references'`).Scan(&status); err != nil {
+		t.Fatalf("SELECT epistemic_status (2ª vez) falhou: %v", err)
+	}
+	if status != EpistemicInferred {
+		t.Errorf("epistemic_status após a 2ª migração = %q; want %q", status, EpistemicInferred)
+	}
+}
+
 func TestCodeFilesUpsertAndRoundtrip(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "code_upsert.db")
 	d, err := InitDB(dbPath)

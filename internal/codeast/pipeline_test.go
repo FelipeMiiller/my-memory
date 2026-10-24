@@ -291,6 +291,51 @@ func TestPipelineGravaImportsComDestinoQueExiste(t *testing.T) {
 	}
 }
 
+// TestArestaAmbiguaVaiParaUncertain cobre T11 (CG-15): um destino ambíguo
+// (mais de um símbolo com o mesmo nome) NUNCA vira aresta resolvida — vai para
+// code_edges_uncertain com a confiança e a razão.
+func TestArestaAmbiguaVaiParaUncertain(t *testing.T) {
+	tmp := t.TempDir()
+	// Dois pacotes com uma função de mesmo nome: o destino por nome é
+	// ambíguo.
+	mkGoFile(t, tmp, "a/x.go", "package a\n\nfunc Helper() {}\n")
+	mkGoFile(t, tmp, "b/x.go", "package b\n\nfunc Helper() {}\n")
+	mkGoFile(t, tmp, "c/main.go", "package c\n\nfunc Call() {\n\tHelper()\n}\n")
+
+	h := newCodeastPipelineTestDB(t)
+	pipe, err := NewPipeline(PipelineOptions{DB: h})
+	if err != nil {
+		t.Fatalf("NewPipeline falhou: %v", err)
+	}
+	if err := pipe.Run(context.Background(), tmp, nil); err != nil {
+		t.Fatalf("Run falhou: %v", err)
+	}
+
+	var resolvidas int
+	if err := h.QueryRow(`SELECT COUNT(*) FROM code_edges WHERE kind = 'calls'`).Scan(&resolvidas); err != nil {
+		t.Fatalf("SELECT code_edges falhou: %v", err)
+	}
+	if resolvidas != 0 {
+		t.Errorf("arestas calls resolvidas = %d; want 0 (destino ambíguo não vira aresta)", resolvidas)
+	}
+
+	var dst, reason string
+	var confidence float64
+	if err := h.QueryRow(`SELECT dst_candidate_name, reason, confidence FROM code_edges_uncertain WHERE kind = 'calls'`).
+		Scan(&dst, &reason, &confidence); err != nil {
+		t.Fatalf("SELECT code_edges_uncertain falhou: %v", err)
+	}
+	if dst != "c.Helper" {
+		t.Errorf("dst_candidate_name = %q; want c.Helper (o qualified name do destino pretendido)", dst)
+	}
+	if !strings.Contains(reason, "ambíguo") {
+		t.Errorf("reason = %q; quer a razão da ambiguidade", reason)
+	}
+	if confidence != 0.5 {
+		t.Errorf("confidence = %v; want 0.5", confidence)
+	}
+}
+
 func TestPipelineInvalidVaultPath(t *testing.T) {
 	h := newCodeastPipelineTestDB(t)
 	pipe, _ := NewPipeline(PipelineOptions{DB: h, Parser: NewMockParser(false)})
