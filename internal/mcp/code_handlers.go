@@ -213,7 +213,7 @@ func NewMemoryCodeSearchHandler(codeFn CodeSearchFunc) ToolHandlerFunc {
 			TokensEstimated: tokens,
 		}
 		if truncated {
-			resp.Hint = codeNarrowHint(maxTokens, len(hits)-len(kept))
+			resp.Hint = codeNarrowHint(maxTokens, len(hits)-len(kept), 0)
 		}
 		out, err := json.Marshal(resp)
 		if err != nil {
@@ -762,7 +762,7 @@ func SQLCodeNeighborsTraverse(ctx context.Context, database *sql.DB, symbol stri
 	resp.NodesPruned = pruned
 	resp.Truncated = truncated || pruned > 0
 	if resp.Truncated {
-		resp.Hint = codeNarrowHint(maxTokens, len(rows)-len(kept))
+		resp.Hint = codeNarrowHint(maxTokens, len(rows)-len(kept), pruned)
 	}
 	return resp, nil
 }
@@ -1011,13 +1011,20 @@ func codeTokenBudget(rawMap map[string]json.RawMessage) int {
 }
 
 // codeNarrowHint monta a dica de estreitar a query (AC 23).
-func codeNarrowHint(maxTokens, dropped int) string {
-	hint := fmt.Sprintf(
-		"Resposta truncada (orçamento de %d tokens). Estreite a query: use o qualified name completo, reduza a profundidade (depth) ou filtre por language/kind.",
-		maxTokens,
-	)
+//
+// A dica diz o QUE cortou a resposta: o hub threshold (nós de grau alto
+// removidos) ou o orçamento de tokens (vizinhos que ficaram de fora).
+func codeNarrowHint(maxTokens, dropped, pruned int) string {
+	hint := "Resposta truncada. Estreite a query: use o qualified name completo, reduza a profundidade (depth) ou filtre por language/kind."
+	var reasons []string
+	if pruned > 0 {
+		reasons = append(reasons, fmt.Sprintf("%d no(s)-hub removido(s) (grau acima do percentil)", pruned))
+	}
 	if dropped > 0 {
-		hint += fmt.Sprintf(" %d vizinho(s) ficaram de fora.", dropped)
+		reasons = append(reasons, fmt.Sprintf("%d vizinho(s) fora do orcamento de %d tokens", dropped, maxTokens))
+	}
+	if len(reasons) > 0 {
+		hint = fmt.Sprintf("%s (%s).", hint, strings.Join(reasons, "; "))
 	}
 	return hint
 }
