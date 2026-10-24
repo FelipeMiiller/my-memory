@@ -12,6 +12,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/federation"
 	"github.com/FelipeMiiller/my-memory/internal/parser"
 	"github.com/FelipeMiiller/my-memory/internal/staleness"
+	"github.com/FelipeMiiller/my-memory/internal/store"
 )
 
 // CallToolParams define os parâmetros recebidos em uma requisição tools/call
@@ -382,20 +383,18 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 			}
 		}
 
-		// CA-12: include_code é flag aditiva (default false). Mantido aqui para
-		// que clientes MCP legados não precisem conhecer o novo campo — quando
-		// omitido, comportamento atual preservado. O verdadeiro fan-in RRF
-		// code+markdown será plugado quando CodeSearchFunc for injetada no server.
-		// GAP-2 fix: quando include_code=true, prepend warning loud no response
-		// para que clientes fiquem cientes de que o fan-in ainda não está ativo
-		// (em vez de no-op silencioso).
+		// CG-19/T14: include_code é flag aditiva (default false). Ligada, ela
+		// coloca code_symbols no RRF como fonte real de fan-in (a fonte
+		// "code"); desligada, o ranking atual é preservado byte-a-byte.
 		includeCode := false
 		if rawIncludeCode, hasIncludeCode := rawMap["include_code"]; hasIncludeCode {
 			_ = json.Unmarshal(rawIncludeCode, &includeCode)
 		}
-		includeCodeWarning := ""
 		if includeCode {
-			includeCodeWarning = "⚠ include_code=true: fan-in RRF code+markdown agendado para backlog (CA-12 placeholder).\n\n"
+			// A flag viaja no contexto porque as implementações de busca
+			// (SQLite e Postgres) são ligadas no CLI e recebem o ctx — é o
+			// mesmo canal usado pelo repo_id (ADR-061).
+			ctx = store.WithIncludeCode(ctx, true)
 		}
 
 		if searchFn == nil {
@@ -419,6 +418,7 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 				DetailLevel: detailLevel,
 				Category:    category,
 				Tag:         tag,
+				IncludeCode: includeCode,
 			})
 		case SearchFunc:
 			results, err = fn(ctx, repo, query, limit)
@@ -432,7 +432,7 @@ func NewMemorySearchHandler(searchFn any) ToolHandlerFunc {
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro na execução da busca: %v", err), nil)
 		}
 
-		return NewTextResult(includeCodeWarning + FormatSearchResultsWithOptions(results, detailLevel)), nil
+		return NewTextResult(FormatSearchResultsWithOptions(results, detailLevel)), nil
 	}
 }
 

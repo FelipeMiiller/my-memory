@@ -46,6 +46,14 @@ type SearchResult struct {
 	Abstract   string              `json:"abstract,omitempty"`
 	Category   string              `json:"category,omitempty"`
 	Links      *deeplink.DeepLinks `json:"links,omitempty"`
+	// Identidade do símbolo de código quando o item veio da fonte "code"
+	// do fan-in RRF (T14/CG-19). Vazio para notas.
+	CodeSymbol   string `json:"code_symbol,omitempty"`
+	CodeFile     string `json:"code_file,omitempty"`
+	CodeLine     int    `json:"code_line,omitempty"`
+	CodeEndLine  int    `json:"code_end_line,omitempty"`
+	CodeKind     string `json:"code_kind,omitempty"`
+	CodeLanguage string `json:"code_language,omitempty"`
 }
 
 // SearchOptions define critérios de filtragem por taxonomia, tag e nível de densidade de contexto
@@ -64,6 +72,9 @@ type SearchOptions struct {
 	Tag       string `json:"tag,omitempty"`        // tag canônica; "" = sem filtro
 	Level     string `json:"level,omitempty"`      // "l0", "l1", "l2" (default: "l1")
 	ShowLinks bool   `json:"show_links,omitempty"` // Exibe e preenche deep links nos resultados
+	// IncludeCode liga a fonte "code" (code_symbols) no fan-in RRF
+	// (T14/CG-19). Aditivo: false mantém o ranking atual intacto.
+	IncludeCode bool `json:"include_code,omitempty"`
 }
 
 // GodNode representa um nó com alta centralidade estrutural (in-degree + out-degree) no grafo

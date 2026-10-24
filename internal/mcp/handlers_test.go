@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/FelipeMiiller/my-memory/internal/store"
 )
 
 func TestServer_ToolsCall_MemorySearch_Success(t *testing.T) {
@@ -1078,5 +1080,119 @@ func TestServer_ToolsCall_MemorySearch_CategoryFilter(t *testing.T) {
 	}
 	if !strings.Contains(text, "[SKILL]") {
 		t.Errorf("esperava '[SKILL]' no resultado L1, obteve: %s", text)
+	}
+}
+
+// TestIncludeCodeSemPlaceHolder prova o AC 20 na camada MCP: o include_code
+// chega no SearchParams (e no contexto da busca) e a resposta NAO traz mais
+// o aviso "CA-12 placeholder".
+func TestIncludeCodeSemPlaceHolder(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 77, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"query": "hybrid", "include_code": true, "limit": 3}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	var gotParams SearchParams
+	var gotContextFlag bool
+	srv.SetAdvancedSearchHandler(func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		gotParams = params
+		gotContextFlag = store.IncludeCodeFromContext(ctx)
+		return []SearchResult{
+			{
+				ChunkID:    "c1",
+				DocumentID: "doc1",
+				Content:    "nota sobre a busca hibrida",
+				Score:      0.0164,
+				Sources:    []string{"fts:1"},
+			},
+		}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	if !gotParams.IncludeCode {
+		t.Errorf("include_code=true deveria chegar no SearchParams, obteve %+v", gotParams)
+	}
+	if !gotContextFlag {
+		t.Errorf("include_code=true deveria chegar no contexto da busca")
+	}
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta: %v", err)
+	}
+	if resp.Error != nil {
+		t.Fatalf("esperava sucesso, obteve erro: %+v", resp.Error)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	if err := json.Unmarshal(resBytes, &callResult); err != nil {
+		t.Fatalf("erro ao decodificar CallToolResult: %v", err)
+	}
+
+	text := callResult.Content[0].Text
+	if strings.Contains(text, "CA-12 placeholder") {
+		t.Errorf("a resposta nao pode mais trazer o aviso 'CA-12 placeholder', obteve: %s", text)
+	}
+	if strings.Contains(text, "fan-in RRF code+markdown agendado") {
+		t.Errorf("a resposta nao pode mais trazer o aviso de fan-in agendado, obteve: %s", text)
+	}
+}
+
+// TestIncludeCodeAusenteNaoMudaNada e a regressao do AC 21 na camada MCP:
+// sem include_code, o SearchParams segue com a flag desligada e a resposta
+// nao ganha nenhum aviso.
+func TestIncludeCodeAusenteNaoMudaNada(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 78, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"query": "hybrid", "limit": 3}}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	var gotParams SearchParams
+	var gotContextFlag bool
+	srv.SetAdvancedSearchHandler(func(ctx context.Context, params SearchParams) ([]SearchResult, error) {
+		gotParams = params
+		gotContextFlag = store.IncludeCodeFromContext(ctx)
+		return []SearchResult{
+			{
+				ChunkID:    "c1",
+				DocumentID: "doc1",
+				Content:    "nota sobre a busca hibrida",
+				Score:      0.0164,
+				Sources:    []string{"fts:1"},
+			},
+		}, nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	if gotParams.IncludeCode {
+		t.Errorf("sem include_code a flag deve ficar desligada, obteve %+v", gotParams)
+	}
+	if gotContextFlag {
+		t.Errorf("sem include_code o contexto nao pode pedir o fan-in de codigo")
+	}
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta: %v", err)
+	}
+
+	resBytes, _ := json.Marshal(resp.Result)
+	var callResult CallToolResult
+	if err := json.Unmarshal(resBytes, &callResult); err != nil {
+		t.Fatalf("erro ao decodificar CallToolResult: %v", err)
+	}
+
+	text := callResult.Content[0].Text
+	if strings.Contains(text, "CA-12") || strings.Contains(text, "placeholder") {
+		t.Errorf("a resposta nao pode trazer aviso de placeholder, obteve: %s", text)
 	}
 }

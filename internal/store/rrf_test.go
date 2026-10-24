@@ -267,3 +267,96 @@ func TestFuseSearchResults_LevelL0(t *testing.T) {
 		}
 	}
 }
+
+// TestFanInDeCodeEntraNoRRF prova que a fonte "code" participa do RRF como
+// fonte real de fan-in (CG-19/T14): o item de codigo aparece na lista
+// fundida com o score 1/(k+rank) e a origem "code:<rank>" em Sources.
+func TestFanInDeCodeEntraNoRRF(t *testing.T) {
+	k := DefaultRRFK
+
+	noteResults := []SearchResult{
+		{ChunkID: "doc1#0", DocumentID: "doc1", Content: "nota sobre a busca hibrida"},
+	}
+	codeResults := []SearchResult{
+		{
+			DocumentID: "code:pkg.Search",
+			CodeSymbol: "pkg.Search",
+			CodeFile:   "pkg/search.go",
+			CodeLine:   42,
+			Abstract:   "func Search(query string) error - pkg/search.go:42",
+			Category:   "resource",
+		},
+		{
+			DocumentID: "code:pkg.Fuse",
+			CodeSymbol: "pkg.Fuse",
+			CodeFile:   "pkg/fuse.go",
+			CodeLine:   10,
+			Abstract:   "func Fuse(a, b int) int - pkg/fuse.go:10",
+			Category:   "resource",
+		},
+	}
+
+	base := []RankedResultSource{
+		{Name: "fts", Results: noteResults},
+		{Name: "vector"},
+		{Name: "graph"},
+	}
+	withCode := append(append([]RankedResultSource{}, base...), RankedResultSource{Name: CodeSourceName, Results: codeResults})
+
+	fused := FuseSearchResultsWithOptions(withCode, k, 0, DefaultDecayOptions(), SearchOptions{Level: "l1"})
+
+	var code1, code2 *SearchResult
+	for i := range fused {
+		switch fused[i].DocumentID {
+		case "code:pkg.Search":
+			code1 = &fused[i]
+		case "code:pkg.Fuse":
+			code2 = &fused[i]
+		}
+	}
+
+	if code1 == nil || code2 == nil {
+		t.Fatalf("esperava os dois simbolos de codigo na lista fundida, obteve %+v", fused)
+	}
+
+	want1 := 1.0 / float64(k+1)
+	if math.Abs(code1.Score-want1) > 1e-9 {
+		t.Errorf("score de code:pkg.Search: esperado %f (1/(k+1)), obteve %f", want1, code1.Score)
+	}
+	if len(code1.Sources) != 1 || code1.Sources[0] != "code:1" {
+		t.Errorf("esperava Sources [code:1] em code:pkg.Search, obteve %v", code1.Sources)
+	}
+
+	want2 := 1.0 / float64(k+2)
+	if math.Abs(code2.Score-want2) > 1e-9 {
+		t.Errorf("score de code:pkg.Fuse: esperado %f (1/(k+2)), obteve %f", want2, code2.Score)
+	}
+	if len(code2.Sources) != 1 || code2.Sources[0] != "code:2" {
+		t.Errorf("esperava Sources [code:2] em code:pkg.Fuse, obteve %v", code2.Sources)
+	}
+
+	// A nota mantem a contribuicao 1/(k+1) da fonte fts: a fonte "code" nao
+	// altera o score das notas.
+	var note *SearchResult
+	for i := range fused {
+		if fused[i].DocumentID == "doc1" {
+			note = &fused[i]
+		}
+	}
+	if note == nil {
+		t.Fatalf("a nota doc1 sumiu da lista fundida: %+v", fused)
+	}
+	wantNote := 1.0 / float64(k+1)
+	if math.Abs(note.Score-wantNote) > 1e-9 {
+		t.Errorf("score da nota: esperado %f, obteve %f", wantNote, note.Score)
+	}
+
+	// Sem a fonte "code", a lista e exatamente a de antes (AC 21).
+	before := FuseSearchResultsWithOptions(base, k, 0, DefaultDecayOptions(), SearchOptions{Level: "l1"})
+	if len(before) != 1 || before[0].DocumentID != "doc1" {
+		t.Fatalf("sem a fonte code a lista deve conter apenas a nota, obteve %+v", before)
+	}
+	if math.Abs(before[0].Score-wantNote) > 1e-9 {
+		t.Errorf("sem a fonte code a nota deveria manter o score %f, obteve %f", wantNote, before[0].Score)
+	}
+}

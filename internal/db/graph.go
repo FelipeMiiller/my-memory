@@ -27,6 +27,14 @@ type SearchResult struct {
 	Abstract   string              `json:"abstract,omitempty"`
 	Category   string              `json:"category,omitempty"`
 	Links      *deeplink.DeepLinks `json:"links,omitempty"`
+	// Identidade do símbolo de código quando o item veio da fonte "code"
+	// do fan-in RRF (T14/CG-19). Vazio para notas.
+	CodeSymbol   string `json:"code_symbol,omitempty"`
+	CodeFile     string `json:"code_file,omitempty"`
+	CodeLine     int    `json:"code_line,omitempty"`
+	CodeEndLine  int    `json:"code_end_line,omitempty"`
+	CodeKind     string `json:"code_kind,omitempty"`
+	CodeLanguage string `json:"code_language,omitempty"`
 }
 
 // SearchKNN busca os pedaços mais próximos usando sqlite-vec nativo

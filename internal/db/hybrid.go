@@ -183,25 +183,59 @@ func SearchHybridRRFWithOptions(ctx context.Context, database *sql.DB, q *turboq
 		{Name: "graph", Results: toStoreResults(graphResults)},
 	}
 
+	// CG-19/T14: fan-in real de code_symbols. A fonte "code" é lexical
+	// (embeddings por símbolo estão fora de escopo) e só entra quando o
+	// include_code=true — sem ela, a lista fundida é exatamente a de antes.
+	if store.IncludeCodeRequested(ctx, searchOpts) {
+		if codeResults := searchCodeSymbols(ctx, database, query, candidateLimit); len(codeResults) > 0 {
+			sources = append(sources, store.RankedResultSource{Name: store.CodeSourceName, Results: codeResults})
+		}
+	}
+
 	fusedStoreResults := store.FuseSearchResultsWithOptions(sources, k, limit, opts, searchOpts)
 	return fromStoreResults(fusedStoreResults), nil
+}
+
+// searchCodeSymbols monta a fonte lexical de código para o fan-in RRF.
+//
+// A query é a mesma do memory_code_search (name/qualified_name/signature com
+// LIKE por token), com o boost CA-05 aplicado. O marcador é o do SQLite
+// ("?") — o caminho Postgres é o do internal/store/postgres.go.
+func searchCodeSymbols(ctx context.Context, database *sql.DB, query string, limit int) []store.SearchResult {
+	sqlText, args := store.BuildCodeSymbolQuery(query, "", "", RepositoryFromContext(ctx), limit, store.SQLitePlaceholder)
+	if sqlText == "" {
+		return nil
+	}
+	hits, err := store.QueryCodeSymbols(ctx, database, sqlText, args)
+	if err != nil {
+		return nil
+	}
+	store.ApplyCodeSymbolBoost(hits, query)
+	store.SortCodeSymbolHits(hits)
+	return store.CodeSymbolResults(hits)
 }
 
 func toStoreResults(items []SearchResult) []store.SearchResult {
 	res := make([]store.SearchResult, len(items))
 	for i, it := range items {
 		res[i] = store.SearchResult{
-			ChunkID:    it.ChunkID,
-			DocumentID: it.DocumentID,
-			Content:    it.Content,
-			Distance:   it.Distance,
-			Score:      it.Score,
-			Sources:    it.Sources,
-			Neighbors:  it.Neighbors,
-			UpdatedAt:  it.UpdatedAt,
-			MTime:      it.MTime,
-			Abstract:   it.Abstract,
-			Category:   it.Category,
+			ChunkID:      it.ChunkID,
+			DocumentID:   it.DocumentID,
+			Content:      it.Content,
+			Distance:     it.Distance,
+			Score:        it.Score,
+			Sources:      it.Sources,
+			Neighbors:    it.Neighbors,
+			UpdatedAt:    it.UpdatedAt,
+			MTime:        it.MTime,
+			Abstract:     it.Abstract,
+			Category:     it.Category,
+			CodeSymbol:   it.CodeSymbol,
+			CodeFile:     it.CodeFile,
+			CodeLine:     it.CodeLine,
+			CodeEndLine:  it.CodeEndLine,
+			CodeKind:     it.CodeKind,
+			CodeLanguage: it.CodeLanguage,
 		}
 	}
 	return res
@@ -211,17 +245,23 @@ func fromStoreResults(items []store.SearchResult) []SearchResult {
 	res := make([]SearchResult, len(items))
 	for i, it := range items {
 		res[i] = SearchResult{
-			ChunkID:    it.ChunkID,
-			DocumentID: it.DocumentID,
-			Content:    it.Content,
-			Distance:   it.Distance,
-			Score:      it.Score,
-			Sources:    it.Sources,
-			Neighbors:  it.Neighbors,
-			UpdatedAt:  it.UpdatedAt,
-			MTime:      it.MTime,
-			Abstract:   it.Abstract,
-			Category:   it.Category,
+			ChunkID:      it.ChunkID,
+			DocumentID:   it.DocumentID,
+			Content:      it.Content,
+			Distance:     it.Distance,
+			Score:        it.Score,
+			Sources:      it.Sources,
+			Neighbors:    it.Neighbors,
+			UpdatedAt:    it.UpdatedAt,
+			MTime:        it.MTime,
+			Abstract:     it.Abstract,
+			Category:     it.Category,
+			CodeSymbol:   it.CodeSymbol,
+			CodeFile:     it.CodeFile,
+			CodeLine:     it.CodeLine,
+			CodeEndLine:  it.CodeEndLine,
+			CodeKind:     it.CodeKind,
+			CodeLanguage: it.CodeLanguage,
 		}
 	}
 	return res

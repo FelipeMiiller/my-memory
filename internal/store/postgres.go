@@ -799,7 +799,35 @@ func (s *PostgresStore) SearchHybridWithOptions(ctx context.Context, repo string
 		{Name: "graph", Results: graphResults},
 	}
 
+	// CG-19/T14: fan-in real de code_symbols. A fonte "code" é lexical
+	// (embeddings por símbolo estão fora de escopo) e só entra quando o
+	// include_code=true — sem ela, a lista fundida é exatamente a de antes.
+	if IncludeCodeRequested(ctx, searchOpts) {
+		if codeResults := s.searchCodeSymbols(ctx, repo, query, candidateLimit); len(codeResults) > 0 {
+			sources = append(sources, RankedResultSource{Name: CodeSourceName, Results: codeResults})
+		}
+	}
+
 	return FuseSearchResultsWithOptions(sources, k, limit, opts, searchOpts), nil
+}
+
+// searchCodeSymbols monta a fonte lexical de código para o fan-in RRF.
+//
+// Mesma query do memory_code_search (name/qualified_name/signature com LIKE
+// por token), com o boost CA-05 aplicado. O marcador é o do PostgreSQL
+// ("$n") — o caminho SQLite é o do internal/db/hybrid.go.
+func (s *PostgresStore) searchCodeSymbols(ctx context.Context, repo, query string, limit int) []SearchResult {
+	sqlText, args := BuildCodeSymbolQuery(query, "", "", repo, limit, PostgresPlaceholder)
+	if sqlText == "" {
+		return nil
+	}
+	hits, err := QueryCodeSymbols(ctx, s.db, sqlText, args)
+	if err != nil {
+		return nil
+	}
+	ApplyCodeSymbolBoost(hits, query)
+	SortCodeSymbolHits(hits)
+	return CodeSymbolResults(hits)
 }
 
 // FindSurprisingConnections descobre conexões latentes entre documentos conceitualmente similares sem arestas no grafo

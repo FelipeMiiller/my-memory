@@ -15,6 +15,10 @@ type SearchParams struct {
 	DetailLevel string  // "l0", "l1", "l2" (default: "l1")
 	Category    string  // "resource", "memory", "skill" ou ""
 	Tag         string  // tag canônica (minúsculas, sem '#'); "" = sem filtro
+	// IncludeCode liga a fonte "code" (code_symbols) no fan-in RRF da
+	// busca híbrida (T14/CG-19). Aditivo: ausente ou false mantém o
+	// ranking atual intacto.
+	IncludeCode bool
 }
 
 // SearchResult representa um item de resultado de busca no vault
