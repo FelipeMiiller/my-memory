@@ -78,11 +78,92 @@ func (s Symbol) HashKey() string {
 	return fmt.Sprintf("%s|%s|%d", s.Kind, qn, s.StartLine)
 }
 
+// EdgeKind é o tipo da relação entre dois símbolos do code graph.
+type EdgeKind string
+
+const (
+	// EdgeCalls: o símbolo origem CHAMA o símbolo destino. A posição gravada
+	// é o PONTO DE CHAMADA (call-site), não a definição.
+	EdgeCalls EdgeKind = "calls"
+	// EdgeImports: o símbolo origem (a declaração de import) IMPORTA o
+	// símbolo destino (o pacote importado).
+	EdgeImports EdgeKind = "imports"
+	// EdgeInherits: o símbolo origem EMBUTE o destino (embedding de struct ou
+	// de interface).
+	EdgeInherits EdgeKind = "inherits"
+	// EdgeUsesType: o símbolo origem USA o tipo destino (campo, parâmetro,
+	// resultado, tipo de variável).
+	EdgeUsesType EdgeKind = "uses_type"
+	// EdgeReferences: referência resolvida por NOME (heurística legada, sem
+	// call-site). Sempre nasce INFERRED — nunca EXTRACTED.
+	EdgeReferences EdgeKind = "references"
+)
+
+// ValidEdgeKinds lista os kinds de aresta aceitos pelo code graph.
+//
+// A lista é a fonte de verdade do vocabulary de arestas: `calls`, `imports`,
+// `inherits`, `uses_type` e `references` (a heurística legada por nome).
+func ValidEdgeKinds() []EdgeKind {
+	return []EdgeKind{
+		EdgeCalls,
+		EdgeImports,
+		EdgeInherits,
+		EdgeUsesType,
+		EdgeReferences,
+	}
+}
+
+// ValidEdgeKind devolve true se k é um kind de aresta reconhecido.
+func ValidEdgeKind(k EdgeKind) bool {
+	switch k {
+	case EdgeCalls, EdgeImports, EdgeInherits, EdgeUsesType, EdgeReferences:
+		return true
+	}
+	return false
+}
+
+// Edge é uma relação estrutural extraída pelo backend.
+//
+// FORMA ESCOLHIDA (contrato aditivo do Parser — decision 2 da Fase 2):
+//
+//	Kind             o tipo da relação (calls/imports/inherits/uses_type/references)
+//	SrcQualifiedName o qualified name do símbolo ORIGEM (o símbolo ENCLOSING:
+//	                 a função/método que contém a chamada, ou a declaração de
+//	                 import no caso de `imports`)
+//	DstName          o nome simples do destino
+//	DstQualifiedName o qualified name do destino quando o backend consegue
+//	                 inferi-lo ("pkg.Nome"); vazio quando só o nome é known
+//	                 (ex.: chamada de método — o tipo do receptor exige
+//	                 type-checking, fora do escopo do backend AST)
+//	Line/Column      a posição do CALL-SITE: a linha e a coluna da EXPRESSÃO
+//	                 que cria a relação (não a da definição do símbolo)
+//	Reason           a razão do caso INCERTO (destino ambíguo ou não
+//	                 resolvido); vazia para arestas resolvidas
+//
+// A aresta é resolvida em três níveis (decision 5 da Fase 2):
+// qualified name bate dentro do pacote → EXTRACTED; só o nome bate (único no
+// repositório) → INFERRED; mais de um candidato ou nada → vai para
+// code_edges_uncertain com confidence + reason e NUNCA vira aresta resolvida.
+type Edge struct {
+	Kind             EdgeKind `json:"kind"`
+	SrcQualifiedName string   `json:"src_qualified_name"`
+	DstName          string   `json:"dst_name"`
+	DstQualifiedName string   `json:"dst_qualified_name,omitempty"`
+	Line             int      `json:"line"`
+	Column           int      `json:"column,omitempty"`
+	Reason           string   `json:"reason,omitempty"`
+}
+
 // FileResult é o resultado de ParseFile: metadados do arquivo + símbolos extraídos.
 type FileResult struct {
 	Path     string   `json:"path"`
 	Language string   `json:"language"`
 	Symbols  []Symbol `json:"symbols"`
+	// Edges são as relações estruturais extraídas pelo backend. O campo é
+	// ADITIVO: backends que não devolvem arestas (linguagens sem suporte
+	// estrutural) simplesmente o deixam vazio — o pipeline mantém o
+	// comportamento legado (arestas `references` por nome) nesse caso.
+	Edges []Edge `json:"edges,omitempty"`
 	// Errors são problemas não-fatais detectados durante o parse (não retornam erro).
 	Errors []string `json:"errors,omitempty"`
 }
