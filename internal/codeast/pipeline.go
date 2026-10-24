@@ -37,10 +37,14 @@ type Pipeline struct {
 
 // PipelineOptions configura a construção do Pipeline.
 type PipelineOptions struct {
-	DB        *sql.DB
-	Parser    Parser         // se nil, usa NewMockParser (testes e no-op).
-	LangAllow []string       // whitelist (lower-case) ou nil.
-	UseAst    bool           // se false, ignora ast_hash (ainda calcula content_hash).
+	DB *sql.DB
+	// Parser fixa o backend de code AST. Quando nil, o pipeline usa o
+	// backend padrão do build (newBackendParser): o motor Go (stdlib) para
+	// arquivos Go e o MockParser (fallback determinístico do ADR-047) para as
+	// demais linguagens.
+	Parser    Parser   // se nil, usa o backend padrão do build.
+	LangAllow []string // whitelist (lower-case) ou nil.
+	UseAst    bool     // se false, ignora ast_hash (ainda calcula content_hash).
 	StatsSink *PipelineStats // opcional; quando != nil, atualiza contadores.
 }
 
@@ -66,8 +70,18 @@ func NewPipeline(opts PipelineOptions) (*Pipeline, error) {
 
 	cache := NewCodeFileCache(opts.DB)
 	parserImpl := opts.Parser
+	autoParser := false
 	if parserImpl == nil {
-		parserImpl = NewMockParser(false)
+		// Backend padrão do build: o motor de code AST vivo (newBackendParser).
+		// O MockParser deixa de ser o caminho de produção — ele continua
+		// disponível como fallback determinístico para as linguagens sem
+		// backend AST (ADR-047 §Deferral).
+		p, err := newBackendParser()
+		if err != nil {
+			return nil, fmt.Errorf("NewPipeline: backend de code AST indisponível: %w", err)
+		}
+		parserImpl = p
+		autoParser = true
 	}
 
 	// StatsSink: se o caller passou um ponteiro externo, ele será populado
@@ -82,6 +96,7 @@ func NewPipeline(opts PipelineOptions) (*Pipeline, error) {
 
 	processor := NewFileProcessor(opts.DB, cache, parserImpl)
 	processor.stats = stats
+	processor.autoParser = autoParser
 
 	return &Pipeline{
 		db:        opts.DB,
@@ -140,11 +155,35 @@ type FileProcessor struct {
 	cache  *CodeFileCache
 	parser Parser
 	stats  *PipelineStats
+	// autoParser indica que o parser NÃO foi injetado pelo caller: o
+	// processor escolhe o backend pela linguagem detectada (motor Go para
+	// Go; MockParser como fallback nas demais).
+	autoParser bool
+	fallback   Parser
 }
 
 // NewFileProcessor cria um processador isolado (útil para testes unitários).
 func NewFileProcessor(database *sql.DB, cache *CodeFileCache, parser Parser) *FileProcessor {
 	return &FileProcessor{db: database, cache: cache, parser: parser, stats: &PipelineStats{}}
+}
+
+// parserFor devolve o backend adequado à linguagem detectada.
+//
+// Quando o parser foi injetado pelo caller, ele é sempre usado (comportamento
+// dos testes). No caminho de produção (autoParser), Go vai para o motor AST Go
+// (stdlib) e as demais linguagens caem no MockParser — o fallback
+// determinístico que a ADR-047 exige manter até o binding tree-sitter existir.
+func (fp *FileProcessor) parserFor(lang string) Parser {
+	if !fp.autoParser {
+		return fp.parser
+	}
+	if lang == "go" {
+		return fp.parser
+	}
+	if fp.fallback == nil {
+		fp.fallback = NewMockParser(false)
+	}
+	return fp.fallback
 }
 
 // ProcessFile processa um único arquivo (relPath relativo à raiz).
@@ -189,7 +228,7 @@ func (fp *FileProcessor) ProcessFile(ctx context.Context, rootDir, relPath strin
 	}
 
 	// DecodeFirstIndex ou DecodeFullReparse → parsear
-	parsed, err := fp.parser.ParseFile(relPath, content)
+	parsed, err := fp.parserFor(lang).ParseFile(relPath, content)
 	if err != nil {
 		// Erros do backend tree-sitter (ex: ErrTreesitterDisabled): ainda
 		// tenta persistir como "first index" vazio para evitar reprocessar.

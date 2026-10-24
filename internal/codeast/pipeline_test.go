@@ -165,6 +165,35 @@ func TestPipelineNoOpWhenTreesitterDisabled(t *testing.T) {
 	}
 }
 
+// TestPipelineUsaBackendPadraoNaoMock cobre T8: sem Parser injetado, o
+// pipeline usa o backend padrão do build (motor Go em Go puro). O MockParser
+// (regex) NÃO extrai métodos nem receivers — então a presença do método na
+// base prova que o caminho de produção deixou de ser o mock.
+func TestPipelineUsaBackendPadraoNaoMock(t *testing.T) {
+	tmp := t.TempDir()
+	mkGoFile(t, tmp, "a.go", "package x\n\ntype T struct{}\n\n// M faz nada.\nfunc (t *T) M() {}\n")
+
+	h := newCodeastPipelineTestDB(t)
+	pipe, err := NewPipeline(PipelineOptions{DB: h})
+	if err != nil {
+		t.Fatalf("NewPipeline falhou: %v", err)
+	}
+	if err := pipe.Run(context.Background(), tmp, nil); err != nil {
+		t.Fatalf("Run falhou: %v", err)
+	}
+	if pipe.Stats().FilesIndexed != 1 {
+		t.Fatalf("FilesIndexed = %d; want 1", pipe.Stats().FilesIndexed)
+	}
+
+	var cnt int
+	if err := h.QueryRow(`SELECT COUNT(*) FROM code_symbols WHERE kind = 'method'`).Scan(&cnt); err != nil {
+		t.Fatalf("SELECT method falhou: %v", err)
+	}
+	if cnt != 1 {
+		t.Errorf("code_symbols(method) = %d; want 1 (o MockParser não extrai métodos)", cnt)
+	}
+}
+
 func TestPipelineInvalidVaultPath(t *testing.T) {
 	h := newCodeastPipelineTestDB(t)
 	pipe, _ := NewPipeline(PipelineOptions{DB: h, Parser: NewMockParser(false)})

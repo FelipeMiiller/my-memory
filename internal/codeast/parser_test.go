@@ -271,6 +271,57 @@ func TestBuildTagIsolatesTreesitter_BothTagsCompile(t *testing.T) {
 	_ = bytes.Equal // silencia import não-utilizado quando refatorando
 }
 
+// TestBackendPadraoNaoEStub cobre T8: o backend padrão do build deixou de ser
+// um stub (ErrTreesitterDisabled) e deixou de ser o MockParser — no build
+// default ele é o motor Go em Go puro (stdlib).
+func TestBackendPadraoNaoEStub(t *testing.T) {
+	p, err := newBackendParser()
+	if err != nil {
+		t.Fatalf("newBackendParser falhou: %v", err)
+	}
+	if p == nil {
+		t.Fatal("newBackendParser devolveu nil")
+	}
+	if p.Backend() == "mock" {
+		t.Error("o backend padrão de produção não pode ser o MockParser")
+	}
+	if IsTreesitterEnabled() {
+		// Build com a tag `treesitter`: o caminho isolado tem precedência
+		// (o stub tree-sitter ainda não tem binding real — ADR-047 deferral).
+		t.Skip("build com -tags treesitter: o backend tree-sitter tem precedência")
+	}
+	if p.Backend() != "go-stdlib" {
+		t.Errorf("Backend() = %q; want go-stdlib no build default", p.Backend())
+	}
+	res, err := p.ParseFile("internal/example/hello.go", []byte("package x\n\n// A faz nada.\nfunc A() {}\n"))
+	if err != nil {
+		t.Fatalf("ParseFile falhou: %v", err)
+	}
+	if len(res.Symbols) == 0 {
+		t.Error("o backend padrão não extraiu símbolos")
+	}
+}
+
+// TestValidEdgeKinds cobre o vocabulário de arestas do code graph.
+func TestValidEdgeKinds(t *testing.T) {
+	kinds := ValidEdgeKinds()
+	want := []EdgeKind{EdgeCalls, EdgeImports, EdgeInherits, EdgeUsesType, EdgeReferences}
+	if len(kinds) != len(want) {
+		t.Fatalf("ValidEdgeKinds() = %v; want %v", kinds, want)
+	}
+	for i, k := range want {
+		if kinds[i] != k {
+			t.Errorf("ValidEdgeKinds()[%d] = %q; want %q", i, kinds[i], k)
+		}
+		if !ValidEdgeKind(k) {
+			t.Errorf("ValidEdgeKind(%q) = false; want true", k)
+		}
+	}
+	if ValidEdgeKind("lambda") || ValidEdgeKind("") {
+		t.Error("ValidEdgeKind deve rejeitar kinds fora da tabela")
+	}
+}
+
 func TestFilterLanguages(t *testing.T) {
 	got := FilterLanguages([]string{"go", "ruby", "INVALID", "go"})
 	if len(got) != 2 {
