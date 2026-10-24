@@ -1,3 +1,12 @@
+---
+title: "Validation: code-graph-real — Fase 3 (ponte notas↔código, travessia limitada, drift estrutural)"
+category: resource
+summary: "Prova empírica da Fase 3: a ponte documents↔code_symbols no grafo único, a travessia de código com hub threshold p99 + orçamento de tokens + ordem por hop, e o drift estrutural por ast_hash. Commits 96a734b..6c64297."
+type: validation
+created_at: 2026-10-24T07:20:00-03:00
+tags: [validation, code-graph-real, code-ast, bridge, hub-threshold, token-budget, drift]
+---
+
 # Validação empírica — T13, T15 e T17 (code-graph-real)
 
 Escopo: a ponte notas↔código (CG-17/CG-18), a travessia com orçamento e hub
@@ -167,7 +176,24 @@ Comportamento idêntico — testes verdes:
 `TestMemoryCodeSearchHandler_BoostActiveByDefault`,
 `TestMemoryCodeSearchHandler_NoBoostFlag`, `TestHasQualifiedNameShapeMCP`.
 
-## 6. Gate
+## 6. Testes automatizados
+
+| Teste | Arquivo:linha | Cobre |
+| --- | --- | --- |
+| `TestDocumentCodeSymbolEdge` | `internal/db/code_bridge_test.go:46` | nó `code_symbol`, aresta `references_code`, EXTRACTED e **idempotência** (2 passes, 1 aresta) |
+| `TestDocumentCodeSymbolEdgeInferido` | `internal/db/code_bridge_test.go:138` | match fraco (só o nome) → INFERRED |
+| `TestBuildCodeBridgeForDocument` | `internal/db/code_bridge_test.go:174` | o indexador de Markdown reconstrói só o documento novo |
+| `TestCodeBridgeQueries` | `internal/db/code_bridge_test.go:215` | documentos→símbolo, símbolo→documentos, nó→símbolo |
+| `TestTravessiaAplicaHubThreshold` | `internal/mcp/code_handlers_test.go:590` | com p99 o hub sai (20 folhas sobrevivem, 1 nó podado); com p100 ele volta |
+| `TestTravessiaRespeitaOrcamentoDeTokens` | `internal/mcp/code_handlers_test.go:642` | orçamento estoura → truncado + dica de estreitar |
+| `TestTravessiaOrdenaPorHop` | `internal/mcp/code_handlers_test.go:688` | ordem por distância em saltos |
+| `TestCodeNeighborsIncluiDocumentosDaPonte` | `internal/mcp/code_handlers_test.go:715` | a travessia devolve os documentos que referenciam o símbolo |
+| `TestCodeToolsEmitemStructuredContent` | `internal/mcp/code_traversal_test.go:14` | `structuredContent` aditivo nas duas tools de código |
+| `TestBuscaDeCodigoRespeitaOrcamento` | `internal/mcp/code_traversal_test.go:87` | a busca também respeita o orçamento e avisa |
+| `TestDriftDetectaMudancaEstrutural` | `internal/drift/structural_test.go:121` | assinatura → drift estrutural; comentário → **não** é drift |
+| `TestDriftSemAstHashNaoQuebra` | `internal/drift/structural_test.go:196` | sem `ast_hash` gravado o drift não quebra (AC 27) |
+
+## 7. Gate
 
 ```
 go build ./...                       → ok
