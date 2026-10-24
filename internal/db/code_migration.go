@@ -88,6 +88,11 @@ func EnsureCodeTables(ctx context.Context, db *sql.DB) error {
 		{"code_files", "repository", "ALTER TABLE code_files ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'", ""},
 		{"code_symbols", "repository", "ALTER TABLE code_symbols ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'", ""},
 		{"code_edges", "repository", "ALTER TABLE code_edges ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'", ""},
+		// A tabela de arestas INCERTAIN também é repo-scoped (CG-06): o DDL
+		// pré-feature não tinha a coluna e o InsertCodeEdgeUncertain grava
+		// nela — sem esta migração, o code stage quebra em banco existente
+		// com "table code_edges_uncertain has no column named repository".
+		{"code_edges_uncertain", "repository", "ALTER TABLE code_edges_uncertain ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'", ""},
 		// CG-14: provenance por aresta. O default é EXTRACTED (aresta extraída
 		// da estrutura do código). As linhas PRÉ-EXISTENTES de `references`
 		// foram resolvidas por NOME (heurística legada), então são INFERRED —
@@ -101,6 +106,16 @@ func EnsureCodeTables(ctx context.Context, db *sql.DB) error {
 	}
 
 	for _, m := range additiveMigrations {
+		// A tabela pode não existir em bases muito antigas (o schema a cria
+		// com a forma nova no próximo InitDB). Sem esta guarda o ALTER
+		// falharia com "no such table".
+		exists, err := store.tableExists(ctx, m.table)
+		if err != nil {
+			return fmt.Errorf("EnsureCodeTables: check table %s falhou: %w", m.table, err)
+		}
+		if !exists {
+			continue
+		}
 		cnt, err := store.columnExists(ctx, m.table, m.column)
 		if err != nil {
 			return fmt.Errorf("EnsureCodeTables: check %s.%s falhou: %w", m.table, m.column, err)
@@ -130,6 +145,23 @@ func EnsureCodeTables(ctx context.Context, db *sql.DB) error {
 		}
 	}
 	return nil
+}
+
+// tableExists devolve true quando a tabela existe no engine conectado.
+func (c codeStore) tableExists(ctx context.Context, table string) (bool, error) {
+	var cnt int
+	if c.dialect.IsPostgres() {
+		err := c.queryRow(ctx,
+			`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?`,
+			table,
+		).Scan(&cnt)
+		return cnt > 0, err
+	}
+	err := c.queryRow(ctx,
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
+		table,
+	).Scan(&cnt)
+	return cnt > 0, err
 }
 
 // columnExists devolve quantas colunas com esse nome existem na tabela.
