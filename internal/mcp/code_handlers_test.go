@@ -105,6 +105,79 @@ func Bar() {}
 	return database, dbFile
 }
 
+// TestRespostaDeCodeTrazProvenienciaECallSite cobre T12 (CG-16): a resposta de
+// memory_code_neighbors expõe a provenance da aresta (epistemic_status),
+// a confiança e o CALL-SITE (arquivo/linha da chamada), além da posição do
+// símbolo de destino — e os campos novos são aditivos.
+func TestRespostaDeCodeTrazProvenienciaECallSite(t *testing.T) {
+	database, _ := codeHandlersTestFixture(t)
+	defer database.Close()
+	ctx := context.Background()
+
+	// Reescreve a aresta foo.Hello → bar.Bar com provenance e call-site
+	// próprios: o call-site (linha 42) é diferente da linha da definição do
+	// destino (linha 2).
+	var srcID, dstID int64
+	if err := database.QueryRow(`SELECT id FROM code_symbols WHERE qualified_name = 'foo.Hello'`).Scan(&srcID); err != nil {
+		t.Fatalf("SELECT src falhou: %v", err)
+	}
+	if err := database.QueryRow(`SELECT id FROM code_symbols WHERE qualified_name = 'bar.Bar'`).Scan(&dstID); err != nil {
+		t.Fatalf("SELECT dst falhou: %v", err)
+	}
+	if _, err := database.Exec(`DELETE FROM code_edges`); err != nil {
+		t.Fatalf("DELETE code_edges falhou: %v", err)
+	}
+	if err := db.UpsertCodeEdgeWithStatus(ctx, database, srcID, dstID, 1, "calls", 42, 42, 1.0,
+		db.EpistemicExtracted); err != nil {
+		t.Fatalf("UpsertCodeEdgeWithStatus falhou: %v", err)
+	}
+
+	neighbors, _, err := SQLCodeNeighbors(ctx, database, "foo.Hello", 1, "out")
+	if err != nil {
+		t.Fatalf("SQLCodeNeighbors falhou: %v", err)
+	}
+	if len(neighbors) != 1 {
+		t.Fatalf("neighbors = %d; want 1", len(neighbors))
+	}
+	n := neighbors[0]
+
+	if n.EpistemicStatus != db.EpistemicExtracted {
+		t.Errorf("epistemic_status = %q; want %q", n.EpistemicStatus, db.EpistemicExtracted)
+	}
+	if n.Confidence != 1.0 {
+		t.Errorf("confidence = %v; want 1.0", n.Confidence)
+	}
+	if n.CallSiteLine != 42 {
+		t.Errorf("call_site_line = %d; want 42 (o ponto de chamada)", n.CallSiteLine)
+	}
+	if n.CallSiteFile == "" {
+		t.Error("call_site_file vazio")
+	}
+	if n.DstLine != 2 {
+		t.Errorf("dst_line = %d; want 2 (a linha da DEFINIÇÃO do destino)", n.DstLine)
+	}
+	if n.DstFile == "" {
+		t.Error("dst_file vazio")
+	}
+	if n.Line != 42 || n.File == "" {
+		t.Errorf("file/line legados mudaram: file=%q line=%d", n.File, n.Line)
+	}
+
+	// O JSON da tool carrega os campos novos (contrato aditivo).
+	srv := NewServer("test", "0.0.0", os.Stdin, os.Stdout, nil)
+	srv.SetCodeAccess(CodeAccess{
+		Neighbors: func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
+			return SQLCodeNeighbors(ctx, database, symbol, depth, direction)
+		},
+	})
+	text := callCodeTool(t, srv, "memory_code_neighbors", `{"symbol":"foo.Hello","depth":1,"direction":"out"}`)
+	for _, want := range []string{"epistemic_status", "confidence", "call_site_line", "dst_line"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("a resposta JSON não traz %q: %s", want, text)
+		}
+	}
+}
+
 func TestMemoryCodeSearchHandler_NilFn_ReturnsTextMessage(t *testing.T) {
 	handler := NewMemoryCodeSearchHandler(nil)
 	res, err := handler(context.Background(), json.RawMessage(`{"query":"foo"}`))

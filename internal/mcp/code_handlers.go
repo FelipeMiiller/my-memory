@@ -41,6 +41,12 @@ type CodeSymbolResult struct {
 }
 
 // CodeNeighborResult é cada vizinho devolvido por memory_code_neighbors.
+//
+// Os campos de provenance (epistemic_status, confidence) e de call-site
+// (call_site_file/call_site_line) são ADITIVOS: as tools existentes não
+// quebram. `file`/`line` continuam sendo o arquivo e a linha da ARESTA
+// (para uma aresta `calls`, o ponto de chamada); `dst_file`/`dst_line` são a
+// posição do SÍMBOLO de destino.
 type CodeNeighborResult struct {
 	Direction string `json:"direction"`
 	Kind      string `json:"kind"`
@@ -48,6 +54,20 @@ type CodeNeighborResult struct {
 	File      string `json:"file"`
 	Line      int    `json:"line"`
 	Hop       int    `json:"hop"`
+	// EpistemicStatus é a procedência da aresta: EXTRACTED (extraída da
+	// estrutura do código) ou INFERRED (inferida por nome).
+	EpistemicStatus string `json:"epistemic_status,omitempty"`
+	// Confidence é a confiança da aresta (1.0 = extraída por escopo de
+	// pacote; menor = inferida por nome).
+	Confidence float64 `json:"confidence,omitempty"`
+	// CallSiteFile/CallSiteLine são o ponto de chamada da relação — a
+	// posição da EXPRESSÃO que criou a aresta (a linha/coluna onde a
+	// chamada acontece), que é diferente da linha da definição.
+	CallSiteFile string `json:"call_site_file,omitempty"`
+	CallSiteLine int    `json:"call_site_line,omitempty"`
+	// DstFile/DstLine são a posição do símbolo de DESTINO da aresta.
+	DstFile string `json:"dst_file,omitempty"`
+	DstLine int    `json:"dst_line,omitempty"`
 }
 
 // MemoryCodeSearchResponse envelopa os resultados para a tool MCP.
@@ -431,13 +451,17 @@ func resolveCodeSymbolRow(ctx context.Context, database *sql.DB, symbol, reposit
 }
 
 // walkCodeEdges executa a CTE recursiva de saída OU entrada.
+//
+// A CTE carrega a provenance da aresta (epistemic_status, confidence) e o
+// resultado expoe o call-site (arquivo/linha da aresta) e a posição do
+// símbolo de destino (dst_file/dst_line).
 func walkCodeEdges(ctx context.Context, database *sql.DB, rootID int64, depth int, dir, repository string) ([]CodeNeighborResult, error) {
 	var q string
 	var args []any
 	if dir == "out" {
 		q = `
-WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop) AS (
-    SELECT src_symbol_id, dst_symbol_id, kind, file_id, start_line, 1
+WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop, epistemic_status, confidence) AS (
+    SELECT src_symbol_id, dst_symbol_id, kind, file_id, start_line, 1, epistemic_status, confidence
       FROM code_edges
      WHERE src_symbol_id = ?`
 		args = append(args, rootID)
@@ -447,15 +471,15 @@ WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop) AS (
 		}
 		q += `
     UNION ALL
-    SELECT e.src_symbol_id, e.dst_symbol_id, e.kind, e.file_id, e.start_line, w.hop + 1
+    SELECT e.src_symbol_id, e.dst_symbol_id, e.kind, e.file_id, e.start_line, w.hop + 1, e.epistemic_status, e.confidence
       FROM code_edges e
       JOIN code_walk w ON e.src_symbol_id = w.dst
      WHERE w.hop < ?`
 		args = append(args, depth)
 	} else {
 		q = `
-WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop) AS (
-    SELECT src_symbol_id, dst_symbol_id, kind, file_id, start_line, 1
+WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop, epistemic_status, confidence) AS (
+    SELECT src_symbol_id, dst_symbol_id, kind, file_id, start_line, 1, epistemic_status, confidence
       FROM code_edges
      WHERE dst_symbol_id = ?`
 		args = append(args, rootID)
@@ -465,7 +489,7 @@ WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop) AS (
 		}
 		q += `
     UNION ALL
-    SELECT e.src_symbol_id, e.dst_symbol_id, e.kind, e.file_id, e.start_line, w.hop + 1
+    SELECT e.src_symbol_id, e.dst_symbol_id, e.kind, e.file_id, e.start_line, w.hop + 1, e.epistemic_status, e.confidence
       FROM code_edges e
       JOIN code_walk w ON e.dst_symbol_id = w.src
      WHERE w.hop < ?`
@@ -475,10 +499,15 @@ WITH RECURSIVE code_walk(src, dst, kind, file_id, line, hop) AS (
 )
 SELECT '` + dir + `' AS direction, w.kind,
        COALESCE(s.qualified_name, s.name) AS symbol,
-       f.path AS file_path, w.line, w.hop
+       f.path AS file_path, w.line, w.hop,
+       w.epistemic_status, w.confidence,
+       f.path AS call_site_file, w.line AS call_site_line,
+       df.path AS dst_file, ds.start_line AS dst_line
   FROM code_walk w
-  JOIN code_symbols s ON s.id = w.` + walkTarget(dir) + `
-  JOIN code_files f   ON f.id = w.file_id
+  JOIN code_symbols s  ON s.id = w.` + walkTarget(dir) + `
+  JOIN code_files f    ON f.id = w.file_id
+  JOIN code_symbols ds ON ds.id = w.` + walkTarget(dir) + `
+  JOIN code_files df   ON df.id = ds.file_id
  ORDER BY w.hop ASC, w.kind ASC, symbol ASC`
 
 	rows, err := database.QueryContext(ctx, bindCodeQuery(ctx, database, q), args...)
@@ -489,8 +518,14 @@ SELECT '` + dir + `' AS direction, w.kind,
 	var out []CodeNeighborResult
 	for rows.Next() {
 		var n CodeNeighborResult
-		if err := rows.Scan(&n.Direction, &n.Kind, &n.Symbol, &n.File, &n.Line, &n.Hop); err != nil {
+		var status sql.NullString
+		if err := rows.Scan(&n.Direction, &n.Kind, &n.Symbol, &n.File, &n.Line, &n.Hop,
+			&status, &n.Confidence, &n.CallSiteFile, &n.CallSiteLine,
+			&n.DstFile, &n.DstLine); err != nil {
 			return nil, err
+		}
+		if status.Valid {
+			n.EpistemicStatus = status.String
 		}
 		out = append(out, n)
 	}
