@@ -80,7 +80,7 @@ Inicializa um novo vault criando a pasta `.memory/` e gerando o arquivo de confi
 
 ---
 
-### 2. `mem index [<pasta>] [--force] [--no-prune]`
+### 2. `mem index [<pasta>] [--dir <pasta>] [--force] [--no-prune] [--repo <slug>] [--db <arq>] [--postgres <url>] [--storage=<sqlite|postgres>] [--code-ast[=true|false]]`
 Percorre recursivamente os arquivos do vault respeitando as regras declarativas de `include` e `exclude`:
 * **Auto-scoping**: Se `<pasta>` for omitida, descobre automaticamente a raiz do vault procurando `.memory/config.yaml` de forma ascendente.
 * Salva os metadados do documento e hash criptográfico SHA-256 no banco.
@@ -89,6 +89,8 @@ Percorre recursivamente os arquivos do vault respeitando as regras declarativas 
 * Pula automaticamente diretórios de sistema (`.git`, `node_modules`, `vendor`, `.obsidian`, `.trash`, `.memory`) via `filepath.SkipDir`.
 * Gera os embeddings de 384 dimensões via provider embutido (`paraphrase-multilingual-MiniLM-L12-v2`, ADR-035).
 * Insere no `sqlite-vec` (vetor completo) e no `chunks_turboquant` (comprimido em 4-bits).
+* **Code stage (code graph, ADR-061)**: roda por padrão **quando há escopo de código configurado** (a seção `code:` do `.memory/config.yaml`, com `code.include`/`code.exclude` separados do `include`/`exclude` de notas). A flag `--code-ast=false` desliga o estágio; `--code-ast=true` liga mesmo sem escopo configurado. Sem escopo de código configurado, o comportamento é exatamente o de antes: só o pipeline Markdown. O code graph é gravado no **engine configurado** (PostgreSQL quando o vault está no PostgreSQL, SQLite quando está no SQLite) e **falha do code stage não derruba** o `mem index`.
+* **Arquivo de código nunca vira nota**: mesmo que o `include` global de notas case com um `.go`, o pipeline Markdown o ignora — o dono do código é o code stage.
 
 **Exemplo:**
 ```bash
@@ -99,6 +101,8 @@ Percorre recursivamente os arquivos do vault respeitando as regras declarativas 
 ./bin/mem.exe index C:/meu-vault-obsidian
 # Sem podar arquivos ausentes:
 ./bin/mem.exe index --no-prune ./docs
+# Forçando o code stage, mesmo sem escopo de código no config:
+./bin/mem.exe index --code-ast=true
 ```
 
 ---
@@ -156,6 +160,13 @@ Realiza a busca híbrida via Reciprocal Rank Fusion (RRF) combinando texto exato
 * `--decay-weight <w>`: Peso do decaimento entre 0.0 (sem efeito) e 1.0 (decaimento máximo) com piso assintótico $(1 - w)$ (padrão: 0.3).
 * `--links`: exibe deep links acionáveis (Obsidian e VS Code) abaixo de cada resultado.
 * Realiza a **expansão de grafo** via SQL recursivo para trazer notas estruturalmente conectadas.
+
+> [!NOTE]
+> A CLI **não** tem flag `--include-code`: o fan-in de símbolos de código na busca
+> híbrida é exposto pela tool MCP `memory_search` com o argumento `include_code`
+> (default `false`), e pela CLI dedicada `mem code-search` (seção 25). Sem a flag,
+> o ranking é **idêntico** ao de antes — a fonte `code` só entra no RRF quando
+> pedida.
 
 **Exemplos:**
 ```bash
@@ -701,106 +712,130 @@ Analisa o desvio semântico e estrutural entre alterações recentes no históri
 
 ---
 
-### 24. `mem code-index [--lang=<csv>] [--include=<glob>] [--exclude=<glob>] [--ast-hash] [--no-embed] [--storage=<sqlite|postgres>] [<pasta>]`
+### 24. `mem code-index [--lang=<csv>] [--include=<glob>] [--exclude=<glob>] [--ast-hash[=false]] [--json] [--storage=<sqlite|postgres>] [--db <arq>] [--postgres <url>] [--repo <slug>] [--dir <pasta>] [<pasta>]`
 
-Estágio **opt-in** do pipeline de código (ADR-047) que varre os arquivos-fontes do vault, faz o parsing sintático via **tree-sitter** e persiste os símbolos/edges no `memory.db` unificado:
+Estágio de **code graph** do vault de repositório (ADR-061): varre os arquivos-fonte do escopo de código, faz o parsing sintático com o **backend em Go puro** e persiste símbolos e arestas nas tabelas `code_*` do engine configurado.
 
-* **Build CGO opt-in (`-tags treesitter`)**: o binding real (`github.com/tree-sitter/go-tree-sitter`) requer gcc. Sem a tag, o `code_pipeline` torna-se **no-op silencioso** com warning `tree-sitter: disabled (code pipeline skipped)` no boot (CA-03/CA-14). O pipeline Markdown continua 100% funcional.
-* **Detecção por extensão** (`go`, `py`, `ts`, `tsx`, `js`, `jsx`, `rs`, `java`, `c`, `cpp`, `h`, `hpp`, `rb`, `php`, `sh`, `bash`, `cs`) + fallback por shebang na primeira linha.
-* **Cache incremental** via `content_hash` (SHA-256) + `ast_hash` (SHA-256 da tripla `{kind, qualified_name, start_line}` ordenada). Re-roda apenas o que mudou (CA-04).
-* **Resolução de referências cross-file** via heurística literal do `qualified_name`: match único → `code_edges` (`confidence=1.0`); match ambíguo → `code_edges_uncertain` (`confidence=0.5`).
-* **`--lang <csv>`**: restringe parsing a um subconjunto (ex.: `--lang=go,py`). `--lang=all` baixa gramáticas adicionais sob demanda.
-* **`--include` / `--exclude`**: globs adicionais empilhados sobre o escopo declarativo de `.memory/config.yaml` (ADR-016).
-* **`--ast-hash`**: re-emite `ast_hash` mesmo quando `content_hash` mudou (forçar full-reparse).
-* **`--no-embed`**: pula a geração de embeddings vetoriais (somente metadados).
-* **`--storage=<sqlite|postgres>`**: respeita a matriz de seleção de storage do ADR-040.
+* **Backend em Go puro**: o parser de produção é `internal/codeast/go_parser.go` — usa apenas a stdlib (`go/parser`, `go/ast`, `go/token`). **Não há CGO nem build tag**: o binário padrão já indexa código. A tag `treesitter` continua isolada (`internal/codeast/treesitter_enabled.go`), mas a ADR-047 **não** foi supersedida — o plano de deferral do binding real segue intacto (0 de 3 gatilhos).
+* **Escopo de código próprio**: a seleção de arquivos usa a seção `code:` do `.memory/config.yaml` (`code.include` / `code.exclude`), **separada** do `include`/`exclude` global de notas (ADR-061 §4). O `include` global é compartilhado com o pipeline Markdown, e um arquivo de código **nunca** vira nota — mesmo quando o glob global casa com ele.
+* **Escopo default**: sem a seção `code:` declarada no config, vale o escopo padrão do backend ativo (um glob por extensão suportada: `go`, `py`, `pyi`, `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `rs`, `java`, `c`, `h`, `cpp`, `hpp`, `cc`, `hh`, `cxx`, `rb`, `php`, `sh`, `bash`).
+* **Arestas estruturais**: `calls` (com o **ponto de chamada** — arquivo:linha da expressão de chamada, não da definição), `imports`, `inherits`, `uses_type` e `references`.
+* **Cobertura por linguagem**: as arestas **estruturais** vêm do backend AST, que hoje entende **Go** (`go_parser.go`). As demais linguagens caem no `MockParser` (fallback determinístico, mantido pela ADR-047) e ficam com as arestas `references` por nome — provenance `INFERRED`.
+* **Provenance (ADR-011)**: `code_edges.epistemic_status` distingue `EXTRACTED` (resolvido no escopo do pacote) de `INFERRED` (resolvido só por nome). O destino **ambíguo** vai para `code_edges_uncertain` com `confidence` e `reason` — e **nunca** vira aresta resolvida.
+* **Cache incremental** via `content_hash` (SHA-256) + `ast_hash` (SHA-256 da tripla `{kind, qualified_name, start_line}` ordenada). Re-roda apenas o que mudou.
+* **`--lang <csv>`**: restringe o parsing a um subconjunto (ex.: `--lang=go,py`).
+* **`--include` / `--exclude`**: globs que **sobrescrevem** o escopo de código do config (não se somam ao escopo de notas).
+* **`--ast-hash[=false]`**: por padrão o `ast_hash` é armazenado; `--ast-hash=false` grava `ast_hash` nulo em `code_files`.
+* **`--repo <slug>`**: o code graph é gravado no repositório pedido — o `repository` viaja no contexto até as tabelas `code_*`, e as consultas do code graph são filtradas por ele.
+* **`--json`**: emite a saída estruturada (engine, repository e as contagens do code stage) em **JSON puro no stdout**. O boot log vai para o **stderr**, para o cliente conseguir parsear o stdout.
+* **`--storage=<sqlite|postgres>`**: respeita a matriz de seleção de storage do ADR-040. O code graph é gravado no **engine configurado** — PostgreSQL quando o vault está no PostgreSQL, SQLite quando está no SQLite. Não há um SQLite local paralelo.
+* **`--no-embed` saiu do CLI**: a flag **não existe mais**. Quem usava recebe `flag provided but not defined: -no-embed` e o comando falha. A v1 **não embute** símbolos — a flag era placeholder, sem comportamento.
+
+> [!NOTE]
+> O mesmo code stage roda **dentro do `mem index`** (ver seção 2): por padrão quando há escopo de código configurado, desligável com `--code-ast=false`. Falha do code stage **não derruba** o `mem index` — o pipeline Markdown já rodou e permanece intacto.
 
 **Exemplos:**
 ```bash
-# Build padrão (sem tree-sitter): comando emite warning e termina com sucesso,
-# sem alterar o banco. Idempotente e CI-friendly.
+# Code graph do repositório atual, no engine configurado:
 ./bin/mem.exe code-index
 
-# Build com tag treesitter: parsing real e persistência dos símbolos/edges.
-CGO_ENABLED=1 go build -tags treesitter -o bin/mem-ast.exe ./cmd/mem
-./bin/mem-ast.exe code-index ./meu-repo
+# Só um subconjunto de linguagens:
+./bin/mem.exe code-index --lang=go,rust ./internal/...
 
-# Restringir a linguagens específicas:
-./bin/mem-ast.exe code-index --lang=go,rust ./internal/...
+# Auditoria: restringindo o escopo de código (sobrescreve o config):
+./bin/mem.exe code-index --include="internal/codeast/**/*.go"
 
-# Auditoria: indexar somente o que mudou desde a última execução:
-./bin/mem-ast.exe code-index --include="internal/codeast/**/*.go"
+# Saída estruturada para CI (JSON puro no stdout):
+./bin/mem.exe code-index --json
+
+# Gravando no repositório pedido:
+./bin/mem.exe code-index --repo "meu-org/meu-projeto"
 ```
 
 ---
 
-### 25. `mem code-search "<query>" [--lang=<csv>] [--kind=<symbol_kind>] [--limit=<N>] [--no-code-boost]`
+### 25. `mem code-search "<query>" [--lang=<csv>] [--kind=<symbol_kind>] [--limit=<N>] [--no-code-boost] [--links] [--db <arq>] [--repo <slug>]`
 
-Atalho sobre `mem search` otimizado para o universo de símbolos de código. Aplica **boost RRF 2×** quando a query casa com `qualified_name` (ex.: `internal/parser.Parser.Parse`) — prioriza o símbolo sobre prosa contendo os mesmos tokens (CA-05/CA-07):
+Busca lexical sobre os símbolos do code graph persistido (ADR-061). Cada token da query casa em `name`, `qualified_name` ou `signature`; o resultado é ranqueado por score com **boost 2×** quando a query é exatamente o `qualified_name` do símbolo (CA-05):
 
 * `--lang <csv>`: filtra por linguagem (`go`, `py`, `ts`, etc.).
 * `--kind <symbol_kind>`: filtra por tipo de símbolo (`function`, `method`, `class`, `interface`, `struct`, `import`, `constant`, `variable`).
 * `--limit <N>`: limite de resultados (padrão: 10).
 * `--no-code-boost`: desativa o boost de `qualified_name` para diagnósticos ou testes A/B.
+* `--links`: exibe deep links (VS Code / File) ao lado de cada resultado.
+* `--db <arq>`: caminho do SQLite local lido (padrão: `memory.db`).
+
+> [!NOTE]
+> Este comando ainda lê o **SQLite local** e **ignora** o valor de `--repo` (a flag é aceita e descartada). O filtro por `repository` vale para a gravação (`mem code-index --repo`) e para as tools MCP (`memory_code_search` / `memory_code_neighbors`), que leem o engine configurado.
+>
+> As mesmas buscas estão expostas como tools MCP: `memory_code_search` e
+> `memory_code_neighbors` devolvem o JSON no `content` textual **e** preenchem o
+> `structuredContent` do envelope MCP. A resposta dos vizinhos traz a
+> **proveniência** (`epistemic_status`), a **confiança** (`confidence`), o
+> **ponto de chamada** (`call_site_file`/`call_site_line`) e os **documentos que
+> citam o símbolo** (ponte `references_code` entre notas e código).
 
 **Exemplos:**
 ```bash
 # Encontrar todas as funções Go cujo qualified_name contém "Parser":
-./bin/mem-ast.exe code-search "Parser" --lang=go --kind=function --limit 20
+./bin/mem.exe code-search "Parser" --lang=go --kind=function --limit 20
 
 # Localizar implementações de uma interface:
-./bin/mem-ast.exe code-search "Parser.Parse" --lang=go
+./bin/mem.exe code-search "Parser.Parse" --lang=go
 
 # Diagnóstico sem boost (RRF puro):
-./bin/mem-ast.exe code-search "Database.Open" --no-code-boost
+./bin/mem.exe code-search "Database.Open" --no-code-boost
 ```
 
 ---
 
 ### 26. `mem code-graph <symbol> [--depth=<N>] [--direction=in|out|both] [--db <arq>] [--repo <slug>]`
 
-Resolve um símbolo (`exact qualified_name` ou fallback `suffix .Name`) e devolve a vizinhança direcionada (in + out) até a profundidade solicitada, usando **CTE recursivo** sobre `code_edges` (ADR-004 / CA-08):
+Resolve um símbolo (`exact qualified_name` ou fallback `suffix .Name`) e devolve a vizinhança direcionada (in + out) até a profundidade solicitada, usando **CTE recursivo** sobre `code_edges` (ADR-004 / ADR-061):
 
 * `--depth <N>`: profundidade máxima (padrão: 1, máximo: 5).
 * `--direction <in|out|both>`: direção da travessia (padrão: `both`).
-* `--db <arq>` / `--repo <slug>`: filtra o banco ou o repositório consultado.
-* **Markdown table** (único formato de saída): colunas `direction | kind | symbol | file | line` com deep links `[[rel:code:<id>]]`.
+* `--db <arq>`: caminho do SQLite local lido (padrão: `memory.db`).
+* **Markdown table** (único formato de saída): colunas `direction | hop | kind | symbol | file | line`. A coluna `kind` traz o tipo da aresta (`calls`, `imports`, `inherits`, `uses_type`, `references`) e a coluna `line` é a linha da relação no arquivo de origem.
 
 > [!NOTE]
-> Este comando **não** possui flag `--json`. A saída é sempre a tabela Markdown; para consumo programático, use `--direction`/`--depth` em conjunto com o filtro `--links` do `mem code-search`, ou leia `code_edges` diretamente.
+> Este comando **não** possui flag `--json`. A saída é sempre a tabela Markdown; para consumo programático, use `--direction`/`--depth` em conjunto com o filtro `--links` do `mem code-search`, ou leia `code_edges` diretamente. O valor de `--repo` é aceito e descartado — o comando lê o SQLite local.
 
 **Exemplos:**
 ```bash
 # Quem chama Parser.Parse e o que Parser.Parse chama:
-./bin/mem-ast.exe code-graph internal/parser.Parser.Parse --depth 2
+./bin/mem.exe code-graph internal/parser.Parser.Parse --depth 2
 
 # Subgrafo profundo, só na direção de chamadas de entrada:
-./bin/mem-ast.exe code-graph db.DB.Query --depth 3 --direction in
+./bin/mem.exe code-graph db.DB.Query --depth 3 --direction in
 ```
 
 ---
 
 ### 27. `mem code-stats [--top=<N>] [--json] [--db <arq>] [--repo <slug>]`
 
-Agrega contadores de `code_files` e `code_symbols` em três visões complementares (CA-09):
+Agrega contadores de `code_files`, `code_symbols` e `code_edges` em três visões complementares (CA-09):
 
 * **Distribuição por linguagem**: contagem de arquivos e símbolos por `language` detectado.
 * **Distribuição por kind**: histograma de `function`, `class`, `struct`, `interface`, etc.
 * **Arquivos órfãos**: lista `code_files` sem nenhum símbolo extraído (sinaliza arquivos de configuração, dados ou gramática não suportada).
 * `--top <N>`: limite de linhas por seção (padrão: 20).
 * `--json`: emite payload estruturado para painéis e dashboards.
-* `--db <arq>` / `--repo <slug>`: filtra o banco ou o repositório consultado.
+* `--db <arq>`: caminho do SQLite local lido (padrão: `memory.db`).
+
+> [!NOTE]
+> O valor de `--repo` é aceito e descartado: o comando lê o SQLite local e agrega o code graph inteiro.
 
 **Exemplos:**
 ```bash
 # Relatório tabular padrão:
-./bin/mem-ast.exe code-stats
+./bin/mem.exe code-stats
 
 # Saída JSON para painéis/dashboards:
-./bin/mem-ast.exe code-stats --json
+./bin/mem.exe code-stats --json
 
-# Top 50 por seção, restrito a um repositório:
-./bin/mem-ast.exe code-stats --top 50 --repo "meu-org/meu-projeto"
+# Top 50 por seção:
+./bin/mem.exe code-stats --top 50
 ```
 
 ---
@@ -1165,6 +1200,48 @@ e as descendentes — ver a [seção 5](#5-mem-search-pergunta---levell0l1l2---c
 
 ---
 
+### 35. `mem lesson <título> [--title "<título>"] [--summary "<resumo>"] [--content "<texto>"] [--file <arquivo>] [--tags "t1,t2"] [--tag <tag>] [--folder <pasta>] [--overwrite]`
+
+Grava uma **lição aprendida** no **cofre central** (vault central) como nota Markdown puro, e indexa na hora (ADR-061). É o lado de *aprendizagem* do modelo de dois conceitos de memória: o cofre central guarda o que a IA aprendeu; o vault de repositório guarda o code graph.
+
+* **Destino**: o cofre central resolvido pela configuração global (`~/.memory/config.yaml`, campo `central_vault.path` — ADR-040). A nota é gravada na pasta `lessons/` por padrão (configurável com `--folder`).
+* **Formato**: Markdown puro com frontmatter `category: memory` e `summary` (recuperação L0) — o `summary` é o que o agente lê primeiro. O restante do frontmatter (`title`, `tags`, `aliases`, `created_at`, `updated_at`) é preenchido pelo mesmo construtor que o `mem note` usa.
+* **Indexação imediata**: a nota é indexada no cofre central assim que é gravada — a lição fica buscável no mesmo comando.
+* **Título**: o argumento posicional (`mem lesson "Título"`) ou a flag `--title`.
+* **`--summary "<resumo>"`**: resumo curto da lição (recuperação L0). Se omitido, é derivado do corpo e, na falta dele, do título.
+* **`--file <arquivo>`**: lê o corpo da lição de um arquivo Markdown.
+* **`--content "<texto>"`**: corpo da lição inline. Sem `--content` e sem `--file`, o corpo vem do **stdin**.
+* **`--tags "t1,t2"` / `--tag <tag>`**: tags da lição — a forma separada por vírgula e a flag repetível se acumulam.
+* **`--folder <pasta>`**: pasta dentro do cofre central onde a lição é gravada (padrão: `lessons`).
+* **`--overwrite`**: sobrescreve a nota se o arquivo já existir.
+* **`--storage=<sqlite|postgres>` / `--db <arq>` / `--postgres <url>` / `--repo <slug>`**: overrides de storage. O repositório padrão do cofre central é `repo_central`.
+
+> [!WARNING]
+> A lição **nunca** cai no vault do repositório. Sem cofre central resolvido
+> (`central_vault.path` ausente na configuração global, ou apontando para um
+> diretório inexistente), o comando **falha com erro claro e código de saída
+> diferente de zero** — gravar a lição no lugar errado é pior do que não gravar.
+
+**Exemplos:**
+```bash
+# Lição com resumo próprio:
+./bin/mem.exe lesson "Cache incremental só reindexa o que mudou" \
+  --summary "O cache SHA-256 evita reindexar notas inalteradas" \
+  --content "Use o content_hash como chave de cache; o ast_hash cobre só o código."
+
+# Corpo vindo de um arquivo, com tags:
+./bin/mem.exe lesson "Boa prática de commit" --file notas/boas-praticas.md \
+  --tags "git,processo" --tag "convenção"
+
+# Corpo pelo stdin (piping):
+echo "A lição learned" | ./bin/mem.exe lesson "Lição aprendida"
+
+# Outra pasta dentro do cofre central:
+./bin/mem.exe lesson "Padrão de arquitetura" --folder "standards/architecture"
+```
+
+---
+
 ## 🗄️ Seleção de Storage (ADR-040)
 
 O `mem` decide automaticamente onde armazenar e consultar dados, seguindo uma matriz de detecção em cascata. SQLite local é o **default**; Postgres+pgvector (central vault) é **opt-in** via config ou flag.
@@ -1275,6 +1352,17 @@ exclude:
   - ".obsidian/**"
   - ".trash/**"
   - ".memory/**"
+
+# Escopo de CÓDIGO do vault de repositório (ADR-061) — separado do
+# include/exclude de NOTAS acima. Sem esta seção, o `mem index` não roda o
+# code stage. Com ela declarada e sem `code.include`, o code stage fica off.
+code:
+  include:
+    - "**/*.go"
+    - "**/*.py"
+  exclude:
+    - "vendor/**"
+    - "**/*_test.go"
 
 # Persistência
 storage:

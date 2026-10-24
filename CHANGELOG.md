@@ -9,6 +9,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dois conceitos de memória — Cofre Central e Code Graph (ADR-061)**: o My-Memory passa a
+  separar explicitamente **dois conceitos de memória**, servidos pelo **mesmo motor**: o
+  **Cofre Central** (memória de aprendizagem, Markdown Obsidian Flavored) e o **Vault de
+  Repositório** (o code graph do código). O motor é o mesmo nos dois — busca híbrida FTS +
+  TurboQuant 4-bit + RRF, `epistemic_status` (ADR-011), PageRank, LPA + modularidade, blast
+  radius, viewer SPA e federação por `repo_id`.
+  - **Code graph com backend em Go puro**: o parser de produção é
+    `internal/codeast/go_parser.go` — `go/parser` + `go/ast` + `go/token` da stdlib.
+    **Sem CGO e sem build tag**: o binário padrão já indexa código. A ADR-047 (tree-sitter)
+    **não** foi supersedida — o plano de deferral do binding real segue intacto (0 de 3
+    gatilhos) e a tag `treesitter` continua isolada. O build com a tag não muda o parser
+    ativo: o stub segue devolvendo `ErrTreesitterDisabled`.
+  - **Arestas estruturais**: o code graph deixou de ser só `references` por nome. Agora
+    grava `calls` (com o **ponto de chamada** — arquivo:linha da expressão de chamada, não
+    da definição), `imports`, `inherits`, `uses_type` e `references`. As arestas
+    estruturais vêm do backend AST, que hoje entende **Go**; as demais linguagens seguem
+    no `MockParser` (fallback determinístico da ADR-047) e ficam com as arestas
+    `references` por nome (`INFERRED`).
+  - **Provenance por aresta**: `code_edges.epistemic_status` distingue `EXTRACTED`
+    (resolvido no escopo do pacote) de `INFERRED` (resolvido só por nome), em linha com a
+    ADR-011. O destino **ambíguo** vai para `code_edges_uncertain` com `confidence` e
+    `reason` — e **nunca** vira aresta resolvida.
+  - **Escopo de código próprio**: a seção `code:` do `.memory/config.yaml`
+    (`code.include` / `code.exclude`) é **separada** do `include`/`exclude` global de notas.
+    O `include` global é compartilhado com o pipeline Markdown, e incluir `**/*.go` nele
+    indexaria código como nota — o pipeline Markdown agora ignora arquivo de código por
+    definição.
+  - **`mem index` roda o code stage**: por padrão quando há escopo de código configurado,
+    com a flag `--code-ast[=true|false]`. A falha do code stage **não derruba** o
+    `mem index` — o pipeline Markdown já rodou e permanece intacto.
+  - **Code graph no engine configurado**: gravado no PostgreSQL quando o vault está no
+    PostgreSQL, no SQLite quando está no SQLite (ADR-040), e filtrado por `repository`
+    (`repo_id`) como o grafo de notas.
+  - **Flags reais do `mem code-index`**: `--repo` vale de verdade (o `repository` viaja até
+    as tabelas `code_*`), `--ast-hash[=false]` controla o armazenamento do `ast_hash`, e
+    `--json` emite a saída estruturada (engine, repository e contagens) em **JSON puro no
+    stdout** — o boot log vai para o stderr, para o cliente conseguir parsear.
+  - **`--no-embed` saiu do CLI**: a flag era placeholder, sem comportamento (a v1 não
+    embute símbolos). Quem usava recebe `flag provided but not defined: -no-embed`.
+  - **Fan-in real de `code_symbols`**: `memory_search` com `include_code: true` deixou de
+    ser placeholder — `code_symbols` entra no RRF como fonte lexical real, com boost CA-05
+    em `qualified_name`. Sem a flag, o ranking é **idêntico** ao de antes.
+  - **Tools MCP de código no servidor**: `memory_code_search` e `memory_code_neighbors` são
+    injetadas no servidor MCP (CLI e daemon) e respondem de verdade — antes devolviam
+    "indisponível". A resposta de `memory_code_neighbors` traz **provenance**
+    (`epistemic_status`), **confiança** (`confidence`) e o **ponto de chamada**
+    (`call_site_file`/`call_site_line`) de cada relação. As duas tools devolvem o JSON no
+    `content` textual **e** preenchem o `structuredContent` do envelope MCP.
+  - **Ponte notas ↔ código no grafo único**: cada símbolo vira um nó
+    `graph_nodes.type='code_symbol'` (id `code:<qualified_name>`) e cada documento que o
+    menciona ganha uma aresta `graph_edges.relation='references_code'`, com status
+    epistêmico (`EXTRACTED` para match por `qualified_name` ou caminho literal do arquivo,
+    `INFERRED` para match por nome). O upsert é idempotente e não exige DDL novo. A ponte
+    roda no code stage e no indexador de Markdown, e é o que permite ao
+    `memory_code_neighbors` listar os documentos que citam um símbolo e ao blast radius
+    alcançar as notas que dependem dele.
+  - **Rota `/code` na viewer**: a quinta visão do painel lista os símbolos de um
+    repositório e, ao selecionar um, mostra os vizinhos estruturais com o **tipo da aresta**
+    e o **ponto de chamada**. Bundle de **144.667 bytes gzip -9**, contra o orçamento de
+    163.840 bytes (160 kB) do job `frontend` do CI. Sem CDN.
+  - **`mem lesson`**: novo comando que grava uma lição aprendida no **cofre central**
+    (`central_vault.path` da configuração global, ADR-040) como nota Markdown puro, com
+    `category: memory`, `summary` (recuperação L0) e timestamp, indexada na hora. Flags:
+    `--summary`, `--file`, `--content`, `--tag`/`--tags` e `--folder` (padrão: `lessons`).
+    Sem cofre central resolvido, o comando **falha com erro claro e código de saída
+    diferente de zero** — a lição nunca cai no vault do repositório.
+
 - **Superfície de tags do Obsidian (ADR-055, adenda da ADR-041)**: a tag deixa de ser
   descartada na indexação e vira **dado consultável**. A promessa DR-5 da ADR-041
   (`mem search --tag X`) e a paridade com `obsidian tags` / `obsidian tag name=`
@@ -51,16 +118,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     antes da extração de tag e de link (inline e em bloco).
 - **Painel de métricas da memória (`viewer/`, ADR-059 e ADR-060)**: SPA React 19 +
   Vite 8 que **o próprio MCP serve**, sem processo extra, sem CDN e sem runtime de
-  aplicação. Quatro visões: **Overview** (prontidão e Health Score com dead links,
+  aplicação. Cinco visões: **Overview** (prontidão e Health Score com dead links,
   órfãs e self-loops), **Grafo** (hubs por grau e PageRank, comunidades LPA com
   modularidade, conexões latentes), **Notas** (lista indexada com filtro, outline,
-  metadados e leitura com `[[wikilinks]]` navegáveis) e **Drift** (documentação
-  defasada, código sem cobertura, blast radius, caminho entre dois nós).
+  metadados e leitura com `[[wikilinks]]` navegáveis), **Drift** (documentação
+  defasada, código sem cobertura, blast radius, caminho entre dois nós) e
+  **Código** (rota `/code`: símbolos de um repositório e seus vizinhos estruturais,
+  com o tipo da aresta e o ponto de chamada — ADR-061).
   - Stack: TanStack Query, TanStack Router, Zustand, `zod/mini` e
-    `@tanstack/markdown`. Bundle final de **133.086 bytes gzip -9** — a mesma
-    medição que o job `frontend` do CI faz — contra o orçamento de 160 kB. A
-    meta registrada na ADR-060 era ~139 kB; o relatório do próprio Vite, que
-    comprime em zlib nível 6, mostra 143,3 kB para os mesmos arquivos.
+    `@tanstack/markdown`. Bundle final de **144.667 bytes gzip -9** — a mesma
+    medição que o job `frontend` do CI faz — contra o orçamento de 160 kB (era
+    133.086 bytes antes da rota `/code`). A meta registrada na ADR-060 era ~139 kB;
+    o relatório do próprio Vite, que comprime em zlib nível 6, mostra 143,3 kB para
+    os mesmos arquivos antes da rota `/code`.
   - `zod/mini` e não `zod`: medido 3,0 kB gzip contra 90,8 kB do barrel. O job de
     frontend do CI impõe orçamento de **160 kB gzip** justamente para pegar essa
     importação errada, que passaria despercebida numa revisão de diff.

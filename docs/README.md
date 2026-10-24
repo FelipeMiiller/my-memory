@@ -71,7 +71,7 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-044`](adr/044-memory-writer-atomico-outbox-e-reprojecao-idempotente.md)** — Memory Writer Atômico, Outbox e Reprojeção Idempotente — *Accepted*
 * **[`ADR-045`](adr/045-asr-streaming-engine-nemotron-35-via-onnx-runtime.md)** — ASR Streaming Engine (Nemotron 3.5 via ONNX Runtime) — *Deferred*
 * **[`ADR-046`](adr/046-deferred-until-padrao-para-fallbacks-opcionais-em-adrs.md)** — Padrão "Deferred Until" para Fallbacks Opcionais em ADRs — *Accepted*
-* **[`ADR-047`](adr/047-code-ast-tree-sitter-multi-linguagem.md)** — Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem, opt-in via `--tags treesitter`); habilita `mem code-index`, `mem code-search`, `mem code-graph`, `mem code-stats` + MCP tools `memory_code_search` e `memory_code_neighbors`
+* **[`ADR-047`](adr/047-code-ast-tree-sitter-multi-linguagem.md)** — Indexação de Código-Fonte via Tree-sitter (Code AST Multi-linguagem); habilita `mem code-index`, `mem code-search`, `mem code-graph`, `mem code-stats` + MCP tools `memory_code_search` e `memory_code_neighbors` — *Aceito* (o **motor em produção é o backend Go puro**, sem CGO e sem build tag; o plano de deferral do binding tree-sitter segue intacto — ver a ADR-061)
 * **[`ADR-048`](adr/048-viewer-electron-react-vite-shadcn.md)** — ~~Viewer Desktop — Electron + React + Vite + shadcn/ui~~ — *Obsoleta* (viewer removido do repositório)
 * **[`ADR-049`](adr/049-viewer-restructure-electron-forge-and-src-split.md)** — ~~Viewer Restructure — Electron Forge 7 + split `electron/` ↔ `src/`~~ — *Obsoleta* (viewer removido do repositório)
 * **[`ADR-050`](adr/050-threat-model-owasp-llm-aplicado-ao-mymemory.md)** — Threat Model — OWASP LLM Top 10 Aplicado ao MyMemory — *Proposed*
@@ -85,6 +85,7 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-058`](adr/058-renderizador-vis-network-vendorizado-sem-build-step.md)** — Renderizador vis-network vendorizado, sem build step e sem CDN — *Accepted*
 * **[`ADR-059`](adr/059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** — SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP — *Aceito — Emendado pela ADR-060*
 * **[`ADR-060`](adr/060-stack-do-frontend-da-viewer-e-fallback-spa.md)** — Stack do frontend da viewer (TanStack) e a rota de fallback SPA — *Aceito*
+* **[`ADR-061`](adr/061-dois-conceitos-de-memoria-vault-central-e-code-graph.md)** — Dois conceitos de memória — Vault Central (aprendizagem) e Vault de Repositório (code graph) — *Aceito — Implementado* (code graph com backend Go puro, arestas estruturais com provenance, escopo `code:` no config, rota `/code` na viewer e `mem lesson` no cofre central)
 
 ### Higiene do índice (PostgreSQL)
 

@@ -209,7 +209,7 @@ Esta entry agrega a análise de 2026-09-21 sobre cinco repositórios candidatos 
 
 | Padrão | Origem | Aplicação no my-memory | Status |
 | :--- | :--- | :--- | :--- |
-| **Tree-sitter multi-linguagem** | codebase-memory-mcp | ADR-047 §Decision Outcome — parser CGO opt-in via `--tags treesitter` | ✅ ADR-047 Accepted |
+| **Tree-sitter multi-linguagem** | codebase-memory-mcp | ADR-047 §Decision Outcome — parser CGO opt-in via `--tags treesitter`. O **motor em produção** é o backend Go puro (ADR-061); o binding tree-sitter segue deferido. | ✅ ADR-047 Accepted · ⚠️ motor em produção ≠ tree-sitter |
 | **Boost por símbolo exato em ranking RRF** | codebase-memory-mcp | ADR-047 §CA-05 — `qualified_name` match → 2x weight no RRF | ✅ ADR-047 Accepted |
 | **Memory layers (working/short/long)** | MemOS | v2.x — tabela `memory_layers` com TTL+decay | ⏸ Observar |
 | **Skill reuse cross-task** | MemOS | v2.x — tabela `skills` + `mem skill add/list/invoke` | ⏸ Observar |

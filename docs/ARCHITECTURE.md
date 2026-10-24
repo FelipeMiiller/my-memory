@@ -119,24 +119,124 @@ A aresta do grafo continua sendo criada **só** para as tags **resolvidas**: a t
 não reinstala o nó morto que a ADR-041 eliminou, e o Health Score não muda
 (ADR-041 / ADR-055).
 
-### 7. Code AST (ADR-047 / feat-code-ast)
+### 7. Code Graph do Vault de Repositório (ADR-061 / ADR-047)
 
-Quando o binário é compilado com `-tags treesitter`, o `mem index` orquestra um segundo estágio (`code_pipeline`) que faz parsing sintático dos arquivos-fonte e persiste metadados estruturados nas tabelas `code_*`:
+O `mem index` orquestra um segundo estágio (`code_pipeline`) que faz parsing sintático dos arquivos-fonte e persiste metadados estruturados nas tabelas `code_*`:
 
 - **`code_files`**: 1 linha por arquivo parseado (`path`, `language`, `content_hash` SHA-256, `ast_hash` SHA-256 dos símbolos, `size_bytes`, `indexed_at`). Reusa o `content_hash` da ADR-010 para cache incremental.
 - **`code_symbols`**: símbolos extraídos (`function`, `method`, `class`, `interface`, `struct`, `import`, `constant`, `variable`) com `qualified_name`, `start_line`, `end_line`, `signature`, `doc_comment` e referência ao `code_file_id`.
-- **`code_edges`**: arestas tipadas entre símbolos (`calls`, `imports`, `embeds`, `implements`) com `confidence` (1.0 quando a resolução do `qualified_name` é única).
-- **`code_edges_uncertain`**: arestas com `confidence < 0.5`, separadas do grafo principal para evitar ruído estrutural em resoluções ambíguas.
+- **`code_edges`**: arestas tipadas entre símbolos, com `confidence` e `epistemic_status`.
+- **`code_edges_uncertain`**: arestas cujo destino **não** pôde ser resolvido unicamente, com `confidence` e `reason` — separadas do grafo principal para não poluí-lo.
 
-Índices canônicos: `code_graph_kind_idx`, `code_symbols_kind_name_idx`, `code_files_language_idx`. Toda a criação é **idempotente** (`CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`) e funciona identicamente em SQLite local e PostgreSQL/pgvector (ADR-040/ADR-001/ADR-016, CA-02/CA-16).
+```sql
+CREATE TABLE IF NOT EXISTS code_files (
+    id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
+    path TEXT NOT NULL UNIQUE,
+    language TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    content_hash TEXT NOT NULL,
+    ast_hash TEXT,
+    indexed_at INTEGER NOT NULL
+);
 
-**Build opt-in (CA-14)**: o binding real `github.com/tree-sitter/go-tree-sitter` exige CGO. O pacote `internal/codeast` isola o import atrás de `//go:build treesitter` em `treesitter_enabled.go`; o arquivo `treesitter_disabled.go` exporta um stub que devolve `ErrTreesitterDisabled` e mantém o `code_pipeline` como **no-op** no build padrão. No boot, o processo emite exatamente uma vez: `tree-sitter: enabled` (com tag) ou `tree-sitter: disabled (code pipeline skipped)` (sem tag).
+CREATE TABLE IF NOT EXISTS code_symbols (
+    id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
+    file_id INTEGER NOT NULL REFERENCES code_files(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    qualified_name TEXT,
+    signature TEXT,
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    start_col INTEGER,
+    end_col INTEGER,
+    doc_comment TEXT,
+    parent_symbol_id INTEGER REFERENCES code_symbols(id) ON DELETE SET NULL,
+    UNIQUE(file_id, kind, qualified_name, start_line)
+);
+
+CREATE TABLE IF NOT EXISTS code_edges (
+    id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
+    src_symbol_id INTEGER NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
+    dst_symbol_id INTEGER NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    file_id INTEGER NOT NULL REFERENCES code_files(id) ON DELETE CASCADE,
+    start_line INTEGER NOT NULL,
+    end_line INTEGER NOT NULL,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED',
+    UNIQUE(src_symbol_id, dst_symbol_id, kind)
+);
+
+CREATE TABLE IF NOT EXISTS code_edges_uncertain (
+    id INTEGER PRIMARY KEY,
+    repository TEXT NOT NULL DEFAULT 'default',
+    src_symbol_id INTEGER NOT NULL REFERENCES code_symbols(id) ON DELETE CASCADE,
+    dst_candidate_name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    reason TEXT,
+    file_id INTEGER NOT NULL REFERENCES code_files(id) ON DELETE CASCADE,
+    start_line INTEGER NOT NULL,
+    UNIQUE(src_symbol_id, dst_candidate_name, kind)
+);
+```
+
+> Fonte: `internal/db/schema.go` (SQLite) e `internal/store/postgres.go` (PostgreSQL —
+> lá as tabelas `code_*` são criadas com os mesmos campos e a mesma identidade).
+
+**Os cinco tipos de aresta.** O vocabulário é fechado (`codeast.ValidEdgeKinds()`):
+
+| `kind` | Significado | `epistemic_status` típico |
+| :--- | :--- | :--- |
+| `calls` | O símbolo **chama** outro. A aresta guarda o **ponto de chamada** — arquivo:linha da *expressão* de chamada, não da definição. | `EXTRACTED` (callee resolvido no escopo do pacote) ou `INFERRED` (resolvido só por nome) |
+| `imports` | O símbolo **importa** outro (via o símbolo `import` do arquivo). | `EXTRACTED` / `INFERRED` |
+| `inherits` | O símbolo **herda** de outro (embedding de struct / extensão). | `EXTRACTED` / `INFERRED` |
+| `uses_type` | O símbolo **usa** um tipo (campo, parâmetro, retorno, tipo explícito). | `EXTRACTED` / `INFERRED` |
+| `references` | referência por **igualdade de nome**, sem evidência estrutural. | `INFERRED` |
+
+**Cobertura por linguagem.** As arestas **estruturais** vêm do backend AST, que
+hoje entende **Go** (`internal/codeast/go_parser.go`). Quando o parser não devolve
+arestas — as demais linguagens caem no `MockParser`, o fallback determinístico
+mantido pela ADR-047 — o pipeline usa o **caminho legado**: a varredida por nome,
+que produz arestas `references` com `confidence = 0.8` (um match) ou
+`code_edges_uncertain` com `confidence = 0.5` (dois ou mais matches), sempre com
+provenance `INFERRED`. As duas rotas nunca correm no mesmo arquivo: quando o
+backend entrega arestas, a varredida por nome é pulada (ela duplicaria as arestas
+e não carregaria o call-site).
+
+**Provenance epistêmica (ADR-011).** `code_edges.epistemic_status` tem dois valores: `EXTRACTED` (o destino foi resolvido no escopo do pacote — o `qualified_name` bate e é único) e `INFERRED` (o destino só foi resolvido por nome). O terceiro nível — **mais de um candidato, ou nenhum** — **nunca** vira aresta resolvida: a linha vai para `code_edges_uncertain` com `confidence` e `reason`, para revisão. É a mesma separação entre fato e inferência que a ADR-011 aplicou ao grafo de notas.
+
+**Filtro por `repository`.** `code_files`, `code_symbols`, `code_edges` e `code_edges_uncertain` carregam a coluna `repository`. O `repo_id` viaja no contexto até a gravação (o `mem code-index --repo <slug>`) e as consultas do code graph filtram por ele — o mesmo modelo multi-tenant do grafo de notas (ADR-007 / ADR-033 / ADR-040).
+
+Índices canônicos: `code_graph_kind_idx`, `code_symbols_kind_name_idx`, `code_files_language_idx`. Toda a criação é **idempotente** (`CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`) e funciona identicamente em SQLite local e PostgreSQL/pgvector (ADR-040/ADR-001/ADR-016).
+
+**Backend em Go puro.** O parser de produção é `internal/codeast/go_parser.go`: `go/parser` + `go/ast` + `go/token` da **stdlib**. **Não há CGO nem build tag** — o binário padrão já indexa código. O binário `treesitter_enabled.go` continua isolado atrás de `//go:build treesitter` e o `treesitter_disabled.go` expõe `newBackendParser()` devolvendo `NewGoParser()`; a ADR-047 **não** foi supersedida — o seu plano de deferral (3 gatilhos) segue intacto, hoje **0 de 3** disparados. O boot log do code pipeline diz, uma vez por processo: `code AST: backend go (stdlib); tree-sitter: disabled`.
+
+> [!NOTE]
+> A **ponte `documents` ↔ `code_symbols`** mora no **grafo único**
+> (`graph_nodes`/`graph_edges`): cada símbolo vira um nó `type='code_symbol'` com
+> id `code:<qualified_name>`, e cada documento que o menciona ganha uma aresta
+> `relation='references_code'`. O `graph_edges` não tem CHECK de `relation`, então
+> a ponte **não exige DDL novo**.
+>
+> A ponte carrega o status epistêmico (ADR-011) e resolve o match por prioridade:
+> `qualified_name` literal no texto → `EXTRACTED`; caminho do arquivo literal →
+> `EXTRACTED`; nome do símbolo com fronteira de palavra → `INFERRED` (é um palpite,
+> não uma extração). O upsert é **idempotente** (rodar duas vezes não duplica a
+> aresta; o conflito atualiza o status). Ela roda no **code stage** (depois de os
+> símbolos serem persistidos) e no **indexador de Markdown** (para documento novo),
+> e é o que permite ao `memory_code_neighbors` listar os documentos que citam um
+> símbolo e ao blast radius alcançar as notas que dependem dele.
 
 ---
 
 ## 🔌 Estágio `code_pipeline` dentro do `mem index`
 
-O fluxo de indexação do My-Memory é estendido opcionalmente com o estágio `code_pipeline`, executado **após** o pipeline Markdown tradicional:
+O fluxo de indexação do My-Memory é estendido com o estágio `code_pipeline`, executado **após** o pipeline Markdown tradicional:
 
 ```
                           [ Arquivos Markdown / Código-fonte ]
@@ -144,8 +244,8 @@ O fluxo de indexação do My-Memory é estendido opcionalmente com o estágio `c
                   ┌────────────────────┴────────────────────┐
                   ▼                                          ▼
        [ markdown_pipeline ]                       [ code_pipeline ]
-       (chunks, embeddings,                      (tree-sitter + cache
-        wikilinks, FTS, turboquant)                SHA-256 + ast_hash)
+       (chunks, embeddings,                      (parser Go puro +
+        wikilinks, FTS, turboquant)                cache SHA-256 + ast_hash)
                   │                                          │
                   │                  ┌───────────────────────┴───────────────────────┐
                   ▼                  ▼                                               ▼
@@ -156,10 +256,12 @@ O fluxo de indexação do My-Memory é estendido opcionalmente com o estágio `c
                      SQLite Local (memory.db) / PostgreSQL pgvector
 ```
 
-* **`mem index` (default, sem `-tags treesitter`)**: roda apenas o `markdown_pipeline`; warning único no boot e code_pipeline no-op (CA-03).
-* **`mem code-index`** (ADR-047): executa somente o `code_pipeline`, útil para re-indexações cirúrgicas após refactors massivos de código.
-* **Resolução de referências cross-file** (CA-05): varrer `code_symbols` para nomes matching literalmente; 1 match → `code_edges` (`confidence=1.0`); múltiplos → `code_edges_uncertain` (`confidence=0.5`).
-* **Cache incremental** (CA-04): se `content_hash` matches → skip parse; se difere mas `ast_hash` é idêntico → atualiza `content_hash` mas skip embed/downstream (mudanças apenas whitespace/comentários).
+* **`mem index`**: roda o `code_pipeline` por padrão **quando há escopo de código configurado** (a seção `code:` do `.memory/config.yaml`), desligável com `--code-ast=false`. Sem escopo de código configurado, o comportamento é exatamente o de antes: só o `markdown_pipeline`. A falha do code stage **não derruba** o `mem index`.
+* **Escopo de código (`code:`)**: a seleção de arquivos do code stage usa `code.include` / `code.exclude`, **separados** do `include`/`exclude` global de notas. O `include` global é compartilhado com o pipeline Markdown; incluir `**/*.go` nele indexaria código como nota — o pipeline Markdown ignora arquivo de código por definição (`codeast.IsCodeFile`), e o dono do código é o code stage.
+* **`mem code-index`** (ADR-061): executa somente o `code_pipeline`, útil para re-indexações cirúrgicas após refactors massivos de código. Grava no **engine configurado** (PostgreSQL quando o vault está no PostgreSQL, SQLite quando está no SQLite).
+* **Resolução de arestas em três níveis**: escopo de pacote (qualified name bate e é único) → `EXTRACTED`; só por nome (único no repositório) → `INFERRED`; mais de um candidato ou nada resolvido → `code_edges_uncertain` com `confidence` e `reason`.
+* **Cache incremental**: se `content_hash` bate → skip parse; se difere mas o `ast_hash` é idêntico → atualiza o `content_hash` e skip o parse (mudanças apenas de whitespace/comentários).
+* **Ponte notas ↔ código**: depois de persistir os símbolos, o code stage casa os documentos indexados com os `code_symbols` e grava a ponte `references_code` no grafo único (ver §7). O indexador de Markdown faz o mesmo para cada documento novo.
 
 ---
 

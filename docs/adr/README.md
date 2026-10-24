@@ -61,7 +61,7 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-058](058-renderizador-vis-network-vendorizado-sem-build-step.md)** | Renderizador vis-network vendorizado, sem build step e sem CDN | Accepted | 2026-10-19 | `graphview`, `vis-network`, `vendorizado`, `go-embed`, `offline` |
 | **[ADR-059](059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** | SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP | Aceito — **Emendado pela ADR-060** | 2026-10-19 | `viewer`, `react`, `vite`, `mcp`, `http`, `build-estatico`, `seguranca` |
 | **[ADR-060](060-stack-do-frontend-da-viewer-e-fallback-spa.md)** | Stack do frontend da viewer (TanStack) e a rota de fallback SPA | Aceito | 2026-10-19 | `viewer`, `react`, `tanstack`, `router`, `query`, `zustand`, `zod`, `markdown`, `wikilinks`, `spa` |
-| **[ADR-061](061-dois-conceitos-de-memoria-vault-central-e-code-graph.md)** | Dois conceitos de memória — Vault Central (aprendizagem) e Vault de Repositório (code graph) | Aceito | 2026-10-23 | `code-graph`, `central-vault`, `obsidian`, `graphify`, `provenance`, `federation`, `cgo`, `adr-047` |
+| **[ADR-061](061-dois-conceitos-de-memoria-vault-central-e-code-graph.md)** | Dois conceitos de memória — Vault Central (aprendizagem) e Vault de Repositório (code graph) | Aceito — **Implementado** | 2026-10-23 | `code-graph`, `central-vault`, `obsidian`, `graphify`, `provenance`, `federation`, `cgo`, `adr-047` |
 > [!success]
 > **ADR-055: implementada.** A pergunta que a ADR deixou em
 > aberto — para onde `resolved_doc_id` aponta — foi respondida em 2026-10-21:
@@ -91,6 +91,31 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 >
 > Vault indexado antes da migração continua funcionando sem `mem index --force`: os
 > documentos com `mtime = 0` caem no `updated_at` e vão para o fim de `mem recents`.
+
+> [!success]
+> **ADR-061: implementada.** Os dois conceitos de memória estão em serviço com o
+> **mesmo motor**: o **Cofre Central** guarda a aprendizagem (Markdown Obsidian
+> Flavored — `mem lesson` grava a lição com `category: memory` e `summary`, e falha
+> com erro claro quando não há cofre central resolvido), e o **Vault de
+> Repositório** guarda o code graph do código.
+>
+> O code graph roda com o **backend Go puro** (`go/parser` + `go/ast` + `go/token`,
+> sem CGO e sem build tag), grava no **engine configurado** (PostgreSQL ou SQLite) e
+> é filtrado por `repository` (`repo_id`). As arestas são `calls` (com o **ponto de
+> chamada**), `imports`, `inherits`, `uses_type` e `references`, cada uma com
+> `epistemic_status` (`EXTRACTED`/`INFERRED`) e `confidence`; o destino ambíguo vai
+> para `code_edges_uncertain` e nunca vira aresta resolvida. As arestas estruturais
+> vêm do backend AST, que hoje entende **Go** — as demais linguagens seguem no
+> `MockParser` (fallback determinístico da ADR-047) com arestas `references` por
+> nome. O `mem index` roda o code stage quando há escopo de código configurado
+> (seção `code:` do config), sem derrubar o `mem index` quando o estágio falha.
+>
+> A **ponte `documents` ↔ `code_symbols`** mora no grafo único: nó
+> `graph_nodes.type='code_symbol'` (id `code:<qualified_name>`) e aresta
+> `graph_edges.relation='references_code'`, com status epistêmico (`EXTRACTED` para
+> match literal, `INFERRED` para match por nome). É o que permite ao
+> `memory_code_neighbors` listar as notas que citam um símbolo e ao blast radius
+> alcançar as notas que dependem dele.
 
 > [!warning]
 > **ADR-059: emendada pela ADR-060.** O contrato de rotas do servidor ganhou a
@@ -126,19 +151,28 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > explícita e local — 56 linhas, sem preset.
 
 > [!warning]
-> **ADR-047: decisão mantida, motor ausente — e a ADR-054:37 afirma o contrário.**
+> **ADR-047: decisão mantida, motor trocado — e a ADR-054:37 afirma o contrário.**
 > A ADR-047 decide indexar código via tree-sitter e traz um plano de deferral
 > ("Plano Real tree-sitter Binding") com 3 gatilhos, hoje **0 de 3** disparados.
-> O que roda em produção é o `MockParser` regex: `newBackendParser()` devolve
-> `ErrTreesitterDisabled` mesmo compilado com `-tags treesitter` e **não tem
-> nenhum call site** (`internal/codeast/treesitter_enabled.go:57`,
-> `internal/codeast/pipeline.go:69-71`). As arestas são `references` por
-> igualdade de nome — não existe `calls` nem `imports` — e as 2 tools MCP de
-> código respondem "indisponível" porque são registradas com handler `nil`
-> (`internal/mcp/server.go:116-117`).
+> O que roda em produção **não** é mais o `MockParser` regex: desde a ADR-061 o
+> parser é o **backend Go puro** (`internal/codeast/go_parser.go`, `go/parser` +
+> `go/ast` + `go/token` da stdlib), sem CGO e sem build tag, e `newBackendParser()`
+> é o caminho vivo. A tag `treesitter` continua isolada e o binding real segue
+> pendente — a ADR-047 **não** foi supersedida.
+>
+> As arestas também deixaram de ser só `references` por igualdade de nome: hoje
+> existem `calls` (com o ponto de chamada), `imports`, `inherits` e `uses_type`, e
+> cada aresta carrega `epistemic_status` (`EXTRACTED`/`INFERRED`) e `confidence`,
+> com o destino ambíguo isolado em `code_edges_uncertain`. As arestas estruturais
+> vêm do backend AST, que hoje entende **Go** — as demais linguagens seguem no
+> `MockParser` (fallback determinístico) com arestas `references` por nome. As 2
+> tools MCP de código (`memory_code_search` e `memory_code_neighbors`) são
+> injetadas no servidor MCP e respondem de verdade — antes devolviam
+> "indisponível".
 >
 > Consequência: a **ADR-054:37**, que lista `code-*` (AST tree-sitter) entre os
-> recursos "superiores já hoje", é **factualmente falsa** — o texto das ADRs é
+> recursos "superiores já hoje", continua **factualmente imprecisa** — o code
+> graph existe e funciona, mas o motor **não** é tree-sitter. O texto das ADRs é
 > imutável, então a correção fica aqui. O estado real do code graph e o que
 > passa a valer estão na [ADR-061](061-dois-conceitos-de-memoria-vault-central-e-code-graph.md),
 > que decide o motor em Go puro (ADR-022) e mantém o plano de deferral do

@@ -61,8 +61,8 @@ O **My-Memory** resolve isso unificando **busca vetorial**, **grafo de conhecime
 3. **🕸 Grafo Estilo Obsidian via SQL Recursivo:** Extrai conexões explícitas de notas (`[[links]]` e `#tags` — as tags só viram aresta quando o nome da tag casa com o título de uma nota, para não criar nós mortos, ADR-041), permitindo travessias relacionais, detecção de comunidades (LPA) e análise de raio de impacto em microssegundos.
 4. **🔌 Model Context Protocol (MCP) Nativo:** Conecta-se diretamente aos assistentes de codificação de IA via `stdio` (JSON-RPC 2.0) ou rede HTTP/SSE, expondo ferramentas de busca e expansão de contexto.
 5. **🏛️ Federação, Cofre Central e Wikilinks Cross-Vault:** Vincula um Cofre Central de padrões corporativos (Google Drive / OneDrive para Obsidian) a repositórios satélites com `repo_id` criptográfico imutável, catálogo global (`~/.memory/config.yaml`), zero-credentials no Git, busca híbrida federada via RRF e protocolo canônico universal `memory://<repo>/<path>` para resolução transparente de wikilinks cross-vault em editores e MCP.
-6. **🌳 Code AST Indexing (tree-sitter, opt-in via `-tags treesitter`):** Parser sintático multi-linguagem (Go, Python, TS/JS, Rust, Java, C/C++, Ruby, PHP, Shell, C#) com persistência de símbolos/arestas em `code_files`/`code_symbols`/`code_edges`, boost RRF 2× em `qualified_name` e ferramentas CLI/MCP dedicadas (`mem code-index`/`code-search`/`code-graph`/`code-stats`, `memory_code_search`/`memory_code_neighbors`). Build padrão (sem tag) continua CGO-free e mantém o pipeline Markdown 100% funcional (CA-14, ADR-047).
-7. **🖥️ Painel de Métricas da Memória (`viewer/`):** SPA React 19 + Vite 8 que **o próprio MCP serve** — sem processo extra, sem CDN, sem runtime de aplicação. Quatro visões: Health Score e prontidão, hubs e comunidades do grafo, leitura de notas com `[[wikilinks]]` navegáveis, e drift semântico. Build estático local, publicado em `.mymemory/www/app/` (ADR-059, ADR-060).
+6. **🌳 Code Graph do Vault de Repositório (ADR-061):** o *code graph* do repositório — parser sintático em **Go puro** (`go/parser` + `go/ast` + `go/token` da stdlib: sem CGO, sem build tag, o binário padrão já indexa código). Símbolos em `code_files`/`code_symbols` e arestas **estruturais** em `code_edges` — `calls` (com o **ponto de chamada**, arquivo:linha da expressão de chamada), `imports`, `inherits`, `uses_type` e `references`. Cada aresta carrega **proveniência** (`epistemic_status`: `EXTRACTED` quando resolvida no escopo do pacote, `INFERRED` quando resolvida só por nome) e `confidence`; o destino ambíguo vai para `code_edges_uncertain` com a razão e **nunca** vira aresta resolvida (ADR-011). As arestas **estruturais** vêm do backend AST, que hoje entende **Go**; as demais linguagens seguem no fallback determinístico da ADR-047, com arestas `references` por nome (`INFERRED`). O grafo é gravado no **engine configurado** (PostgreSQL quando o vault está no PostgreSQL, SQLite quando está no SQLite) e filtrado por `repository` (`repo_id`), como o grafo de notas. Superfície: `mem code-index`/`code-search`/`code-graph`/`code-stats` e as tools MCP `memory_code_search`/`memory_code_neighbors`, com boost RRF 2× em `qualified_name`. O ADR-047 (tree-sitter) **não** foi supersedido — o plano de deferral do binding real segue intacto.
+7. **🖥️ Painel de Métricas da Memória (`viewer/`):** SPA React 19 + Vite 8 que **o próprio MCP serve** — sem processo extra, sem CDN, sem runtime de aplicação. Cinco visões: Health Score e prontidão, hubs e comunidades do grafo, leitura de notas com `[[wikilinks]]` navegáveis, drift semântico e o **code graph** (rota `/code`: símbolos de um repositório e seus vizinhos estruturais, com o tipo da aresta e o ponto de chamada). Build estático local, publicado em `.mymemory/www/app/` (ADR-059, ADR-060).
 8. **🏷️ Superfície de Tags do Obsidian:** A tag deixa de ser descartada na indexação e vira **dado consultável**: a tabela `document_tags` guarda cada tag do documento, inclusive a órfã, gravada **antes** da resolução fuzzy (ADR-055). A superfície expõe `mem tags` (inventário), `mem tag <nome>` (a tag e suas descendentes), `mem search --tag <tag>` (filtro push-down da busca) e as tools MCP `memory_get_tags` e `memory_get_tag`. A aresta `tagged_as` do grafo continua sendo criada **só** para as tags resolvidas — a tabela não reinstala o nó morto que a ADR-041 eliminou.
 
 ---
@@ -130,6 +130,25 @@ mem index
 mem search "como funciona o cache incremental?"
 ```
 
+### 5. Indexar o Code Graph e Registrar Lições
+```bash
+# Code graph do repositório (símbolos + arestas estruturais).
+# Roda dentro do `mem index` quando há escopo de código no .memory/config.yaml,
+# ou de forma cirúrgica:
+mem code-index --json
+
+# Registrar uma lição aprendida no cofre central (a memória de aprendizagem):
+mem lesson "Cache incremental só reindexa o que mudou" \
+  --summary "O cache SHA-256 evita reindexar notas inalteradas"
+```
+
+> [!note]
+> O My-Memory separa **dois conceitos de memória** (ADR-061): o **Cofre Central**,
+> onde vive a aprendizagem (notas Markdown Obsidian, como as lições do
+> `mem lesson`), e o **Vault de Repositório**, onde vive o code graph do código
+> (`mem code-index`). O motor é o mesmo em ambos — busca híbrida FTS + TurboQuant
+> + RRF, `epistemic_status`, PageRank e blast radius.
+
 ---
 
 ## 🌐 Visualizador Interativo de Grafo (`graph.html`)
@@ -187,6 +206,7 @@ Abra **http://127.0.0.1:38400/**.
 | **Grafo** | Hubs por grau e por PageRank, comunidades detectadas por LPA com modularidade, e conexões latentes | `memory_get_hubs`, `memory_get_clusters`, `memory_get_insights` |
 | **Notas** | Lista indexada com filtro, estrutura de títulos, metadados de arquivo e **leitura da nota com `[[wikilinks]]` navegáveis** | `memory_list_files`, `memory_read_note`, `memory_note_outline`, `memory_file_metadata` |
 | **Drift** | Documentação defasada, código sem cobertura, blast radius e caminho entre dois nós | `memory_get_drift`, `memory_get_impact`, `memory_find_path` |
+| **Código** | Símbolos de um repositório e seus vizinhos estruturais, com o **tipo da aresta** (`calls`, `imports`, `inherits`, `uses_type`, `references`) e o **ponto de chamada** | `memory_code_search`, `memory_code_neighbors` |
 
 O botão **Abrir grafo interativo** em cada visão invoca `memory_visualize_graph`
 e abre a URL servida do artefato — a mesma que o agente recebe.
@@ -208,7 +228,7 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 | 📖 [**`COMO_USAR.md`**](COMO_USAR.md) | **Desenvolvedores** | Manual prático de comandos CLI, exemplos de busca, configuração de PostgreSQL/SQLite e monitoramento em tempo real. |
 | 🔍 [**`COMO_FUNCIONA.md`**](COMO_FUNCIONA.md) | **Engenheiros & Arquitetos** | Explicação profunda da arquitetura, matemática do TurboQuant, algoritmo RRF, CTEs recursivas e ciclo de vida do cache. |
 | 🤖 [**`AGENT_INTEGRATION_GUIDE.md`**](docs/AGENT_INTEGRATION_GUIDE.md) | **Agentes de IA & Integrações** | Como integrar o My-Memory com Cursor, Claude Code, Copilot e Antigravity via MCP e regras `AGENTS.md`. |
-| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 59 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR (o slot 052 está reservado e vazio). |
+| 🏛 [**`docs/adr/`**](docs/adr/README.md) | **Decisões de Engenharia** | 60 Registros de Decisão de Arquitetura (ADRs) documentados no formato padrão MADR (o slot 052 está reservado e vazio). |
 | 🧠 [**`docs/concepts/architecture.md`**](docs/concepts/architecture.md) | **Engenheiros** | Stub conceitual: visão arquitetural consolidada (camadas, decisões centrais, ADRs relacionados). |
 | 🧪 [**`docs/BENCHMARKS.md`**](docs/BENCHMARKS.md) | **Engenheiros de Performance** | Metodologia, resultados consolidados e como reproduzir benchmarks (TurboQuant, RRF, indexação, grafo). |
 | 🔗 [**`docs/REFERENCES.md`**](docs/REFERENCES.md) | **Pesquisadores & Curiosos** | Projetos de referência (CodeGraph, Cursor, etc.) e matriz de refinamento arquitetural. |
@@ -230,7 +250,7 @@ Para mergulhar nos detalhes operacionais, matemáticos e de integração, consul
 Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 26 ferramentas para o ecossistema de IA:
 
 > [!tip]
-> **Duas camadas na mesma resposta.** As doze ferramentas de leitura devolvem, além do
+> **Duas camadas na mesma resposta.** As catorze ferramentas de leitura devolvem, além do
 > texto legível, o campo **`structuredContent`** — o payload estruturado definido pelo
 > MCP spec 2025-06-18. O texto serve ao humano e ao LLM; o `structuredContent` serve ao
 > cliente de máquina, que valida o JSON em vez de raspar texto. A forma do payload é o
@@ -241,10 +261,10 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 26 fer
 > Ferramentas com `structuredContent`: `memory_doctor`, `memory_get_hubs`,
 > `memory_get_clusters`, `memory_get_insights`, `memory_get_drift`,
 > `memory_list_files`, `memory_read_note`, `memory_note_outline`,
-> `memory_file_metadata`, `memory_visualize_graph`, `memory_get_tags` e
-> `memory_get_tag`.
+> `memory_file_metadata`, `memory_visualize_graph`, `memory_get_tags`,
+> `memory_get_tag`, `memory_code_search` e `memory_code_neighbors`.
 
-- `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional, que ordena por **tempo de edição** do arquivo (ADR-057). Aceita `include_code: true` (default `false`, CA-12) para que `code_symbols` concorram no ranqueamento, e `tag` (ADR-055) para filtrar por tag do Obsidian — a tag e as descendentes.
+- `memory_search`: Busca híbrida (RRF) unificando FTS, vetores e grafo com decaimento temporal opcional, que ordena por **tempo de edição** do arquivo (ADR-057). Aceita `include_code: true` (default `false`) para que os símbolos de `code_symbols` participem do fan-in RRF como fonte lexical real (com boost CA-05 em `qualified_name`) — sem a flag, o ranking é **idêntico** ao de antes; e `tag` (ADR-055) para filtrar por tag do Obsidian — a tag e as descendentes.
 - `memory_get_neighbors`: Expansão recursiva de nós e dependências conectadas via SQL recursivo (CTEs) com marcação `is_federated: true`.
 - `memory_find_path`: Descoberta do caminho mais curto entre duas notas via BFS bidirecional com pesos epistêmicos.
 - `memory_get_impact`: Análise de raio de destruição (*Blast Radius*) e dependentes reversos com risk scoring.
@@ -268,8 +288,8 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 26 fer
 - `memory_visualize_graph`: Exportação de visualizador interativo em HTML/SVG standalone com física de forças. Devolve a **URL servida** do artefato (`http://127.0.0.1:38400/graph/<arquivo>.html`) e o **caminho em disco**; sem transporte HTTP ativo devolve só o caminho, sem erro (ADR-059, ADR-060).
 - `memory_export_canvas`: Exportação bidirecional para o padrão Obsidian JSON Canvas 1.0 (.canvas).
 - `memory_open_node`: Abertura cirúrgica de notas locais e canônicas federadas (`memory://`) no editor via deep links de IDE.
-- `memory_code_search` *(ADR-047, CA-10)*: Busca estruturada de símbolos de código com filtros `language` e `kind`, ranqueada por boost RRF 2× em `qualified_name`. Requer build com `-tags treesitter`.
-- `memory_code_neighbors` *(ADR-047, CA-11)*: Sub-grafo de chamadas/referências (in+out) de um símbolo até `depth` hops via CTE recursivo sobre `code_edges`.
+- `memory_code_search` *(ADR-061, ADR-047, CA-10)*: Busca estruturada de símbolos de código com filtros `language` e `kind`, ranqueada por boost RRF 2× em `qualified_name`. Roda com o **backend Go puro** — não exige build especial — e lê o code graph do engine configurado, filtrado por `repository`.
+- `memory_code_neighbors` *(ADR-061, ADR-047, CA-11)*: Sub-grafo estrutural (in+out) de um símbolo até `depth` hops via CTE recursivo sobre `code_edges`. A resposta traz **proveniência** (`epistemic_status`: `EXTRACTED`/`INFERRED`), **confiança** (`confidence`) e o **ponto de chamada** (`call_site_file`/`call_site_line`) de cada relação — e os **documentos que citam o símbolo**, graças à ponte `references_code` entre notas e código no grafo único.
 
 ---
 
@@ -281,7 +301,7 @@ my-memory/
 ├── internal/
 │   ├── autowire/       # Injeção e sugestão automática de wikilinks em Markdown
 │   ├── canvas/         # Conversor e exportador para formato JSON Canvas 1.0 (.canvas)
-│   ├── codeast/        # Pipeline tree-sitter (build tag treesitter), cache SHA-256/ast_hash, ranking e sub-grafo de código (ADR-047)
+│   ├── codeast/        # Parser de código em Go puro (stdlib), arestas estruturais, cache SHA-256/ast_hash e sub-grafo de código (ADR-061)
 │   ├── compiler/       # Compilador semântico de contexto e síntese sob demanda
 │   ├── config/         # Configuração declarativa, descoberta de vault e variáveis de ambiente
 │   ├── db/             # Schemas SQLite, virtual tables sqlite-vec e queries recursivas CTE
@@ -298,7 +318,7 @@ my-memory/
 │   ├── store/          # Camada de armazenamento unificada e suporte a PostgreSQL com pgvector
 │   ├── turboquant/     # Rotações ortogonais de Householder e quantização de 4-bit
 │   └── watcher/        # File watcher em segundo plano com debouncing inteligente
-├── docs/               # Documentação técnica detalhada e 59 ADRs
+├── docs/               # Documentação técnica detalhada e 60 ADRs
 ├── viewer/             # SPA do painel de métricas (React 19 + Vite 8 + TanStack), build estático servido pelo MCP
 ├── COMO_USAR.md        # Manual prático passo a passo para o usuário
 ├── COMO_FUNCIONA.md    # Explicação detalhada da arquitetura e funcionamento interno
