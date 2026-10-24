@@ -102,7 +102,8 @@ chama isto" com prova.
 11. The system SHALL extract, from the Go AST, the symbols with their exact positions, and SHALL register `calls` edges carrying the **call site** (file and line of the call expression), not only the position of the definition.
 12. The system SHALL register `imports` edges between the importing file's symbols and the imported package's symbols, and SHALL register `inherits`/`uses_type` edges for Go embedding and interface satisfaction.
 13. The system SHALL provide a real AST backend in the default build, implemented with the Go standard library (`go/parser`/`go/ast`), and SHALL NOT require a C compiler or a build tag for the code graph to work.
-14. WHERE a build provides the tree-sitter backend behind the `treesitter` tag, the system SHALL use it in place of the Go backend, and the Go backend SHALL remain the fallback when the tag is absent.
+14. WHERE a build provides the `treesitter` tag, the system SHALL NOT degrade the code graph: if the tree-sitter binding is not implemented (the current state — the ADR-047 deferral is intact with 0 of 3 triggers fired), the system SHALL fall back to the Go backend and say so in the boot log, and SHALL NOT silently index fewer symbols or zero edges. The Go backend SHALL remain the fallback when the tag is absent.
+    *Amendment 2026-10-24 (verificação independente):* a AC original exigia que o backend tree-sitter substituísse o de Go quando a tag estivesse presente — o que é **insatisfazível**, porque o binding não existe. O requisito real é o oposto: a tag **não pode** degradar o grafo em silêncio.
 
 ### US-5 — Como auditor, quero proveniência em cada aresta de código, para confiar no que o grafo afirma
 
@@ -185,8 +186,12 @@ com taxonomia e resumo, para que ela volte em consultas futuras.
 - **Parsing de linguagens além de Go.** O backend v1 é Go puro; as outras 9
   linguagens declaradas (`python`, `typescript`, `javascript`, `rust`, `java`,
   `cpp`, `ruby`, `php`, `shell`) seguem no mock até o tree-sitter ser promovido
-  ou um parser puro existir. O escopo de código padrão SHALL refletir as
-  linguagens **realmente** suportadas pelo backend ativo.
+  ou um parser puro existir. O escopo de código padrão cobre as **10**
+  linguagens declaradas, mas **apenas Go tem extração AST precisa**
+  (`go/parser`/`go/ast`); nas outras 9 os símbolos saem do mock heurístico
+  (`def `, `function `, `fn `, `class `, `struct `, `interface `) e **não** têm
+  call-site nem aresta estrutural confiável. O escopo padrão **não** promete
+  AST para todas elas.
 - **Mudança no vault central.** O conceito de memória de aprendizagem do cofre
   central (Obsidian Flavored Markdown, taxonomia `category`, `summary`) está
   decidido e não muda aqui. A US-11 só abre a **via de escrita** de uma lição.

@@ -12,6 +12,15 @@ tags: [my-memory, code-graph, adr-061, handoff, spec]
 > deste documento:** limpo, exceto pelo arquivo de validação da Fase 3 que o
 > worker estava finalizando.
 
+> [!warning] **Veredito da verificação independente: 🔶 PARTIAL (não é PASS).**
+> O núcleo técnico está sólido e verificadamente real, mas a verificação
+> encontrou **2 defeitos de severidade alta** que quebram ACs declaradas
+> (D1: a migração quebra em vault existente; D2: `include_code` é no-op para
+> qualquer `repo_id` ≠ `default`), **1 alto-médio** (D3: o build
+> `-tags treesitter` esvazia o code graph em silêncio) e **3 médios**.
+> **Relatório completo:** `.specs/features/code-graph-real/verification.md`.
+> As correções foram despachadas — ver §4.
+
 Este documento é o **ponto de retomada** da feature. Ele existe porque a
 pasta do repositório vai ser movida de `C:\repository\my-memory` para `D:\...`
 e porque a cota do provedor matou workers no meio — quem voltar precisa saber
@@ -161,15 +170,17 @@ Evidência detalhada por fase:
 
 | # | Pendência | Como fazer | Quem |
 | :--- | :--- | :--- | :--- |
-| 1 | **Verificador independente** — atacar 16 hipóteses (H1..H16) e procurar defeitos, não confirmar | briefing pronto em `D:\.minimax\scratch\briefing-verificador.txt` | agente `verifier`, read-only |
+| 0 | **Corrigir os 8 defeitos da verificação** — D1 (migração) e D2 (`include_code` sem repo) são de severidade **alta** e quebram ACs; D3 (build `-tags treesitter` degrada), D4 (hub threshold poda o vizinho direto), D5 (`mem code-graph` descarta `--repo`), D6 (hash estrutural inclui linha), D7 (viewer cita a ADR errada), D8 (precedência env × config) | despachado a um worker com arquivo:linha e reprodução de cada um | worker (em execução) |
+| 1 | **Revalidar** depois das correções: repetir as 16 hipóteses, com foco em D1/D2/D3 | `D:\.minimax\scratch\briefing-verificador.txt` | agente `verifier`, read-only |
 | 2 | **Gate final único**, sem escritores ativos: `go build ./... && go vet ./... && go test -count=1 ./...` + `cd viewer && npm run typecheck && npm run test && npm run build` + medição do gzip | o gate de `internal/ci` só quebra se **aparecer um pacote Go novo** — nenhum worker criou um | gestor |
-| 3 | **Ticar os 18 "Done when"** em `tasks.md` e revalidar `validate_tasks.py` | as T1–T6 já estão ticadas; T7–T18 estão sem o bloco | gestor |
+| 3 | **Ticar os 18 "Done when"** em `tasks.md` e revalidar `validate_tasks.py` | ✅ **feito** (commit `3012f76`) | gestor |
 | 4 | **Consolidar a validação** num `validation.md` único (Fase 2 + Fase 3) | hoje são dois arquivos | gestor |
-| 5 | **Fechar a ISSUE-027**: marcar C1..C12 como resolvidos, com o commit que fechou cada um | ver §6 | gestor |
-| 6 | **Atualizar `STATE.md`** com o estado da feature | `.specs/STATE.md` | gestor |
+| 5 | **Fechar a ISSUE-027**: marcar C1..C12 como resolvidos, com o commit que fechou cada um | ✅ **feito** (`3012f76`) | gestor |
+| 6 | **Atualizar `STATE.md`** com o estado da feature | ✅ **feito** (`3012f76`) | gestor |
 | 7 | **Limpar o scratch** dos subagents: `D:\.minimax\scratch\subagents\*` (o clone do Graphify é referência — manter ou remover conforme a decisão do dono) | `mavis-trash.cmd` (deleção permanente é bloqueada) | gestor |
-| 8 | **Push** de `develop` — **NÃO** fazer sem aval explícito do dono | 25+ commits à frente de `origin/develop` | dono |
-| 9 | **Release v3.0.0 + PR `develop`→`main`** — adiado por decisão do dono ("só o push por enquanto") | `CHANGELOG.md` já tem o bloco `[Unreleased]` | dono |
+| 8 | **Remover as 2 notas-teste** que o verificador indexou por acidente no Postgres real (`licao-sem-postgres.md` e `licao-sem-postgres-3.md`, em `repo_central` do cofre central) | o verificador **não** apagou nada do store real; a remoção é decisão do dono | dono |
+| 9 | **Push** de `develop` — **NÃO** fazer sem aval explícito do dono | 25+ commits à frente de `origin/develop` | dono |
+| 10 | **Release v3.0.0 + PR `develop`→`main`** — adiado por decisão do dono ("só o push por enquanto") | `CHANGELOG.md` já tem o bloco `[Unreleased]` | dono |
 
 ---
 
@@ -306,10 +317,11 @@ C: com ~3,3 GB livres no fim; D: com ~153 GB livres.
 
 | Artefato | Caminho |
 | :--- | :--- |
-| Spec (28 ACs em EARS) | `.specs/features/code-graph-real/spec.md` |
+| Spec (**29** ACs em EARS) | `.specs/features/code-graph-real/spec.md` |
 | Tarefas (18, 3 fases) | `.specs/features/code-graph-real/tasks.md` |
 | Evidência Fase 2 | `.specs/features/code-graph-real/validation.md` |
 | Evidência Fase 3 | `.specs/features/code-graph-real/validation-t13-t15-t17.md` |
+| **Verificação independente** (veredito PARTIAL + 8 defeitos) | `.specs/features/code-graph-real/verification.md` |
 | ADR da decisão | `docs/adr/061-dois-conceitos-de-memoria-vault-central-e-code-graph.md` |
 | Tracker dos 12 gaps | `.specs/ISSUES.md` (ISSUE-027) |
 | Índice de ADRs | `docs/adr/README.md` |

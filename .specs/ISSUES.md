@@ -962,3 +962,40 @@ trocando o silencio por um erro explícito.
 `.memory/config.yaml`, que move junto com o repositório. O que precisa ser
 atualizado no catálogo global é o `path`.
 
+## ISSUE-029 — 8 defeitos na feature `code-graph-real`, achados pela verificação independente
+
+- **Severidade:** 🔴 alta (2 defeitos altos + 1 alto-médio + 3 médios + 2 baixos)
+- **Status:** 🔵 open — correções despachadas em 2026-10-24
+- **Achado em:** verificação independente de 2026-10-24 (agente `verifier`,
+  read-only, 16 hipóteses; relatório completo em
+  `.specs/features/code-graph-real/verification.md`)
+- **Veredito:** 🔶 **PARTIAL** — o núcleo técnico está sólido e verificadamente
+  real, mas não é PASS
+
+| # | Severidade | Defeito | Quebra |
+| :--- | :--- | :--- | :--- |
+| **D1** | 🔴 alta | `EnsureCodeTables` (`internal/db/code_migration.go:79-101`) migra `code_files`/`code_symbols`/`code_edges` mas **não** `code_edges_uncertain.repository`, que o DDL pré-feature não tinha e que `InsertCodeEdgeUncertain` (`:290`) insere → `mem code-index` falha com `table code_edges_uncertain has no column named repository` em **qualquer vault anterior à feature** | AC-05, AC-26 |
+| **D2** | 🔴 alta | `internal/db/hybrid.go:205` usa `RepositoryFromContext(ctx)`, mas `db.WithRepository` só é chamado no caminho do `mem index` (`cmd/mem/main.go:1624`) — **nunca no servidor MCP**. O fan-in de código só existe para `repo_id == "default"`; com `repo=acme`, `include_code=true` devolve resultado idêntico ao `false` | AC-07, AC-20 / CG-19 |
+| **D3** | 🟠 alta-média | `internal/codeast/treesitter_enabled.go:44-59` é stub: o build `-tags treesitter` indexa **1 símbolo e 0 arestas** com `files_errors:0` e exit 0 — degradação silenciosa do code graph | AC-14 (emendada) |
+| **D4** | 🟡 média | Hub threshold com p99 sobre subgrafos pequenos: `int(n*0.99)-1` cai no penúltimo índice → o nó de **maior grau** é sempre removido; em `depth=2` o vizinho **direto** (hop 1) foi podado e o hop 2 mantido | AC-22 |
+| **D5** | 🟡 média | `cmd/mem/codegraph.go:32` declara `--repo` e `:39-40` o descarta (`_ = repoSlug`); sem `--storage`, usa sempre `db.InitDB` local | AC-10 / CG-09 |
+| **D6** | 🟡 média | O hash estrutural do drift (`internal/drift/drift.go:548-551`) usa `HashKey()` **com número de linha**: comentário deslocou linhas → **falso positivo**; mudança de assinatura → **falso negativo**. O hash de cache e o estrutural precisam ser **dois hashes** | AC-26 |
+| **D7** | 🔵 baixa | `viewer/src/routes/code.tsx:200` e `:321` apontam para a **ADR-047** (deferida) em vez da **ADR-061** | — |
+| **D8** | 🔵 baixa | `cmd/mem/main.go:1417-1428` dá precedência a `MY_MEMORY_PG_URL` **sobre** a config global, o que contradiz o `AGENTS.md` §2 ("global > local > env") — foi a causa do incidente com o Postgres real (§Incidente) | — |
+
+**Erros de análise nos próprios documentos da feature** (corrigidos):
+a spec tem **29** ACs, não 28; a **AC-14 era insatisfazível** (exigia um backend
+tree-sitter inexistente) e foi **emendada** para exigir que a tag *não* degrade o
+grafo; `README.md:64` afirmava que o code graph é filtrado por `repository`
+"como o grafo de notas" — **falso**, o grafo de notas não tem coluna
+`repository` em nenhum engine; `spec.md:188` prometia que o escopo de código
+padrão refletia as linguagens do backend ativo — só **Go** tem AST precisa, as
+outras 9 seguem no mock heurístico.
+
+**Incidente durante a verificação.** A env var `MY_MEMORY_PG_URL` tem precedência
+sobre a config global (D8): em dois testes de `mem lesson`, o binário ignorou a
+URL do config de scratch e indexou **2 notas-teste** no **Postgres real do dono**
+(`repo_central` do cofre central). Nada foi apagado do store real. **Pendente
+para o dono:** remover `licao-sem-postgres.md` e `licao-sem-postgres-3.md` de
+`.../central/lessons/`.
+
