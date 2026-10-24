@@ -141,11 +141,10 @@ func TestPipelineNoOpWhenTreesitterDisabled(t *testing.T) {
 	mkGoFile(t, tmp, "a.go", "package x\nfunc A(){}\n")
 
 	h := newCodeastPipelineTestDB(t)
-	if !IsTreesitterEnabled() {
-		t.Skip("compilando sem -tags treesitter — pula teste de no-op específico (skip é o comportamento default)")
-	}
-
-	// Stub treesitter parser: ParseFile devolve ErrTreesitterDisabled.
+	// O teste injeta o stub explicitamente: ele prova o tratamento do
+	// ErrTreesitterDisabled pelo pipeline, e vale nos DOIS builds (com e
+	// sem a tag `treesitter`). O build com a tag NÃO usa mais o stub (D3),
+	// mas o caminho continua precisando de cobertura.
 	stub := newStubTreesitterParser()
 	pipe, err := NewPipeline(PipelineOptions{DB: h, Parser: stub})
 	if err != nil {

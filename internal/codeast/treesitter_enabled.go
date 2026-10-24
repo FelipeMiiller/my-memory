@@ -1,23 +1,33 @@
 //go:build treesitter
 
-// Stub do backend tree-sitter compilado COM a build tag `treesitter`.
+// Backend de code AST do build COM a build tag `treesitter`.
 //
-// IMPORTANTE: este arquivo é um placeholder consciente. O binding real
-// (`github.com/tree-sitter/go-tree-sitter`) requer CGO e gcc —
-// quando o toolchain estiver disponível, basta substituir o body de
-// newBackendParser() e IsTreesitterEnabled() pela implementação real.
+// O binding tree-sitter (`github.com/tree-sitter/go-tree-sitter`) exige CGO e
+// gcc — e ele NÃO foi injetado: a ADR-047 segue deferred (0 de 3 gatilhos).
 //
-// Documentação de ativação (CA-14):
-//   1. go get github.com/tree-sitter/go-tree-sitter
-//   2. CGO_ENABLED=1 (Linux/macOS default; Windows requer gcc-mingw)
-//   3. go build -tags treesitter ./cmd/mem
+// Até o binding existir, este arquivo NÃO pode SOMBREAD o motor real. A
+// versão anterior devolvia um stub cujo ParseFile devolvia
+// ErrTreesitterDisabled — e o pipeline tratava isso como no-op silencioso:
+// o build com `-tags treesitter` produzia um code graph VAZIO (1 símbolo,
+// 0 arestas) sem nenhum erro, enquanto o build padrão produzia 8 símbolos e
+// 4 arestas (defeito D3).
 //
-// Enquanto esta stub existir, ParseFile retorna ErrTreesitterDisabled,
-// IsTreesitterEnabled() devolve false e LogTreesitterBootStatus registra
-// "tree-sitter: enabled (stub)" para deixar claro que o backend real ainda
-// não foi injetado neste binário.
+// A política adotada (coerente com o deferral da ADR-047):
 //
-// O code_pipeline trata ErrTreesitterDisabled como no-op silencioso (CA-03).
+//  1. o binding tree-sitter NÃO está implementado — o log de boot avisa;
+//  2. o motor ativo é o backend Go (stdlib), o MESMO do build padrão.
+//
+// Consequência: o build com `-tags treesitter` produz o mesmo code graph do
+// build padrão (mesmos símbolos e arestas) — a tag nunca degrada o grafo.
+// Quando o binding existir, este arquivo passa a devolver o parser
+// tree-sitter de verdade e IsTreesitterEnabled() volta a true.
+//
+// Documentação de ativação do binding real (ainda não feita):
+//
+//  1. go get github.com/tree-sitter/go-tree-sitter
+//  2. CGO_ENABLED=1 (Linux/macOS default; Windows requer gcc-mingw)
+//  3. go build -tags treesitter ./cmd/mem
+//  4. substituir newBackendParser() e IsTreesitterEnabled() abaixo
 
 package codeast
 
@@ -30,65 +40,36 @@ var (
 	treesitterLogOnce sync.Once
 )
 
-// treesitterBackend é o placeholder real para quando gcc + dependência
-// forem adicionados. Por ora, devolve ErrTreesitterDisabled em ParseFile.
-type treesitterBackend struct {
-	languages []string
-}
-
-// newBackendParser constrói o backend tree-sitter.
+// newBackendParser devolve o backend de code AST do build com a tag
+// `treesitter`.
 //
-// Stub: enquanto o binding real (github.com/tree-sitter/go-tree-sitter)
-// não for injetado aqui, devolve um backend funcional apenas com metadata
-// (Languages, Backend) e ParseFile devolve ErrTreesitterDisabled.
+// Enquanto o binding real (github.com/tree-sitter/go-tree-sitter) não for
+// injetado, devolve o backend Go (stdlib) — o mesmo do build padrão. É o que
+// garante que o code graph NUNCA degrade para "vazio sem erro" (D3).
 func newBackendParser() (Parser, error) {
-	return &treesitterBackend{
-		languages: languagesToNames(DefaultLanguageTable()),
-	}, nil
+	return NewGoParser(), nil
 }
 
-// ParseFile é stub. Substituir pela chamada real
+// IsTreesitterEnabled devolve false enquanto o binding tree-sitter não
+// estiver implementado.
 //
-//	parser := tree_sitter.NewParser(tree_sitter.NewLanguage(tree_sitter.Go))
-//	tree := parser.Parse(content, nil)
-//	// ... walk tree, extract symbols por kind ...
-//
-// quando o binding CGO estiver disponível.
-func (t *treesitterBackend) ParseFile(path string, content []byte) (*FileResult, error) {
-	return nil, fmt.Errorf("%w (stub treesitter_enabled.go; real backend requires CGO toolchain)", ErrTreesitterDisabled)
-}
-
-// Languages devolve a lista de linguagens do top-10 (ADR-047).
-func (t *treesitterBackend) Languages() []string {
-	out := make([]string, len(t.languages))
-	copy(out, t.languages)
-	return out
-}
-
-// Backend devolve "treesitter" para indicar qual implementação atenderia.
-func (t *treesitterBackend) Backend() string {
-	return "treesitter"
-}
-
-// IsTreesitterEnabled devolve true no build com a tag `treesitter` mesmo
-// que o backend real ainda não tenha sido injetado (stub retorna erro em
-// ParseFile). Marca a intenção de build e isola o branch no-op (CA-03).
+// A pergunta é "o backend tree-sitter está ATIVO?" — e a resposta honesta é
+// não: o binário foi compilado com a tag, mas o motor ativo é o backend Go
+// (stdlib). Devolver true aqui seria mentir: o ParseFile do stub devolvia
+// ErrTreesitterDisabled e esvaziava o code graph.
 func IsTreesitterEnabled() bool {
-	return true
+	return false
 }
 
-// LogTreesitterBootStatus imprime a linha de boot exatamente uma vez.
+// LogTreesitterBootStatus avisa, uma vez por boot (CA-14), que a tag
+// `treesitter` foi compilada mas o binding NÃO está implementado, e que o
+// motor ativo é o backend Go (stdlib).
+//
+// A mensagem é honesta e explícita: quem seguir os passos de ativação
+// documentados no arquivo tem que saber, na hora, que o tree-sitter não está
+// em uso — e que o grafo de código NÃO degrada por causa disso.
 func LogTreesitterBootStatus() {
 	treesitterLogOnce.Do(func() {
-		fmt.Println("tree-sitter: enabled (stub backend — bind to github.com/tree-sitter/go-tree-sitter when CGO toolchain available)")
+		fmt.Println("code AST: backend go (stdlib); tree-sitter: build tag ativa, mas o binding NAO esta implementado — o motor ativo e o backend Go (stdlib)")
 	})
-}
-
-// languagesToNames devolve a lista de nomes canônicos (lower-case).
-func languagesToNames(defs []LanguageDef) []string {
-	out := make([]string, 0, len(defs))
-	for _, d := range defs {
-		out = append(out, d.Name)
-	}
-	return out
 }
