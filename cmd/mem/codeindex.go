@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/FelipeMiiller/my-memory/internal/codeast"
@@ -39,8 +40,9 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 		return err
 	}
 
-	// Boot log one-time (CA-14)
-	codeast.LogTreesitterBootStatus()
+	// Boot log one-time (CA-14). Vai para o stderr: o stdout do relatório
+	// --json tem que ser JSON puro (CG-09).
+	bootLogToStderr()
 
 	target := *dir
 	if target == "" && fs.NArg() > 0 {
@@ -123,6 +125,19 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 	fmt.Printf("  files errors  : %d\n", stats.FilesErrors)
 	fmt.Printf("  symbols total : %d\n", stats.SymbolsTotal)
 	return nil
+}
+
+// bootLogToStderr executa o boot log do code pipeline com o stdout
+// apontado para o stderr.
+//
+// O boot log é um aviso de diagnóstico (CA-14), não parte do relatório: com
+// `--json` o stdout precisa ser JSON puro, senão o cliente não consegue
+// parsear a saída (CG-09).
+func bootLogToStderr() {
+	original := os.Stdout
+	os.Stdout = os.Stderr
+	defer func() { os.Stdout = original }()
+	codeast.LogTreesitterBootStatus()
 }
 
 // codeIndexReport é a saída estruturada do code stage (--json).

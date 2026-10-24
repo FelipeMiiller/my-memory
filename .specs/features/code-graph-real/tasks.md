@@ -128,7 +128,7 @@ T3 -> T5
 - **Done when**:
   - [x] `--repo=<slug>` grava o code graph no repositório pedido (o `repository` das linhas é o slug)
   - [x] `--ast-hash[=false]` controla o armazenamento do `ast_hash` (o default continua guardando)
-  - [x] `--json` emite a saída estruturada do code stage (engine, repository e contagens)
+  - [x] `--json` emite a saída estruturada do code stage (engine, repository e contagens) — JSON puro no stdout (o boot log vai para o stderr)
   - [x] Nenhuma flag é aceita e descartada — `--no-embed` saiu do CLI (a v1 não embute símbolos)
 
 ### Phase 2 — Motor (arestas estruturais reais, com call-site e proveniência)

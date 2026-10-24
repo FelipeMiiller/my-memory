@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/FelipeMiiller/my-memory/internal/config"
@@ -48,6 +49,10 @@ func TestCodeIndexCommand_TableDriven(t *testing.T) {
 	cases := []struct {
 		name string
 		args []string
+		// expectError marca os casos em que a flag não existe mais: o CLI
+		// tem que recusar a linha de comando, e não aceitar e descartar
+		// (CG-09).
+		expectError bool
 	}{
 		{name: "empty args", args: []string{}},
 		{name: "help-equivalent --help", args: []string{"--help"}},
@@ -55,7 +60,8 @@ func TestCodeIndexCommand_TableDriven(t *testing.T) {
 		{name: "with --include flag", args: []string{"--include=**/*.go", "./somedir"}},
 		{name: "with --exclude flag", args: []string{"--exclude=**/.git/**", "./somedir"}},
 		{name: "with --ast-hash=false", args: []string{"--ast-hash=false", "./somedir"}},
-		{name: "with --no-embed=false", args: []string{"--no-embed=false", "./somedir"}},
+		{name: "with --no-embed (flag removida)", args: []string{"--no-embed", "./somedir"}, expectError: true},
+		{name: "with --no-embed=false (flag removida)", args: []string{"--no-embed=false", "./somedir"}, expectError: true},
 		{name: "with --storage=sqlite", args: []string{"--storage=sqlite", "./somedir"}},
 		{name: "with --storage=postgres without URL", args: []string{"--storage=postgres", "./somedir"}},
 		{name: "with --db flag", args: []string{"--db=/tmp/test.db", "./somedir"}},
@@ -80,9 +86,13 @@ func TestCodeIndexCommand_TableDriven(t *testing.T) {
 			// Adiciona --db explícito para isolar.
 			finalArgs = append(finalArgs, "--db="+dbFile)
 
-			// Esperamos apenas "no panic + exit controlado" — pode haver erro
-			// de path inexistente, mas é falha esperada e capturada.
-			_ = runCodeIndexCLI(context.Background(), "FelipeMiiller/my-memory", finalArgs)
+			err := runCodeIndexCLI(context.Background(), "FelipeMiiller/my-memory", finalArgs)
+			if c.expectError && err == nil {
+				t.Fatalf("args=%v: esperava erro (a flag não existe mais)", finalArgs)
+			}
+			// Nos demais casos esperamos apenas "no panic + exit controlado" —
+			// pode haver erro de path inexistente, mas é falha esperada e
+			// capturada.
 			if t.Failed() {
 				t.Logf("args=%v falhou — esperado em smoke test", finalArgs)
 			}
@@ -303,6 +313,12 @@ func TestFlagsDeCodeIndexNaoSaoDescartadas(t *testing.T) {
 	var report codeIndexReport
 	if err := json.Unmarshal([]byte(out), &report); err != nil {
 		t.Fatalf("--json não emitiu JSON válido: %v (saída=%q)", err, out)
+	}
+	if strings.Contains(out, "tree-sitter") {
+		t.Errorf("o stdout do --json foi poluído pelo boot log: %q", out)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(out), "{") {
+		t.Errorf("o stdout do --json tem texto antes do JSON: %q", out)
 	}
 	if report.Engine != "sqlite" {
 		t.Errorf("engine = %q; want sqlite", report.Engine)
