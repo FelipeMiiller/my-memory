@@ -388,14 +388,23 @@ func newEdgeResolver(ctx context.Context, database *sql.DB) *edgeResolver {
 // lookup devolve os ids dos símbolos que casam com a coluna (qualified_name
 // ou name) no repositório do contexto. Devolve no máximo 3 ids (o bastante
 // para distinguir 0, 1 e "mais de um").
-func (r *edgeResolver) lookup(column, value string) ([]int64, error) {
-	key := column + "=" + value
+//
+// kinds restringe os kinds de símbolo aceitáveis (nil = qualquer).
+func (r *edgeResolver) lookup(column, value string, kinds []string) ([]int64, error) {
+	key := column + "=" + value + "|" + strings.Join(kinds, ",")
 	if ids, ok := r.cache[key]; ok {
 		return ids, nil
 	}
-	query := `SELECT id FROM code_symbols WHERE repository = ? AND ` + column + ` = ? ORDER BY id LIMIT 3`
-	rows, err := r.db.QueryContext(r.ctx, db.DetectDialect(r.ctx, r.db).Bind(query),
-		db.RepositoryFromContext(r.ctx), value)
+	query := `SELECT id FROM code_symbols WHERE repository = ? AND ` + column + ` = ?`
+	args := []any{db.RepositoryFromContext(r.ctx), value}
+	if len(kinds) > 0 {
+		query += ` AND kind IN (` + placeholders(len(kinds)) + `)`
+		for _, k := range kinds {
+			args = append(args, k)
+		}
+	}
+	query += ` ORDER BY id LIMIT 3`
+	rows, err := r.db.QueryContext(r.ctx, db.DetectDialect(r.ctx, r.db).Bind(query), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -413,6 +422,16 @@ func (r *edgeResolver) lookup(column, value string) ([]int64, error) {
 	}
 	r.cache[key] = ids
 	return ids, nil
+}
+
+// placeholders devolve "?, ?, ?" para n argumentos (o Bind do dialect
+// converte para $1, $2, ... no PostgreSQL).
+func placeholders(n int) string {
+	parts := make([]string, n)
+	for i := range parts {
+		parts[i] = "?"
+	}
+	return strings.Join(parts, ", ")
 }
 
 // lookupInFile devolve os ids dos símbolos que casam com a coluna no
@@ -458,6 +477,14 @@ func (r *edgeResolver) lookupInFile(fileID int64, column, value string) ([]int64
 //
 // O nível 3 NUNCA promove o candidato a aresta resolvida.
 func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolver *edgeResolver) error {
+	// O kind de símbolo aceitável como destino depende do kind da aresta:
+	// uma aresta de TIPO (uses_type/inherits) só pode apontar para um tipo
+	// (struct/interface/class) — sem isso, o nível "por nome" resolveria
+	// `*sql.DB` para um método chamado DB de outro pacote (aresta errada);
+	// uma aresta `imports` só pode apontar para um símbolo de import; uma
+	// aresta `calls` aceita qualquer símbolo.
+	kinds := dstKindFilter(pe.kind)
+
 	// As arestas `imports` apontam para o nó do pacote importado que vive NO
 	// MESMO arquivo do importador: o lookup é escopado pelo file_id.
 	if pe.kind == EdgeImports && pe.dstQualifiedName != "" {
@@ -473,7 +500,7 @@ func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolv
 
 	// Nível 1: escopo de pacote.
 	if pe.dstQualifiedName != "" {
-		ids, err := resolver.lookup("qualified_name", pe.dstQualifiedName)
+		ids, err := resolver.lookup("qualified_name", pe.dstQualifiedName, kinds)
 		if err != nil {
 			return err
 		}
@@ -489,7 +516,7 @@ func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolv
 
 	// Nível 2: só por nome (único no repositório).
 	if pe.dstName != "" {
-		ids, err := resolver.lookup("name", pe.dstName)
+		ids, err := resolver.lookup("name", pe.dstName, kinds)
 		if err != nil {
 			return err
 		}
@@ -510,6 +537,22 @@ func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolv
 		reason = fmt.Sprintf("destino não encontrado no repositório: %q", pe.dstName)
 	}
 	return fp.insertUncertain(ctx, pe, reason, 0.3)
+}
+
+// dstKindFilter devolve os kinds de símbolo que podem ser o DESTINO de uma
+// aresta do kind informado (nil = qualquer kind).
+//
+// A regra existe para não resolver um TIPO para um símbolo de outro kind pelo
+// nome: `uses_type`/`inherits` só apontam para tipos (struct/interface/class),
+// `imports` só para o nó do pacote (kind import).
+func dstKindFilter(kind EdgeKind) []string {
+	switch kind {
+	case EdgeUsesType, EdgeInherits:
+		return []string{"struct", "interface", "class"}
+	case EdgeImports:
+		return []string{"import"}
+	}
+	return nil
 }
 
 // insertUncertain grava a aresta no bucket de incertas.

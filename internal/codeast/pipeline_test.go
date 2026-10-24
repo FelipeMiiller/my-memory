@@ -336,6 +336,45 @@ func TestArestaAmbiguaVaiParaUncertain(t *testing.T) {
 	}
 }
 
+// TestUsesTypeNaoResolveParaMetodoDeMesmoNome: uma aresta de TIPO só pode
+// apontar para um tipo. Sem o filtro por kind, o nível "por nome" resolveria
+// `a.DB` (tipo que não existe no repo) para um MÉTODO chamado DB — uma
+// aresta errada. Com o filtro, o destino fica no bucket de incertas.
+func TestUsesTypeNaoResolveParaMetodoDeMesmoNome(t *testing.T) {
+	tmp := t.TempDir()
+	mkGoFile(t, tmp, "a/x.go", "package a\n\ntype Wrapper struct{}\n\nfunc (w *Wrapper) DB() {}\n")
+	mkGoFile(t, tmp, "b/y.go", "package b\n\nimport \"a\"\n\ntype Holder struct {\n\tDB a.DB\n}\n")
+
+	h := newCodeastPipelineTestDB(t)
+	pipe, err := NewPipeline(PipelineOptions{DB: h})
+	if err != nil {
+		t.Fatalf("NewPipeline falhou: %v", err)
+	}
+	if err := pipe.Run(context.Background(), tmp, nil); err != nil {
+		t.Fatalf("Run falhou: %v", err)
+	}
+
+	var erradas int64
+	if err := h.QueryRow(`
+		SELECT COUNT(*) FROM code_edges e
+		  JOIN code_symbols dst ON dst.id = e.dst_symbol_id
+		 WHERE e.kind = 'uses_type' AND dst.kind <> 'struct' AND dst.kind <> 'interface' AND dst.kind <> 'class'`).
+		Scan(&erradas); err != nil {
+		t.Fatalf("SELECT uses_type falhou: %v", err)
+	}
+	if erradas != 0 {
+		t.Errorf("arestas uses_type apontando para um símbolo que não é tipo = %d; want 0", erradas)
+	}
+
+	var incertas int64
+	if err := h.QueryRow(`SELECT COUNT(*) FROM code_edges_uncertain WHERE kind = 'uses_type'`).Scan(&incertas); err != nil {
+		t.Fatalf("SELECT incertas falhou: %v", err)
+	}
+	if incertas != 1 {
+		t.Errorf("arestas uses_type incertas = %d; want 1", incertas)
+	}
+}
+
 func TestPipelineInvalidVaultPath(t *testing.T) {
 	h := newCodeastPipelineTestDB(t)
 	pipe, _ := NewPipeline(PipelineOptions{DB: h, Parser: NewMockParser(false)})
