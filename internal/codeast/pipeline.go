@@ -42,9 +42,9 @@ type PipelineOptions struct {
 	// backend padrão do build (newBackendParser): o motor Go (stdlib) para
 	// arquivos Go e o MockParser (fallback determinístico do ADR-047) para as
 	// demais linguagens.
-	Parser    Parser   // se nil, usa o backend padrão do build.
-	LangAllow []string // whitelist (lower-case) ou nil.
-	UseAst    bool     // se false, ignora ast_hash (ainda calcula content_hash).
+	Parser    Parser         // se nil, usa o backend padrão do build.
+	LangAllow []string       // whitelist (lower-case) ou nil.
+	UseAst    bool           // se false, ignora ast_hash (ainda calcula content_hash).
 	StatsSink *PipelineStats // opcional; quando != nil, atualiza contadores.
 }
 
@@ -97,6 +97,7 @@ func NewPipeline(opts PipelineOptions) (*Pipeline, error) {
 	processor := NewFileProcessor(opts.DB, cache, parserImpl)
 	processor.stats = stats
 	processor.autoParser = autoParser
+	processor.batched = true
 
 	return &Pipeline{
 		db:        opts.DB,
@@ -143,6 +144,13 @@ func (p *Pipeline) Run(ctx context.Context, vaultRoot string, cfg *config.Config
 		}
 	}
 
+	// As arestas acumuladas são resolvidas só agora: com todos os arquivos
+	// do lote indexados, uma chamada para um símbolo de outro arquivo
+	// resolve pelo qualified name (EXTRACTED) em vez de ficar sem destino.
+	if err := p.processor.FlushEdges(ctx); err != nil {
+		return fmt.Errorf("Run: resolução de arestas falhou: %w", err)
+	}
+
 	p.processor.stats.FilesScanned = len(files)
 	p.processor.stats.EndedAtUnix = time.Now().Unix()
 	return nil
@@ -160,6 +168,25 @@ type FileProcessor struct {
 	// Go; MockParser como fallback nas demais).
 	autoParser bool
 	fallback   Parser
+	// batched indica que as arestas extraídas são acumuladas e resolvidas
+	// no fim do lote (FlushEdges) — assim uma chamada para um símbolo de um
+	// arquivo ainda não processado resolve pelo qualified name em vez de
+	// cair em "não resolvido".
+	batched bool
+	// pending são as arestas extraídas, aguardando resolução.
+	pending []pendingEdge
+}
+
+// pendingEdge é uma aresta extraída pelo backend aguardando resolução.
+type pendingEdge struct {
+	kind             EdgeKind
+	srcSymbolID      int64
+	dstName          string
+	dstQualifiedName string
+	fileID           int64
+	line             int
+	column           int
+	reason           string
 }
 
 // NewFileProcessor cria um processador isolado (útil para testes unitários).
@@ -262,10 +289,16 @@ func (fp *FileProcessor) ProcessFile(ctx context.Context, rootDir, relPath strin
 		return err
 	}
 
-	// Cross-file reference resolution (passo leve): varrer todos os símbolos
-	// (incluindo os do arquivo atual) por nome e criar edges quando o destino
-	// bate por nome único. Heurística simples — v2 pode promover.
-	if e := resolveAndInsertEdges(ctx, fp.db, symbols, ids, relPath, fileID); e != nil {
+	// Arestas estruturais: o backend Go entrega `calls` com o PONTO DE
+	// CHAMADA. A varredida por nome (legado) NÃO roda nesse caso — ela
+	// duplicaria as arestas do parser e não teria call-site.
+	//
+	// Quando o parser não devolve arestas (linguagens sem suporte
+	// estrutural), o comportamento legado continua idêntico: as arestas
+	// `references` por nome seguem valendo.
+	if len(parsed.Edges) > 0 {
+		fp.collectEdges(ctx, parsed.Edges, symbols, ids, fileID)
+	} else if e := resolveAndInsertEdges(ctx, fp.db, symbols, ids, relPath, fileID); e != nil {
 		// Não falhamos o pipeline inteiro por causa das edges — logamos.
 		fmt.Fprintf(os.Stderr, "[code-pipeline] %s: edges: %v\n", relPath, e)
 	}
@@ -275,13 +308,188 @@ func (fp *FileProcessor) ProcessFile(ctx context.Context, rootDir, relPath strin
 	return nil
 }
 
+// collectEdges transforma as arestas do backend em arestas pendentes,
+// ligando cada uma ao id do símbolo ORIGEM (que é sempre um símbolo do
+// arquivo recém-indexado).
+func (fp *FileProcessor) collectEdges(ctx context.Context, edges []Edge, symbols []Symbol, ids []int64, fileID int64) {
+	byQualified := make(map[string]int64, len(symbols))
+	for i, s := range symbols {
+		if i >= len(ids) {
+			break
+		}
+		key := s.QualifiedName
+		if key == "" {
+			key = s.Name
+		}
+		if _, exists := byQualified[key]; !exists {
+			byQualified[key] = ids[i]
+		}
+	}
+
+	for _, e := range edges {
+		srcID, ok := byQualified[e.SrcQualifiedName]
+		if !ok {
+			// A origem não é um símbolo deste arquivo: sem src_symbol_id a
+			// aresta não pode ser gravada.
+			continue
+		}
+		pe := pendingEdge{
+			kind:             e.Kind,
+			srcSymbolID:      srcID,
+			dstName:          e.DstName,
+			dstQualifiedName: e.DstQualifiedName,
+			fileID:           fileID,
+			line:             e.Line,
+			column:           e.Column,
+			reason:           e.Reason,
+		}
+		if fp.batched {
+			fp.pending = append(fp.pending, pe)
+			continue
+		}
+		if err := fp.resolveEdge(ctx, pe, newEdgeResolver(ctx, fp.db)); err != nil {
+			fmt.Fprintf(os.Stderr, "[code-pipeline] aresta %s: %v\n", e.Kind, err)
+		}
+	}
+}
+
+// FlushEdges resolve as arestas acumuladas no lote.
+//
+// A resolução acontece DEPOIS que todos os arquivos foram indexados: assim
+// uma chamada para um símbolo definido em um arquivo ainda não processado
+// resolve pelo qualified name (EXTRACTED) em vez de cair em "não resolvido".
+func (fp *FileProcessor) FlushEdges(ctx context.Context) error {
+	if len(fp.pending) == 0 {
+		return nil
+	}
+	pending := fp.pending
+	fp.pending = nil
+	resolver := newEdgeResolver(ctx, fp.db)
+	for _, pe := range pending {
+		if err := fp.resolveEdge(ctx, pe, resolver); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// edgeResolver resolve destinos de aresta com cache por destino: o mesmo
+// destino é procurado uma única vez por lote.
+type edgeResolver struct {
+	ctx   context.Context
+	db    *sql.DB
+	cache map[string][]int64
+}
+
+func newEdgeResolver(ctx context.Context, database *sql.DB) *edgeResolver {
+	return &edgeResolver{ctx: ctx, db: database, cache: make(map[string][]int64)}
+}
+
+// lookup devolve os ids dos símbolos que casam com a coluna (qualified_name
+// ou name) no repositório do contexto. Devolve no máximo 3 ids (o bastante
+// para distinguir 0, 1 e "mais de um").
+func (r *edgeResolver) lookup(column, value string) ([]int64, error) {
+	key := column + "=" + value
+	if ids, ok := r.cache[key]; ok {
+		return ids, nil
+	}
+	query := `SELECT id FROM code_symbols WHERE repository = ? AND ` + column + ` = ? ORDER BY id LIMIT 3`
+	rows, err := r.db.QueryContext(r.ctx, db.DetectDialect(r.ctx, r.db).Bind(query),
+		db.RepositoryFromContext(r.ctx), value)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	r.cache[key] = ids
+	return ids, nil
+}
+
+// resolveEdge resolve UMA aresta nos três níveis de resolução e grava o
+// resultado:
+//
+//  1. escopo de pacote (qualified name bate e é único) → EXTRACTED
+//  2. só por nome (único no repositório)              → INFERRED
+//  3. mais de um candidato ou nada resolvido         → code_edges_uncertain
+//
+// O nível 3 NUNCA promove o candidato a aresta resolvida.
+func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolver *edgeResolver) error {
+	// Nível 1: escopo de pacote.
+	if pe.dstQualifiedName != "" {
+		ids, err := resolver.lookup("qualified_name", pe.dstQualifiedName)
+		if err != nil {
+			return err
+		}
+		if len(ids) == 1 {
+			return db.UpsertCodeEdgeWithStatus(ctx, fp.db, pe.srcSymbolID, ids[0], pe.fileID,
+				string(pe.kind), pe.line, pe.line, 1.0, db.EpistemicExtracted)
+		}
+		if len(ids) > 1 {
+			return fp.insertUncertain(ctx, pe, fmt.Sprintf("ambíguo: %d símbolos com o qualified name %q",
+				len(ids), pe.dstQualifiedName), 0.5)
+		}
+	}
+
+	// Nível 2: só por nome (único no repositório).
+	if pe.dstName != "" {
+		ids, err := resolver.lookup("name", pe.dstName)
+		if err != nil {
+			return err
+		}
+		if len(ids) == 1 {
+			return db.UpsertCodeEdgeWithStatus(ctx, fp.db, pe.srcSymbolID, ids[0], pe.fileID,
+				string(pe.kind), pe.line, pe.line, 0.8, db.EpistemicInferred)
+		}
+		if len(ids) > 1 {
+			return fp.insertUncertain(ctx, pe, fmt.Sprintf("ambíguo: %d símbolos com o nome %q",
+				len(ids), pe.dstName), 0.5)
+		}
+	}
+
+	// Nível 3: não resolvido — vai para o bucket de incertas (nunca vira
+	// aresta resolvida).
+	reason := pe.reason
+	if reason == "" {
+		reason = fmt.Sprintf("destino não encontrado no repositório: %q", pe.dstName)
+	}
+	return fp.insertUncertain(ctx, pe, reason, 0.3)
+}
+
+// insertUncertain grava a aresta no bucket de incertas.
+func (fp *FileProcessor) insertUncertain(ctx context.Context, pe pendingEdge, reason string, confidence float64) error {
+	candidate := pe.dstQualifiedName
+	if candidate == "" {
+		candidate = pe.dstName
+	}
+	return db.InsertCodeEdgeUncertain(ctx, fp.db, pe.srcSymbolID, pe.fileID, candidate,
+		string(pe.kind), reason, confidence, pe.line)
+}
+
 // resolveAndInsertEdges faz a varredura simples para v1 (ADR-047 §CA-01 —
 // "resolução literal de referências").
 //
+// É o CAMINHO LEGADO: só roda quando o parser NÃO devolveu arestas
+// estruturais (linguagens sem backend AST). Quando o parser devolve arestas
+// (backend Go), a varredida por nome NÃO roda — ela duplicaria as arestas
+// extraídas e não carregaria o call-site.
+//
 // Política por symbol name:
 //   - 0 matches → sem edge.
-//   - 1 match entre todos os code_symbols → edge com confidence = 1.0.
+//   - 1 match entre todos os code_symbols → edge com confidence = 0.8.
 //   - ≥2 matches → recorda em code_edges_uncertain com confidence = 0.5.
+//
+// A provenance das arestas `references` é INFERRED: elas foram resolvidas por
+// NOME, não pela estrutura do código.
 func resolveAndInsertEdges(ctx context.Context, database *sql.DB, symbols []Symbol, ids []int64, srcPath string, fileID int64) error {
 	if len(symbols) == 0 || len(symbols) != len(ids) || database == nil {
 		return nil
@@ -335,7 +543,8 @@ func resolveAndInsertEdges(ctx context.Context, database *sql.DB, symbols []Symb
 			continue
 		}
 		if len(candidates) == 1 {
-			if err := db.UpsertCodeEdge(ctx, database, ids[i], candidates[0], fileID, "references", s.StartLine, s.EndLine, 1.0); err != nil {
+			if err := db.UpsertCodeEdgeWithStatus(ctx, database, ids[i], candidates[0], fileID, "references",
+				s.StartLine, s.EndLine, 0.8, db.EpistemicInferred); err != nil {
 				return err
 			}
 			continue

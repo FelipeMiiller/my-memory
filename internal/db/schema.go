@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS code_edges (
     start_line INTEGER NOT NULL,
     end_line INTEGER NOT NULL,
     confidence REAL NOT NULL DEFAULT 1.0,
+    epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED',
     UNIQUE(src_symbol_id, dst_symbol_id, kind)
 );
 CREATE INDEX IF NOT EXISTS code_graph_kind_idx ON code_edges(kind);
@@ -294,6 +295,7 @@ CREATE TABLE IF NOT EXISTS code_edges (
     start_line INTEGER NOT NULL,
     end_line INTEGER NOT NULL,
     confidence REAL NOT NULL DEFAULT 1.0,
+    epistemic_status TEXT NOT NULL DEFAULT 'EXTRACTED',
     UNIQUE(src_symbol_id, dst_symbol_id, kind)
 );
 CREATE INDEX IF NOT EXISTS code_graph_kind_idx ON code_edges(kind);

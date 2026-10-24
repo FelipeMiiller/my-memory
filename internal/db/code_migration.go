@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // codeStore é o par (conexão, dialeto) usado pelos helpers de code_*.
@@ -37,6 +38,19 @@ func (c codeStore) query(ctx context.Context, query string, args ...any) (*sql.R
 	return c.db.QueryContext(ctx, c.dialect.Bind(query), args...)
 }
 
+// EpistemicStatus classifica a PROCEDÊNCIA de uma aresta do code graph.
+//
+// Os mesmos valores de graph_edges (ADR-011):
+//
+//	EpistemicExtracted — a aresta veio da ESTRUTURA do código: o destino foi
+//	                    resolvido pelo qualified name dentro do pacote.
+//	EpistemicInferred  — a aresta foi resolvida apenas pelo NOME (único no
+//	                    repositório): é uma inferência, não uma extração.
+const (
+	EpistemicExtracted = "EXTRACTED"
+	EpistemicInferred  = "INFERRED"
+)
+
 // EnsureCodeTables é uma migração idempotente que garante a existência das
 // tabelas code_files / code_symbols / code_edges / code_edges_uncertain e seus índices.
 //
@@ -58,17 +72,32 @@ func EnsureCodeTables(ctx context.Context, db *sql.DB) error {
 
 	// Bloco de migrações aditivas. Cada bloco é independente: se a coluna já
 	// existir, a verificação devolverá count > 0 e pulamos o ALTER.
+	//
+	// O campo `backfill` roda UMA ÚNICA VEZ, logo após o ALTER — é o lugar
+	// para corrigir o valor das linhas que já existiam (a provenance delas
+	// não pode ser inventada pelo default da coluna nova).
 	additiveMigrations := []struct {
-		table  string
-		column string
-		ddl    string
+		table    string
+		column   string
+		ddl      string
+		backfill string
 	}{
-		{"code_files", "ast_hash", "ALTER TABLE code_files ADD COLUMN ast_hash TEXT"},
-		{"code_edges", "confidence", "ALTER TABLE code_edges ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0"},
+		{"code_files", "ast_hash", "ALTER TABLE code_files ADD COLUMN ast_hash TEXT", ""},
+		{"code_edges", "confidence", "ALTER TABLE code_edges ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0", ""},
 		// CG-06: o code graph entra na federação de repo_id.
-		{"code_files", "repository", "ALTER TABLE code_files ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'"},
-		{"code_symbols", "repository", "ALTER TABLE code_symbols ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'"},
-		{"code_edges", "repository", "ALTER TABLE code_edges ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'"},
+		{"code_files", "repository", "ALTER TABLE code_files ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'", ""},
+		{"code_symbols", "repository", "ALTER TABLE code_symbols ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'", ""},
+		{"code_edges", "repository", "ALTER TABLE code_edges ADD COLUMN repository TEXT NOT NULL DEFAULT '" + DefaultRepository + "'", ""},
+		// CG-14: provenance por aresta. O default é EXTRACTED (aresta extraída
+		// da estrutura do código). As linhas PRÉ-EXISTENTES de `references`
+		// foram resolvidas por NOME (heurística legada), então são INFERRED —
+		// o backfill roda uma única vez, junto com o ALTER.
+		{
+			table:    "code_edges",
+			column:   "epistemic_status",
+			ddl:      "ALTER TABLE code_edges ADD COLUMN epistemic_status TEXT NOT NULL DEFAULT '" + EpistemicExtracted + "'",
+			backfill: "UPDATE code_edges SET epistemic_status = '" + EpistemicInferred + "' WHERE kind = 'references'",
+		},
 	}
 
 	for _, m := range additiveMigrations {
@@ -79,6 +108,11 @@ func EnsureCodeTables(ctx context.Context, db *sql.DB) error {
 		if cnt == 0 {
 			if _, err := store.exec(ctx, m.ddl); err != nil {
 				return fmt.Errorf("EnsureCodeTables: ALTER %s.%s falhou: %w", m.table, m.column, err)
+			}
+			if m.backfill != "" {
+				if _, err := store.exec(ctx, m.backfill); err != nil {
+					return fmt.Errorf("EnsureCodeTables: backfill %s.%s falhou: %w", m.table, m.column, err)
+				}
 			}
 		}
 	}
@@ -202,26 +236,48 @@ func UpsertCodeSymbol(ctx context.Context, db *sql.DB, fileID int64, kind, name,
 	return id, nil
 }
 
-// UpsertCodeEdge insere (ou atualiza) uma aresta em code_edges.
-// Se confidence < 0.5 redireciona automaticamente para code_edges_uncertain.
+// UpsertCodeEdge insere (ou atualiza) uma aresta em code_edges com
+// epistemic_status = EXTRACTED (a aresta veio da estrutura do código).
+//
+// Se confidence < 0.5 a inserção é recusada: use InsertCodeEdgeUncertain.
 func UpsertCodeEdge(ctx context.Context, db *sql.DB, srcSymbolID, dstSymbolID, fileID int64, kind string, startLine, endLine int, confidence float64) error {
+	return UpsertCodeEdgeWithStatus(ctx, db, srcSymbolID, dstSymbolID, fileID, kind, startLine, endLine, confidence, EpistemicExtracted)
+}
+
+// UpsertCodeEdgeWithStatus insere (ou atualiza) uma aresta em code_edges com o
+// provenance declarado (EXTRACTED/INFERRED).
+//
+// SEMÂNTICA DA POSIÇÃO (Fase 2, decision 4): file_id/start_line/end_line são o
+// PONTO DE CHAMADA (call-site) da relação — a linha/coluna da expressão que
+// criou a aresta — e NÃO a posição da definição dos símbolos. Para as arestas
+// `calls` isso muda o significado da coluna em relação à v1 (que guardava a
+// linha de definição do símbolo origem).
+//
+// Quando a mesma aresta (src, dst, kind) é gravada de novo — o mesmo símbolo
+// chama o mesmo destino em pontos diferentes — a linha mantida é a MENOR
+// (o primeiro call-site), para que a posição seja estável entre indexações.
+func UpsertCodeEdgeWithStatus(ctx context.Context, db *sql.DB, srcSymbolID, dstSymbolID, fileID int64, kind string, startLine, endLine int, confidence float64, epistemicStatus string) error {
 	if confidence < 0.5 {
 		return errors.New("UseInsertCodeEdgeUncertain para confidence < 0.5")
+	}
+	if strings.TrimSpace(epistemicStatus) == "" {
+		epistemicStatus = EpistemicExtracted
 	}
 	store, err := newCodeStore(ctx, db)
 	if err != nil {
 		return err
 	}
 	_, err = store.exec(ctx, `
-		INSERT INTO code_edges (repository, src_symbol_id, dst_symbol_id, kind, file_id, start_line, end_line, confidence)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO code_edges (repository, src_symbol_id, dst_symbol_id, kind, file_id, start_line, end_line, confidence, epistemic_status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(src_symbol_id, dst_symbol_id, kind) DO UPDATE SET
 			repository = excluded.repository,
 			file_id = excluded.file_id,
-			start_line = excluded.start_line,
-			end_line = excluded.end_line,
-			confidence = excluded.confidence
-	`, RepositoryFromContext(ctx), srcSymbolID, dstSymbolID, kind, fileID, startLine, endLine, confidence)
+			start_line = CASE WHEN excluded.start_line < code_edges.start_line THEN excluded.start_line ELSE code_edges.start_line END,
+			end_line = CASE WHEN excluded.end_line < code_edges.end_line THEN excluded.end_line ELSE code_edges.end_line END,
+			confidence = excluded.confidence,
+			epistemic_status = excluded.epistemic_status
+	`, RepositoryFromContext(ctx), srcSymbolID, dstSymbolID, kind, fileID, startLine, endLine, confidence, epistemicStatus)
 	return err
 }
 

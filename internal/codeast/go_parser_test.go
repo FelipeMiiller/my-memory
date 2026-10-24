@@ -142,15 +142,136 @@ func TestGoParserRejeitaGoInvalido(t *testing.T) {
 	}
 }
 
-// TestGoParserNaoDevolveArestasNaFase1 seria o placeholder da Fase 2 — a
-// partir de T9 o backend passa a devolver arestas `calls`.
-func TestGoParserNaoDevolveArestasNaFase1(t *testing.T) {
+// TestGoParserExtraiCallsComCallSite cobre T9: o backend extrai as chamadas do
+// AST e cada aresta `calls` carrega o PONTO DE CHAMADA (a linha/coluna da
+// expressão de chamada) — e não a posição da definição.
+func TestGoParserExtraiCallsComCallSite(t *testing.T) {
+	src := `package example
+
+import "fmt"
+
+// Helper ajuda.
+func Helper(n int) int {
+	return n + 1
+}
+
+// Config configura.
+type Config struct{}
+
+// Run executa.
+func (c *Config) Run() error {
+	return nil
+}
+
+// Caller chama Helper.
+func Caller(n int) int {
+	helper := Helper(n)
+	fmt.Println(helper)
+	return helper
+}
+
+// Caller2 usa um valor local tipado.
+func Caller2() error {
+	cfg := &Config{}
+	return cfg.Run()
+}
+`
 	p := NewGoParser()
-	res, err := p.ParseFile("a.go", []byte(goSourceFixture))
+	res, err := p.ParseFile("internal/example/calls.go", []byte(src))
 	if err != nil {
 		t.Fatalf("ParseFile falhou: %v", err)
 	}
-	if len(res.Edges) != 0 {
-		t.Fatalf("Edges = %d; want 0 (fase de símbolos)", len(res.Edges))
+
+	var calls []Edge
+	for _, e := range res.Edges {
+		if e.Kind == EdgeCalls {
+			calls = append(calls, e)
+		}
+	}
+	if len(calls) != 3 {
+		t.Fatalf("arestas calls = %d; want 3 (Helper, fmt.Println, Config.Run); got %+v", len(calls), calls)
+	}
+
+	// A chamada a Helper (linha 24) é a PRIMEIRA: o destino é resolvido pelo
+	// qualified name (mesmo pacote) e o call-site é a linha da chamada.
+	first := calls[0]
+	if first.SrcQualifiedName != "example.Caller" {
+		t.Errorf("origem = %q; want example.Caller (o símbolo ENCLOSING)", first.SrcQualifiedName)
+	}
+	if first.DstName != "Helper" {
+		t.Errorf("dst name = %q; want Helper", first.DstName)
+	}
+	if first.DstQualifiedName != "example.Helper" {
+		t.Errorf("dst qualified = %q; want example.Helper", first.DstQualifiedName)
+	}
+	if first.Line != 20 {
+		t.Errorf("call-site line = %d; want 20 (a linha da chamada, não da definição)", first.Line)
+	}
+	if first.Column != 12 {
+		t.Errorf("call-site column = %d; want 12", first.Column)
+	}
+
+	// A DEFINIÇÃO de Helper é a linha 6 — o call-site (20) é diferente.
+	def, ok := findSymbol(res.Symbols, KindFunction, "Helper")
+	if !ok {
+		t.Fatal("esperava a função Helper")
+	}
+	if def.StartLine == first.Line {
+		t.Errorf("o call-site (%d) não pode ser a linha da definição (%d)", first.Line, def.StartLine)
+	}
+
+	// A chamada a um pacote importado carrega o qualified name do pacote.
+	var pkgCall *Edge
+	for i := range calls {
+		if calls[i].DstName == "Println" {
+			pkgCall = &calls[i]
+			break
+		}
+	}
+	if pkgCall == nil {
+		t.Fatal("esperava a chamada fmt.Println")
+	}
+	if pkgCall.DstQualifiedName != "fmt.Println" {
+		t.Errorf("dst qualified = %q; want fmt.Println", pkgCall.DstQualifiedName)
+	}
+	if pkgCall.Line != 21 {
+		t.Errorf("call-site line = %d; want 21", pkgCall.Line)
+	}
+
+	// Método chamado sobre um valor local de tipo CONHECIDO: o qualified name
+	// é o do método (pkg.Tipo.Metodo) — resolvível por escopo de pacote.
+	var methodCall *Edge
+	for i := range calls {
+		if calls[i].DstName == "Run" {
+			methodCall = &calls[i]
+			break
+		}
+	}
+	if methodCall == nil {
+		t.Fatal("esperava a chamada de método cfg.Run()")
+	}
+	if methodCall.DstQualifiedName != "example.Config.Run" {
+		t.Errorf("dst qualified = %q; want example.Config.Run", methodCall.DstQualifiedName)
+	}
+	if methodCall.SrcQualifiedName != "example.Caller2" {
+		t.Errorf("origem = %q; want example.Caller2", methodCall.SrcQualifiedName)
+	}
+	if methodCall.Line != 28 {
+		t.Errorf("call-site line = %d; want 28", methodCall.Line)
+	}
+}
+
+// TestGoParserNaoCriaArestaParaBuiltin: builtins não são símbolos do
+// repositório e não geram aresta `calls`.
+func TestGoParserNaoCriaArestaParaBuiltin(t *testing.T) {
+	p := NewGoParser()
+	res, err := p.ParseFile("a.go", []byte("package x\n\nfunc A(s []int) int {\n\treturn len(s)\n}\n"))
+	if err != nil {
+		t.Fatalf("ParseFile falhou: %v", err)
+	}
+	for _, e := range res.Edges {
+		if e.DstName == "len" {
+			t.Fatalf("builtin len não deve gerar aresta: %+v", e)
+		}
 	}
 }

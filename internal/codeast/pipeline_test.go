@@ -194,6 +194,61 @@ func TestPipelineUsaBackendPadraoNaoMock(t *testing.T) {
 	}
 }
 
+// TestPipelineGravaCallsComCallSiteEProveniencia cobre T9: o pipeline grava a
+// aresta `calls` com o PONTO DE CHAMADA (a linha da chamada — não a da
+// definição) e com o provenance EXTRACTED (destino resolvido por escopo de
+// pacote).
+func TestPipelineGravaCallsComCallSiteEProveniencia(t *testing.T) {
+	tmp := t.TempDir()
+	mkGoFile(t, tmp, "a.go", "package x\n\n// Helper ajuda.\nfunc Helper() {}\n\n// Caller chama.\nfunc Caller() {\n\tHelper()\n}\n")
+
+	h := newCodeastPipelineTestDB(t)
+	pipe, err := NewPipeline(PipelineOptions{DB: h})
+	if err != nil {
+		t.Fatalf("NewPipeline falhou: %v", err)
+	}
+	if err := pipe.Run(context.Background(), tmp, nil); err != nil {
+		t.Fatalf("Run falhou: %v", err)
+	}
+
+	rows, err := h.Query(`
+		SELECT src.qualified_name, dst.qualified_name, e.kind, e.start_line, e.epistemic_status
+		  FROM code_edges e
+		  JOIN code_symbols src ON src.id = e.src_symbol_id
+		  JOIN code_symbols dst ON dst.id = e.dst_symbol_id
+		 WHERE e.kind = 'calls'`)
+	if err != nil {
+		t.Fatalf("SELECT edges falhou: %v", err)
+	}
+	defer rows.Close()
+
+	type edgeRow struct {
+		src, dst, kind, status string
+		line                   int
+	}
+	var got []edgeRow
+	for rows.Next() {
+		var e edgeRow
+		if err := rows.Scan(&e.src, &e.dst, &e.kind, &e.line, &e.status); err != nil {
+			t.Fatalf("scan falhou: %v", err)
+		}
+		got = append(got, e)
+	}
+	if len(got) != 1 {
+		t.Fatalf("arestas calls = %d; want 1; got %+v", len(got), got)
+	}
+	e := got[0]
+	if e.src != "x.Caller" || e.dst != "x.Helper" {
+		t.Errorf("aresta = %s -> %s; want x.Caller -> x.Helper", e.src, e.dst)
+	}
+	if e.line != 8 {
+		t.Errorf("start_line = %d; want 8 (o CALL-SITE, não a linha 4 da definição)", e.line)
+	}
+	if e.status != "EXTRACTED" {
+		t.Errorf("epistemic_status = %q; want EXTRACTED", e.status)
+	}
+}
+
 func TestPipelineInvalidVaultPath(t *testing.T) {
 	h := newCodeastPipelineTestDB(t)
 	pipe, _ := NewPipeline(PipelineOptions{DB: h, Parser: NewMockParser(false)})
