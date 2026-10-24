@@ -840,7 +840,7 @@ A medição completa, com evidência `caminho:linha`, está na matriz.
 ## ISSUE-027 — O code graph do vault de repositório está inerte: motor ausente e ligação quebrada
 
 - **Severidade:** 🔴 crítica
-- **Status:** 🔵 open (decisão de arquitetura tomada na ADR-061; execução por abrir)
+- **Status:** 🟢 resolvido (2026-10-24) — 18/18 tarefas implementadas na feature `code-graph-real`; ver **Resolução** no fim desta entrada
 - **Achado em:** auditoria comparativa de 2026-10-23 entre o `my-memory` e o [Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify) `v0.9.94` (clone em `D:\.minimax\scratch\subagents\graphify-study\graphify`), com **verificador independente** que refutou 6 de 7 hipóteses da análise inicial
 - **Decisão de arquitetura:** [ADR-061](../docs/adr/061-dois-conceitos-de-memoria-vault-central-e-code-graph.md) — vault central = memória de aprendizagem (Obsidian); vault de repositório = code graph (conceito do Graphify, motor do my-memory)
 
@@ -880,4 +880,85 @@ grafo de notas, os embeddings e o drift. O escopo de código tem de ser
 `.specs/features/code-graph-real/` (Specify → Design → Tasks → Execute), com os
 12 gaps como requisitos rastreáveis, em três fases: **ligação** (C3, C4, C5, C6,
 C12), **motor** (C1, C2, C8) e **superfície** (C7, C9, C10, C11).
+
+### Resolução (2026-10-24)
+
+A feature `code-graph-real` implementou os 12 gaps em 18 tarefas (T1..T18),
+distribuídas em 3 fases. Cada gap foi fechado pelo commit indicado:
+
+| Gap | O que era | Fechado por |
+| :--- | :--- | :--- |
+| **C1** | Motor AST nunca implementado (`newBackendParser` devolvia `ErrTreesitterDisabled` e não tinha call site) | `4f1182a` (T7, backend Go puro) + `a342518` (T8, `newBackendParser` vivo) |
+| **C2** | Não existia call graph; só `references` por nome, `imports` pulado | `b986c37` (T9, `calls` com call-site) + `870a323` (T10, `imports`/`inherits`/`uses_type`) |
+| **C3** | As 2 tools MCP de código mortas (handler `nil`) | `331be16` (T5, `SetCodeAccess` injeta os executores) |
+| **C4** | `mem code-index` indexava 0 arquivos; `mem index` nunca chamava o code pipeline | `1bf7e75` (T1, escopo de código) + `3cd03b5` (T2, code stage no `mem index`) |
+| **C5** | Em Postgres o code graph ficava vazio (store PG aberto e descartado) | `33931cb` (T3, engine configurado + camada de dialeto) |
+| **C6** | `code_*` sem coluna `repository` (fora da federação `repo_id`) | `0907dbd` (T4, coluna `repository` + filtro por repo) |
+| **C7** | Dois grafos disjuntos (`graph_edges` × `code_edges`) | `96a734b` (T13, ponte `references_code` no grafo único) |
+| **C8** | `code_edges` sem `epistemic_status`; resposta sem confiança nem call-site | `5f52c2d` (T11, status + aresta ambígua) + `056a3f6` (T12, proveniência/confiança/call-site) |
+| **C9** | `include_code` era placeholder | `12f3751` (T14, fan-in RRF real de `code_symbols`) |
+| **C10** | A viewer não tinha superfície de código | `2a8d993` (T16, rota `/code`) |
+| **C11** | `mem drift` ↔ `ast_hash` desligados | `c1deac3` (T17, drift estrutural) |
+| **C12** | Flags mortas no CLI de código | `340c9cb` + `fd95961` (T6, flags reais; `--no-embed` saiu do CLI) |
+
+**Medição depois da correção** (code stage real sobre este repo, SQLite
+temporário): 349 arquivos, 6754 símbolos, **6948 arestas** (`calls` 4055,
+`imports` 1984, `uses_type` 908, `references` 1, `inherits` 0 — o zero é o
+número correto, não há embedding de struct no repo), proveniência
+`EXTRACTED` 6367 / `INFERRED` 581, e **10 593 linhas** em
+`code_edges_uncertain` (nunca promovidas a aresta resolvida).
+
+**Evidência completa:** `.specs/features/code-graph-real/validation.md` (Fase 2)
+e `validation-t13-t15-t17.md` (Fase 3). **Estado consolidado e pendências:**
+`.specs/features/code-graph-real/HANDOFF.md`.
+
+**Pendência que sobrou (não bloqueia o issue):** a verificação independente
+(16 hipóteses) ainda não rodou — ver o item 1 da tabela de pendências do
+`HANDOFF.md`.
+
+## ISSUE-028 — O `repo_id` do repositório diverge do `id` no catálogo global
+
+- **Severidade:** 🟠 alta
+- **Status:** 🔵 open
+- **Achado em:** 2026-10-24, durante o planejamento da mudança do repositório de `C:\repository\my-memory` para `D:`
+
+**Contexto.** O `repo_id` é um identificador **criptográfico** (`repo_<12-hex>`,
+gerado por `crypto/rand` em `internal/config/config.go:458-465`) e é
+**persistido** no `.memory/config.yaml` do próprio repositório. O catálogo global
+(`~/.memory/config.yaml`) tem uma lista `repositories:` com uma entrada por
+repositório, cada uma com `id` e `path`.
+
+Hoje os dois **não batem**:
+
+| Onde | Valor |
+| :--- | :--- |
+| `.memory/config.yaml` do repo | `repo_id: "repo_e4c8f3b1a2d5"` |
+| `~/.memory/config.yaml` → `repositories[0].id` | `repo_271444ab0133` |
+
+**Por que isso não quebra hoje.** O cascateamento de config casa a entrada do
+catálogo por **ID ou caminho** (`internal/config/config.go:695-697`:
+`matchesID || matchesPath`). Com os IDs divergentes, o casamento acontece pelo
+**caminho** — e a entrada do catálogo só sobrepõe o **storage** (engine + URL
+do Postgres), nunca o `repo_id` (`config.go:698-705`).
+
+**Por que isso é um risco.** O casamento por caminho é frágil:
+
+1. Se o repositório for **clonado ou movido** para outro caminho, a entrada do
+   catálogo deixa de casar e o override de storage (per-repo) é **perdido em
+   silêncio** — o repo passa a usar o storage global sem nenhum aviso.
+2. Se o mesmo repo for registrado **em dois caminhos**, a entrada do catálogo
+   casa com o primeiro path e o **split-brain de identidade** aparece: um
+   `repo_id` apontando para duas árvores de dados.
+3. O `id` do catálogo é o que o `mem repos` mostra ao usuário — um `id` que
+   não corresponde ao `repo_id` real do repositório é enganoso na hora de
+   diagnosticar.
+
+**Proposta de correção (precisa de decisão do dono).** Alinhar o `id` do
+catálogo com o `repo_id` do repositório e fazer o `mem repos` **rejeitar** um
+`id` que não bate com o `repo_id` do `.memory/config.yaml` do path registrado —
+trocando o silencio por um erro explícito.
+
+**Nota.** O `repo_id` **não** muda com a mudança de pasta: ele é persistido no
+`.memory/config.yaml`, que move junto com o repositório. O que precisa ser
+atualizado no catálogo global é o `path`.
 

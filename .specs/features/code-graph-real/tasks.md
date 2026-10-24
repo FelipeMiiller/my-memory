@@ -148,6 +148,10 @@ T11 -> T12
 **Tests**: `internal/codeast/go_parser_test.go` — `TestGoParserExtraiSimbolosComPosicao`
 **Gate**: `go test -count=1 ./internal/codeast/...`
 - **Do**: novo backend que usa `go/parser`/`go/ast` da stdlib para extrair símbolos com posição exata (kind, nome, qualified name, assinatura, linha/coluna, doc comment) — Go puro, sem CGO, sem build tag. Cobre CG-10.
+- **Done when**:
+  - [x] O backend extrai símbolos com posição exata (kind, nome, qualified name, assinatura, linha/coluna de início e fim, doc comment, receiver)
+  - [x] Go puro: `go/parser`/`go/ast` da stdlib, sem CGO, sem build tag, sem dependência nova
+  - [x] O `MockParser` continua existindo, mas deixa de ser o caminho de produção
 
 ### T8: `newBackendParser()` deixa de ser código morto
 
@@ -156,6 +160,10 @@ T11 -> T12
 **Tests**: `internal/codeast/parser_test.go` — `TestBackendPadraoNaoEStub`
 **Gate**: `go test -count=1 ./internal/codeast/...`
 - **Do**: o build default passa a devolver o backend Go em `newBackendParser()`, e não `ErrTreesitterDisabled`; o caminho com a tag `treesitter` continua isolado e, quando houver toolchain C, tem precedência. O `MockParser` deixa de ser o caminho de produção. Cobre CG-13.
+- **Done when**:
+  - [x] `newBackendParser()` devolve o backend Go no build default (não `ErrTreesitterDisabled`)
+  - [x] O caminho com a tag `treesitter` continua isolado e tem precedência quando há toolchain C
+  - [x] O log de boot deixou de dizer "code pipeline skipped" — o pipeline roda
 
 ### T9: Arestas `calls` com call-site
 
@@ -164,6 +172,11 @@ T11 -> T12
 **Tests**: `internal/codeast/go_parser_test.go` — `TestGoParserExtraiCallsComCallSite`
 **Gate**: `go test -count=1 ./internal/codeast/... ./internal/db/...`
 - **Do**: o backend extrai chamadas do AST e grava arestas `calls` carregando o **ponto de chamada** (arquivo e linha da expressão de chamada), e não apenas a posição da definição; a resolução por escopo de pacote gera `EXTRACTED`, e a resolução apenas por nome gera `INFERRED`. Cobre CG-11.
+- **Done when**:
+  - [x] O backend extrai chamadas do AST e grava arestas `calls` com o ponto de chamada (arquivo:linha da expressão de chamada)
+  - [x] A posição gravada na aresta é o call-site, não a linha da definição (prova na validação)
+  - [x] Resolução por escopo de pacote → `EXTRACTED`; resolução só por nome → `INFERRED`
+  - [x] A migração de `epistemic_status` é idempotente em SQLite e Postgres
 
 ### T10: Arestas `imports` e `inherits`
 
@@ -172,6 +185,10 @@ T11 -> T12
 **Tests**: `internal/codeast/go_parser_test.go` — `TestGoParserExtraiImportsEInherits`
 **Gate**: `go test -count=1 ./internal/codeast/...`
 - **Do**: o backend passa a emitir `imports` (arquivo importador → pacote importado) e `inherits`/`uses_type` (embedding de struct e satisfação de interface em Go); os `kind` disponíveis passam a ser `calls`, `imports`, `inherits`, `uses_type` e `references`, e não só `references`. Cobre CG-12.
+- **Done when**:
+  - [x] O backend emite `imports` (com o símbolo sintético do pacote importado, para o alvo existir) e `inherits`/`uses_type`
+  - [x] Os kinds disponíveis passam a ser `calls`, `imports`, `inherits`, `uses_type` e `references`
+  - [x] A varredida legada por nome só roda quando o parser não devolveu arestas — não duplica
 
 ### T11: `epistemic_status` e aresta ambígua
 
@@ -180,6 +197,10 @@ T11 -> T12
 **Tests**: `internal/db/code_migration_test.go` — `TestCodeEdgesTemEpistemicStatus`; `internal/codeast/go_parser_test.go` — `TestArestaAmbiguaVaiParaUncertain`
 **Gate**: `go test -count=1 ./internal/db/... ./internal/codeast/...`
 - **Do**: `code_edges` ganha `epistemic_status` (`EXTRACTED`/`INFERRED`), alinhado a `graph_edges` (ADR-011), por migração idempotente; aresta cujo destino não resolve unicamente vai para `code_edges_uncertain` com confiança e razão, e não aparece como resolvida. Cobre CG-14, CG-15.
+- **Done when**:
+  - [x] `code_edges` tem `epistemic_status` (migração idempotente, SQLite e Postgres)
+  - [x] Destino ambíguo vai para `code_edges_uncertain` com confiança e razão, e **não** aparece como aresta resolvida
+  - [x] As arestas pré-existentes (resolvidas só por nome) ficam `INFERRED`
 
 ### T12: A resposta MCP de código traz proveniência, confiança e call-site
 
@@ -188,6 +209,10 @@ T11 -> T12
 **Tests**: `internal/mcp/code_handlers_test.go` — `TestRespostaDeCodeTrazProvenienciaECallSite`
 **Gate**: `go test -count=1 ./internal/mcp/...`
 - **Do**: `CodeNeighborResult` passa a expor `epistemic_status`, `confidence` e o call-site da aresta, além do `file`/`line` do símbolo destino; os campos novos são aditivos e não quebram o contrato das tools existentes. Cobre CG-16.
+- **Done when**:
+  - [x] `CodeNeighborResult` expõe `epistemic_status`, `confidence` e o call-site da aresta
+  - [x] Os campos novos são aditivos — o contrato das tools existentes não quebrou
+  - [x] A resposta também emite `structuredContent` (ademais do `text` JSON)
 
 ### Phase 3 — Superfície (o code graph aparece onde o agente e o humano olham)
 
@@ -203,6 +228,11 @@ T13 -> T16
 **Tests**: `internal/db/code_migration_test.go` — `TestDocumentCodeSymbolEdge`
 **Gate**: `go test -count=1 ./internal/db/...`
 - **Do**: quando um documento referencia um símbolo existente em `code_symbols` (por `qualified_name`), a indexação cria uma aresta tipada do documento para o símbolo; o grafo de notas e o de código deixam de ser disjuntos e o "Repository Brain" passa a existir como grafo único. Cobre CG-17, CG-18.
+- **Done when**:
+  - [x] A indexação cria a aresta tipada `references_code` do documento para o símbolo, com `epistemic_status` (EXTRACTED por qualified name/caminho, INFERRED por nome solto)
+  - [x] O grafo único tem o nó `graph_nodes` com `type='code_symbol'` e `id='code:'+qualified_name`
+  - [x] A ponte é idempotente (rodar 2x não duplica aresta) e roda no code stage e no indexador de Markdown
+  - [x] `memory_code_neighbors` devolve os documentos que referenciam o símbolo, e `memory_get_impact` alcança símbolos de código a partir de um documento
 
 ### T14: Fan-in RRF real de `code_symbols`
 
@@ -211,6 +241,10 @@ T13 -> T16
 **Tests**: `internal/store/rrf_test.go` — `TestFanInDeCodeEntraNoRRF`; `internal/mcp/handlers_test.go` — `TestIncludeCodeSemPlaceHolder`
 **Gate**: `go test -count=1 ./internal/store/... ./internal/mcp/...`
 - **Do**: `memory_search` com `include_code=true` deixa de emitir o aviso "CA-12 placeholder" e passa a fundir `code_symbols` no RRF como uma fonte real; com `include_code` ausente ou falso, o ranking atual permanece byte-a-byte igual (teste de regressão explícito). Cobre CG-19, CG-20.
+- **Done when**:
+  - [x] `include_code` deixou de ser placeholder: `code_symbols` entra no RRF como fonte real (lexical, com o boost CA-05)
+  - [x] O aviso "CA-12 placeholder" sumiu da resposta
+  - [x] Sem `include_code`, o ranking é idêntico ao anterior (teste de regressão explícito, lista a byte-a-byte)
 
 ### T15: Hub threshold e orçamento de tokens na travessia
 
@@ -219,6 +253,11 @@ T13 -> T16
 **Tests**: `internal/mcp/code_handlers_test.go` — `TestTravessiaAplicaHubThreshold`; `TestTravessiaRespeitaOrcamentoDeTokens`
 **Gate**: `go test -count=1 ./internal/mcp/...`
 - **Do**: a travessia de código aplica um hub threshold por percentil de grau (para que poucos nós centrais não dominem o subgrafo), respeita um orçamento de tokens na resposta, ordena por distância em saltos a partir da semente e, ao truncar, emite a dica de estreitar a query. Cobre CG-21, CG-22.
+- **Done when**:
+  - [x] Hub threshold por percentil do grau (default p99, o mesmo do Graphify, configurável)
+  - [x] Orçamento de tokens na resposta, reaproveitando o estimador que já existia (ADR-029) — nenhum estimador duplicado
+  - [x] Ordem por distância em saltos a partir da semente
+  - [x] Ao truncar, a resposta emite a dica de estreitar a query
 
 ### T16: Rota de código na viewer
 
@@ -227,6 +266,10 @@ T13 -> T16
 **Tests**: `viewer/src/routes/code.test.tsx`
 **Gate**: `cd viewer && npm run typecheck && npm run test && npm run build`
 - **Do**: a viewer ganha uma rota de código que lista os símbolos do repositório e, ao selecionar um, mostra os vizinhos estruturais com o tipo da aresta e o call-site; sem dependência de CDN e dentro do orçamento de 160 kB gzip do CI. Cobre CG-23, CG-24.
+- **Done when**:
+  - [x] A rota `/code` lista os símbolos do repositório e mostra os vizinhos com o tipo da aresta e o call-site
+  - [x] Sem CDN e dentro do orçamento de 160 kB gzip (144.667 / 163.840 bytes)
+  - [x] A lógica testável está em `viewer/src/lib/code-view.ts`, com teste em `viewer/src/lib/code-view.test.ts` — o caminho `code.test.tsx` do plano original estava errado (o include do Vitest é `src/**/*.test.ts`)
 
 ### T17: Drift de mudança estrutural
 
@@ -235,6 +278,11 @@ T13 -> T16
 **Tests**: `internal/drift/drift_test.go` — `TestDriftDetectaMudancaEstrutural`
 **Gate**: `go test -count=1 ./internal/drift/...`
 - **Do**: o detector de drift passa a ler `ast_hash` de `code_files` e a reportar mudança estrutural de código, atribuída aos documentos que referenciam os símbolos afetados; o drift continua funcionando quando o code stage não rodou na mesma sessão. Cobre CG-25, CG-26.
+- **Done when**:
+  - [x] O drift lê o `ast_hash` de `code_files` e reporta mudança estrutural
+  - [x] Mudança cosmética (comentário) **não** é drift; mudança de assinatura é
+  - [x] O drift continua funcionando quando o code stage não rodou na mesma sessão
+  - [x] A atribuição aponta para os documentos que referenciam os símbolos afetados
 
 ### T18: Escrita de lição no vault central
 
@@ -243,6 +291,10 @@ T13 -> T16
 **Tests**: `cmd/mem/lesson_test.go` — `TestMemLessonGravaNotaNoVaultCentral`
 **Gate**: `go test -count=1 ./cmd/mem/...`
 - **Do**: novo caminho de escrita que registra uma lição no vault central como nota com `category: memory`, `summary` (para recuperação L0) e timestamp, indexando-a na hora; a nota fica como Markdown puro no vault e não exige nada do vault de repositório. Cobre CG-27, CG-28.
+- **Done when**:
+  - [x] `mem lesson` grava a lição no cofre central como nota com `category: memory`, `summary` e timestamp, indexando na hora
+  - [x] Sem cofre central resolvido, o comando falha com erro claro e exit ≠ 0 — nunca cai no vault do repositório
+  - [x] A nota é Markdown puro e navegável no Obsidian; o vault do repositório não é tocado
 
 ## Task Breakdown
 
