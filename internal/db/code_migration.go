@@ -126,6 +126,11 @@ func UpsertCodeFile(ctx context.Context, db *sql.DB, path, language, contentHash
 		return 0, err
 	}
 	repository := RepositoryFromContext(ctx)
+	// --ast-hash=false: o ast_hash não é armazenado (o cache incremental
+	// perde a política "conteúdo mudou, AST não mudou").
+	if !AstHashEnabled(ctx) {
+		astHash = ""
+	}
 	// No SQLite o UNIQUE original é do path; no PostgreSQL a identidade é
 	// (repository, path) — o conflict target precisa casar com o índice.
 	conflict := "(path)"

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,9 +17,12 @@ import (
 
 // runCodeIndexCLI implementa `mem code-index` (CA-06 / ADR-047).
 //
-// Aceita flags: --lang=csv --include=glob --exclude=glob --ast-hash --no-embed
+// Aceita flags: --lang=csv --include=glob --exclude=glob --ast-hash --json
 // --storage=sqlite|postgres --repo=<slug> --dir=<vault> --db=<arquivo>.
 // Por padrão usa o vault configurado em .memory/config.yaml (ADR-016).
+//
+// Nenhuma flag é aceita e descartada (CG-09): cada uma muda o comportamento
+// ou não existe.
 func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) error {
 	fs := flag.NewFlagSet("code-index", flag.ContinueOnError)
 	dir := fs.String("dir", "", "Diretório do vault (padrão: auto-detect via .memory/config.yaml)")
@@ -29,17 +33,11 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 	lang := fs.String("lang", "", "Lista csv de linguagens permitidas (ex: 'go,python'); vazio = todas")
 	include := fs.String("include", "", "Glob include adicional (sobrescreve config)")
 	exclude := fs.String("exclude", "", "Glob exclude adicional (sobrescreve config)")
-	astHash := fs.Bool("ast-hash", true, "Habilita cálculo e armazenamento de ast_hash (CA-04)")
-	noEmbed := fs.Bool("no-embed", true, "Desativa geração de embeddings para code_symbols (placeholder; v1 não embute symbols)")
-	jsonOut := fs.Bool("json", false, "Reservada para a saída estruturada (sem efeito nesta versão)")
+	astHash := fs.Bool("ast-hash", true, "Armazena o ast_hash do arquivo (--ast-hash=false não armazena)")
+	jsonOut := fs.Bool("json", false, "Saída em JSON: um objeto com as contagens do code stage")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-
-	_ = repoSlug
-	_ = astHash
-	_ = noEmbed
-	_ = jsonOut
 
 	// Boot log one-time (CA-14)
 	codeast.LogTreesitterBootStatus()
@@ -61,7 +59,7 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 	}
 
 	if target == "" {
-		fmt.Println("Uso: mem code-index [--lang=go,py,...] [--include=glob] [--exclude=glob] [--ast-hash] [--no-embed] [--storage=sqlite|postgres] [--db=<arq>] [--repo=<slug>] [<dir>]")
+		fmt.Println("Uso: mem code-index [--lang=go,py,...] [--include=glob] [--exclude=glob] [--ast-hash[=false]] [--json] [--storage=sqlite|postgres] [--db=<arq>] [--repo=<slug>] [<dir>]")
 		return nil
 	}
 
@@ -75,9 +73,15 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 	}
 	langs := splitCSV(*lang)
 
-	// O code graph nasce no repositório do vault (ADR-061 — CG-06): o
-	// repo_id viaja no contexto até as tabelas code_*.
-	ctx = db.WithRepository(ctx, defaultRepo)
+	// CG-09: o --repo vale de verdade — o code graph é gravado no repositório
+	// pedido (o repo_id viaja no contexto até as tabelas code_*).
+	repository := strings.TrimSpace(*repoSlug)
+	if repository == "" {
+		repository = strings.TrimSpace(defaultRepo)
+	}
+	ctx = db.WithRepository(ctx, repository)
+	// --ast-hash=false: o code_files guarda ast_hash NULL.
+	ctx = db.WithAstHash(ctx, *astHash)
 
 	// O code graph é gravado no engine configurado (ADR-061): Postgres quando
 	// Postgres, SQLite quando SQLite. Nada de SQLite local paralelo.
@@ -87,7 +91,49 @@ func runCodeIndexCLI(ctx context.Context, defaultRepo string, args []string) err
 	}
 	defer engine.Close()
 
-	return runCodeIndexPipeline(ctx, engine.db, target, cfg, langs)
+	stats, err := runCodeIndexPipeline(ctx, engine.db, target, cfg, langs)
+	if err != nil {
+		return err
+	}
+
+	if *jsonOut {
+		report := codeIndexReport{
+			Engine:       engine.name,
+			Repository:   repository,
+			FilesScanned: stats.FilesScanned,
+			FilesIndexed: stats.FilesIndexed,
+			FilesSkipped: stats.FilesSkipped,
+			FilesErrors:  stats.FilesErrors,
+			SymbolsTotal: stats.SymbolsTotal,
+		}
+		out, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			return fmt.Errorf("serialização do relatório JSON falhou: %w", err)
+		}
+		fmt.Println(string(out))
+		return nil
+	}
+
+	fmt.Println("[code-index] OK")
+	fmt.Printf("  engine        : %s\n", engine.name)
+	fmt.Printf("  repository    : %s\n", repository)
+	fmt.Printf("  files scanned : %d\n", stats.FilesScanned)
+	fmt.Printf("  files indexed : %d\n", stats.FilesIndexed)
+	fmt.Printf("  files skipped : %d\n", stats.FilesSkipped)
+	fmt.Printf("  files errors  : %d\n", stats.FilesErrors)
+	fmt.Printf("  symbols total : %d\n", stats.SymbolsTotal)
+	return nil
+}
+
+// codeIndexReport é a saída estruturada do code stage (--json).
+type codeIndexReport struct {
+	Engine       string `json:"engine"`
+	Repository   string `json:"repository"`
+	FilesScanned int    `json:"files_scanned"`
+	FilesIndexed int    `json:"files_indexed"`
+	FilesSkipped int    `json:"files_skipped"`
+	FilesErrors  int    `json:"files_errors"`
+	SymbolsTotal int    `json:"symbols_total"`
 }
 
 // codeEngine é o engine resolvido para o code stage.
@@ -169,10 +215,11 @@ func resolveCodeEngine(cfg *config.Config, storageFlag, pgURLFlag, dbPathFlag st
 	}, nil
 }
 
-// runCodeIndexPipeline roda o code pipeline contra a conexão já resolvida.
-func runCodeIndexPipeline(ctx context.Context, database *sql.DB, dir string, cfg *config.Config, langs []string) error {
+// runCodeIndexPipeline roda o code pipeline contra a conexão já resolvida e
+// devolve as contagens do estágio.
+func runCodeIndexPipeline(ctx context.Context, database *sql.DB, dir string, cfg *config.Config, langs []string) (*codeast.PipelineStats, error) {
 	if database == nil {
-		return errors.New("code index: database == nil")
+		return nil, errors.New("code index: database == nil")
 	}
 
 	pipe, err := codeast.NewPipeline(codeast.PipelineOptions{
@@ -180,20 +227,12 @@ func runCodeIndexPipeline(ctx context.Context, database *sql.DB, dir string, cfg
 		LangAllow: langs,
 	})
 	if err != nil {
-		return fmt.Errorf("NewPipeline falhou: %w", err)
+		return nil, fmt.Errorf("NewPipeline falhou: %w", err)
 	}
 	if err := pipe.Run(ctx, dir, cfg); err != nil {
-		return fmt.Errorf("Pipeline.Run falhou: %w", err)
+		return nil, fmt.Errorf("Pipeline.Run falhou: %w", err)
 	}
-
-	stats := pipe.Stats()
-	fmt.Println("[code-index] OK")
-	fmt.Printf("  files scanned : %d\n", stats.FilesScanned)
-	fmt.Printf("  files indexed : %d\n", stats.FilesIndexed)
-	fmt.Printf("  files skipped : %d\n", stats.FilesSkipped)
-	fmt.Printf("  files errors  : %d\n", stats.FilesErrors)
-	fmt.Printf("  symbols total : %d\n", stats.SymbolsTotal)
-	return nil
+	return pipe.Stats(), nil
 }
 
 // splitCSV utilitário local: "go,py" → ["go", "py"].

@@ -41,3 +41,30 @@ func RepositoryFromContext(ctx context.Context) string {
 	}
 	return DefaultRepository
 }
+
+// astHashKey é a chave (não exportada) da política de ast_hash no contexto.
+type astHashKey struct{}
+
+// WithAstHash carrega no contexto a política de armazenamento do ast_hash.
+//
+// Com enabled = false, o code_files guarda ast_hash NULL: o cache
+// incremental perde a política "conteúdo mudou, AST não mudou" e reparseia
+// o arquivo. É o que a flag `--ast-hash=false` promete.
+func WithAstHash(ctx context.Context, enabled bool) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, astHashKey{}, enabled)
+}
+
+// AstHashEnabled devolve false quando o contexto pede para não armazenar o
+// ast_hash. O default é true (o comportamento histórico).
+func AstHashEnabled(ctx context.Context) bool {
+	if ctx == nil {
+		return true
+	}
+	if enabled, ok := ctx.Value(astHashKey{}).(bool); ok {
+		return enabled
+	}
+	return true
+}

@@ -125,6 +125,11 @@ T3 -> T5
 **Tests**: `cmd/mem/codeindex_test.go` — `TestFlagsDeCodeIndexNaoSaoDescartadas`
 **Gate**: `go test -count=1 ./cmd/mem/...`
 - **Do**: `--repo` passa a valer de verdade; `--ast-hash` e `--no-embed` honram o contrato declarado no help ou saem do help; `--json` sai de "sem efeito nesta versão" ou passa a emitir JSON. Nenhuma flag pode continuar sendo aceitada e descartada. Cobre CG-09.
+- **Done when**:
+  - [x] `--repo=<slug>` grava o code graph no repositório pedido (o `repository` das linhas é o slug)
+  - [x] `--ast-hash[=false]` controla o armazenamento do `ast_hash` (o default continua guardando)
+  - [x] `--json` emite a saída estruturada do code stage (engine, repository e contagens)
+  - [x] Nenhuma flag é aceita e descartada — `--no-embed` saiu do CLI (a v1 não embute símbolos)
 
 ### Phase 2 — Motor (arestas estruturais reais, com call-site e proveniência)
 
