@@ -17,8 +17,8 @@ func BenchmarkCodeAccess_Search(b *testing.B) {
 		Search: func(ctx context.Context, query, language, kind string, limit int, includeBoost bool) ([]CodeSymbolResult, error) {
 			return SQLCodeSearch(ctx, database, query, language, kind, limit, includeBoost)
 		},
-		Neighbors: func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
-			return SQLCodeNeighbors(ctx, database, symbol, depth, direction)
+		Neighbors: func(ctx context.Context, symbol string, depth int, direction string, maxTokens int) (*MemoryCodeNeighborsResponse, error) {
+			return SQLCodeNeighborsTraverse(ctx, database, symbol, depth, direction, "", maxTokens)
 		},
 	})
 
@@ -42,8 +42,8 @@ func BenchmarkCodeAccess_Neighbors(b *testing.B) {
 		Search: func(ctx context.Context, query, language, kind string, limit int, includeBoost bool) ([]CodeSymbolResult, error) {
 			return SQLCodeSearch(ctx, database, query, language, kind, limit, includeBoost)
 		},
-		Neighbors: func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
-			return SQLCodeNeighbors(ctx, database, symbol, depth, direction)
+		Neighbors: func(ctx context.Context, symbol string, depth int, direction string, maxTokens int) (*MemoryCodeNeighborsResponse, error) {
+			return SQLCodeNeighborsTraverse(ctx, database, symbol, depth, direction, "", maxTokens)
 		},
 	})
 

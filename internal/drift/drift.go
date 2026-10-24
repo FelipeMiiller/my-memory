@@ -5,11 +5,14 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/FelipeMiiller/my-memory/internal/codeast"
+	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/deeplink"
 )
 
@@ -36,6 +39,34 @@ type NoteDrift struct {
 	Reason        string              `json:"reason"`
 	PageRank      float64             `json:"pagerank"`
 	Links         *deeplink.DeepLinks `json:"links,omitempty"`
+	// StructuralChanges são os arquivos de código com MUDANÇA ESTRUTURAL
+	// (ast_hash alterado) atribuídos a esta nota (AC 26).
+	//
+	// Campo ADITIVO: o contrato da tool memory_get_drift e o schema zod da
+	// viewer continuam válidos (o campo só aparece quando há mudança
+	// estrutural).
+	StructuralChanges []string `json:"structural_changes,omitempty"`
+}
+
+// StructuralChange é uma mudança ESTRUTURAL de código detectada no período
+// (AC 26).
+//
+// A mudança estrutural é a que altera o `ast_hash` do arquivo (a assinatura
+// do código) — NÃO a mudança cosmética (comentário ou whitespace).
+type StructuralChange struct {
+	FilePath  string `json:"file_path"`
+	Package   string `json:"package"`
+	Status    string `json:"status"`
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
+	// SymbolsChanged são os símbolos cuja estrutura (assinatura) mudou.
+	SymbolsChanged []string `json:"symbols_changed,omitempty"`
+	// NoteIDs são os documentos que referenciam os símbolos afetados — a
+	// atribuição pela ponte notas↔código (CG-18).
+	NoteIDs []string `json:"note_ids,omitempty"`
+	// Attribution é como a atribuição foi feita: "bridge" (a ponte
+	// notas↔código) ou "path_mention" (menção textual do path).
+	Attribution string `json:"attribution"`
 }
 
 // UncoveredCode representa código-fonte modificado sem notas associadas
@@ -61,6 +92,12 @@ type DriftReport struct {
 	MediumCount   int             `json:"medium_count"`
 	LowCount      int             `json:"low_count"`
 	AnalyzedAt    time.Time       `json:"analyzed_at"`
+	// StructuralChanges são as mudanças ESTRUTURALES de código detectadas no
+	// período (AC 26).
+	//
+	// Campo ADITIVO: o contrato da tool memory_get_drift e o schema zod da
+	// viewer continuam válidos.
+	StructuralChanges []StructuralChange `json:"structural_changes,omitempty"`
 }
 
 // DocumentMeta armazena metadados do banco para cruzamento com o Git
@@ -129,46 +166,97 @@ func AnalyzeDrift(
 		dirName := filepath.ToSlash(filepath.Dir(ch.Path))
 		pkgName := filepath.Base(dirName)
 
+		// 3.0 Mudança ESTRUTURAL (AC 26): o ast_hash gravado é comparado
+		// com o hash ATUAL do arquivo. Hash igual = mudança cosmética
+		// (comentário/whitespace) → NÃO é drift. Hash diferente = mudança
+		// estrutural → é drift. Sem hash gravado → NÃO é erro (AC 27): o
+		// drift segue funcionando pelo mecanismo textual.
+		structure := analyzeCodeStructure(ctx, db, repoRoot, ch.Path)
+		if structure.HasReference && !structure.Structural {
+			// Mudança cosmética: o arquivo não entra no drift.
+			continue
+		}
+
 		fileWasCovered := false
 
-		for _, doc := range docMap {
-			contentLower := strings.ToLower(doc.Content)
-			pathLower := strings.ToLower(ch.Path)
+		// 3.1 Atribuição pela PONTE (notas↔código): os documentos que
+		// referenciam os símbolos do arquivo que mudou.
+		bridgeDocs := bridgeDocumentsForChange(ctx, db, structure)
 
-			// ADR-039: match estrito - só path completo (sem basename) evita
-			// falso positivo com palavras comuns (ex: 'main.go' em qualquer doc
-			// que fale de Go). MinMatchOccurrences (2): nota só entra se mencionar
-			// o path ≥ 2 vezes, eliminando listas genéricas (validation.md,
-			// tasks.md) que listam todos os arquivos do projeto sem correlação
-			// semântica real. Só conta directMatches para evitar double-counting
-			// entre path completo e substrings de package.
-			const MinMatchOccurrences = 2
-			directMatches := strings.Count(contentLower, pathLower)
-			hasMatch := directMatches >= MinMatchOccurrences
-
-			if hasMatch {
+		if len(bridgeDocs) > 0 {
+			for _, docID := range bridgeDocs {
+				doc, ok := docMap[docID]
+				if !ok {
+					continue
+				}
 				fileWasCovered = true
 				coveredFiles[ch.Path] = true
 
-				nd, exists := noteMatches[doc.ID]
-				if !exists {
-					links := deeplink.GenerateLinks(repoRoot, vaultName, doc.Path, 0)
-					nd = &NoteDrift{
-						NoteID:        doc.ID,
-						Title:         doc.Title,
-						Path:          doc.Path,
-						PageRank:      doc.PageRank,
-						Links:         &links,
-						AffectedFiles: []string{},
-					}
-					noteMatches[doc.ID] = nd
-				}
-
+				nd := ensureNote(noteMatches, doc, repoRoot, vaultName)
 				if !containsString(nd.AffectedFiles, ch.Path) {
 					nd.AffectedFiles = append(nd.AffectedFiles, ch.Path)
 				}
 				nd.LinesChanged += (ch.Additions + ch.Deletions)
+				if !containsString(nd.StructuralChanges, ch.Path) {
+					nd.StructuralChanges = append(nd.StructuralChanges, ch.Path)
+				}
 			}
+		} else {
+			// 3.2 Mecanismo textual: menção do path do arquivo na nota.
+			for _, doc := range docMap {
+				contentLower := strings.ToLower(doc.Content)
+				pathLower := strings.ToLower(ch.Path)
+
+				// ADR-039: match estrito - só path completo (sem basename) evita
+				// falso positivo com palavras comuns (ex: 'main.go' em qualquer doc
+				// que fale de Go). MinMatchOccurrences (2): nota só entra se mencionar
+				// o path ≥ 2 vezes, eliminando listas genéricas (validation.md,
+				// tasks.md) que listam todos os arquivos do projeto sem correlação
+				// semântica real. Só conta directMatches para evitar double-counting
+				// entre path completo e substrings de package.
+				const MinMatchOccurrences = 2
+				directMatches := strings.Count(contentLower, pathLower)
+				hasMatch := directMatches >= MinMatchOccurrences
+
+				if hasMatch {
+					fileWasCovered = true
+					coveredFiles[ch.Path] = true
+
+					nd := ensureNote(noteMatches, doc, repoRoot, vaultName)
+					if !containsString(nd.AffectedFiles, ch.Path) {
+						nd.AffectedFiles = append(nd.AffectedFiles, ch.Path)
+					}
+					nd.LinesChanged += (ch.Additions + ch.Deletions)
+					if structure.Structural && !containsString(nd.StructuralChanges, ch.Path) {
+						nd.StructuralChanges = append(nd.StructuralChanges, ch.Path)
+					}
+				}
+			}
+		}
+
+		// 3.3 Registro da mudança estrutural no relatório.
+		if structure.Structural {
+			change := StructuralChange{
+				FilePath:       ch.Path,
+				Package:        pkgName,
+				Status:         ch.Status,
+				Additions:      ch.Additions,
+				Deletions:      ch.Deletions,
+				SymbolsChanged: structure.ChangedSymbols,
+			}
+			if len(bridgeDocs) > 0 {
+				change.Attribution = "bridge"
+				for _, docID := range bridgeDocs {
+					change.NoteIDs = append(change.NoteIDs, docID)
+				}
+			} else {
+				change.Attribution = "path_mention"
+				for id := range noteMatches {
+					change.NoteIDs = append(change.NoteIDs, id)
+				}
+				sort.Strings(change.NoteIDs)
+			}
+			report.StructuralChanges = append(report.StructuralChanges, change)
 		}
 
 		// 4. Detecção de código órfão
@@ -355,4 +443,207 @@ func containsString(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// ensureNote devolve (criando se preciso) o NoteDrift de um documento.
+func ensureNote(noteMatches map[string]*NoteDrift, doc DocumentMeta, repoRoot, vaultName string) *NoteDrift {
+	if nd, ok := noteMatches[doc.ID]; ok {
+		return nd
+	}
+	links := deeplink.GenerateLinks(repoRoot, vaultName, doc.Path, 0)
+	nd := &NoteDrift{
+		NoteID:        doc.ID,
+		Title:         doc.Title,
+		Path:          doc.Path,
+		PageRank:      doc.PageRank,
+		Links:         &links,
+		AffectedFiles: []string{},
+	}
+	noteMatches[doc.ID] = nd
+	return nd
+}
+
+// codeStructure é o resultado da análise estrutural de um arquivo de código.
+type codeStructure struct {
+	// HasReference é true quando existe um `ast_hash` gravado em
+	// code_files — ou seja, o code stage rodou em ALGUMA sessão (AC 27).
+	HasReference bool
+	// Structural é true quando a mudança é ESTRUTURAL (o ast_hash atual
+	// difere do gravado, ou a assinatura de um símbolo mudou).
+	Structural bool
+	// Symbols são os qualified names dos símbolos do arquivo (os que a
+	// ponte pode referenciar).
+	Symbols []string
+	// ChangedSymbols são os símbolos cuja assinatura mudou.
+	ChangedSymbols []string
+	// StoredHash é o ast_hash gravado; CurrentHash é o recalculado.
+	StoredHash  string
+	CurrentHash string
+}
+
+// analyzeCodeStructure classifica a mudança de um arquivo de código.
+//
+// A referência é o `ast_hash` gravado em `code_files` (AC 27): o drift NÃO
+// exige que o code stage tenha rodado na mesma sessão — ele compara o que
+// está gravado com o arquivo ATUAL em disco.
+//
+//   - hash gravado == hash atual  → mudança COSMÉTICA (comentário,
+//     whitespace): NÃO é drift;
+//   - hash gravado != hash atual  → mudança ESTRUTURAL: é drift;
+//   - sem hash gravado            → NÃO é erro (AC 27): o drift segue
+//     funcionando pelo mecanismo textual de menção de path.
+func analyzeCodeStructure(ctx context.Context, database *sql.DB, repoRoot, path string) codeStructure {
+	res := codeStructure{}
+	if database == nil {
+		return res
+	}
+
+	storedHash, ok, err := db.CodeFileHash(ctx, database, path)
+	if err != nil || !ok || strings.TrimSpace(storedHash) == "" {
+		// Sem hash gravado: não é erro — o drift segue pelo mecanismo
+		// textual (AC 27).
+		return res
+	}
+	res.HasReference = true
+	res.StoredHash = storedHash
+
+	// Os símbolos GRAVADOS são a referência do nome/assinatura: eles dizem
+	// quais símbolos do arquivo a ponte pode referenciar.
+	storedSymbols, err := db.CodeSymbolSignatures(ctx, database, path)
+	if err == nil {
+		for _, s := range storedSymbols {
+			qn := strings.TrimSpace(s.QualifiedName)
+			if qn == "" {
+				qn = strings.TrimSpace(s.Name)
+			}
+			if qn == "" {
+				continue
+			}
+			res.Symbols = append(res.Symbols, qn)
+		}
+	}
+
+	fullPath := filepath.Join(repoRoot, filepath.FromSlash(path))
+	content, readErr := os.ReadFile(fullPath)
+	if readErr != nil {
+		// Arquivo removido (ou ilegível): a mudança é estrutural — o
+		// código que existia sumiu.
+		res.Structural = true
+		return res
+	}
+
+	parsed, parseErr := codeast.NewGoParser().ParseFile(path, content)
+	if parseErr != nil {
+		// Não deu para recalcular: sem veredito, não é erro.
+		return res
+	}
+	res.CurrentHash = codeast.HashSymbols(parsed.Symbols)
+
+	if res.CurrentHash != storedHash {
+		res.Structural = true
+		res.ChangedSymbols = changedSymbols(storedSymbols, parsed.Symbols)
+		return res
+	}
+
+	// O ast_hash do pipeline é `kind|qualified_name|linha`: ele NÃO cobre a
+	// ASSINATURA. Uma mudança de assinatura puro mantém o ast_hash — então
+	// a assinatura gravada é comparada com a atual para não perder a
+	// mudança estrutural.
+	storedByQN := make(map[string]string, len(storedSymbols))
+	for _, s := range storedSymbols {
+		qn := strings.TrimSpace(s.QualifiedName)
+		if qn == "" {
+			qn = strings.TrimSpace(s.Name)
+		}
+		if qn != "" {
+			storedByQN[qn] = s.Signature
+		}
+	}
+	for _, s := range parsed.Symbols {
+		qn := strings.TrimSpace(s.QualifiedName)
+		if qn == "" {
+			qn = strings.TrimSpace(s.Name)
+		}
+		if qn == "" {
+			continue
+		}
+		previous, ok := storedByQN[qn]
+		if !ok {
+			continue
+		}
+		if previous != strings.TrimSpace(s.Signature) {
+			res.Structural = true
+			res.ChangedSymbols = append(res.ChangedSymbols, qn)
+		}
+	}
+	return res
+}
+
+// changedSymbols devolve os símbolos que mudaram entre o estado gravado e o
+// atual (adicionados, removidos ou com assinatura diferente).
+func changedSymbols(stored []db.CodeSymbolSignature, current []codeast.Symbol) []string {
+	changed := make([]string, 0)
+	seen := make(map[string]bool)
+
+	storedByQN := make(map[string]string, len(stored))
+	for _, s := range stored {
+		qn := strings.TrimSpace(s.QualifiedName)
+		if qn == "" {
+			qn = strings.TrimSpace(s.Name)
+		}
+		if qn != "" {
+			storedByQN[qn] = s.Signature
+		}
+	}
+
+	currentByQN := make(map[string]string, len(current))
+	for _, s := range current {
+		qn := strings.TrimSpace(s.QualifiedName)
+		if qn == "" {
+			qn = strings.TrimSpace(s.Name)
+		}
+		if qn == "" {
+			continue
+		}
+		currentByQN[qn] = strings.TrimSpace(s.Signature)
+	}
+
+	for qn, signature := range currentByQN {
+		previous, ok := storedByQN[qn]
+		if !ok || previous != signature {
+			if !seen[qn] {
+				seen[qn] = true
+				changed = append(changed, qn)
+			}
+		}
+	}
+	for qn := range storedByQN {
+		if _, ok := currentByQN[qn]; !ok && !seen[qn] {
+			seen[qn] = true
+			changed = append(changed, qn)
+		}
+	}
+	sort.Strings(changed)
+	return changed
+}
+
+// bridgeDocumentsForChange devolve os documentos que referenciam os símbolos
+// do arquivo que mudou — a atribuição pela ponte (notas↔código).
+//
+// Quando a ponte não cobre o arquivo, a lista é vazia e o drift usa o
+// mecanismo textual de menção de path.
+func bridgeDocumentsForChange(ctx context.Context, database *sql.DB, structure codeStructure) []string {
+	if database == nil || !structure.Structural || len(structure.Symbols) == 0 {
+		return nil
+	}
+	docs, err := db.CodeBridgeDocumentsForSymbols(ctx, database, structure.Symbols)
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(docs))
+	for _, d := range docs {
+		out = append(out, d.DocumentID)
+	}
+	sort.Strings(out)
+	return out
 }

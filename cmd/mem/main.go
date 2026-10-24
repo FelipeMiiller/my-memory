@@ -1685,6 +1685,16 @@ func runCodeStage(ctx context.Context, database *sql.DB, rootDir string, cfg *co
 	}
 	stats := pipe.Stats()
 	fmt.Printf("[code-stage] code graph atualizado: %d arquivos, %d simbolos\n", stats.FilesIndexed, stats.SymbolsTotal)
+
+	// Ponte notas↔código (CG-17/CG-18): agora que os símbolos foram
+	// persistidos, os documentos que os referenciam ganham a aresta tipada
+	// `references_code` no grafo único. Rodar aqui (e não só no indexador
+	// Markdown) é o que faz a ponte existir já no primeiro `mem index`.
+	if bridge, err := db.BuildCodeBridge(ctx, database); err != nil {
+		fmt.Fprintf(os.Stderr, "[code-stage] ponte notas↔codigo falhou: %v\n", err)
+	} else if bridge.Edges > 0 {
+		fmt.Printf("[code-stage] ponte notas↔codigo: %d aresta(s) em %d documento(s)\n", bridge.Edges, bridge.Documents)
+	}
 }
 
 func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.Embedder, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
@@ -2684,10 +2694,18 @@ func buildSQLiteSearchFunc(database *sql.DB, emb embedder.Embedder, tq *turboqua
 			k = 60
 		}
 
+		// include_code (CG-19): FONTE ÚNICA da flag. O valor efetivo é
+		// calculado uma vez aqui (a flag das opções OU a do contexto) e
+		// repassado para os DOIS canais de leitura — assim as duas leituras
+		// de store.IncludeCodeRequested não podem divergir.
+		includeCode := params.IncludeCode || store.IncludeCodeFromContext(ctx)
+		ctx = store.WithIncludeCode(ctx, includeCode)
+
 		searchOpts := store.SearchOptions{
-			Level:    params.DetailLevel,
-			Category: params.Category,
-			Tag:      params.Tag,
+			Level:       params.DetailLevel,
+			Category:    params.Category,
+			Tag:         params.Tag,
+			IncludeCode: includeCode,
 		}
 		if searchOpts.Level == "" {
 			searchOpts.Level = "l1"
@@ -2795,8 +2813,8 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 			Search: func(ctx context.Context, query, language, kind string, limit int, includeBoost bool) ([]mcp.CodeSymbolResult, error) {
 				return mcp.SQLCodeSearchScoped(ctx, codeDB, query, language, kind, limit, includeBoost, defaultRepo)
 			},
-			Neighbors: func(ctx context.Context, symbol string, depth int, direction string) ([]mcp.CodeNeighborResult, *mcp.CodeSymbolResult, error) {
-				return mcp.SQLCodeNeighborsScoped(ctx, codeDB, symbol, depth, direction, defaultRepo)
+			Neighbors: func(ctx context.Context, symbol string, depth int, direction string, maxTokens int) (*mcp.MemoryCodeNeighborsResponse, error) {
+				return mcp.SQLCodeNeighborsTraverse(ctx, codeDB, symbol, depth, direction, defaultRepo, maxTokens)
 			},
 		})
 	}
@@ -2816,10 +2834,16 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				k = 60
 			}
 
+			// include_code (CG-19): FONTE ÚNICA da flag — ver a nota no caminho
+			// SQLite acima.
+			includeCode := params.IncludeCode || store.IncludeCodeFromContext(ctx)
+			ctx = store.WithIncludeCode(ctx, includeCode)
+
 			searchOpts := store.SearchOptions{
-				Level:    params.DetailLevel,
-				Category: params.Category,
-				Tag:      params.Tag,
+				Level:       params.DetailLevel,
+				Category:    params.Category,
+				Tag:         params.Tag,
+				IncludeCode: includeCode,
 			}
 			if searchOpts.Level == "" {
 				searchOpts.Level = "l1"
@@ -3045,6 +3069,10 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				repo = defaultRepo
 			}
 			return pgStore.CalculateImpact(ctx, repo, nodeID, maxDepth)
+		}, func(ctx context.Context, seedNodeID string, nodeIDs []string) ([]mcp.CodeImpactSymbol, error) {
+			// A ponte notas↔código (CG-18): o impacto traduz os nós
+			// `code:<qn>` em símbolos de código.
+			return mcp.ResolveCodeImpactSymbols(ctx, pgStore.DB(), seedNodeID, nodeIDs)
 		})
 
 		srv.SetInspectHandler(func(ctx context.Context, repo, nodeID string, maxContentLen int) (*graph.TriptychView, error) {
@@ -3248,6 +3276,10 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 
 		srv.SetImpactHandler(func(ctx context.Context, repo, nodeID string, maxDepth int) (*graph.ImpactResult, error) {
 			return db.CalculateImpactForTarget(ctx, database, nodeID, maxDepth)
+		}, func(ctx context.Context, seedNodeID string, nodeIDs []string) ([]mcp.CodeImpactSymbol, error) {
+			// A ponte notas↔código (CG-18): o impacto traduz os nós
+			// `code:<qn>` em símbolos de código.
+			return mcp.ResolveCodeImpactSymbols(ctx, database, seedNodeID, nodeIDs)
 		})
 
 		srv.SetInspectHandler(func(ctx context.Context, repo, nodeID string, maxContentLen int) (*graph.TriptychView, error) {

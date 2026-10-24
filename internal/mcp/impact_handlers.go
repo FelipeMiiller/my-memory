@@ -13,7 +13,16 @@ import (
 type ImpactFunc func(ctx context.Context, repo string, nodeID string, maxDepth int) (*graph.ImpactResult, error)
 
 // NewMemoryGetImpactHandler cria o executor para a ferramenta MCP memory_get_impact
-func NewMemoryGetImpactHandler(impactFn ImpactFunc) ToolHandlerFunc {
+//
+// codeFn é opcional: quando presente, o handler traduz os nós de código do
+// grafo (`code:<qualified_name>`) em símbolos de código e inclui os símbolos
+// que a SEMENTE referencia (a ponte notas↔código, CG-18). Sem ele, o
+// comportamento é exatamente o de antes.
+func NewMemoryGetImpactHandler(impactFn ImpactFunc, codeFn ...ImpactCodeSymbolsFunc) ToolHandlerFunc {
+	var resolver ImpactCodeSymbolsFunc
+	if len(codeFn) > 0 {
+		resolver = codeFn[0]
+	}
 	return func(ctx context.Context, args json.RawMessage) (any, error) {
 		var rawMap map[string]json.RawMessage
 		if len(args) > 0 {
@@ -66,6 +75,19 @@ func NewMemoryGetImpactHandler(impactFn ImpactFunc) ToolHandlerFunc {
 			}
 		}
 
+		// Símbolos de código alcançados (a ponte notas↔código): o impacto
+		// a partir de um documento alcança os símbolos que ele referencia.
+		var codeSymbols []CodeImpactSymbol
+		if resolver != nil && res != nil {
+			nodeIDs := make([]string, 0, len(res.Nodes))
+			for _, n := range res.Nodes {
+				nodeIDs = append(nodeIDs, n.ID)
+			}
+			if symbols, cErr := resolver(ctx, res.TargetNode, nodeIDs); cErr == nil {
+				codeSymbols = symbols
+			}
+		}
+
 		var sb strings.Builder
 		riskEmoji := "🟢"
 		switch strings.ToUpper(res.RiskLevel) {
@@ -115,11 +137,29 @@ func NewMemoryGetImpactHandler(impactFn ImpactFunc) ToolHandlerFunc {
 			}
 		}
 
+		// Símbolos de código alcançados — a ponte notas↔código.
+		if len(codeSymbols) > 0 {
+			sb.WriteString("\n### 🔗 Símbolos de Código Alcançados\n\n")
+			sb.WriteString("| Profundidade | Relação | Símbolo | Tipo | Linguagem | Arquivo |\n")
+			sb.WriteString("|---|---|---|---|---|---|\n")
+			for _, s := range codeSymbols {
+				sb.WriteString(fmt.Sprintf("| %d | `%s` | `%s` | %s | %s | `%s` |\n",
+					s.Depth, s.Relation, s.QualifiedName, s.Kind, s.Language, s.File))
+			}
+		}
+
 		return NewTextResult(sb.String()), nil
 	}
 }
 
-// SetImpactHandler registra ou atualiza o handler de impacto no servidor MCP
-func (s *Server) SetImpactHandler(fn ImpactFunc) {
-	s.RegisterTool(ToolMemoryGetImpact, NewMemoryGetImpactHandler(fn))
+// SetImpactHandler registra ou atualiza o handler de impacto no servidor MCP.
+//
+// codeFn é opcional (variadic): quem chama sem ele mantém o comportamento
+// anterior — o impacto não resolve símbolos de código.
+func (s *Server) SetImpactHandler(fn ImpactFunc, codeFn ...ImpactCodeSymbolsFunc) {
+	var resolver ImpactCodeSymbolsFunc
+	if len(codeFn) > 0 {
+		resolver = codeFn[0]
+	}
+	s.RegisterTool(ToolMemoryGetImpact, NewMemoryGetImpactHandler(fn, resolver))
 }

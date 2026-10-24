@@ -6,9 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/FelipeMiiller/my-memory/internal/db"
+	"github.com/FelipeMiiller/my-memory/internal/graph"
+	"github.com/FelipeMiiller/my-memory/internal/store"
 )
 
 // CodeSearchFunc é a assinatura da função que executa busca em code_symbols
@@ -22,7 +27,11 @@ type CodeSearchFunc func(ctx context.Context, query, language, kind string, limi
 
 // CodeNeighborsFunc é a assinatura da função que retorna o sub-grafo
 // de um code_symbol via CTE recursivo (ADR-004).
-type CodeNeighborsFunc func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error)
+//
+// O retorno é a resposta COMPLETA da travessia: vizinhos, raiz e os
+// metadados de truncamento (hub threshold, orçamento de tokens, dica para
+// estreitar a query — CG-21/CG-22).
+type CodeNeighborsFunc func(ctx context.Context, symbol string, depth int, direction string, maxTokens int) (*MemoryCodeNeighborsResponse, error)
 
 // CodeSymbolResult é o payload JSON de cada hit de memory_code_search.
 type CodeSymbolResult struct {
@@ -68,6 +77,10 @@ type CodeNeighborResult struct {
 	// DstFile/DstLine são a posição do símbolo de DESTINO da aresta.
 	DstFile string `json:"dst_file,omitempty"`
 	DstLine int    `json:"dst_line,omitempty"`
+	// DocumentID/DocumentPath só existem nos vizinhos que são DOCUMENTOS
+	// (a ponte notas↔código, relação `references_code` — CG-18).
+	DocumentID   string `json:"document_id,omitempty"`
+	DocumentPath string `json:"document_path,omitempty"`
 }
 
 // MemoryCodeSearchResponse envelopa os resultados para a tool MCP.
@@ -75,6 +88,12 @@ type MemoryCodeSearchResponse struct {
 	Query   string             `json:"query"`
 	Count   int                `json:"count"`
 	Results []CodeSymbolResult `json:"results"`
+	// Truncated sinaliza que a lista foi cortada pelo orçamento de tokens.
+	Truncated bool `json:"truncated"`
+	// Hint é a dica para estreitar a query quando a resposta foi truncada.
+	Hint string `json:"hint,omitempty"`
+	// TokensEstimated é o custo estimado da resposta em tokens.
+	TokensEstimated int `json:"tokens_estimated"`
 }
 
 // MemoryCodeNeighborsResponse envelopa root + neighbors.
@@ -83,7 +102,42 @@ type MemoryCodeNeighborsResponse struct {
 	Neighbors []CodeNeighborResult `json:"neighbors"`
 	Depth     int                  `json:"depth"`
 	Direction string               `json:"direction"`
+	// Truncated sinaliza que o subgrafo devolvido foi cortado — pelo hub
+	// threshold, pelo orçamento de tokens, ou pelos dois.
+	Truncated bool `json:"truncated"`
+	// Hint é a dica para estreitar a query (AC 23).
+	Hint string `json:"hint,omitempty"`
+	// TokensEstimated é o custo estimado da resposta em tokens.
+	TokensEstimated int `json:"tokens_estimated"`
+	// HubThreshold é o grau de corte aplicado (0 = nenhum corte).
+	HubThreshold int `json:"hub_threshold"`
+	// NodesPruned é o número de nós removidos pelo hub threshold.
+	NodesPruned int `json:"nodes_pruned"`
 }
+
+const (
+	// DefaultHubThresholdPercentile é o PERCENTIL de grau que define o que
+	// é um nó-hub na travessia de código (CG-22).
+	//
+	// O default é p99 — o mesmo do Graphify (`graphify/analyze.py`,
+	// `god_nodes(exclude_hubs_percentile=...)`): o nó-hub é o que está
+	// ACIMA do percentil 99 da distribuição de grau do subgrafo. Com p99,
+	// ~1% dos nós mais conectados é removido: o suficiente para o hub não
+	// dominar o subgrafo devolvido, sem perder vizinho legítimo.
+	//
+	// Configurável pela variável de ambiente
+	// `MY_MEMORY_CODE_HUB_PERCENTILE` (0 < valor <= 100).
+	DefaultHubThresholdPercentile = 99.0
+
+	// HubThresholdPercentileEnv é a variável de ambiente que sobrescreve o
+	// percentil do hub threshold.
+	HubThresholdPercentileEnv = "MY_MEMORY_CODE_HUB_PERCENTILE"
+
+	// DefaultCodeTokenBudget é o orçamento de tokens default da resposta
+	// das tools de código (ADR-029: o estimador é o mesmo do
+	// memory_pack_context).
+	DefaultCodeTokenBudget = 4000
+)
 
 // NewMemoryCodeSearchHandler constrói o handler MCP para memory_code_search.
 //
@@ -144,16 +198,30 @@ func NewMemoryCodeSearchHandler(codeFn CodeSearchFunc) ToolHandlerFunc {
 			return nil, NewError(CodeInternalError, "Falha em memory_code_search", err.Error())
 		}
 
+		maxTokens := codeTokenBudget(rawMap)
+
+		// Orçamento de tokens (AC 23): a lista de hits é cortada quando o
+		// custo estimado passa do orçamento, e o corte vem com a dica de
+		// estreitar a query.
+		kept, tokens, truncated := truncateCodeResults(hits, maxTokens)
+
 		resp := MemoryCodeSearchResponse{
-			Query:   query,
-			Count:   len(hits),
-			Results: hits,
+			Query:           query,
+			Count:           len(kept),
+			Results:         kept,
+			Truncated:       truncated,
+			TokensEstimated: tokens,
+		}
+		if truncated {
+			resp.Hint = codeNarrowHint(maxTokens, len(hits)-len(kept))
 		}
 		out, err := json.Marshal(resp)
 		if err != nil {
 			return nil, err
 		}
-		return NewTextResult(string(out)), nil
+		// structuredContent (aditivo): o texto continua sendo a saída
+		// humana; o payload estruturado é o que a viewer consome.
+		return NewStructuredResult(string(out), resp), nil
 	}
 }
 
@@ -204,22 +272,26 @@ func NewMemoryCodeNeighborsHandler(codeFn CodeNeighborsFunc) ToolHandlerFunc {
 			return NewTextResult("memory_code_neighbors indisponível: code pipeline não configurado (CGO/tree-sitter desabilitado — CA-14)."), nil
 		}
 
-		neighbors, root, err := codeFn(ctx, symbol, depth, direction)
+		maxTokens := codeTokenBudget(rawMap)
+
+		resp, err := codeFn(ctx, symbol, depth, direction, maxTokens)
 		if err != nil {
 			return nil, NewError(CodeInternalError, "Falha em memory_code_neighbors", err.Error())
 		}
-
-		resp := MemoryCodeNeighborsResponse{
-			Root:      root,
-			Neighbors: neighbors,
-			Depth:     depth,
-			Direction: direction,
+		if resp == nil {
+			resp = &MemoryCodeNeighborsResponse{Neighbors: []CodeNeighborResult{}, Depth: depth, Direction: direction}
 		}
+		if resp.Neighbors == nil {
+			resp.Neighbors = []CodeNeighborResult{}
+		}
+
 		out, err := json.Marshal(resp)
 		if err != nil {
 			return nil, err
 		}
-		return NewTextResult(string(out)), nil
+		// structuredContent (aditivo): a rota /code da viewer consome o
+		// payload estruturado; o texto continua sendo a saída humana.
+		return NewStructuredResult(string(out), resp), nil
 	}
 }
 
@@ -326,28 +398,57 @@ LIMIT ?`
 		return nil, err
 	}
 
-	// Aplica boost CA-05 quando habilitado — mesma lógica de cmd/mem/codesearch.
-	if includeBoost && len(hits) > 0 {
-		for i := range hits {
-			qn := hits[i].QualifiedName
-			if qn == "" {
-				qn = hits[i].Name
-			}
-			if strings.TrimSpace(query) != "" &&
-				HasQualifiedNameShapeMCP(query) &&
-				strings.TrimSpace(query) == qn {
-				hits[i].Score *= 2.0
-				hits[i].Boosted = true
-			}
-		}
+	// Boost CA-05: a implementação é a ÚNICA do repositório, a do
+	// internal/store. O pacote mcp IMPORTA o store (o store não pode
+	// importar o mcp sem criar o ciclo mcp → db → store), então a direção
+	// correta é o mcp REUSAR a do store — nunca o contrário.
+	if includeBoost {
+		ApplyCodeSymbolBoostMCP(hits, query)
 	}
 	return hits, nil
+}
+
+// ApplyCodeSymbolBoostMCP aplica o boost CA-05 nos hits da tool MCP.
+//
+// Regra (idêntica à de internal/store.ApplyCodeSymbolBoost): quando a query
+// é exatamente o qualified name do símbolo (e tem a forma de qualified name),
+// o score dobra (2.0) e o hit é marcado como boosted.
+func ApplyCodeSymbolBoostMCP(hits []CodeSymbolResult, query string) {
+	if len(hits) == 0 {
+		return
+	}
+	storeHits := make([]store.CodeSymbolHit, len(hits))
+	for i, h := range hits {
+		storeHits[i] = store.CodeSymbolHit{
+			SymbolID:      h.SymbolID,
+			Kind:          h.Kind,
+			Name:          h.Name,
+			QualifiedName: h.QualifiedName,
+			Signature:     h.Signature,
+			DocComment:    h.DocComment,
+			StartLine:     h.StartLine,
+			EndLine:       h.EndLine,
+			File:          h.File,
+			Language:      h.Language,
+			Score:         h.Score,
+			Boosted:       h.Boosted,
+		}
+	}
+	store.ApplyCodeSymbolBoost(storeHits, query)
+	for i := range hits {
+		hits[i].Score = storeHits[i].Score
+		hits[i].Boosted = storeHits[i].Boosted
+	}
 }
 
 // SQLCodeNeighbors é a implementação padrão em SQL puro via CTE recursivo
 // de CodeNeighborsFunc (CA-11).
 //
 // Devolve (neighbors, root, err). root pode ser nil quando o símbolo não existe.
+//
+// A travessia COMPLETA (com hub threshold, orçamento de tokens e dica para
+// estreitar a query) é `SQLCodeNeighborsTraverse` — esta é a forma crua,
+// sem poda.
 func SQLCodeNeighbors(ctx context.Context, database *sql.DB, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
 	return SQLCodeNeighborsScoped(ctx, database, symbol, depth, direction, "")
 }
@@ -385,17 +486,30 @@ func SQLCodeNeighborsScoped(ctx context.Context, database *sql.DB, symbol string
 		if err != nil {
 			return nil, nil, err
 		}
-		neighbors = append(neighbors, out...)
+		neighbors = append(neighbors, neighborRowsToResults(out)...)
 	}
 	if direction == "in" || direction == "both" {
 		in, err := walkCodeEdges(ctx, database, root.SymbolID, depth, "in", repository)
 		if err != nil {
 			return nil, nil, err
 		}
-		neighbors = append(neighbors, in...)
+		neighbors = append(neighbors, neighborRowsToResults(in)...)
 	}
 
 	return neighbors, root, nil
+}
+
+// neighborRowsToResults converte as linhas da travessia nos vizinhos
+// expostos pela tool.
+func neighborRowsToResults(rows []codeWalkRow) []CodeNeighborResult {
+	if len(rows) == 0 {
+		return nil
+	}
+	out := make([]CodeNeighborResult, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.neighbor)
+	}
+	return out
 }
 
 // resolveCodeSymbolRow devolve o code_symbol resolvido (ou nil).
@@ -450,12 +564,22 @@ func resolveCodeSymbolRow(ctx context.Context, database *sql.DB, symbol, reposit
 	return &r, nil
 }
 
+// codeWalkRow é uma linha da travessia: o vizinho (o payload) mais os ids
+// dos símbolos de origem e destino — o grau do nó (usado pelo hub
+// threshold) é calculado sobre estes ids.
+type codeWalkRow struct {
+	neighbor   CodeNeighborResult
+	srcID      int64
+	dstID      int64
+	neighborID int64
+}
+
 // walkCodeEdges executa a CTE recursiva de saída OU entrada.
 //
 // A CTE carrega a provenance da aresta (epistemic_status, confidence) e o
 // resultado expoe o call-site (arquivo/linha da aresta) e a posição do
 // símbolo de destino (dst_file/dst_line).
-func walkCodeEdges(ctx context.Context, database *sql.DB, rootID int64, depth int, dir, repository string) ([]CodeNeighborResult, error) {
+func walkCodeEdges(ctx context.Context, database *sql.DB, rootID int64, depth int, dir, repository string) ([]codeWalkRow, error) {
 	var q string
 	var args []any
 	if dir == "out" {
@@ -502,7 +626,8 @@ SELECT '` + dir + `' AS direction, w.kind,
        f.path AS file_path, w.line, w.hop,
        w.epistemic_status, w.confidence,
        f.path AS call_site_file, w.line AS call_site_line,
-       df.path AS dst_file, ds.start_line AS dst_line
+       df.path AS dst_file, ds.start_line AS dst_line,
+       w.src, w.dst
   FROM code_walk w
   JOIN code_symbols s  ON s.id = w.` + walkTarget(dir) + `
   JOIN code_files f    ON f.id = w.file_id
@@ -515,21 +640,386 @@ SELECT '` + dir + `' AS direction, w.kind,
 		return nil, err
 	}
 	defer rows.Close()
-	var out []CodeNeighborResult
+	var out []codeWalkRow
 	for rows.Next() {
 		var n CodeNeighborResult
 		var status sql.NullString
+		var srcID, dstID int64
 		if err := rows.Scan(&n.Direction, &n.Kind, &n.Symbol, &n.File, &n.Line, &n.Hop,
 			&status, &n.Confidence, &n.CallSiteFile, &n.CallSiteLine,
-			&n.DstFile, &n.DstLine); err != nil {
+			&n.DstFile, &n.DstLine, &srcID, &dstID); err != nil {
 			return nil, err
 		}
 		if status.Valid {
 			n.EpistemicStatus = status.String
 		}
-		out = append(out, n)
+		neighborID := dstID
+		if dir == "in" {
+			neighborID = srcID
+		}
+		out = append(out, codeWalkRow{
+			neighbor:   n,
+			srcID:      srcID,
+			dstID:      dstID,
+			neighborID: neighborID,
+		})
 	}
 	return out, rows.Err()
+}
+
+// SQLCodeNeighborsTraverse executa a travessia COMPLETA de um símbolo:
+//
+//   - vizinho estrutural (CTE recursiva, ADR-004);
+//   - DOCUMENTOS que referenciam o símbolo (a ponte notas↔código, CG-18);
+//   - hub threshold (percentil do grau, CG-22);
+//   - ordem por DISTÂNCIA EM SALTOS a partir da semente;
+//   - orçamento de tokens na resposta (ADR-029), com a dica de estreitar a
+//     query quando o corte acontece (AC 23).
+//
+// maxTokens <= 0 usa o orçamento default (DefaultCodeTokenBudget).
+func SQLCodeNeighborsTraverse(ctx context.Context, database *sql.DB, symbol string, depth int, direction string, repository string, maxTokens int) (*MemoryCodeNeighborsResponse, error) {
+	if database == nil {
+		return nil, errors.New("SQLCodeNeighborsTraverse: database == nil")
+	}
+	if depth <= 0 {
+		depth = 1
+	}
+	if depth > 5 {
+		depth = 5
+	}
+	if maxTokens <= 0 {
+		maxTokens = DefaultCodeTokenBudget
+	}
+	direction = strings.ToLower(strings.TrimSpace(direction))
+	if direction == "" {
+		direction = "both"
+	}
+
+	root, err := resolveCodeSymbolRow(ctx, database, symbol, repository)
+	if err != nil {
+		return nil, err
+	}
+	if root == nil {
+		return nil, fmt.Errorf("símbolo %q não encontrado em code_symbols", symbol)
+	}
+
+	resp := &MemoryCodeNeighborsResponse{
+		Root:      root,
+		Neighbors: []CodeNeighborResult{},
+		Depth:     depth,
+		Direction: direction,
+	}
+
+	// 1) Vizinho estrutural.
+	var rows []codeWalkRow
+	if direction == "out" || direction == "both" {
+		out, err := walkCodeEdges(ctx, database, root.SymbolID, depth, "out", repository)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, out...)
+	}
+	if direction == "in" || direction == "both" {
+		in, err := walkCodeEdges(ctx, database, root.SymbolID, depth, "in", repository)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, in...)
+	}
+
+	// 2) Hub threshold (percentil do grau): os nós-hub saem do subgrafo.
+	rows, threshold, pruned := applyHubThreshold(rows, hubThresholdPercentile())
+
+	// 3) Documentos que referenciam o símbolo (a ponte). Não entram no
+	// cálculo de grau: eles não são nós do grafo de código.
+	docs, err := db.CodeBridgeDocumentsForSymbol(ctx, database, root.QualifiedName)
+	if err == nil {
+		for _, d := range docs {
+			rows = append(rows, codeWalkRow{
+				neighbor: CodeNeighborResult{
+					Direction:       "document",
+					Kind:            db.BridgeRelation,
+					Symbol:          d.Path,
+					File:            d.Path,
+					Hop:             1,
+					EpistemicStatus: d.Status,
+					DocumentID:      d.DocumentID,
+					DocumentPath:    d.Path,
+				},
+			})
+		}
+	}
+
+	// 4) Ordem por distância em saltos a partir da semente.
+	sortCodeNeighbors(rows)
+
+	// 5) Orçamento de tokens (ADR-029 — o estimador é o do memory_pack_context).
+	kept, tokens, truncated := truncateCodeNeighbors(rows, maxTokens)
+
+	resp.Neighbors = kept
+	resp.TokensEstimated = tokens
+	resp.HubThreshold = threshold
+	resp.NodesPruned = pruned
+	resp.Truncated = truncated || pruned > 0
+	if resp.Truncated {
+		resp.Hint = codeNarrowHint(maxTokens, len(rows)-len(kept))
+	}
+	return resp, nil
+}
+
+// CodeImpactSymbol é um símbolo de código alcançado pelo memory_get_impact.
+//
+// A ponte notas↔código (CG-18) faz o impacto atravessar a fronteira entre
+// o grafo de notas e o de código: a partir de um documento, o impacto
+// alcança os símbolos que o documento referencia; a partir de um símbolo,
+// alcança os documentos que o referenciam.
+type CodeImpactSymbol struct {
+	// NodeID é o id do nó no grafo único ("code:<qualified_name>").
+	NodeID string `json:"node_id"`
+	// QualifiedName é a identidade do símbolo.
+	QualifiedName string `json:"qualified_name"`
+	Name          string `json:"name"`
+	Kind          string `json:"kind"`
+	Language      string `json:"language"`
+	File          string `json:"file"`
+	StartLine     int    `json:"start_line"`
+	EndLine       int    `json:"end_line"`
+	// Depth é a profundidade a que o símbolo foi alcançado (0 = semente).
+	Depth int `json:"depth"`
+	// Relation é a relação que ligou o nó ao impacto.
+	Relation string `json:"relation,omitempty"`
+	// ViaNode é o nó por onde o símbolo foi alcançado.
+	ViaNode string `json:"via_node,omitempty"`
+}
+
+// ImpactCodeSymbolsFunc resolve os símbolos de código alcançados a partir
+// de uma semente do grafo.
+type ImpactCodeSymbolsFunc func(ctx context.Context, seedNodeID string, nodeIDs []string) ([]CodeImpactSymbol, error)
+
+// ResolveCodeImpactSymbols resolve os símbolos de código alcançados pelo
+// impacto a partir de seedNodeID.
+//
+// Duas direções:
+//   - os nós de código que já estão no resultado do impacto (dependentes da
+//     semente);
+//   - os símbolos que a SEMENTE referencia (a ponte `references_code`): é o
+//     que faz o impacto a partir de um DOCUMENTO alcançar o código.
+func ResolveCodeImpactSymbols(ctx context.Context, database *sql.DB, seedNodeID string, nodeIDs []string) ([]CodeImpactSymbol, error) {
+	if database == nil {
+		return nil, errors.New("ResolveCodeImpactSymbols: database == nil")
+	}
+
+	var out []CodeImpactSymbol
+	seen := make(map[string]bool)
+
+	appendSymbol := func(nodeID string, depth int, relation, viaNode string) {
+		if !strings.HasPrefix(nodeID, db.CodeSymbolNodePrefix) {
+			return
+		}
+		qn := strings.TrimPrefix(nodeID, db.CodeSymbolNodePrefix)
+		if qn == "" || seen[qn] {
+			return
+		}
+		ref, err := db.CodeSymbolByNodeID(ctx, database, qn)
+		if err != nil || ref == nil {
+			return
+		}
+		seen[qn] = true
+		out = append(out, CodeImpactSymbol{
+			NodeID:        nodeID,
+			QualifiedName: ref.QualifiedName,
+			Name:          ref.Name,
+			Kind:          ref.Kind,
+			Language:      ref.Language,
+			File:          ref.File,
+			StartLine:     ref.StartLine,
+			EndLine:       ref.EndLine,
+			Depth:         depth,
+			Relation:      relation,
+			ViaNode:       viaNode,
+		})
+	}
+
+	// 1) nós de código já presentes no resultado do impacto.
+	for _, id := range nodeIDs {
+		appendSymbol(id, 1, db.BridgeRelation, seedNodeID)
+	}
+
+	// 2) símbolos que a semente (um documento) referencia.
+	symbols, err := db.CodeBridgeSymbolsForDocument(ctx, database, seedNodeID)
+	if err == nil {
+		for _, id := range symbols {
+			appendSymbol(id, 1, db.BridgeRelation, seedNodeID)
+		}
+	}
+
+	return out, nil
+}
+
+// hubThresholdPercentile devolve o percentil de grau em uso.
+//
+// Default: p99 (DefaultHubThresholdPercentile). Configurável pela variável
+// de ambiente `MY_MEMORY_CODE_HUB_PERCENTILE`.
+func hubThresholdPercentile() float64 {
+	raw := strings.TrimSpace(os.Getenv(HubThresholdPercentileEnv))
+	if raw == "" {
+		return DefaultHubThresholdPercentile
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value <= 0 || value > 100 {
+		return DefaultHubThresholdPercentile
+	}
+	return value
+}
+
+// applyHubThreshold remove do subgrafo os nós cujo grau supera o percentil
+// da distribuição de grau do próprio subgrafo.
+//
+// A regra é a do Graphify (`graphify/analyze.py`, `god_nodes`): o limiar é
+// o grau no índice `int(len(degrees) * percentile / 100) - 1` da lista
+// ordenada de graus, e o nó é removido quando `degree > limiar`.
+//
+// Devolve (linhas mantidas, limiar aplicado, número de linhas removidas).
+func applyHubThreshold(rows []codeWalkRow, percentile float64) ([]codeWalkRow, int, int) {
+	if len(rows) == 0 {
+		return rows, 0, 0
+	}
+	degree := make(map[int64]int)
+	for _, r := range rows {
+		if r.neighborID == 0 {
+			continue
+		}
+		degree[r.srcID]++
+		degree[r.dstID]++
+	}
+	if len(degree) == 0 {
+		return rows, 0, 0
+	}
+
+	degrees := make([]int, 0, len(degree))
+	for _, d := range degree {
+		degrees = append(degrees, d)
+	}
+	sort.Ints(degrees)
+
+	idx := int(float64(len(degrees))*percentile/100) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	threshold := degrees[idx]
+
+	pruned := 0
+	kept := rows[:0]
+	for _, r := range rows {
+		if r.neighborID != 0 && degree[r.neighborID] > threshold {
+			pruned++
+			continue
+		}
+		kept = append(kept, r)
+	}
+	return kept, threshold, pruned
+}
+
+// sortCodeNeighbors ordena as linhas da travessia por DISTÂNCIA EM SALTOS
+// (hop) a partir da semente. O desempate é estável e determinístico.
+func sortCodeNeighbors(rows []codeWalkRow) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].neighbor.Hop != rows[j].neighbor.Hop {
+			return rows[i].neighbor.Hop < rows[j].neighbor.Hop
+		}
+		if rows[i].neighbor.Direction != rows[j].neighbor.Direction {
+			return rows[i].neighbor.Direction < rows[j].neighbor.Direction
+		}
+		if rows[i].neighbor.Kind != rows[j].neighbor.Kind {
+			return rows[i].neighbor.Kind < rows[j].neighbor.Kind
+		}
+		return rows[i].neighbor.Symbol < rows[j].neighbor.Symbol
+	})
+}
+
+// truncateCodeNeighbors corta a resposta quando o orçamento de tokens é
+// estourado. O estimador é o JÁ EXISTO no repo (ADR-029):
+// `graph.EstimateTokens` — o mesmo do memory_pack_context.
+//
+// Devolve (vizinhos mantidos, tokens estimados, truncado).
+func truncateCodeNeighbors(rows []codeWalkRow, maxTokens int) ([]CodeNeighborResult, int, bool) {
+	kept := make([]CodeNeighborResult, 0, len(rows))
+	used := 0
+	truncated := false
+	for _, r := range rows {
+		cost := estimateCodeTokens(r.neighbor)
+		if used+cost > maxTokens {
+			truncated = true
+			// A resposta nunca fica vazia por causa do orçamento: o primeiro
+			// vizinho sempre entra (o corte é sinalizado na dica).
+			if len(kept) == 0 {
+				kept = append(kept, r.neighbor)
+				used += cost
+			}
+			break
+		}
+		kept = append(kept, r.neighbor)
+		used += cost
+	}
+	return kept, used, truncated
+}
+
+// truncateCodeResults corta a lista de hits da busca pelo orçamento de
+// tokens (mesmo estimador e mesma regra de truncateCodeNeighbors).
+func truncateCodeResults(hits []CodeSymbolResult, maxTokens int) ([]CodeSymbolResult, int, bool) {
+	kept := make([]CodeSymbolResult, 0, len(hits))
+	used := 0
+	truncated := false
+	for _, h := range hits {
+		cost := estimateCodeTokens(h)
+		if used+cost > maxTokens {
+			truncated = true
+			if len(kept) == 0 {
+				kept = append(kept, h)
+				used += cost
+			}
+			break
+		}
+		kept = append(kept, h)
+		used += cost
+	}
+	return kept, used, truncated
+}
+
+// estimateCodeTokens estima o custo de um item da resposta em tokens.
+//
+// O estimador é o do repo (ADR-029 — `graph.EstimateTokens`, 1 token ~ 4
+// caracteres): nenhum estimador novo foi criado.
+func estimateCodeTokens(payload any) int {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return 0
+	}
+	return graph.EstimateTokens(string(encoded))
+}
+
+// codeTokenBudget lê o orçamento de tokens dos argumentos da tool.
+func codeTokenBudget(rawMap map[string]json.RawMessage) int {
+	budget := DefaultCodeTokenBudget
+	if raw, ok := rawMap["max_tokens"]; ok {
+		var t int
+		if err := json.Unmarshal(raw, &t); err == nil && t > 0 {
+			budget = t
+		}
+	}
+	return budget
+}
+
+// codeNarrowHint monta a dica de estreitar a query (AC 23).
+func codeNarrowHint(maxTokens, dropped int) string {
+	hint := fmt.Sprintf(
+		"Resposta truncada (orçamento de %d tokens). Estreite a query: use o qualified name completo, reduza a profundidade (depth) ou filtre por language/kind.",
+		maxTokens,
+	)
+	if dropped > 0 {
+		hint += fmt.Sprintf(" %d vizinho(s) ficaram de fora.", dropped)
+	}
+	return hint
 }
 
 // walkTarget devolve a coluna da CTE que é o símbolo destination da
@@ -572,35 +1062,11 @@ func mcpTokenize(query string) []string {
 	return out
 }
 
-// HasQualifiedNameShapeMCP espelha a heurística de codeast.HasQualifiedNameShape
-// sem importar codeast (para evitar ciclo: mcp → codeast → db → mcp).
+// HasQualifiedNameShapeMCP devolve true quando a query tem a forma de um
+// qualified name (segmentos separados por ".", cada um um identificador).
+//
+// A implementação é a de internal/store (HasQualifiedNameShape) — o mcp
+// importa o store, então é o mcp que reusa a do store.
 func HasQualifiedNameShapeMCP(query string) bool {
-	q := strings.TrimSpace(query)
-	if q == "" || !strings.Contains(q, ".") {
-		return false
-	}
-	for _, seg := range strings.Split(q, ".") {
-		seg = strings.TrimSpace(seg)
-		if !isIdentSegMCP(seg) {
-			return false
-		}
-	}
-	return true
-}
-
-func isIdentSegMCP(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i, r := range s {
-		switch {
-		case r == '_':
-		case r >= 'A' && r <= 'Z':
-		case r >= 'a' && r <= 'z':
-		case r >= '0' && r <= '9' && i > 0:
-		default:
-			return false
-		}
-	}
-	return true
+	return store.HasQualifiedNameShape(query)
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -166,8 +167,8 @@ func TestRespostaDeCodeTrazProvenienciaECallSite(t *testing.T) {
 	// O JSON da tool carrega os campos novos (contrato aditivo).
 	srv := NewServer("test", "0.0.0", os.Stdin, os.Stdout, nil)
 	srv.SetCodeAccess(CodeAccess{
-		Neighbors: func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
-			return SQLCodeNeighbors(ctx, database, symbol, depth, direction)
+		Neighbors: func(ctx context.Context, symbol string, depth int, direction string, maxTokens int) (*MemoryCodeNeighborsResponse, error) {
+			return SQLCodeNeighborsTraverse(ctx, database, symbol, depth, direction, "", maxTokens)
 		},
 	})
 	text := callCodeTool(t, srv, "memory_code_neighbors", `{"symbol":"foo.Hello","depth":1,"direction":"out"}`)
@@ -309,8 +310,8 @@ func TestMemoryCodeNeighborsHandler_SearchWithFn(t *testing.T) {
 	database, _ := codeHandlersTestFixture(t)
 	defer database.Close()
 
-	fn := func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
-		return SQLCodeNeighbors(ctx, database, symbol, depth, direction)
+	fn := func(ctx context.Context, symbol string, depth int, direction string, maxTokens int) (*MemoryCodeNeighborsResponse, error) {
+		return SQLCodeNeighborsTraverse(ctx, database, symbol, depth, direction, "", maxTokens)
 	}
 	handler := NewMemoryCodeNeighborsHandler(fn)
 
@@ -335,8 +336,8 @@ func TestMemoryCodeNeighborsHandler_NotFound_Errors(t *testing.T) {
 	database, _ := codeHandlersTestFixture(t)
 	defer database.Close()
 
-	fn := func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
-		return SQLCodeNeighbors(ctx, database, symbol, depth, direction)
+	fn := func(ctx context.Context, symbol string, depth int, direction string, maxTokens int) (*MemoryCodeNeighborsResponse, error) {
+		return SQLCodeNeighborsTraverse(ctx, database, symbol, depth, direction, "", maxTokens)
 	}
 	handler := NewMemoryCodeNeighborsHandler(fn)
 	_, err := handler(context.Background(), json.RawMessage(`{"symbol":"nonexistent.Symbol"}`))
@@ -349,8 +350,8 @@ func TestMemoryCodeNeighborsHandler_DepthClamped(t *testing.T) {
 	database, _ := codeHandlersTestFixture(t)
 	defer database.Close()
 
-	fn := func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
-		return SQLCodeNeighbors(ctx, database, symbol, depth, direction)
+	fn := func(ctx context.Context, symbol string, depth int, direction string, maxTokens int) (*MemoryCodeNeighborsResponse, error) {
+		return SQLCodeNeighborsTraverse(ctx, database, symbol, depth, direction, "", maxTokens)
 	}
 	handler := NewMemoryCodeNeighborsHandler(fn)
 	res, _ := handler(context.Background(), json.RawMessage(`{"symbol":"foo.Hello","depth":99}`))
@@ -405,8 +406,8 @@ func TestSetCodeSearchHandler_Registers(t *testing.T) {
 
 func TestSetCodeNeighborsHandler_Registers(t *testing.T) {
 	srv := NewServer("test", "0.0.0", os.Stdin, os.Stdout, nil)
-	srv.SetCodeNeighborsHandler(func(ctx context.Context, s string, d int, dir string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
-		return nil, nil, nil
+	srv.SetCodeNeighborsHandler(func(ctx context.Context, s string, d int, dir string, maxTokens int) (*MemoryCodeNeighborsResponse, error) {
+		return &MemoryCodeNeighborsResponse{}, nil
 	})
 	tools := srv.GetTools()
 	found := false
@@ -482,8 +483,8 @@ func TestServerInjetaHandlersDeCodigo(t *testing.T) {
 		Search: func(ctx context.Context, query, language, kind string, limit int, includeBoost bool) ([]CodeSymbolResult, error) {
 			return SQLCodeSearch(ctx, database, query, language, kind, limit, includeBoost)
 		},
-		Neighbors: func(ctx context.Context, symbol string, depth int, direction string) ([]CodeNeighborResult, *CodeSymbolResult, error) {
-			return SQLCodeNeighbors(ctx, database, symbol, depth, direction)
+		Neighbors: func(ctx context.Context, symbol string, depth int, direction string, maxTokens int) (*MemoryCodeNeighborsResponse, error) {
+			return SQLCodeNeighborsTraverse(ctx, database, symbol, depth, direction, "", maxTokens)
 		},
 	})
 
@@ -521,4 +522,231 @@ func callCodeTool(t *testing.T, srv *Server, name, args string) string {
 		t.Fatalf("tools/call %s devolveu resposta sem conteúdo", name)
 	}
 	return result.Content[0].Text
+}
+
+// hubGraphFixture cria um grafo de código com um nó-HUB: `seed.Seed` chama
+// `hub.Hub`, e `hub.Hub` chama 20 folhas. O grau do hub no subgrafo (21) é
+// muito maior que o das folhas (1) — é o caso que o hub threshold remove.
+//
+// Devolve o banco e o número de folhas.
+func hubGraphFixture(t *testing.T) (*sql.DB, int) {
+	t.Helper()
+
+	database, err := db.InitDB(filepath.Join(t.TempDir(), "hub.db"))
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	ctx := context.Background()
+
+	fileID, err := db.UpsertCodeFile(ctx, database, "pkg/hub.go", "go", "hash", "ast", 256, 1700000000)
+	if err != nil {
+		t.Fatalf("UpsertCodeFile: %v", err)
+	}
+	upsert := func(name, qn string) int64 {
+		t.Helper()
+		id, err := db.UpsertCodeSymbol(ctx, database, fileID, "function", name, qn,
+			"func "+name+"()", "", 1, 3, 0, 0)
+		if err != nil {
+			t.Fatalf("UpsertCodeSymbol(%s): %v", qn, err)
+		}
+		return id
+	}
+
+	seedID := upsert("Seed", "seed.Seed")
+	hubID := upsert("Hub", "hub.Hub")
+
+	const leaves = 20
+	leafIDs := make([]int64, 0, leaves)
+	for i := 0; i < leaves; i++ {
+		leafIDs = append(leafIDs, upsert(fmt.Sprintf("Leaf%d", i), fmt.Sprintf("hub.Leaf%d", i)))
+	}
+
+	if err := db.UpsertCodeEdge(ctx, database, seedID, hubID, fileID, "calls", 10, 10, 1.0); err != nil {
+		t.Fatalf("UpsertCodeEdge(seed->hub): %v", err)
+	}
+	for _, leafID := range leafIDs {
+		if err := db.UpsertCodeEdge(ctx, database, hubID, leafID, fileID, "calls", 20, 20, 1.0); err != nil {
+			t.Fatalf("UpsertCodeEdge(hub->leaf): %v", err)
+		}
+	}
+	return database, leaves
+}
+
+// neighborSymbols devolve o conjunto de símbolos dos vizinhos.
+func neighborSymbols(neighbors []CodeNeighborResult) map[string]bool {
+	out := make(map[string]bool, len(neighbors))
+	for _, n := range neighbors {
+		out[n.Symbol] = true
+	}
+	return out
+}
+
+// TestTravessiaAplicaHubThreshold cobre o AC 22: o hub threshold (percentil do
+// grau, default p99) remove do subgrafo os nós de grau altíssimo, para que
+// eles não dominem o subgrafo devolvido.
+//
+// O mesmo grafo é percorrido com o threshold desligado (percentil 100) — aí o
+// hub aparece.
+func TestTravessiaAplicaHubThreshold(t *testing.T) {
+	database, leaves := hubGraphFixture(t)
+	defer database.Close()
+	ctx := context.Background()
+
+	// 1) Default (p99): o hub sai do subgrafo.
+	t.Setenv(HubThresholdPercentileEnv, "99")
+	resp, err := SQLCodeNeighborsTraverse(ctx, database, "seed.Seed", 2, "out", "", 0)
+	if err != nil {
+		t.Fatalf("SQLCodeNeighborsTraverse: %v", err)
+	}
+	symbols := neighborSymbols(resp.Neighbors)
+	if symbols["hub.Hub"] {
+		t.Errorf("o nó-hub não devia estar no subgrafo com p99: %v", resp.Neighbors)
+	}
+	if resp.NodesPruned == 0 {
+		t.Errorf("nenhum nó foi removido pelo hub threshold: %+v", resp)
+	}
+	if resp.HubThreshold <= 0 {
+		t.Errorf("hub_threshold = %d; want > 0", resp.HubThreshold)
+	}
+	if !resp.Truncated {
+		t.Error("a resposta com poda deve vir marcada como truncada")
+	}
+	if resp.Hint == "" {
+		t.Error("a poda deve trazer a dica de estreitar a query")
+	}
+	if len(resp.Neighbors) != leaves {
+		t.Errorf("vizinhos = %d; want %d (as folhas sobrevivem)", len(resp.Neighbors), leaves)
+	}
+
+	// 2) Percentil 100: o threshold não corta nada (o hub volta).
+	t.Setenv(HubThresholdPercentileEnv, "100")
+	respFull, err := SQLCodeNeighborsTraverse(ctx, database, "seed.Seed", 2, "out", "", 0)
+	if err != nil {
+		t.Fatalf("SQLCodeNeighborsTraverse: %v", err)
+	}
+	symbolsFull := neighborSymbols(respFull.Neighbors)
+	if !symbolsFull["hub.Hub"] {
+		t.Errorf("com o threshold desligado o hub devia estar no subgrafo: %v", respFull.Neighbors)
+	}
+	if respFull.NodesPruned != 0 {
+		t.Errorf("nodes_pruned = %d; want 0", respFull.NodesPruned)
+	}
+	if len(respFull.Neighbors) != leaves+1 {
+		t.Errorf("vizinhos = %d; want %d (hub + folhas)", len(respFull.Neighbors), leaves+1)
+	}
+}
+
+// TestTravessiaRespeitaOrcamentoDeTokens cobre o AC 23: a resposta respeita
+// um orçamento de tokens, é truncada quando o orçamento estoura e traz a dica
+// de estreitar a query.
+func TestTravessiaRespeitaOrcamentoDeTokens(t *testing.T) {
+	database, _ := hubGraphFixture(t)
+	defer database.Close()
+	ctx := context.Background()
+
+	t.Setenv(HubThresholdPercentileEnv, "100")
+
+	// 1) Orçamento generoso: nada é cortado.
+	full, err := SQLCodeNeighborsTraverse(ctx, database, "seed.Seed", 2, "out", "", 100000)
+	if err != nil {
+		t.Fatalf("SQLCodeNeighborsTraverse: %v", err)
+	}
+	if full.Truncated {
+		t.Errorf("com orçamento generoso a resposta não devia ser truncada: %+v", full)
+	}
+	if full.Hint != "" {
+		t.Errorf("sem truncamento não deve haver dica; got %q", full.Hint)
+	}
+	if full.TokensEstimated <= 0 {
+		t.Errorf("tokens_estimated = %d; want > 0", full.TokensEstimated)
+	}
+
+	// 2) Orçamento de 1 token: a resposta é truncada e traz a dica.
+	small, err := SQLCodeNeighborsTraverse(ctx, database, "seed.Seed", 2, "out", "", 1)
+	if err != nil {
+		t.Fatalf("SQLCodeNeighborsTraverse: %v", err)
+	}
+	if !small.Truncated {
+		t.Errorf("com orçamento de 1 token a resposta devia ser truncada: %+v", small)
+	}
+	if small.Hint == "" {
+		t.Error("a truncagem deve trazer a dica de estreitar a query")
+	}
+	if !strings.Contains(strings.ToLower(small.Hint), "estreite") {
+		t.Errorf("a dica deve pedir para estreitar a query; got %q", small.Hint)
+	}
+	if len(small.Neighbors) >= len(full.Neighbors) {
+		t.Errorf("o orçamento não cortou nada: %d vs %d", len(small.Neighbors), len(full.Neighbors))
+	}
+	if len(small.Neighbors) != 1 {
+		t.Errorf("vizinhos = %d; want 1 (o primeiro sempre entra)", len(small.Neighbors))
+	}
+}
+
+// TestTravessiaOrdenaPorHop cobre a ordem por DISTÂNCIA EM SALTOS: os
+// vizinhos mais próximos da semente vêm primeiro.
+func TestTravessiaOrdenaPorHop(t *testing.T) {
+	database, _ := hubGraphFixture(t)
+	defer database.Close()
+	ctx := context.Background()
+
+	t.Setenv(HubThresholdPercentileEnv, "100")
+
+	resp, err := SQLCodeNeighborsTraverse(ctx, database, "seed.Seed", 2, "out", "", 100000)
+	if err != nil {
+		t.Fatalf("SQLCodeNeighborsTraverse: %v", err)
+	}
+	if len(resp.Neighbors) < 2 {
+		t.Fatalf("vizinhos = %d; want >= 2", len(resp.Neighbors))
+	}
+	for i := 1; i < len(resp.Neighbors); i++ {
+		if resp.Neighbors[i].Hop < resp.Neighbors[i-1].Hop {
+			t.Fatalf("a ordem não é por hop: %d depois de %d",
+				resp.Neighbors[i].Hop, resp.Neighbors[i-1].Hop)
+		}
+	}
+	if resp.Neighbors[0].Hop != 1 {
+		t.Errorf("o primeiro vizinho deve estar a 1 salto; got %d", resp.Neighbors[0].Hop)
+	}
+}
+
+// TestCodeNeighborsIncluiDocumentosDaPonte cobre o AC 19: a travessia de um
+// símbolo inclui os DOCUMENTOS que o referenciam (a ponte notas↔código).
+func TestCodeNeighborsIncluiDocumentosDaPonte(t *testing.T) {
+	database, _ := hubGraphFixture(t)
+	defer database.Close()
+	ctx := context.Background()
+
+	// Documento que menciona o qualified name do hub.
+	const docID = "doc-neighbors-bridge"
+	if err := db.InsertDocumentWithMeta(ctx, database, docID, "docs/hub.md", "Hub",
+		1700000000, "hash", "", "", "resource", 0, 0); err != nil {
+		t.Fatalf("InsertDocumentWithMeta: %v", err)
+	}
+	if err := db.InsertChunk(ctx, database, "chunk-neighbors-bridge", docID,
+		"A nota explica o fluxo hub.Hub.", 0, nil); err != nil {
+		t.Fatalf("InsertChunk: %v", err)
+	}
+	if _, err := db.BuildCodeBridge(ctx, database); err != nil {
+		t.Fatalf("BuildCodeBridge: %v", err)
+	}
+
+	resp, err := SQLCodeNeighborsTraverse(ctx, database, "hub.Hub", 1, "out", "", 100000)
+	if err != nil {
+		t.Fatalf("SQLCodeNeighborsTraverse: %v", err)
+	}
+
+	found := false
+	for _, n := range resp.Neighbors {
+		if n.DocumentID == docID {
+			found = true
+			if n.EpistemicStatus != db.EpistemicExtracted {
+				t.Errorf("status epistêmico do documento = %q; want %q",
+					n.EpistemicStatus, db.EpistemicExtracted)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("o documento que referencia hub.Hub não apareceu na travessia: %+v", resp.Neighbors)
+	}
 }

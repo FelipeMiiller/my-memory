@@ -654,6 +654,57 @@ func CodeBridgeSymbolsForDocument(ctx context.Context, database *sql.DB, documen
 	return out, rows.Err()
 }
 
+// CodeFileHash devolve o `ast_hash` gravado de um arquivo de código.
+//
+// A busca é TOLERANTE: primeiro tenta o repository do contexto; se não
+// achar, usa o arquivo de qualquer repository (o vault local tem um só) —
+// assim o drift funciona mesmo quando o comando não carrega o repository no
+// contexto.
+//
+// Devolve ("", false, nil) quando não há hash gravado: isso NÃO é erro
+// (AC 27), é a ausência de referência.
+func CodeFileHash(ctx context.Context, database *sql.DB, path string) (string, bool, error) {
+	if database == nil {
+		return "", false, fmt.Errorf("CodeFileHash: database == nil")
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", false, nil
+	}
+
+	// 1) o repository do contexto.
+	_, astHash, ok, err := GetCodeFileHash(ctx, database, path)
+	if err != nil {
+		return "", false, err
+	}
+	if ok && strings.TrimSpace(astHash) != "" {
+		return astHash, true, nil
+	}
+
+	// 2) fallback: qualquer repository.
+	query := `
+		SELECT ast_hash
+		  FROM code_files
+		 WHERE path = ? AND ast_hash IS NOT NULL AND ast_hash <> ''
+		 ORDER BY indexed_at DESC
+		 LIMIT 1`
+	rows, err := database.QueryContext(ctx, DetectDialect(ctx, database).Bind(query), path)
+	if err != nil {
+		return "", false, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return "", false, err
+		}
+		if strings.TrimSpace(hash) != "" {
+			return hash, true, nil
+		}
+	}
+	return "", false, rows.Err()
+}
+
 // CodeSymbolSignature é um símbolo gravado em code_symbols com a sua
 // assinatura — a referência que o drift compara com o arquivo atual para
 // detectar mudança ESTRUTURAL (AC 26).
