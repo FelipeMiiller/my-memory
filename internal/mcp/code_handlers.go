@@ -137,6 +137,19 @@ const (
 	// das tools de código (ADR-029: o estimador é o mesmo do
 	// memory_pack_context).
 	DefaultCodeTokenBudget = 4000
+
+	// MinHubPruneNodes é o número MÍNIMO de nós distintos no subgrafo para
+	// que o corte por hub (percentil do grau) seja aplicado.
+	//
+	// Motivo (defeito D4): o p99 é um percentil de GRAFO GRANDE. Sobre
+	// poucos nós, o índice do percentil cai no penúltimo grau da
+	// distribuição e o corte remove o vizinho de hop 1 (o `calls` mais
+	// próximo da semente) em vez do hub — invertendo a relevância. O número
+	// 50 é o piso: abaixo dele a travessia devolve o subgrafo inteiro.
+	//
+	// Acima de 50 nós, o corte volta a valer (o p99 passa a distinguir o
+	// topo da distribuição do resto).
+	MinHubPruneNodes = 50
 )
 
 // NewMemoryCodeSearchHandler constrói o handler MCP para memory_code_search.
@@ -879,6 +892,17 @@ func hubThresholdPercentile() float64 {
 // o grau no índice `int(len(degrees) * percentile / 100) - 1` da lista
 // ordenada de graus, e o nó é removido quando `degree > limiar`.
 //
+// DOIS LIMITES (defeito D4):
+//
+//  1. O corte só vale para grafos GRANDES. O p99 é um percentil de grafo
+//     grande: sobre poucos nós o índice do percentil cai no penúltimo grau
+//     e o corte remove o vizinho mais relevante (o `calls` de hop 1) em vez
+//     do hub — invertendo a relevância. Abaixo de MinHubPruneNodes nós a
+//     travessia NÃO poda nada.
+//  2. Com o índice inteiro, o limiar cai no TOPO da distribuição: o nó
+//     removido é sempre o de MAIOR grau (nunca o penúltimo por erro de
+//     índice).
+//
 // Devolve (linhas mantidas, limiar aplicado, número de linhas removidas).
 func applyHubThreshold(rows []codeWalkRow, percentile float64) ([]codeWalkRow, int, int) {
 	if len(rows) == 0 {
@@ -895,6 +919,10 @@ func applyHubThreshold(rows []codeWalkRow, percentile float64) ([]codeWalkRow, i
 	if len(degree) == 0 {
 		return rows, 0, 0
 	}
+	// Subgrafo pequeno: o percentil não distingue hub de vizinho comum.
+	if len(degree) < MinHubPruneNodes {
+		return rows, 0, 0
+	}
 
 	degrees := make([]int, 0, len(degree))
 	for _, d := range degree {
@@ -905,6 +933,9 @@ func applyHubThreshold(rows []codeWalkRow, percentile float64) ([]codeWalkRow, i
 	idx := int(float64(len(degrees))*percentile/100) - 1
 	if idx < 0 {
 		idx = 0
+	}
+	if idx > len(degrees)-1 {
+		idx = len(degrees) - 1
 	}
 	threshold := degrees[idx]
 

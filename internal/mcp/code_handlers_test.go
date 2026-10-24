@@ -555,7 +555,10 @@ func hubGraphFixture(t *testing.T) (*sql.DB, int) {
 	seedID := upsert("Seed", "seed.Seed")
 	hubID := upsert("Hub", "hub.Hub")
 
-	const leaves = 20
+	// 60 folhas + hub + seed = 62 nós: acima de MinHubPruneNodes (50), o
+	// corte por hub vale (com 22 nós o p99 caía no penúltimo grau e
+	// removia o vizinho de hop 1 em vez do hub — defeito D4).
+	const leaves = 60
 	leafIDs := make([]int64, 0, leaves)
 	for i := 0; i < leaves; i++ {
 		leafIDs = append(leafIDs, upsert(fmt.Sprintf("Leaf%d", i), fmt.Sprintf("hub.Leaf%d", i)))
