@@ -965,12 +965,12 @@ atualizado no catálogo global é o `path`.
 ## ISSUE-029 — 8 defeitos na feature `code-graph-real`, achados pela verificação independente
 
 - **Severidade:** 🔴 alta (2 defeitos altos + 1 alto-médio + 3 médios + 2 baixos)
-- **Status:** 🔵 open — correções despachadas em 2026-10-24
+- **Status:** 🟢 **corrigido** (2026-10-24) — os 8 defeitos foram corrigidos e commitados; **falta a revalidação** das 16 hipóteses depois das correções (ver `HANDOFF.md`, item 1)
 - **Achado em:** verificação independente de 2026-10-24 (agente `verifier`,
   read-only, 16 hipóteses; relatório completo em
   `.specs/features/code-graph-real/verification.md`)
-- **Veredito:** 🔶 **PARTIAL** — o núcleo técnico está sólido e verificadamente
-  real, mas não é PASS
+- **Veredito da verificação:** 🔶 **PARTIAL** — o núcleo técnico está sólido e verificadamente
+  real, mas não era PASS
 
 | # | Severidade | Defeito | Quebra |
 | :--- | :--- | :--- | :--- |

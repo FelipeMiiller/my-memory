@@ -12,14 +12,19 @@ tags: [my-memory, code-graph, adr-061, handoff, spec]
 > deste documento:** limpo, exceto pelo arquivo de validação da Fase 3 que o
 > worker estava finalizando.
 
-> [!warning] **Veredito da verificação independente: 🔶 PARTIAL (não é PASS).**
+> [!warning] **Veredito da verificação independente: 🔶 PARTIAL (não é PASS) —
+> mas os 8 defeitos já foram corrigidos.**
 > O núcleo técnico está sólido e verificadamente real, mas a verificação
 > encontrou **2 defeitos de severidade alta** que quebram ACs declaradas
 > (D1: a migração quebra em vault existente; D2: `include_code` é no-op para
 > qualquer `repo_id` ≠ `default`), **1 alto-médio** (D3: o build
 > `-tags treesitter` esvazia o code graph em silêncio) e **3 médios**.
 > **Relatório completo:** `.specs/features/code-graph-real/verification.md`.
-> As correções foram despachadas — ver §4.
+> **Correções:** `b3ed53f` (D1) · `fbd3d62` (D2) · `b34abd8` (D3) ·
+> `1dc845a` (D4) · `b84dfce` (D5) · `aadd791` (D6) · `e64e389` (D7) ·
+> `aac0c0b` (D8). Evidência D7/D8 em `validation-d7-d8.md`.
+> **Falta:** a **revalidação** das 16 hipóteses depois das correções (item 1 da
+> tabela de pendências).
 
 Este documento é o **ponto de retomada** da feature. Ele existe porque a
 pasta do repositório vai ser movida de `C:\repository\my-memory` para `D:\...`
@@ -170,7 +175,7 @@ Evidência detalhada por fase:
 
 | # | Pendência | Como fazer | Quem |
 | :--- | :--- | :--- | :--- |
-| 0 | **Corrigir os 8 defeitos da verificação** — D1 (migração) e D2 (`include_code` sem repo) são de severidade **alta** e quebram ACs; D3 (build `-tags treesitter` degrada), D4 (hub threshold poda o vizinho direto), D5 (`mem code-graph` descarta `--repo`), D6 (hash estrutural inclui linha), D7 (viewer cita a ADR errada), D8 (precedência env × config) | despachado a um worker com arquivo:linha e reprodução de cada um | worker (em execução) |
+| 0 | **Corrigir os 8 defeitos da verificação** — D1 (migração) e D2 (`include_code` sem repo) são de severidade **alta** e quebram ACs; D3 (build `-tags treesitter` degrada), D4 (hub threshold poda o vizinho direto), D5 (`mem code-graph` descarta `--repo`), D6 (hash estrutural inclui linha), D7 (viewer cita a ADR errada), D8 (precedência env × config) | ✅ **feito** — `b3ed53f` (D1) · `fbd3d62` (D2) · `b34abd8` (D3) · `1dc845a` (D4) · `b84dfce` (D5) · `aadd791` (D6) · `e64e389` (D7) · `aac0c0b` (D8). Evidência D7/D8 em `validation-d7-d8.md` | — |
 | 1 | **Revalidar** depois das correções: repetir as 16 hipóteses, com foco em D1/D2/D3 | `D:\.minimax\scratch\briefing-verificador.txt` | agente `verifier`, read-only |
 | 2 | **Gate final único**, sem escritores ativos: `go build ./... && go vet ./... && go test -count=1 ./...` + `cd viewer && npm run typecheck && npm run test && npm run build` + medição do gzip | o gate de `internal/ci` só quebra se **aparecer um pacote Go novo** — nenhum worker criou um | gestor |
 | 3 | **Ticar os 18 "Done when"** em `tasks.md` e revalidar `validate_tasks.py` | ✅ **feito** (commit `3012f76`) | gestor |
@@ -179,7 +184,7 @@ Evidência detalhada por fase:
 | 6 | **Atualizar `STATE.md`** com o estado da feature | ✅ **feito** (`3012f76`) | gestor |
 | 7 | **Limpar o scratch** dos subagents: `D:\.minimax\scratch\subagents\*` (o clone do Graphify é referência — manter ou remover conforme a decisão do dono) | `mavis-trash.cmd` (deleção permanente é bloqueada) | gestor |
 | 8 | **Remover as 2 notas-teste** que o verificador indexou por acidente no Postgres real (`licao-sem-postgres.md` e `licao-sem-postgres-3.md`, em `repo_central` do cofre central) | o verificador **não** apagou nada do store real; a remoção é decisão do dono | dono |
-| 9 | **Push** de `develop` — **NÃO** fazer sem aval explícito do dono | 25+ commits à frente de `origin/develop` | dono |
+| 9 | **Push** de `develop` — **NÃO** fazer sem aval explícito do dono | 33+ commits à frente de `origin/develop` | dono |
 | 10 | **Release v3.0.0 + PR `develop`→`main`** — adiado por decisão do dono ("só o push por enquanto") | `CHANGELOG.md` já tem o bloco `[Unreleased]` | dono |
 
 ---
