@@ -197,7 +197,7 @@ function CodeRoute() {
             <ErrorState
               title="MCP indisponível"
               message={search.error.message}
-              hint="O code graph precisa do code pipeline habilitado (ADR-047)."
+              hint="O code graph precisa do code pipeline habilitado (ADR-061)."
             />
           ) : searchPayload?.error ? (
             <ErrorState
@@ -318,7 +318,7 @@ function CodeRoute() {
               <ErrorState
                 title="MCP indisponível"
                 message={neighbors.error.message}
-                hint="O código precisa estar indexado no code graph (ADR-047)."
+                hint="O código precisa estar indexado no code graph (ADR-061)."
               />
             ) : neighborsPayload?.error ? (
               <div className="space-y-2">

@@ -231,7 +231,7 @@ export function useVisualizeGraph() {
 }
 
 /**
- * Busca estrutural de símbolos do code graph (ADR-047).
+ * Busca estrutural de símbolos do code graph (ADR-061).
  *
  * `memory_code_search` exige `query` — por isso a query só roda com texto
  * não-vazio. Os filtros de tipo e de linguagem são aplicados no cliente

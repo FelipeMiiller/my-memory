@@ -27,7 +27,7 @@ import type {
  * `normalizeCodePayload` é o ponto único onde essa bifurcação acontece.
  */
 
-/** Tipos de aresta estrutural do code graph (ADR-047). */
+/** Tipos de aresta estrutural do code graph (ADR-061). */
 export const CODE_EDGE_KINDS = [
   "calls",
   "imports",
