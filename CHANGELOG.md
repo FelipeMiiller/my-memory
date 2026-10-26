@@ -19,14 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `internal/codeast/go_parser.go` — `go/parser` + `go/ast` + `go/token` da stdlib.
     **Sem CGO e sem build tag**: o binário padrão já indexa código. A ADR-047 (tree-sitter)
     **não** foi supersedida — o plano de deferral do binding real segue intacto (0 de 3
-    gatilhos) e a tag `treesitter` continua isolada. O build com a tag não muda o parser
-    ativo: o stub segue devolvendo `ErrTreesitterDisabled`.
+    gatilhos) e a tag `treesitter` continua isolada. O build com a tag **não degrada o
+    code graph**: como o binding tree-sitter não está implementado, o binário avisa no
+    log de boot (`tree-sitter: build tag ativa, mas o binding NAO esta implementado — o
+    motor ativo e o backend Go (stdlib)`) e usa o **mesmo** backend Go do build padrão —
+    o grafo sai idêntico. Antes, o build com a tag produzia um code graph **vazio, em
+    silêncio** (1 símbolo, 0 arestas, `files_errors: 0`).
   - **Arestas estruturais**: o code graph deixou de ser só `references` por nome. Agora
     grava `calls` (com o **ponto de chamada** — arquivo:linha da expressão de chamada, não
     da definição), `imports`, `inherits`, `uses_type` e `references`. As arestas
     estruturais vêm do backend AST, que hoje entende **Go**; as demais linguagens seguem
     no `MockParser` (fallback determinístico da ADR-047) e ficam com as arestas
-    `references` por nome (`INFERRED`).
+    `references` por **igualdade de nome** (`INFERRED`, sem ponto de chamada). A chave da
+    busca é o `qualified_name` do símbolo quando existe e o `name` quando não — um
+    símbolo do `MockParser` só casa com outro de mesmo nome simples **sem**
+    `qualified_name`, então num código sem nomes duplicados o fallback produz poucas ou
+    nenhuma aresta.
   - **Provenance por aresta**: `code_edges.epistemic_status` distingue `EXTRACTED`
     (resolvido no escopo do pacote) de `INFERRED` (resolvido só por nome), em linha com a
     ADR-011. O destino **ambíguo** vai para `code_edges_uncertain` com `confidence` e
@@ -46,6 +54,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     as tabelas `code_*`), `--ast-hash[=false]` controla o armazenamento do `ast_hash`, e
     `--json` emite a saída estruturada (engine, repository e contagens) em **JSON puro no
     stdout** — o boot log vai para o stderr, para o cliente conseguir parsear.
+  - **`mem code-graph` honrou as flags**: `--repo` era aceito e **descartado** (o valor
+    sumia no `_ = repoSlug`); agora o repositório filtrado é o do argumento, e o comando
+    ganhou `--storage`, `--db` e `--postgres` — como o `mem code-index`. Sem URL de
+    Postgres, ele falha com erro claro e **sem** tentar conexão.
+  - **Fonte do storage visível**: o CLI imprime no **stderr** `storage: <engine> (fonte:
+    <origem>)` — de onde veio a configuração do engine (flag, env var ou config). A
+    precedência real é **flag > env var > config** (`MY_MEMORY_PG_URL` vence o config
+    global), e a frase canônica é a mesma em `AGENTS.md`, `docs/CLI_GUIDE.md` e
+    `docs/adr/README.md`. O stdout do `--json` continua **JSON puro**.
   - **`--no-embed` saiu do CLI**: a flag era placeholder, sem comportamento (a v1 não
     embute símbolos). Quem usava recebe `flag provided but not defined: -no-embed`.
   - **Fan-in real de `code_symbols`**: `memory_search` com `include_code: true` deixou de

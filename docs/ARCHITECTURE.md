@@ -208,6 +208,14 @@ provenance `INFERRED`. As duas rotas nunca correm no mesmo arquivo: quando o
 backend entrega arestas, a varredida por nome é pulada (ela duplicaria as arestas
 e não carregaria o call-site).
 
+> **Como a varredida casa.** A chave de busca é o `qualified_name` do símbolo
+> quando ele tem um, e o `name` quando não tem. Um símbolo do `MockParser`
+> (linguagens sem backend AST) é gravado **sem** `qualified_name` — então ele só
+> casa com outro símbolo que **também** não tenha `qualified_name` e tenha o
+> mesmo nome simples. Na prática, num código sem nomes duplicados, o fallback
+> produz poucas ou nenhuma aresta `references`: são **referências literais entre
+> símbolos de mesmo nome**, não chamadas. Ver `ISSUE-030`.
+
 **Provenance epistêmica (ADR-011).** `code_edges.epistemic_status` tem dois valores: `EXTRACTED` (o destino foi resolvido no escopo do pacote — o `qualified_name` bate e é único) e `INFERRED` (o destino só foi resolvido por nome). O terceiro nível — **mais de um candidato, ou nenhum** — **nunca** vira aresta resolvida: a linha vai para `code_edges_uncertain` com `confidence` e `reason`, para revisão. É a mesma separação entre fato e inferência que a ADR-011 aplicou ao grafo de notas.
 
 **Filtro por `repository`.** `code_files`, `code_symbols`, `code_edges` e `code_edges_uncertain` carregam a coluna `repository`. O `repo_id` viaja no contexto até a gravação (o `mem code-index --repo <slug>`) e as consultas do code graph filtram por ele — o mesmo modelo multi-tenant do grafo de notas (ADR-007 / ADR-033 / ADR-040).

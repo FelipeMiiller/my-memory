@@ -107,7 +107,10 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > para `code_edges_uncertain` e nunca vira aresta resolvida. As arestas estruturais
 > vêm do backend AST, que hoje entende **Go** — as demais linguagens seguem no
 > `MockParser` (fallback determinístico da ADR-047) com arestas `references` por
-> nome. O `mem index` roda o code stage quando há escopo de código configurado
+> **igualdade de nome** (`INFERRED`, sem ponto de chamada): a chave é o
+> `qualified_name` quando existe, e o `name` quando não — um símbolo do
+> `MockParser` só casa com outro de mesmo nome simples **sem** `qualified_name`
+> (ver `ISSUE-030`). O `mem index` roda o code stage quando há escopo de código configurado
 > (seção `code:` do config), sem derrubar o `mem index` quando o estágio falha.
 >
 > A **ponte `documents` ↔ `code_symbols`** mora no grafo único: nó
@@ -165,7 +168,9 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > cada aresta carrega `epistemic_status` (`EXTRACTED`/`INFERRED`) e `confidence`,
 > com o destino ambíguo isolado em `code_edges_uncertain`. As arestas estruturais
 > vêm do backend AST, que hoje entende **Go** — as demais linguagens seguem no
-> `MockParser` (fallback determinístico) com arestas `references` por nome. As 2
+> `MockParser` (fallback determinístico) com arestas `references` por **igualdade
+> de nome** (`INFERRED`, sem ponto de chamada; a chave é o `qualified_name`
+> quando existe e o `name` quando não — ver `ISSUE-030`). As 2
 > tools MCP de código (`memory_code_search` e `memory_code_neighbors`) são
 > injetadas no servidor MCP e respondem de verdade — antes devolviam
 > "indisponível".
