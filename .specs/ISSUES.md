@@ -1044,7 +1044,8 @@ aproximado — mas com proveniência `INFERRED` e risco de falso positivo.
 ## ISSUE-031 — colisão cross-repo no nó `code:<qualified_name>` em SQLite + Postgres ainda não verificado
 
 - **Severidade:** 🟠 alta-média (multi-tenant) / 🟡 média (lacuna de verificação)
-- **Status:** 🔵 open — **decisão do dono**
+- **Status:** 🟢 **P5 corrigido** (2026-10-26, `c3c6267`) — o dono decidiu "alinhar o
+  SQLite com o Postgres"; **P1 continua aberto** (Postgres real não verificado)
 - **Achado em:** revalidação independente de 2026-10-26 (riscos **P5** e **P1**)
 
 ### P5 — colisão cross-repo em SQLite
@@ -1070,6 +1071,47 @@ declara a assimetria (`code_bridge.go:91-92`).
 gravados; (b) adicionar `repository` ao `graph_nodes` no SQLite, alinhando os
 dois engines; (c) declarar que o SQLite é single-tenant no code graph e
 documentar a limitação.
+
+**Decisão do dono (2026-10-26): (a) — o id carrega o repositório.** A opção (b)
+foi descartada por um motivo técnico que só apareceu ao medir: a PK de
+`graph_nodes` no SQLite é `id TEXT PRIMARY KEY`. Uma coluna `repository` sem
+trocar a PK **não separaria** dois repos com o mesmo id — e ainda gravaria um
+dado mentiroso (a linha ficaria com o repository de quem criou primeiro).
+Trocar a PK exigiria **reconstruir a tabela** e mexer nas ~40 queries do grafo
+de notas do SQLite, que é de tenant único por ADR-040: é uma mudança do modelo
+de identidade do engine, não um commit.
+
+**Correção aplicada (`c3c6267`).** O id do nó de código passou a ser
+`code:<repository>:<qualified_name>` **nos dois engines** — o SQLite ganha a
+mesma semântica de identidade do Postgres (cuja identidade é `(repository,
+id)`), sem rebuild e sem mexer na PK. Além disso:
+
+- `loadBridgeSymbols` passou a filtrar por `repository` **também no SQLite** —
+  era o que fazia a nota do repo B casar com o símbolo do repo A;
+- o **cache do índice de símbolos** passou a ser chaveado por repositório nos
+  dois engines (ele era chaveado só pelo ponteiro do banco: sem isso, o filtro
+  por repo era derrotado pelo cache — defeito **novo**, achado na implementação);
+- `CodeSymbolByNodeID` faz o parsing do id novo, aceita o formato legado
+  `code:<qn>` e o qualified name puro, e resolve o símbolo dentro do
+  repositório do contexto;
+- o handler MCP de impacto passou a entregar o id inteiro para o `db` parsear
+  (ele removia o prefixo `code:` por conta própria e passaria a resolver
+  `acme:pkg.Alpha` como qualified name).
+
+**Prova de que o defeito era real:** o teste de regressão
+(`internal/db/code_bridge_repository_test.go`) foi executado com o fix
+revertido e **falhou com o sintoma exato do P5** — os dois repositórios geraram
+o mesmo id de nó (`code:pkg.Alpha`) e a ponte ofereceu os 2 símbolos aos 2
+repos. Com o fix: 2 nós distintos, cada nota ligada só ao nó do próprio repo e
+cada repo enxergando só o próprio símbolo.
+
+**Migração: ZERO.** O Postgres real do dono tinha **0** nós `code_symbol`
+(verificado antes da mudança), então nenhum id antigo precisou ser migrado.
+
+**O que ainda fica de fora (decisão futura).** O **grafo de notas** do SQLite
+continua de tenant único (a tabela `documents` não tem `repository` e `path` é
+único) — alinhar isso é mudar o modelo de identidade do engine e pertence a
+uma spec própria, não a este hotfix.
 
 ### P1 — Postgres real não verificado
 

@@ -75,13 +75,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (`call_site_file`/`call_site_line`) de cada relação. As duas tools devolvem o JSON no
     `content` textual **e** preenchem o `structuredContent` do envelope MCP.
   - **Ponte notas ↔ código no grafo único**: cada símbolo vira um nó
-    `graph_nodes.type='code_symbol'` (id `code:<qualified_name>`) e cada documento que o
+    `graph_nodes.type='code_symbol'` (id `code:<repository>:<qualified_name>`) e cada
+    documento que o
     menciona ganha uma aresta `graph_edges.relation='references_code'`, com status
     epistêmico (`EXTRACTED` para match por `qualified_name` ou caminho literal do arquivo,
     `INFERRED` para match por nome). O upsert é idempotente e não exige DDL novo. A ponte
     roda no code stage e no indexador de Markdown, e é o que permite ao
     `memory_code_neighbors` listar os documentos que citam um símbolo e ao blast radius
     alcançar as notas que dependem dele.
+    - **O nó de código é escopado por repositório**: o id carrega o `repository`, e os
+      símbolos da ponte são filtrados por `repository` também no SQLite. Sem isso, dois
+      repositórios com o mesmo `qualified_name` colapsavam no **mesmo** nó do grafo e a
+      nota de um apontava para o símbolo do outro — o Postgres nunca teve esse problema
+      (a identidade do nó lá é `(repository, id)`).
   - **Rota `/code` na viewer**: a quinta visão do painel lista os símbolos de um
     repositório e, ao selecionar um, mostra os vizinhos estruturais com o **tipo da aresta**
     e o **ponto de chamada**. Bundle de **144.667 bytes gzip -9**, contra o orçamento de

@@ -188,10 +188,12 @@ Evidência detalhada por fase:
 | 4 | **Consolidar a validação** num `validation.md` único (Fase 2 + Fase 3) | hoje são dois arquivos | gestor |
 | 5 | **Fechar a ISSUE-027**: marcar C1..C12 como resolvidos, com o commit que fechou cada um | ✅ **feito** (`3012f76`) | gestor |
 | 6 | **Atualizar `STATE.md`** com o estado da feature | ✅ **feito** (`3012f76`) | gestor |
-| 7 | **Limpar o scratch** dos subagents: `D:\.minimax\scratch\subagents\*` (o clone do Graphify é referência — manter ou remover conforme a decisão do dono) | `mavis-trash.cmd` (deleção permanente é bloqueada) | gestor |
-| 8 | **Remover as 2 notas-teste** que o verificador indexou por acidente no Postgres real (`licao-sem-postgres.md` e `licao-sem-postgres-3.md`, em `repo_central` do cofre central) | o verificador **não** apagou nada do store real; a remoção é decisão do dono | dono |
-| 9 | **Push** de `develop` — **NÃO** fazer sem aval explícito do dono | 38+ commits à frente de `origin/develop` | dono |
+| 7 | **Limpar o scratch** dos subagents: `D:\.minimax\scratch\subagents\*` (o clone do Graphify é referência — manter ou remover conforme a decisão do dono) | `mavis-trash.cmd` (deleção permanente é bloqueada) | ✅ **feito** (2026-10-26) — ~880 MB liberados; o clone do Graphify (`graphify-study/`) foi **mantido** porque a spec o cita como repositório canônico da análise | gestor |
+| 8 | **Remover as 2 notas-teste** que o verificador indexou por acidente no Postgres real (`licao-sem-postgres.md` e `licao-sem-postgres-3.md`, em `repo_central` do cofre central) | o verificador **não** apagou nada do store real; a remoção é decisão do dono | ✅ **feito** (2026-10-26) — com aval do dono: dry-run (2 docs, 4 linhas) → `DELETE` em transação espelhando o `PostgresStore.deleteDocumentRows`; conferência posterior: **0 notas-teste** | gestor (com aval do dono) |
+| 9 | **Push** de `develop` — **NÃO** fazer sem aval explícito do dono | 38+ commits à frente de `origin/develop` | ✅ **feito** (2026-10-26) — aval explícito do dono: `35b01ed..e1aaaae` → `origin/develop` | gestor (com aval do dono) |
 | 10 | **Release v3.0.0 + PR `develop`→`main`** — adiado por decisão do dono ("só o push por enquanto") | `CHANGELOG.md` já tem o bloco `[Unreleased]` | dono |
+| 11 | **ISSUE-031 (P5): a colisão cross-repo do nó de código no SQLite** | ✅ **feito** (2026-10-26, `c3c6267`) — decisão do dono: alinhar o SQLite com o Postgres. O id do nó passou a ser `code:<repository>:<qualified_name>` nos dois engines e a ponte filtra por `repository` no SQLite também. Migração zero (o PG tinha 0 nós de código). Teste de regressão **provado** contra o defeito revertido | gestor + worker |
+| 12 | **ISSUE-031 (P1): o Postgres real continua sem verificação** | o dono precisa liberar um banco descartável (URL de scratch) — ou aceitar a lacuna e mover a AC-05 para "verificada apenas em SQLite" | dono |
 
 ---
 
