@@ -15,9 +15,15 @@ Highest wins:
 1. **CLI flag** — `--storage=postgres`, `--db <path>`, `--postgres <url>`, `--repo <slug>`
 2. **Environment variable** — `MY_MEMORY_PG_URL`, `MY_MEMORY_PG_PASSWORD`, `MY_MEMORY_REPO`,
    `MY_MEMORY_EMBED_*`
-3. **Global config** — `~/.memory/config.yaml`
-4. **Local config** — `<repo>/.memory/config.yaml`
+3. **Local config** — `<repo>/.memory/config.yaml` (sobrescreve o global chave a chave, ADR-040)
+4. **Global config** — `~/.memory/config.yaml`
 5. **Built-in default**
+
+> **A URL do Postgres tem precedência própria:** `--postgres` > `MY_MEMORY_PG_URL` >
+> `POSTGRES_URL` > `DATABASE_URL` > config (local > global). O binário anuncia no
+> **stderr** qual fonte venceu — `storage: postgres (fonte: MY_MEMORY_PG_URL)` — e o
+> stdout do `--json` continua JSON puro. "Eu configurei o config" **não** prevê o engine:
+> a variável de ambiente vence o config.
 
 Overriding explicitly is usually the right move in scripts and CI. `--storage=sqlite` forces a
 local database even when a machine-wide Postgres is configured, which keeps a pipeline hermetic.
