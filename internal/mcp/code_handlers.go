@@ -787,7 +787,8 @@ func SQLCodeNeighborsTraverse(ctx context.Context, database *sql.DB, symbol stri
 // alcança os símbolos que o documento referencia; a partir de um símbolo,
 // alcança os documentos que o referenciam.
 type CodeImpactSymbol struct {
-	// NodeID é o id do nó no grafo único ("code:<qualified_name>").
+	// NodeID é o id do nó no grafo único
+	// ("code:<repository>:<qualified_name>").
 	NodeID string `json:"node_id"`
 	// QualifiedName é a identidade do símbolo.
 	QualifiedName string `json:"qualified_name"`
@@ -829,15 +830,17 @@ func ResolveCodeImpactSymbols(ctx context.Context, database *sql.DB, seedNodeID 
 		if !strings.HasPrefix(nodeID, db.CodeSymbolNodePrefix) {
 			return
 		}
-		qn := strings.TrimPrefix(nodeID, db.CodeSymbolNodePrefix)
-		if qn == "" || seen[qn] {
+		if nodeID == "" || seen[nodeID] {
 			return
 		}
-		ref, err := db.CodeSymbolByNodeID(ctx, database, qn)
+		// O id do nó carrega o repository ("code:<repository>:<qualified_name>")
+		// — quem faz o parsing é o db, que resolve o símbolo pelo qualified
+		// name no repositório do contexto.
+		ref, err := db.CodeSymbolByNodeID(ctx, database, nodeID)
 		if err != nil || ref == nil {
 			return
 		}
-		seen[qn] = true
+		seen[nodeID] = true
 		out = append(out, CodeImpactSymbol{
 			NodeID:        nodeID,
 			QualifiedName: ref.QualifiedName,

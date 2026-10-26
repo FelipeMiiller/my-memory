@@ -79,7 +79,7 @@ func structuralFixture(t *testing.T) (*MockGitRunner, string, string, *sql.DB) {
 		t.Fatalf("InsertChunk: %v", err)
 	}
 	for _, qn := range []string{"pkg.Alpha", "pkg.Beta"} {
-		nodeID := db.CodeSymbolNodeID(qn)
+		nodeID := db.CodeSymbolNodeID(db.RepositoryFromContext(ctx), qn)
 		if _, err := database.ExecContext(ctx,
 			`INSERT OR IGNORE INTO graph_nodes (id, type, name) VALUES (?, ?, ?)`,
 			nodeID, db.CodeSymbolNodeType, qn); err != nil {

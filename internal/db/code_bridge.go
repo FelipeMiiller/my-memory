@@ -13,8 +13,8 @@ import (
 // Ponte entre o grafo de notas e o grafo de código (ADR-061, CG-17/CG-18).
 //
 // A ponte mora no GRAFO ÚNICO (`graph_nodes` + `graph_edges`): um nó
-// `type='code_symbol'` (id = "code:" + qualified_name) e uma aresta
-// `relation='references_code'` do documento para o símbolo.
+// `type='code_symbol'` (id = "code:" + repository + ":" + qualified_name) e
+// uma aresta `relation='references_code'` do documento para o símbolo.
 //
 // A aresta carrega o status epistêmico (ADR-011):
 //   - EXTRACTED — o match foi pelo qualified name LITERAL do símbolo ou pelo
@@ -36,7 +36,8 @@ const (
 	// de código dentro do grafo único.
 	CodeSymbolNodeType = "code_symbol"
 
-	// CodeSymbolNodePrefix prefixa o id do nó de código: "code:<qualified_name>".
+	// CodeSymbolNodePrefix prefixa o id do nó de código:
+	// "code:<repository>:<qualified_name>".
 	CodeSymbolNodePrefix = "code:"
 
 	// BridgeRelation é a relação da aresta documento → símbolo de código.
@@ -69,16 +70,21 @@ type bridgeSymbol struct {
 	Name          string
 	QualifiedName string
 	FilePath      string
+	// Repository é o repo_id do símbolo (code_symbols.repository): o id do
+	// nó no grafo único carrega o repositório.
+	Repository string
 }
 
-// NodeID devolve o id do nó no grafo único: "code:" + qualified_name.
+// NodeID devolve o id do nó no grafo único:
+// "code:" + repository + ":" + qualified_name.
+//
 // Quando o símbolo não tem qualified name, o nome vira a identidade.
 func (s bridgeSymbol) NodeID() string {
 	qn := strings.TrimSpace(s.QualifiedName)
 	if qn == "" {
 		qn = strings.TrimSpace(s.Name)
 	}
-	return CodeSymbolNodePrefix + qn
+	return CodeSymbolNodeID(s.Repository, qn)
 }
 
 // BuildCodeBridge casa os documentos indexados com os símbolos de código e
@@ -87,9 +93,11 @@ func (s bridgeSymbol) NodeID() string {
 // Idempotente: o upsert de `graph_edges` atualiza o status epistêmico no
 // conflito, então rodar duas vezes produz exatamente o mesmo grafo.
 //
-// O escopo segue o da tabela `documents`: no SQLite (que não tem
-// `repository`) a ponte é local ao vault; no PostgreSQL tudo é filtrado pelo
-// `repository` carregado no contexto.
+// O escopo dos SÍMBOLOS é o `repository` carregado no contexto nos DOIS
+// engines (code_symbols/code_files têm a coluna): um símbolo de outro
+// repositório nunca é oferecido ao casamento. O escopo dos DOCUMENTOS segue a
+// tabela `documents`: no SQLite (que não tem `repository`) a ponte é local ao
+// vault; no PostgreSQL tudo é filtrado pelo `repository` do contexto.
 func BuildCodeBridge(ctx context.Context, database *sql.DB) (*CodeBridgeResult, error) {
 	return buildCodeBridge(ctx, database, "")
 }
@@ -127,7 +135,7 @@ func buildCodeBridge(ctx context.Context, database *sql.DB, documentID string) (
 		docs = filtered
 	}
 
-	index, err := bridgeSymbolIndex(ctx, database, dialect, documentID == "")
+	index, err := bridgeSymbolIndex(ctx, database, documentID == "")
 	if err != nil {
 		return nil, err
 	}
@@ -243,12 +251,13 @@ var bridgeIndexCache sync.Map
 
 // bridgeSymbolIndex devolve o índice de símbolos, recarregando quando
 // preciso.
-func bridgeSymbolIndex(ctx context.Context, database *sql.DB, dialect Dialect, force bool) (*bridgeIndex, error) {
+func bridgeSymbolIndex(ctx context.Context, database *sql.DB, force bool) (*bridgeIndex, error) {
 	key := database
-	repo := ""
-	if dialect.IsPostgres() {
-		repo = RepositoryFromContext(ctx)
-	}
+	// A chave inclui o repository nos DOIS engines: o índice de símbolos é
+	// filtrado por repositório, então dois repositórios no mesmo banco
+	// precisam de índices separados (sem isso, o cache de um repo oferece os
+	// símbolos do outro).
+	repo := RepositoryFromContext(ctx)
 	cacheKey := struct {
 		db   *sql.DB
 		repo string
@@ -262,7 +271,7 @@ func bridgeSymbolIndex(ctx context.Context, database *sql.DB, dialect Dialect, f
 		}
 	}
 
-	symbols, err := loadBridgeSymbols(ctx, database, dialect)
+	symbols, err := loadBridgeSymbols(ctx, database)
 	if err != nil {
 		return nil, err
 	}
@@ -345,16 +354,18 @@ func upsertBridgeEdge(ctx context.Context, database *sql.DB, dialect Dialect, do
 }
 
 // loadBridgeSymbols carrega os símbolos de código com o path do arquivo.
-func loadBridgeSymbols(ctx context.Context, database *sql.DB, dialect Dialect) ([]bridgeSymbol, error) {
+//
+// O filtro por repository vale para os DOIS engines: é ele que impede a nota
+// de um repositório de casar com o símbolo de outro. No SQLite as tabelas
+// code_files/code_symbols têm a coluna `repository` (ao contrário de
+// graph_nodes), então o mesmo filtro funciona sem mudar o schema.
+func loadBridgeSymbols(ctx context.Context, database *sql.DB) ([]bridgeSymbol, error) {
 	query := `
-		SELECT s.id, s.name, s.qualified_name, f.path
+		SELECT s.id, s.name, s.qualified_name, f.path, s.repository
 		  FROM code_symbols s
-		  JOIN code_files f ON f.id = s.file_id`
-	var args []any
-	if dialect.IsPostgres() {
-		query += ` WHERE f.repository = ? AND s.repository = ?`
-		args = append(args, RepositoryFromContext(ctx), RepositoryFromContext(ctx))
-	}
+		  JOIN code_files f ON f.id = s.file_id
+		 WHERE f.repository = ? AND s.repository = ?`
+	args := []any{RepositoryFromContext(ctx), RepositoryFromContext(ctx)}
 	query += ` ORDER BY s.id ASC`
 
 	rows, err := database.QueryContext(ctx, DetectDialect(ctx, database).Bind(query), args...)
@@ -368,7 +379,7 @@ func loadBridgeSymbols(ctx context.Context, database *sql.DB, dialect Dialect) (
 		var s bridgeSymbol
 		var qn sql.NullString
 		var p sql.NullString
-		if err := rows.Scan(&s.ID, &s.Name, &qn, &p); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &qn, &p, &s.Repository); err != nil {
 			return nil, err
 		}
 		if qn.Valid {
@@ -529,13 +540,24 @@ func containsString(list []string, s string) bool {
 	return false
 }
 
-// CodeSymbolNodeID devolve o id do nó do grafo único para um qualified name.
-func CodeSymbolNodeID(qualifiedName string) string {
+// CodeSymbolNodeID devolve o id do nó do grafo único para um símbolo de
+// código: "code:<repository>:<qualified_name>".
+//
+// O id carrega o repository porque a identidade do nó no SQLite é SÓ o id
+// (a PK de `graph_nodes` é `id TEXT PRIMARY KEY`): sem o escopo no id, dois
+// repositórios com o mesmo qualified name colapsam no mesmo nó e a nota de
+// um repositório passa a apontar para o símbolo do outro. No PostgreSQL a
+// identidade é (repository, id), então o formato é o mesmo nos dois engines.
+func CodeSymbolNodeID(repository, qualifiedName string) string {
 	qn := strings.TrimSpace(qualifiedName)
 	if qn == "" {
 		return ""
 	}
-	return CodeSymbolNodePrefix + qn
+	repo := strings.TrimSpace(repository)
+	if repo == "" {
+		repo = DefaultRepository
+	}
+	return CodeSymbolNodePrefix + repo + ":" + qn
 }
 
 // CodeBridgeDocument é um documento que referencia um símbolo de código.
@@ -554,7 +576,7 @@ type CodeBridgeDocument struct {
 // símbolo (AC 19) e ao drift atribuir a mudança estrutural às notas que
 // dependem do símbolo (AC 26).
 func CodeBridgeDocumentsForSymbol(ctx context.Context, database *sql.DB, qualifiedName string) ([]CodeBridgeDocument, error) {
-	nodeID := CodeSymbolNodeID(qualifiedName)
+	nodeID := CodeSymbolNodeID(RepositoryFromContext(ctx), qualifiedName)
 	if nodeID == "" {
 		return nil, nil
 	}
@@ -767,8 +789,9 @@ func CodeBridgeDocumentsForSymbols(ctx context.Context, database *sql.DB, qualif
 		return nil, fmt.Errorf("CodeBridgeDocumentsForSymbols: database == nil")
 	}
 	ids := make([]string, 0, len(qualifiedNames))
+	repository := RepositoryFromContext(ctx)
 	for _, qn := range qualifiedNames {
-		if nodeID := CodeSymbolNodeID(qn); nodeID != "" {
+		if nodeID := CodeSymbolNodeID(repository, qn); nodeID != "" {
 			ids = append(ids, nodeID)
 		}
 	}
@@ -840,7 +863,7 @@ func CodeBridgeDocumentsForSymbols(ctx context.Context, database *sql.DB, qualif
 }
 
 // CodeSymbolRef é a referência a um símbolo de código resolvida a partir do
-// nó do grafo (`code:<qualified_name>`).
+// nó do grafo (`code:<repository>:<qualified_name>`).
 type CodeSymbolRef struct {
 	SymbolID      int64  `json:"symbol_id"`
 	QualifiedName string `json:"qualified_name"`
@@ -852,36 +875,29 @@ type CodeSymbolRef struct {
 	EndLine       int    `json:"end_line"`
 }
 
-// CodeSymbolByNodeID devolve o símbolo de código do nó `code:<qn>` do grafo.
+// CodeSymbolByNodeID devolve o símbolo de código do nó
+// `code:<repository>:<qualified_name>` do grafo.
 //
-// Aceita o id completo do nó ou o qualified name puro.
+// Aceita o id completo do nó, o formato legado (`code:<qualified_name>`) ou o
+// qualified name puro.
 func CodeSymbolByNodeID(ctx context.Context, database *sql.DB, nodeID string) (*CodeSymbolRef, error) {
 	if database == nil {
 		return nil, fmt.Errorf("CodeSymbolByNodeID: database == nil")
 	}
-	qn := strings.TrimSpace(nodeID)
-	if qn == "" {
-		return nil, nil
-	}
-	if strings.HasPrefix(qn, CodeSymbolNodePrefix) {
-		qn = strings.TrimPrefix(qn, CodeSymbolNodePrefix)
-	}
+	qn := codeSymbolQualifiedNameFromNodeID(nodeID)
 	if qn == "" {
 		return nil, nil
 	}
 
-	dialect := DetectDialect(ctx, database)
 	query := `
 		SELECT s.id, COALESCE(s.qualified_name, ''), s.name, s.kind,
 		       f.language, f.path, s.start_line, s.end_line
 		  FROM code_symbols s
 		  JOIN code_files f ON f.id = s.file_id
-		 WHERE s.qualified_name = ?`
-	args := []any{qn}
-	if dialect.IsPostgres() {
-		query += ` AND s.repository = ? AND f.repository = ?`
-		args = append(args, RepositoryFromContext(ctx), RepositoryFromContext(ctx))
-	}
+		 WHERE s.qualified_name = ?
+		   AND s.repository = ?
+		   AND f.repository = ?`
+	args := []any{qn, RepositoryFromContext(ctx), RepositoryFromContext(ctx)}
 	query += ` ORDER BY s.id ASC LIMIT 1`
 
 	rows, err := database.QueryContext(ctx, DetectDialect(ctx, database).Bind(query), args...)
@@ -898,4 +914,29 @@ func CodeSymbolByNodeID(ctx context.Context, database *sql.DB, nodeID string) (*
 		return nil, err
 	}
 	return &ref, nil
+}
+
+// codeSymbolQualifiedNameFromNodeID extrai o qualified name do id do nó.
+//
+// O id atual é "code:<repository>:<qualified_name>": o primeiro ":" DEPOIS do
+// prefixo separa o repository do qualified name. O id legado
+// ("code:<qualified_name>") e o qualified name puro continuam válidos.
+func codeSymbolQualifiedNameFromNodeID(nodeID string) string {
+	id := strings.TrimSpace(nodeID)
+	if id == "" {
+		return ""
+	}
+	if !strings.HasPrefix(id, CodeSymbolNodePrefix) {
+		// Qualified name puro (o caminho já suportado).
+		return id
+	}
+	rest := strings.TrimPrefix(id, CodeSymbolNodePrefix)
+	if rest == "" {
+		return ""
+	}
+	if _, qn, ok := strings.Cut(rest, ":"); ok {
+		return strings.TrimSpace(qn)
+	}
+	// Formato legado: "code:<qualified_name>".
+	return strings.TrimSpace(rest)
 }

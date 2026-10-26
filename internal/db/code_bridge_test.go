@@ -39,7 +39,8 @@ func bridgeSeedSymbol(t *testing.T, ctx context.Context, database *sql.DB, path,
 //
 //   - o documento que referencia um símbolo existente cria a aresta TIPADA
 //     `references_code` no grafo ÚNICO (graph_nodes + graph_edges);
-//   - o nó do símbolo é `type='code_symbol'` com id `code:<qualified_name>`;
+//   - o nó do símbolo é `type='code_symbol'` com id
+//     `code:<repository>:<qualified_name>`;
 //   - o status epistêmico é EXTRACTED quando o match foi pelo qualified name
 //     literal (ADR-011);
 //   - a operação é IDEMPOTENTE: rodar duas vezes não duplica a aresta.
@@ -76,7 +77,7 @@ func TestDocumentCodeSymbolEdge(t *testing.T) {
 
 	// 4. O nó do símbolo existe no grafo único, com o tipo certo.
 	var nodeType, nodeName string
-	err = database.QueryRow(`SELECT type, name FROM graph_nodes WHERE id = ?`, CodeSymbolNodeID("foo.Hello")).
+	err = database.QueryRow(`SELECT type, name FROM graph_nodes WHERE id = ?`, CodeSymbolNodeID(RepositoryFromContext(ctx), "foo.Hello")).
 		Scan(&nodeType, &nodeName)
 	if err != nil {
 		t.Fatalf("graph_nodes sem o nó do símbolo: %v", err)
@@ -94,7 +95,7 @@ func TestDocumentCodeSymbolEdge(t *testing.T) {
 		SELECT relation, epistemic_status
 		  FROM graph_edges
 		 WHERE source_id = ? AND target_id = ? AND relation = ?`,
-		docID, CodeSymbolNodeID("foo.Hello"), BridgeRelation).Scan(&relation, &status)
+		docID, CodeSymbolNodeID(RepositoryFromContext(ctx), "foo.Hello"), BridgeRelation).Scan(&relation, &status)
 	if err != nil {
 		t.Fatalf("graph_edges sem a aresta references_code: %v", err)
 	}
@@ -115,7 +116,7 @@ func TestDocumentCodeSymbolEdge(t *testing.T) {
 	if err := database.QueryRow(`
 		SELECT COUNT(*) FROM graph_edges
 		 WHERE source_id = ? AND target_id = ? AND relation = ?`,
-		docID, CodeSymbolNodeID("foo.Hello"), BridgeRelation).Scan(&edges); err != nil {
+		docID, CodeSymbolNodeID(RepositoryFromContext(ctx), "foo.Hello"), BridgeRelation).Scan(&edges); err != nil {
 		t.Fatalf("COUNT graph_edges: %v", err)
 	}
 	if edges != 1 {
@@ -160,7 +161,7 @@ func TestDocumentCodeSymbolEdgeInferido(t *testing.T) {
 	err := database.QueryRow(`
 		SELECT epistemic_status FROM graph_edges
 		 WHERE source_id = ? AND target_id = ? AND relation = ?`,
-		docID, CodeSymbolNodeID("foo.Hello"), BridgeRelation).Scan(&status)
+		docID, CodeSymbolNodeID(RepositoryFromContext(ctx), "foo.Hello"), BridgeRelation).Scan(&status)
 	if err != nil {
 		t.Fatalf("aresta references_code ausente: %v", err)
 	}
@@ -252,12 +253,12 @@ func TestCodeBridgeQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CodeBridgeSymbolsForDocument: %v", err)
 	}
-	if len(symbols) != 1 || symbols[0] != CodeSymbolNodeID("foo.Hello") {
-		t.Errorf("símbolos = %v; want [%s]", symbols, CodeSymbolNodeID("foo.Hello"))
+	if len(symbols) != 1 || symbols[0] != CodeSymbolNodeID(RepositoryFromContext(ctx), "foo.Hello") {
+		t.Errorf("símbolos = %v; want [%s]", symbols, CodeSymbolNodeID(RepositoryFromContext(ctx), "foo.Hello"))
 	}
 
 	// Resolução do nó do grafo para o símbolo de código.
-	ref, err := CodeSymbolByNodeID(ctx, database, CodeSymbolNodeID("foo.Hello"))
+	ref, err := CodeSymbolByNodeID(ctx, database, CodeSymbolNodeID(RepositoryFromContext(ctx), "foo.Hello"))
 	if err != nil {
 		t.Fatalf("CodeSymbolByNodeID: %v", err)
 	}
