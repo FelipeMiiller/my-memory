@@ -476,9 +476,15 @@ type codeStructure struct {
 	Symbols []string
 	// ChangedSymbols são os símbolos cuja assinatura mudou.
 	ChangedSymbols []string
-	// StoredHash é o ast_hash gravado; CurrentHash é o recalculado.
-	StoredHash  string
-	CurrentHash string
+	// StoredCacheHash é o ast_hash gravado em code_files — o hash de CACHE
+	// (inclui a posição). Ele serve só para diagnóstico: o drift NÃO o usa
+	// como discriminador (D6).
+	StoredCacheHash string
+	// StoredStructuralHash e CurrentStructuralHash são o hash ESTRUTURAL
+	// (kind|qualified_name|assinatura, SEM posição) do estado gravado e do
+	// estado atual — é a comparação entre eles que decide o drift.
+	StoredStructuralHash  string
+	CurrentStructuralHash string
 }
 
 // analyzeCodeStructure classifica a mudança de um arquivo de código.
@@ -505,7 +511,7 @@ func analyzeCodeStructure(ctx context.Context, database *sql.DB, repoRoot, path 
 		return res
 	}
 	res.HasReference = true
-	res.StoredHash = storedHash
+	res.StoredCacheHash = storedHash
 
 	// Os símbolos GRAVADOS são a referência do nome/assinatura: eles dizem
 	// quais símbolos do arquivo a ponte pode referenciar.
@@ -537,46 +543,44 @@ func analyzeCodeStructure(ctx context.Context, database *sql.DB, repoRoot, path 
 		// Não deu para recalcular: sem veredito, não é erro.
 		return res
 	}
-	res.CurrentHash = codeast.HashSymbols(parsed.Symbols)
+	// O hash ESTRUTURAL (kind|qualified_name|assinatura, SEM posição) é o
+	// discriminador de drift estrutural:
+	//
+	//   - comentário/whitespace que só desloca linhas → hash IGUAL → NÃO é
+	//     drift;
+	//   - assinatura (parâmetros, tipo de retorno) que muda → hash DIFERENTE
+	//     → É drift.
+	//
+	// O `ast_hash` gravado em code_files é o hash de CACHE (inclui a linha):
+	// para o cache, a posição É mudança. São DOIS hashes diferentes — o de
+	// cache decide reindexação, o estrutural decide drift (defeito D6).
+	//
+	// O lado GRAVADO do hash estrutural sai dos símbolos persistidos
+	// (code_symbols); o lado ATUAL, do arquivo reparseado agora.
+	res.CurrentStructuralHash = codeast.HashSymbolsStructural(parsed.Symbols)
+	res.StoredStructuralHash = codeast.HashSymbolsStructural(structuralSymbols(storedSymbols))
 
-	if res.CurrentHash != storedHash {
+	if res.StoredStructuralHash != res.CurrentStructuralHash {
 		res.Structural = true
 		res.ChangedSymbols = changedSymbols(storedSymbols, parsed.Symbols)
-		return res
-	}
-
-	// O ast_hash do pipeline é `kind|qualified_name|linha`: ele NÃO cobre a
-	// ASSINATURA. Uma mudança de assinatura puro mantém o ast_hash — então
-	// a assinatura gravada é comparada com a atual para não perder a
-	// mudança estrutural.
-	storedByQN := make(map[string]string, len(storedSymbols))
-	for _, s := range storedSymbols {
-		qn := strings.TrimSpace(s.QualifiedName)
-		if qn == "" {
-			qn = strings.TrimSpace(s.Name)
-		}
-		if qn != "" {
-			storedByQN[qn] = s.Signature
-		}
-	}
-	for _, s := range parsed.Symbols {
-		qn := strings.TrimSpace(s.QualifiedName)
-		if qn == "" {
-			qn = strings.TrimSpace(s.Name)
-		}
-		if qn == "" {
-			continue
-		}
-		previous, ok := storedByQN[qn]
-		if !ok {
-			continue
-		}
-		if previous != strings.TrimSpace(s.Signature) {
-			res.Structural = true
-			res.ChangedSymbols = append(res.ChangedSymbols, qn)
-		}
 	}
 	return res
+}
+
+// structuralSymbols converte os símbolos GRAVADOS (code_symbols) no mesmo
+// formato que o parser devolve, para que o hash estrutural dos dois lados
+// seja comparável.
+func structuralSymbols(stored []db.CodeSymbolSignature) []codeast.Symbol {
+	out := make([]codeast.Symbol, 0, len(stored))
+	for _, s := range stored {
+		out = append(out, codeast.Symbol{
+			Kind:          codeast.Kind(s.Kind),
+			Name:          s.Name,
+			QualifiedName: s.QualifiedName,
+			Signature:     s.Signature,
+		})
+	}
+	return out
 }
 
 // changedSymbols devolve os símbolos que mudaram entre o estado gravado e o

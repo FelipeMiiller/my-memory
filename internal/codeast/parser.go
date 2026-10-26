@@ -78,6 +78,21 @@ func (s Symbol) HashKey() string {
 	return fmt.Sprintf("%s|%s|%d", s.Kind, qn, s.StartLine)
 }
 
+// StructuralKey devolve a chave da ESTRUTURA do símbolo: kind +
+// qualified_name + assinatura.
+//
+// Não inclui a POSIÇÃO (linha/coluna): a posição é dado de CACHE (o
+// `ast_hash` de `code_files` decide reindexação), não de estrutura. Um
+// comentário ou whitespace que apenas desloca linhas não pode virar
+// "mudança estrutural" (defeito D6).
+func (s Symbol) StructuralKey() string {
+	qn := s.QualifiedName
+	if qn == "" {
+		qn = s.Name
+	}
+	return fmt.Sprintf("%s|%s|%s", s.Kind, qn, strings.TrimSpace(s.Signature))
+}
+
 // EdgeKind é o tipo da relação entre dois símbolos do code graph.
 type EdgeKind string
 
@@ -205,6 +220,40 @@ func HashSymbols(symbols []Symbol) string {
 	keys := make([]string, 0, len(symbols))
 	for _, s := range symbols {
 		k := s.HashKey()
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	h := sha256.New()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte{'\n'})
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// HashSymbolsStructural devolve um SHA-256 estável sobre a ESTRUTURA do
+// conjunto de símbolos: kind + qualified_name + assinatura, SEM posição.
+//
+// É o discriminador de DRIFT ESTRUTURAL:
+//   - comentário/whitespace (que só desloca linhas) → hash IGUAL → não é
+//     drift;
+//   - assinatura (parâmetros, tipo de retorno) → hash DIFERENTE → é drift.
+//
+// HashSymbols (que inclui a linha) continua sendo o hash de CACHE: para o
+// cache, a posição É mudança. São DOIS hashes diferentes e não devem ser
+// misturados (defeito D6).
+func HashSymbolsStructural(symbols []Symbol) string {
+	if len(symbols) == 0 {
+		return ""
+	}
+	seen := make(map[string]bool)
+	keys := make([]string, 0, len(symbols))
+	for _, s := range symbols {
+		k := s.StructuralKey()
 		if seen[k] {
 			continue
 		}
