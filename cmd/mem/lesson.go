@@ -160,7 +160,7 @@ func parseLessonArgs(args []string) (*lessonOptions, error) {
 		title = strings.TrimSpace(positionalTitle)
 	}
 	if title == "" {
-		fmt.Println("Uso: mem lesson <título> [--summary \"<resumo>\"] [--content \"<texto>\"] [--file <arquivo>] [--tags \"t1,t2\"] [--tag <tag>] [--folder <pasta>]")
+		fmt.Println("Uso: mem lesson <título> [--summary \"<resumo>\"] [--content \"<texto>\"] [--file <arquivo>] [--tags \"t1,t2\"] [--tag <tag>] [--folder <pasta>] [--storage=sqlite|postgres] [--db <arquivo>] [--postgres <url>]")
 		return nil, fmt.Errorf("título da lição é obrigatório")
 	}
 

@@ -233,3 +233,77 @@ func TestMemLessonSemCofreCentralFalha(t *testing.T) {
 		t.Errorf("o vault do repositório ganhou %d entrada(s): %v", len(entries), entries)
 	}
 }
+
+// TestMemLessonStorageFlagVenceEnvVar é a regressão do incidente do D8.
+//
+// Com MY_MEMORY_PG_URL no ambiente, o `mem lesson` ignorava o config de
+// teste e conectava no Postgres real — em silêncio, sem aviso. A flag
+// --storage=sqlite tem que vencer a variável de ambiente: a lição vai para
+// o SQLite indicado e o Postgres não é tocado.
+//
+// A env var aponta para uma porta fechada (127.0.0.1:1): se a flag NÃO
+// vencesse, o comando falharia ao conectar — e o teste falharia junto.
+func TestMemLessonStorageFlagVenceEnvVar(t *testing.T) {
+	ctx := context.Background()
+
+	globalDir := t.TempDir()
+	t.Setenv(config.GlobalConfigDirEnv, globalDir)
+	t.Setenv("MY_MEMORY_REPO", "")
+	t.Setenv("MY_MEMORY_PG_URL", "postgres://user:pass@127.0.0.1:1/db-inexistente")
+	t.Setenv("POSTGRES_URL", "")
+	t.Setenv("DATABASE_URL", "")
+
+	centralDir := filepath.Join(t.TempDir(), "cofre-central")
+	if err := os.MkdirAll(centralDir, 0755); err != nil {
+		t.Fatalf("erro ao criar o cofre central: %v", err)
+	}
+
+	repoDir := t.TempDir()
+	t.Chdir(repoDir)
+
+	if err := config.SaveGlobalConfig(&config.GlobalConfig{
+		Version:      1,
+		CentralVault: config.CentralVaultConfig{Path: centralDir},
+	}); err != nil {
+		t.Fatalf("erro ao salvar a configuração global: %v", err)
+	}
+
+	dbPath := filepath.Join(t.TempDir(), "central.db")
+
+	var runErr error
+	captureStdout(t, func() {
+		runErr = runLessonCLI(ctx, nil, nil, "repo-de-teste", []string{
+			"Lição isolada do Postgres",
+			"--content=corpo",
+			"--storage=sqlite",
+			"--db", dbPath,
+		})
+	})
+	if runErr != nil {
+		t.Fatalf("runLessonCLI retornou erro (a flag NÃO venceu a env var): %v", runErr)
+	}
+
+	// A lição foi indexada no SQLite indicado.
+	database, err := db.InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("erro ao abrir o banco temporário: %v", err)
+	}
+	defer database.Close()
+
+	var total int
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents`).Scan(&total); err != nil {
+		t.Fatalf("erro ao contar os documentos: %v", err)
+	}
+	if total != 1 {
+		t.Errorf("esperava 1 documento no SQLite indicado, obteve %d", total)
+	}
+
+	// E a nota foi gravada no cofre central (o vault do repositório, não).
+	notes := listMarkdown(t, centralDir)
+	if len(notes) != 1 {
+		t.Fatalf("esperava 1 nota no cofre central, obteve %d: %v", len(notes), notes)
+	}
+	if touched := listMarkdown(t, repoDir); len(touched) != 0 {
+		t.Errorf("o vault do repositório foi tocado: %v", touched)
+	}
+}

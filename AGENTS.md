@@ -44,7 +44,7 @@ No início de qualquer sessão ou tarefa no repositório, o Agente de IA **DEVE*
      ```env
      MY_MEMORY_PG_URL=postgres://postgres:postgres@localhost:5432/my_memory?sslmode=disable
      ```
-   - O `my-memory` detecta automaticamente (global > local > env) e direciona todas as operações (índice, busca, MCP) para o PostgreSQL sem parâmetros manuais.
+   - **Precedência de storage (ADR-040):** flag CLI > variável de ambiente > config (global ou local) > SQLite auto-scope; a fonte que vence é registrada em log (`storage: <engine> (fonte: <origem>)`). O `my-memory` detecta o PostgreSQL automaticamente e direciona todas as operações (índice, busca, MCP) para ele sem parâmetros manuais.
    - **Override consciente**: flag `--storage=postgres` força Postgres mesmo sem config; `--storage=sqlite` força SQLite local (útil pra CI/sandbox). Ver `docs/CLI_GUIDE.md` seção "Seleção de Storage".
 3. **Indexação Inicial**:
    - Caso o vault tenha acabado de ser inicializado, execute a indexação:

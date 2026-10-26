@@ -1214,7 +1214,7 @@ Grava uma **lição aprendida** no **cofre central** (vault central) como nota M
 * **`--tags "t1,t2"` / `--tag <tag>`**: tags da lição — a forma separada por vírgula e a flag repetível se acumulam.
 * **`--folder <pasta>`**: pasta dentro do cofre central onde a lição é gravada (padrão: `lessons`).
 * **`--overwrite`**: sobrescreve a nota se o arquivo já existir.
-* **`--storage=<sqlite|postgres>` / `--db <arq>` / `--postgres <url>` / `--repo <slug>`**: overrides de storage. O repositório padrão do cofre central é `repo_central`.
+* **`--storage=<sqlite|postgres>` / `--db <arq>` / `--postgres <url>` / `--repo <slug>`**: overrides de storage. O repositório padrão do cofre central é `repo_central`. Precedência: **flag > variável de ambiente > config** (ADR-040) — com `--storage=sqlite --db=<arquivo>` a lição vai para o SQLite indicado e a `MY_MEMORY_PG_URL` do ambiente é ignorada, sem tocar no Postgres.
 
 > [!WARNING]
 > A lição **nunca** cai no vault do repositório. Sem cofre central resolvido
@@ -1248,22 +1248,27 @@ O `mem` decide automaticamente onde armazenar e consultar dados, seguindo uma ma
 
 ### Ordem de resolução (do mais prioritário ao menos)
 
+**Precedência de storage (ADR-040):** flag CLI > variável de ambiente > config (global ou local) > SQLite auto-scope; a fonte que vence é registrada em log (`storage: <engine> (fonte: <origem>)`).
+
 1. **Flag CLI explícita**
    - `--db <path>` → SQLite no path especificado
    - `--postgres <url>` → Postgres+pgvector na URL
    - `--storage=sqlite` ou `--storage=postgres` → força engine (EARS-4/5 do ADR-040)
 
-2. **Config explícito**
-   - `storage.engine: sqlite` + `storage.sqlite_path` no YAML global (`~/.memory/config.yaml`)
-   - `storage.engine: postgres` + `storage.postgres_url` no YAML global
-
-3. **Variáveis de ambiente**
+2. **Variáveis de ambiente**
    - `MY_MEMORY_PG_URL`, `POSTGRES_URL`, `DATABASE_URL` → Postgres+pgvector
    - `MY_MEMORY_FORCE_SQLITE=1` → SQLite local mesmo com Postgres global (CI/sandbox)
+
+3. **Config explícito**
+   - `storage.engine: sqlite` + `storage.sqlite_path` no YAML global (`~/.memory/config.yaml`)
+   - `storage.engine: postgres` + `storage.postgres_url` no YAML global
 
 4. **Auto-detecção (default)**
    - Se `.memory/` existe no repo → SQLite em `<repoDir>/.memory/memory.db` (auto-scope)
    - Caso contrário → erro pedindo `mem init` (sem fallback silencioso pra CWD)
+
+> [!NOTE]
+> `mem code-index` e `mem code-graph` resolvem o engine pelo **config** (`storage.engine`), não pela variável de ambiente: o code stage não pode ser redirecionado pelo ambiente. A flag `--storage` continua vencendo tudo.
 
 ### Matriz de cenários
 
@@ -1285,6 +1290,16 @@ Quando o vault central (Postgres) é detectado via config/env e o usuário tem S
 ```
 
 Isso evita que o usuário grave dados no lugar errado sem perceber.
+
+Além disso, **toda** inicialização de storage registra a **fonte que venceu** (no **stderr** — o stdout do `--json` continua puro):
+
+```
+storage: postgres (fonte: MY_MEMORY_PG_URL)
+storage: postgres (fonte: config global)
+storage: sqlite (fonte: flag --storage=sqlite)
+```
+
+O rótulo diz *qual* origem ganhou — é o que impede que um config de teste seja ignorado em silêncio e o binário vá para o Postgres real. A URL e as credenciais **nunca** entram no log.
 
 ### Migração entre engines
 
@@ -1391,6 +1406,9 @@ watcher:
 ```
 
 ### 🏆 Ordem de Precedência (Prioridade):
+
+**Precedência de storage (ADR-040):** flag CLI > variável de ambiente > config (global ou local) > SQLite auto-scope; a fonte que vence é registrada em log (`storage: <engine> (fonte: <origem>)`).
+
 1. **Flags de Terminal**: (`--mode`, `--limit`, `--decay`, `--repo`, `--db`, etc.)
 2. **Variáveis de Ambiente**: (`MY_MEMORY_PG_URL`, `MY_MEMORY_REPO`, `MY_MEMORY_CENTRAL_VAULT`)
 3. **Configuração Local do Repositório**: (`.memory/config.yaml`)
@@ -1410,6 +1428,8 @@ watcher:
 A forma segura é usar **variável de ambiente** (recomendado) ou `.memory/.env` (por-repo).
 
 ### Ordem de resolução de URL (ADR-040 + segurança)
+
+**Precedência de storage (ADR-040):** flag CLI > variável de ambiente > config (global ou local) > SQLite auto-scope; a fonte que vence é registrada em log (`storage: <engine> (fonte: <origem>)`).
 
 1. **Flag CLI `--postgres <url>`** — Útil em testes, **evitar em produção**
 2. **Variável de ambiente** (prioridade alta, fora do shell history):

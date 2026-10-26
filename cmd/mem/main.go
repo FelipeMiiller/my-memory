@@ -1414,18 +1414,14 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 		}
 	}
 
-	pg = pgURL
-	if pg == "" {
-		if envPG := os.Getenv("MY_MEMORY_PG_URL"); envPG != "" {
-			pg = envPG
-		} else if envPG := os.Getenv("POSTGRES_URL"); envPG != "" {
-			pg = envPG
-		} else if envPG := os.Getenv("DATABASE_URL"); envPG != "" {
-			pg = envPG
-		} else if cfg.Storage.Engine == "postgres" && cfg.Storage.PostgresURL != "" {
-			pg = cfg.Storage.PostgresURL
-		}
-	}
+	// D8: a fonte que vence precisa ficar visível. A precedência real
+	// (variável de ambiente > config) NÃO mudou — o que mudou foi a
+	// documentação e o log. Sem a fonte, um config de teste era ignorado em
+	// silêncio e o binário conectava no Postgres real (incidente do
+	// verificador). O log vai para o stderr: o stdout do --json tem que
+	// continuar puro.
+	pg, pgSource := resolvePostgresURL(cfg, pgURL)
+	logStorageSource("postgres", pgSource)
 
 	// ADR-040 EARS-7: log anti-split-brain quando Postgres é detectado de fonte
 	// não-flag (env var ou config global) e SQLite local já existe em disco.

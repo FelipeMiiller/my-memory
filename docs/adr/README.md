@@ -219,6 +219,22 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > ADR-056 como especificação não implementada, não como estado atual. A medição
 > está em [`docs/OBSIDIAN_PARITY_MATRIX.md`](../OBSIDIAN_PARITY_MATRIX.md), seção 3.
 
+> [!warning]
+> **ADR-040: a precedência do storage é "flag > env > config", e a fonte que vence fica visível.**
+> O corpo da ADR é imutável, e a "Detection Logic" dele já põe o *override
+> consciente* (flag/env) **acima** do config — mas o `AGENTS.md` §2 dizia
+> "global > local > env", invertendo a ordem real do código: `MY_MEMORY_PG_URL`
+> **vence** o `storage.postgres_url` do config global. A **documentação** é que
+> estava errada, e a inversão era silenciosa: um config de teste era ignorado
+> sem aviso e o binário conectava no Postgres real. O **código não mudou**
+> (inverter a precedência quebraria o setup em produção); o que mudou foi (1) a
+> documentação, alinhada numa frase canônica, e (2) o log de inicialização do
+> storage, que passa a dizer **qual fonte venceu** — `storage: postgres (fonte:
+> MY_MEMORY_PG_URL)`, `storage: postgres (fonte: config global)`, `storage:
+> sqlite (fonte: flag --storage=sqlite)` — sem URL e sem credencial.
+>
+> **Frase canônica:** flag CLI > variável de ambiente > config (global ou local) > SQLite auto-scope; a fonte que vence é registrada em log (`storage: <engine> (fonte: <origem>)`).
+
 ---
 
 ## 🗄️ ADRs Obsoletas — viewer Electron (removido em 2026-10-18)
