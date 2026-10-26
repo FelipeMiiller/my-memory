@@ -13,7 +13,7 @@ tags: [my-memory, code-graph, adr-061, handoff, spec]
 > worker estava finalizando.
 
 > [!warning] **Veredito da verificação independente: 🔶 PARTIAL (não é PASS) —
-> mas os 8 defeitos já foram corrigidos.**
+> os 8 defeitos já foram corrigidos e revalidados.**
 > O núcleo técnico está sólido e verificadamente real, mas a verificação
 > encontrou **2 defeitos de severidade alta** que quebram ACs declaradas
 > (D1: a migração quebra em vault existente; D2: `include_code` é no-op para
@@ -23,8 +23,14 @@ tags: [my-memory, code-graph, adr-061, handoff, spec]
 > **Correções:** `b3ed53f` (D1) · `fbd3d62` (D2) · `b34abd8` (D3) ·
 > `1dc845a` (D4) · `b84dfce` (D5) · `aadd791` (D6) · `e64e389` (D7) ·
 > `aac0c0b` (D8). Evidência D7/D8 em `validation-d7-d8.md`.
-> **Falta:** a **revalidação** das 16 hipóteses depois das correções (item 1 da
-> tabela de pendências).
+> **Revalidação (2026-10-26):** as 16 hipóteses foram repetidas **mais** 8
+> tentativas de refutar cada correção e 5 riscos residuais — **8/8 correções
+> sobreviveram**, 26 de 29 checagens confirmadas com evidência empírica e
+> **nenhuma hipótese refutada**. Os 3 itens em aberto são **limite de ambiente**
+> (Postgres real), não defeito. Um achado residual novo (**R-1**: o fallback do
+> `MockParser` só casa símbolos de mesmo nome simples) virou `ISSUE-030`, com a
+> documentação corrigida. Relatório:
+> `.specs/features/code-graph-real/validation-revalidation.md`.
 
 Este documento é o **ponto de retomada** da feature. Ele existe porque a
 pasta do repositório vai ser movida de `C:\repository\my-memory` para `D:\...`
@@ -176,15 +182,15 @@ Evidência detalhada por fase:
 | # | Pendência | Como fazer | Quem |
 | :--- | :--- | :--- | :--- |
 | 0 | **Corrigir os 8 defeitos da verificação** — D1 (migração) e D2 (`include_code` sem repo) são de severidade **alta** e quebram ACs; D3 (build `-tags treesitter` degrada), D4 (hub threshold poda o vizinho direto), D5 (`mem code-graph` descarta `--repo`), D6 (hash estrutural inclui linha), D7 (viewer cita a ADR errada), D8 (precedência env × config) | ✅ **feito** — `b3ed53f` (D1) · `fbd3d62` (D2) · `b34abd8` (D3) · `1dc845a` (D4) · `b84dfce` (D5) · `aadd791` (D6) · `e64e389` (D7) · `aac0c0b` (D8). Evidência D7/D8 em `validation-d7-d8.md` | — |
-| 1 | **Revalidar** depois das correções: repetir as 16 hipóteses, com foco em D1/D2/D3 | `D:\.minimax\scratch\briefing-verificador.txt` | agente `verifier`, read-only |
-| 2 | **Gate final único**, sem escritores ativos: `go build ./... && go vet ./... && go test -count=1 ./...` + `cd viewer && npm run typecheck && npm run test && npm run build` + medição do gzip | o gate de `internal/ci` só quebra se **aparecer um pacote Go novo** — nenhum worker criou um | gestor |
+| 1 | **Revalidar** depois das correções: repetir as 16 hipóteses, com foco em D1/D2/D3 | ✅ **feito** (2026-10-26) — briefing com **29 checagens** (16 hipóteses + **8 tentativas de refutar cada correção** + 5 riscos residuais). Resultado: **8/8 correções sobreviveram**, 26 confirmadas com evidência empírica, **nenhuma hipótese refutada**. Os 3 itens em aberto são **limite de ambiente** (Postgres real), não defeito. Relatório: `validation-revalidation.md` | — |
+| 2 | **Gate final único**, sem escritores ativos: `go build ./... && go vet ./... && go test -count=1 ./...` + `cd viewer && npm run typecheck && npm run test && npm run build` + medição do gzip | o gate de `internal/ci` só quebra se **aparecer um pacote Go novo** — nenhum worker criou um | ✅ **feito** (2026-10-26) — Go: `build`/`vet`/`test` exit **0**, **26/26 pacotes `ok`** (incluindo `internal/ci`, que flakeou na rodada anterior). Front-end: typecheck 0 · lint 0 · **95/95** testes · build 0 · **144.787/163.840 bytes gzip** · **0 CDN** | — |
 | 3 | **Ticar os 18 "Done when"** em `tasks.md` e revalidar `validate_tasks.py` | ✅ **feito** (commit `3012f76`) | gestor |
 | 4 | **Consolidar a validação** num `validation.md` único (Fase 2 + Fase 3) | hoje são dois arquivos | gestor |
 | 5 | **Fechar a ISSUE-027**: marcar C1..C12 como resolvidos, com o commit que fechou cada um | ✅ **feito** (`3012f76`) | gestor |
 | 6 | **Atualizar `STATE.md`** com o estado da feature | ✅ **feito** (`3012f76`) | gestor |
 | 7 | **Limpar o scratch** dos subagents: `D:\.minimax\scratch\subagents\*` (o clone do Graphify é referência — manter ou remover conforme a decisão do dono) | `mavis-trash.cmd` (deleção permanente é bloqueada) | gestor |
 | 8 | **Remover as 2 notas-teste** que o verificador indexou por acidente no Postgres real (`licao-sem-postgres.md` e `licao-sem-postgres-3.md`, em `repo_central` do cofre central) | o verificador **não** apagou nada do store real; a remoção é decisão do dono | dono |
-| 9 | **Push** de `develop` — **NÃO** fazer sem aval explícito do dono | 33+ commits à frente de `origin/develop` | dono |
+| 9 | **Push** de `develop` — **NÃO** fazer sem aval explícito do dono | 38+ commits à frente de `origin/develop` | dono |
 | 10 | **Release v3.0.0 + PR `develop`→`main`** — adiado por decisão do dono ("só o push por enquanto") | `CHANGELOG.md` já tem o bloco `[Unreleased]` | dono |
 
 ---
@@ -327,10 +333,13 @@ C: com ~3,3 GB livres no fim; D: com ~153 GB livres.
 | Evidência Fase 2 | `.specs/features/code-graph-real/validation.md` |
 | Evidência Fase 3 | `.specs/features/code-graph-real/validation-t13-t15-t17.md` |
 | **Verificação independente** (veredito PARTIAL + 8 defeitos) | `.specs/features/code-graph-real/verification.md` |
+| **Revalidação pós-correção** (8/8 sobreviveram, veredito PARTIAL) | `.specs/features/code-graph-real/validation-revalidation.md` |
+| Evidência D7/D8 | `.specs/features/code-graph-real/validation-d7-d8.md` |
 | ADR da decisão | `docs/adr/061-dois-conceitos-de-memoria-vault-central-e-code-graph.md` |
 | Tracker dos 12 gaps | `.specs/ISSUES.md` (ISSUE-027) |
+| Achados da revalidação | `.specs/ISSUES.md` (ISSUE-030 = R-1, ISSUE-031 = P5/P1) |
 | Índice de ADRs | `docs/adr/README.md` |
 | Estado do projeto | `.specs/STATE.md` |
 
-> [!info] Este documento é um retrato de 2026-10-24. Ao retomar, confira
+> [!info] Este documento é um retrato de 2026-10-26. Ao retomar, confira
 > `git log --oneline -25` e `git status` antes de trusting os números acima.

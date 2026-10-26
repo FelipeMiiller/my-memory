@@ -965,7 +965,7 @@ atualizado no catálogo global é o `path`.
 ## ISSUE-029 — 8 defeitos na feature `code-graph-real`, achados pela verificação independente
 
 - **Severidade:** 🔴 alta (2 defeitos altos + 1 alto-médio + 3 médios + 2 baixos)
-- **Status:** 🟢 **corrigido** (2026-10-24) — os 8 defeitos foram corrigidos e commitados; **falta a revalidação** das 16 hipóteses depois das correções (ver `HANDOFF.md`, item 1)
+- **Status:** 🟢 **corrigido e revalidado** (2026-10-26) — os 8 defeitos foram corrigidos e commitados, e a **revalidação independente** (16 hipóteses + 8 refutações das correções + 5 riscos residuais) deu **8/8 correções sobreviveram** — nenhuma refutação consumada. Relatório: `.specs/features/code-graph-real/validation-revalidation.md`
 - **Achado em:** verificação independente de 2026-10-24 (agente `verifier`,
   read-only, 16 hipóteses; relatório completo em
   `.specs/features/code-graph-real/verification.md`)
@@ -998,4 +998,91 @@ URL do config de scratch e indexou **2 notas-teste** no **Postgres real do dono*
 (`repo_central` do cofre central). Nada foi apagado do store real. **Pendente
 para o dono:** remover `licao-sem-postgres.md` e `licao-sem-postgres-3.md` de
 `.../central/lessons/`.
+
+## ISSUE-030 — o fallback do `MockParser` só produz aresta entre símbolos de mesmo nome simples
+
+- **Severidade:** 🟡 média (impacto de documentação e de utilidade, não de correção)
+- **Status:** 🔵 open — **documentação corrigida** nesta rodada; a decisão de fundo é do dono
+- **Achado em:** revalidação independente de 2026-10-26 (achado **R-1**; relatório em
+  `.specs/features/code-graph-real/validation-revalidation.md`)
+
+**O que é.** O caminho legado `references` (`internal/codeast/pipeline.go:583-653`)
+é a varredida por nome usada nas linguagens **sem** backend AST. O índice `byName`
+(`:596-612`) é chaveado pelo `qualified_name` do símbolo **quando ele tem um**, e
+pelo `name` quando não tem. A busca (`:614-623`) usa `s.QualifiedName` e, na
+ausência dele, `s.Name`.
+
+Um símbolo do `MockParser` é gravado **sem** `qualified_name` — então ele procura
+a chave `"Beta"`, enquanto um símbolo Go homônimo está sob `"pkg.Beta"` → **0
+candidatos**, nenhuma aresta. O caminho legado só acha alvo quando **outro**
+símbolo também não tem `qualified_name` e tem o mesmo nome simples.
+
+**Medido.** 2 arquivos Python → 5 símbolos do `MockParser`, todos com
+`qualified_name = NULL`, **0** arestas `references` e **0** linhas em
+`code_edges_uncertain`. Nem `Beta` (Python) casou com `pkg.Beta` (Go), que tem o
+mesmo nome.
+
+**Por que não é bug do motor.** A semântica "resolução literal de referências"
+está na ADR-047 (§CA-01) e no próprio comentário da função (`pipeline.go:568-582`):
+são referências **por igualdade de nome**, não chamadas. Casar um símbolo Python
+com um símbolo Go de mesmo nome simples seria uma aresta **falsa**. O motor está
+correto; a **documentação é que prometia mais do que o motor entrega**.
+
+**Correção de documentação (feita em 2026-10-26).** `README.md`,
+`docs/CLI_GUIDE.md`, `docs/ARCHITECTURE.md`, `docs/adr/README.md` e `CHANGELOG.md`
+agora dizem que a aresta `references` do fallback é por **igualdade de nome**, sem
+ponto de chamada, e que num código sem nomes duplicados o fallback produz poucas
+ou nenhuma aresta.
+
+**Decisão de fundo (do dono).** Fazer as linguagens sem AST produzirem arestas
+reais exige um parser por linguagem ou o binding tree-sitter da ADR-047 — cujo
+deferral segue intacto (0 de 3 gatilhos). Alternativa barata: um parser de
+chamada *heurístico* por linguagem no `MockParser` (detectar `x(...)` na linha e
+resolver por nome no escopo do arquivo), que daria `references` com call-site
+aproximado — mas com proveniência `INFERRED` e risco de falso positivo.
+
+## ISSUE-031 — colisão cross-repo no nó `code:<qualified_name>` em SQLite + Postgres ainda não verificado
+
+- **Severidade:** 🟠 alta-média (multi-tenant) / 🟡 média (lacuna de verificação)
+- **Status:** 🔵 open — **decisão do dono**
+- **Achado em:** revalidação independente de 2026-10-26 (riscos **P5** e **P1**)
+
+### P5 — colisão cross-repo em SQLite
+
+O nó do grafo é `code:<qualified_name>`, **global**. Em SQLite o `graph_nodes`
+**não tem** coluna `repository` e o insert é `INSERT OR IGNORE`
+(`internal/db/code_bridge.go:317-321`), e `loadBridgeSymbols` só filtra por
+`repository` **no Postgres** (`:353-357`).
+
+**Reproduzido.** Dois vaults (`acme` e `globex`) no **mesmo** arquivo SQLite,
+ambos com `pkg.Alpha` em paths distintos: `code_symbols` tem só a linha do
+*acme*, mas `graph_edges` tem **duas** — a nota do repo A **e** a do repo B
+apontando para o **mesmo** nó `code:pkg.Alpha`. Os dois repositórios colapsam no
+mesmo nó.
+
+**No Postgres não há colisão**: `graph_nodes` tem `repository` e o conflito é
+`(repository, id)` (`code_bridge.go:311-313`); `graph_edges` usa
+`(repository, source_id, target_id, relation)` (`:331-335`). O próprio código
+declara a assimetria (`code_bridge.go:91-92`).
+
+**Opções (do dono).** (a) nomear o nó por repositório
+(`code:<repository>:<qualified_name>`) — quebra a compatibilidade dos ids já
+gravados; (b) adicionar `repository` ao `graph_nodes` no SQLite, alinhando os
+dois engines; (c) declarar que o SQLite é single-tenant no code graph e
+documentar a limitação.
+
+### P1 — Postgres real não verificado
+
+Há um Postgres em escuta em `127.0.0.1:5432`, mas ele é o **store real do dono**:
+conectar violaria a vedação explícita. Não há Postgres descartável na máquina
+(sem serviço registrado, sem `psql`/`pg_ctl`/`initdb`, sem `docker`), e a
+revalidação **não** criou infraestrutura nova.
+
+**Fica sem prova:** `ON CONFLICT (repository, path)` no Postgres, o índice único
+composto de `code_*`, o `?`→`$1` em runtime real e a metade Postgres da AC-05
+(H4). **Como fechar:** o dono pode liberar um banco descartável (uma URL de
+scratch em `MY_MEMORY_PG_URL` apontando para um Postgres efêmero) e a checagem
+cabe numa rodada de ~10 minutos; ou aceitar a lacuna e mover a AC-05 para
+"verificada apenas em SQLite" na spec.
+
 
