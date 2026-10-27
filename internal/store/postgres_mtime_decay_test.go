@@ -2,11 +2,11 @@ package store
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
+	"github.com/FelipeMiiller/my-memory/internal/pgtest"
 )
 
 // TestPostgresStore_SearchPopulatesMTime prova, contra um PostgreSQL vivo, que
@@ -16,15 +16,14 @@ import (
 // rrf.go caía para updated_at — ou seja, o bug original do --decay continuava
 // vivo no motor canônico (ADR-040) enquanto o SQLite já estava corrigido.
 func TestPostgresStore_SearchPopulatesMTime(t *testing.T) {
-	pgURL := os.Getenv("MY_MEMORY_PG_URL")
-	if pgURL == "" {
-		t.Skip("Pulando integração PostgreSQL: MY_MEMORY_PG_URL não configurada")
-	}
+	// Banco DESCARTÁVEL próprio: o Postgres do dono nunca é alvo (o TestMain
+	// neutraliza MY_MEMORY_PG_URL e o harness cria o mymemory_pgtest_*).
+	h := pgtest.New(t)
 
 	ctx := context.Background()
-	s, err := NewPostgresStore(pgURL)
+	s, err := NewPostgresStore(h.DSN)
 	if err != nil {
-		t.Fatalf("conexão com o PostgreSQL falhou: %v", err)
+		t.Fatalf("conexão com o PostgreSQL descartável falhou: %v", err)
 	}
 	defer s.Close()
 

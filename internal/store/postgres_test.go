@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
+	"github.com/FelipeMiiller/my-memory/internal/pgtest"
 )
 
 func TestFormatVector(t *testing.T) {
@@ -136,15 +136,14 @@ func TestGodNode_Struct(t *testing.T) {
 }
 
 func TestPostgresStore_Integration(t *testing.T) {
-	pgURL := os.Getenv("MY_MEMORY_PG_URL")
-	if pgURL == "" {
-		t.Skip("Pulando teste de integração PostgreSQL: MY_MEMORY_PG_URL não configurada")
-	}
+	// Banco DESCARTÁVEL próprio: o Postgres do dono nunca é alvo (o TestMain
+	// neutraliza MY_MEMORY_PG_URL e o harness cria o mymemory_pgtest_*).
+	h := pgtest.New(t)
 
 	ctx := context.Background()
-	s, err := NewPostgresStore(pgURL)
+	s, err := NewPostgresStore(h.DSN)
 	if err != nil {
-		t.Fatalf("Falha ao conectar no PostgreSQL (%s): %v", pgURL, err)
+		t.Fatalf("Falha ao conectar no PostgreSQL descartável (%s): %v", h.DBName, err)
 	}
 	defer s.Close()
 

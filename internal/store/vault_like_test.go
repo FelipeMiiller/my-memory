@@ -3,9 +3,10 @@ package store
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
+
+	"github.com/FelipeMiiller/my-memory/internal/pgtest"
 )
 
 // TestEscapeLikePattern é o teste puro do escaper: `_` e `%` deixavam de ser
@@ -31,15 +32,14 @@ func TestEscapeLikePattern(t *testing.T) {
 // Sem o escape, `mem read my_note.md` casaria com `myXnote.md` e o comando
 // reportaria ambiguidade onde não existe.
 func TestPostgresFindVaultDocumentsByPath_IgnoraCuringasNoNome(t *testing.T) {
-	pgURL := os.Getenv("MY_MEMORY_PG_URL")
-	if pgURL == "" {
-		t.Skip("Pulando integração PostgreSQL: MY_MEMORY_PG_URL não configurada")
-	}
+	// Banco DESCARTÁVEL próprio: o Postgres do dono nunca é alvo (o TestMain
+	// neutraliza MY_MEMORY_PG_URL e o harness cria o mymemory_pgtest_*).
+	h := pgtest.New(t)
 
 	ctx := context.Background()
-	s, err := NewPostgresStore(pgURL)
+	s, err := NewPostgresStore(h.DSN)
 	if err != nil {
-		t.Fatalf("conexão com o PostgreSQL falhou: %v", err)
+		t.Fatalf("conexão com o PostgreSQL descartável falhou: %v", err)
 	}
 	defer s.Close()
 

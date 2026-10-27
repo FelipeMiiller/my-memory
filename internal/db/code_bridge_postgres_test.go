@@ -2,15 +2,11 @@ package db_test
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
-	"net/url"
-	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/db"
+	"github.com/FelipeMiiller/my-memory/internal/pgtest"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 )
 
@@ -24,9 +20,9 @@ import (
 // que o dono usa.
 //
 // SEGURANÇA: o teste NÃO escreve no banco configurado em MY_MEMORY_PG_URL.
-// Ele cria um BANCO TEMPORÁRIO próprio (`mymemory_pgtest_*`), roda tudo
-// dentro dele e o derruba no fim. O `default` role do dono nunca é usado
-// para tocar o banco de produção.
+// O harness pgtest cria um BANCO TEMPORÁRIO próprio (`mymemory_pgtest_*`),
+// roda tudo dentro dele e o derruba no fim. O `default` role do dono nunca é
+// usado para tocar o banco de produção.
 //
 // COMO RODAR:
 //
@@ -34,62 +30,30 @@ import (
 //
 // Sem MY_MEMORY_PG_TEST=1 o teste é pulado (a suíte padrão é hermética).
 func TestCodeBridgeRepositoryScopePostgres(t *testing.T) {
-	pgURL := strings.TrimSpace(os.Getenv("MY_MEMORY_PG_URL"))
-	if pgURL == "" {
-		t.Skip("Pulando: MY_MEMORY_PG_URL não configurada")
-	}
-	if strings.TrimSpace(os.Getenv("MY_MEMORY_PG_TEST")) != "1" {
-		t.Skip("Pulando: MY_MEMORY_PG_TEST=1 não configurado (o teste cria um banco temporário no PostgreSQL)")
-	}
+	// Banco DESCARTÁVEL próprio: o Postgres do dono nunca é alvo.
+	h := pgtest.New(t)
 
 	ctx := context.Background()
-	dbName := fmt.Sprintf("mymemory_pgtest_%d_%d", os.Getpid(), time.Now().UnixNano()%100000)
 
-	// 1. Cria o banco temporário a partir do banco configurado.
-	admin, err := sql.Open("postgres", pgURL)
+	// Aplica o schema do engine no banco temporário.
+	pgStore, err := store.NewPostgresStore(h.DSN)
 	if err != nil {
-		t.Fatalf("sql.Open: %v", err)
+		t.Fatalf("NewPostgresStore(%s): %v", h.DBName, err)
 	}
-	if err := admin.Ping(); err != nil {
-		admin.Close()
-		t.Fatalf("conexão com o PostgreSQL: %v", err)
-	}
+	database := pgStore.DB()
+	defer pgStore.Close()
+
 	var version string
-	if err := admin.QueryRow("SELECT version()").Scan(&version); err != nil {
-		admin.Close()
+	if err := database.QueryRow("SELECT version()").Scan(&version); err != nil {
 		t.Fatalf("SELECT version(): %v", err)
 	}
 	t.Logf("PostgreSQL: %s", strings.SplitN(version, " on ", 2)[0])
-
-	if _, err := admin.Exec("CREATE DATABASE " + dbName); err != nil {
-		admin.Close()
-		t.Fatalf("CREATE DATABASE %s: %v", dbName, err)
-	}
-	admin.Close()
-
-	// 2. Conecta no banco temporário e aplica o schema do engine.
-	testURL, err := url.Parse(pgURL)
-	if err != nil {
-		t.Fatalf("parse da URL: %v", err)
-	}
-	testURL.Path = "/" + dbName
-
-	pgStore, err := store.NewPostgresStore(testURL.String())
-	if err != nil {
-		dropTempDatabase(t, pgURL, dbName)
-		t.Fatalf("NewPostgresStore(%s): %v", dbName, err)
-	}
-	database := pgStore.DB()
-	defer func() {
-		pgStore.Close()
-		dropTempDatabase(t, pgURL, dbName)
-	}()
 
 	if db.DetectDialect(ctx, database) != db.DialectPostgres {
 		t.Fatalf("dialeto = %q; want %q", db.DetectDialect(ctx, database), db.DialectPostgres)
 	}
 
-	// 3. Dois repositórios, MESMO qualified name, cada um com a sua nota.
+	// 1. Dois repositórios, MESMO qualified name, cada um com a sua nota.
 	const qualifiedName = "pkg.Alpha"
 	repos := []struct {
 		repo    string
@@ -128,7 +92,7 @@ func TestCodeBridgeRepositoryScopePostgres(t *testing.T) {
 		}
 	}
 
-	// 4. A ponte roda para cada repositório (no PostgreSQL o documento
+	// 2. A ponte roda para cada repositório (no PostgreSQL o documento
 	// também é escopado por repository).
 	for _, r := range repos {
 		repoCtx := db.WithRepository(ctx, r.repo)
@@ -231,21 +195,4 @@ func TestCodeBridgeRepositoryScopePostgres(t *testing.T) {
 	if ref == nil || ref.File != "globex/pkg/alpha.go" {
 		t.Fatalf("símbolo de globex = %+v; want o arquivo globex/pkg/alpha.go", ref)
 	}
-}
-
-// dropTempDatabase derruba o banco temporário do teste.
-func dropTempDatabase(t *testing.T, pgURL, dbName string) {
-	t.Helper()
-
-	admin, err := sql.Open("postgres", pgURL)
-	if err != nil {
-		t.Logf("cleanup: sql.Open: %v", err)
-		return
-	}
-	defer admin.Close()
-	if _, err := admin.Exec("DROP DATABASE IF EXISTS " + dbName + " WITH (FORCE)"); err != nil {
-		t.Logf("cleanup: DROP DATABASE %s: %v", dbName, err)
-		return
-	}
-	t.Logf("banco temporário %s derrubado", dbName)
 }

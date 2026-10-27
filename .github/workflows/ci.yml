@@ -165,7 +165,7 @@ jobs:
       - name: Run All Pure Tests with Coverage Report (Ubuntu)
         if: runner.os == 'Linux'
         run: |
-          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/... ./internal/store/... ./internal/canvas/... ./internal/repo/... ./internal/graph/... ./internal/graphview/... ./internal/embedder/... ./internal/compiler/... ./internal/config/... ./internal/watcher/... ./internal/autowire/... ./internal/deeplink/... ./internal/staleness/... ./internal/drift/... ./internal/supervisor/... ./internal/event_runtime/... ./internal/federation/... ./internal/ci/... ./cmd/mem/... ./cmd/mymemoryd/... ./bench/codeast/...
+          go test -v -coverprofile=coverage.txt -covermode=atomic ./internal/parser/... ./internal/turboquant/... ./internal/mcp/... ./internal/store/... ./internal/pgtest/... ./internal/canvas/... ./internal/repo/... ./internal/graph/... ./internal/graphview/... ./internal/embedder/... ./internal/compiler/... ./internal/config/... ./internal/watcher/... ./internal/autowire/... ./internal/deeplink/... ./internal/staleness/... ./internal/drift/... ./internal/supervisor/... ./internal/event_runtime/... ./internal/federation/... ./internal/ci/... ./cmd/mem/... ./cmd/mymemoryd/... ./bench/codeast/...
 
       - name: Upload Coverage Artifact (Ubuntu)
         if: runner.os == 'Linux'
@@ -216,11 +216,15 @@ jobs:
       - name: Run PostgreSQL Integration Tests (pgvector)
         env:
           MY_MEMORY_PG_URL: postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable
+          # Opt-in explícito da integração PostgreSQL (internal/pgtest). Sem ela
+          # os testes de integração são pulados e a suíte é hermética.
+          MY_MEMORY_PG_TEST: "1"
         run: go test -v -run TestPostgresStore_ ./internal/store/...
 
       - name: Run SQLite & PostgreSQL Combined Coverage
         env:
           MY_MEMORY_PG_URL: postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable
+          MY_MEMORY_PG_TEST: "1"
         run: |
           CGO_ENABLED=1 go test -tags "sqlite_fts5" -v -coverprofile=db-coverage.txt -covermode=atomic ./internal/db/... ./internal/store/...
 
