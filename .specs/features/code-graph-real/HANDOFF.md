@@ -193,7 +193,7 @@ Evidência detalhada por fase:
 | 9 | **Push** de `develop` — **NÃO** fazer sem aval explícito do dono | 38+ commits à frente de `origin/develop` | ✅ **feito** (2026-10-26) — aval explícito do dono: `35b01ed..e1aaaae` → `origin/develop` | gestor (com aval do dono) |
 | 10 | **Release v3.0.0 + PR `develop`→`main`** — adiado por decisão do dono ("só o push por enquanto") | `CHANGELOG.md` já tem o bloco `[Unreleased]` | dono |
 | 11 | **ISSUE-031 (P5): a colisão cross-repo do nó de código no SQLite** | ✅ **feito** (2026-10-26, `c3c6267`) — decisão do dono: alinhar o SQLite com o Postgres. O id do nó passou a ser `code:<repository>:<qualified_name>` nos dois engines e a ponte filtra por `repository` no SQLite também. Migração zero (o PG tinha 0 nós de código). Teste de regressão **provado** contra o defeito revertido | gestor + worker |
-| 12 | **ISSUE-031 (P1): o Postgres real continua sem verificação** | o dono precisa liberar um banco descartável (URL de scratch) — ou aceitar a lacuna e mover a AC-05 para "verificada apenas em SQLite" | dono |
+| 12 | **ISSUE-031 (P1): o Postgres real continua sem verificação** | ✅ **feito** (2026-10-27) — o próprio teste cria o banco descartável (`CREATE DATABASE mymemory_pgtest_*` + `DROP ... WITH (FORCE)`), então **não** era preciso liberar uma URL de scratch. Verificado contra **PostgreSQL 16.15 real** (Neon): `ON CONFLICT (repository, path)`, o índice único composto de `code_files`, o `?`→`$1` em runtime real e a **metade Postgres da AC-05 (H4)** — cada asserção provada contra o defeito. Harness novo em `internal/pgtest`. Ver a seção P1 da ISSUE-031 | gestor |
 
 ---
 

@@ -1041,11 +1041,12 @@ chamada *heurístico* por linguagem no `MockParser` (detectar `x(...)` na linha 
 resolver por nome no escopo do arquivo), que daria `references` com call-site
 aproximado — mas com proveniência `INFERRED` e risco de falso positivo.
 
-## ISSUE-031 — colisão cross-repo no nó `code:<qualified_name>` em SQLite + Postgres ainda não verificado
+## ISSUE-031 — colisão cross-repo no nó `code:<qualified_name>` em SQLite + Postgres — ✅ RESOLVIDO (P5 e P1)
 
 - **Severidade:** 🟠 alta-média (multi-tenant) / 🟡 média (lacuna de verificação)
-- **Status:** 🟢 **P5 corrigido** (2026-10-26, `c3c6267`) — o dono decidiu "alinhar o
-  SQLite com o Postgres"; **P1 continua aberto** (Postgres real não verificado)
+- **Status:** ✅ **resolved** — **P5 corrigido** (2026-10-26, `c3c6267`: o dono decidiu
+  "alinhar o SQLite com o Postgres") e **P1 fechado** (2026-10-27: verificado contra
+  um PostgreSQL real em banco descartável; ver a seção P1 abaixo)
 - **Achado em:** revalidação independente de 2026-10-26 (riscos **P5** e **P1**)
 
 ### P5 — colisão cross-repo em SQLite
@@ -1113,18 +1114,71 @@ continua de tenant único (a tabela `documents` não tem `repository` e `path` �
 único) — alinhar isso é mudar o modelo de identidade do engine e pertence a
 uma spec própria, não a este hotfix.
 
-### P1 — Postgres real não verificado
+### P1 — Postgres real não verificado → ✅ FECHADO (2026-10-27)
 
-Há um Postgres em escuta em `127.0.0.1:5432`, mas ele é o **store real do dono**:
-conectar violaria a vedação explícita. Não há Postgres descartável na máquina
-(sem serviço registrado, sem `psql`/`pg_ctl`/`initdb`, sem `docker`), e a
-revalidação **não** criou infraestrutura nova.
+**Status:** ✅ **resolved** (2026-10-27) — verificado contra um **PostgreSQL real**
+(Neon 16.15), sempre contra um **banco descartável** criado e derrubado pelo
+próprio teste. O store real do dono nunca foi alvo de escrita.
 
-**Fica sem prova:** `ON CONFLICT (repository, path)` no Postgres, o índice único
-composto de `code_*`, o `?`→`$1` em runtime real e a metade Postgres da AC-05
-(H4). **Como fechar:** o dono pode liberar um banco descartável (uma URL de
-scratch em `MY_MEMORY_PG_URL` apontando para um Postgres efêmero) e a checagem
-cabe numa rodada de ~10 minutos; ou aceitar a lacuna e mover a AC-05 para
-"verificada apenas em SQLite" na spec.
+#### O que estava sem prova e como foi fechado
+
+| Item | Antes | Evidência (2026-10-27) |
+|---|---|---|
+| `ON CONFLICT (repository, path)` no Postgres | sem prova | `internal/db/p1_postgres_test.go::TestP1Postgres_OnConflictRepositoryPathAtualizaEIsolaRepositorio` — o 2º upsert mantém o mesmo `id` e muda `language`/`content_hash`/`size_bytes`; o mesmo `path` em outro `repository` vira linha distinta; o SQL que chega ao servidor é `ON CONFLICT (repository, path) DO UPDATE` |
+| Índice único composto de `code_*` | sem prova | `::TestP1Postgres_IndiceUnicoCompostoDeCodeFiles` — `pg_catalog` confirma `idx_code_files_repository_path` UNIQUE, válido, com as colunas `(repository, path)` **nessa ordem**; nenhum índice único cobre só `path` |
+| `?`→`$1` em runtime real | sem prova | `::TestP1Postgres_PlaceholderOrdinalEmRuntimeReal` — o SQL que chega ao servidor é `SELECT $1 AS "col?x", 'a?b' AS "lit", $2 AS plain`; o `?` dentro de literal e de identificador **não** é convertido; o `INSERT` gravado tem `$1..$7` |
+| Metade Postgres da AC-05 (H4) | sem prova | `cmd/mem/codeindex_postgres_test.go::TestCodeIndexCLI_PostgresGravaCodeGraphNoEngineConfigurado` — a CLI real grava `code_files`/`code_symbols`/`code_edges` no **Postgres** (`"engine": "postgres"`), com `content_hash` SHA-256 e a aresta `calls` no ponto de chamada (linha 4, não a da definição, linha 3); nenhum arquivo SQLite é criado no vault |
+
+**Cada asserção foi provada contra o defeito** (executada com o comportamento
+quebrado, e restaurada em seguida):
+
+- (a) índice → `ON code_files(path)`: `colunas de idx_code_files_repository_path = [path]; want [repository path]`
+- (b) conflict target → `(path)`: `pq: there is no unique or exclusion constraint matching the ON CONFLICT specification (42P10)`
+- (c) binding → `?` convertido dentro de literal: `coluna do literal = "a$1b"; want "a?b"` — **dado errado no banco**, não apenas erro
+- (d) engine → forçado para SQLite: `engine = "sqlite"; want "postgres"` e `linhas em code_files = 0; want 2`
+
+#### Por que agora foi possível (o que faltava na rodada anterior)
+
+A rodada anterior mediu `127.0.0.1:5432` e não achou Postgres descartável
+(sem serviço, sem `psql`, sem `docker`). O que mudou: **o próprio teste cria o
+banco descartável** com `CREATE DATABASE mymemory_pgtest_<pid>_<nanos>` e o
+derruba com `DROP DATABASE ... WITH (FORCE)` — o `default` role do dono nunca
+toca o banco `mymemory`. O servidor Neon (`ep-purple-thunder-a4q5bxac-pooler`)
+aceita `CREATE DATABASE` e o harness vive em `internal/pgtest`.
+
+#### Causa-raiz do lixo no store real (corrigida nesta rodada)
+
+O `store real` estava sendo poluído porque **`internal/db` e `internal/store`
+não tinham `TestMain`** neutralizando `MY_MEMORY_PG_URL` — que tem precedência
+sobre qualquer config. Só `cmd/mem`, `cmd/mymemoryd` e `internal/config` tinham
+o guard. Resultado: os testes de integração desses dois pacotes gravavam direto
+no banco do dono a cada `go test`.
+
+**Correção:** `internal/db/main_test.go` e `internal/store/main_test.go` agora
+usam `pgtest.Capture()` (captura a URL **antes** de neutralizar) +
+`pgtest.Neutralize()` (limpa `MY_MEMORY_PG_URL`, `MY_MEMORY_PG_PASSWORD`,
+`POSTGRES_URL`, `DATABASE_URL`) e restauram no fim. A integração só roda com
+`MY_MEMORY_PG_TEST=1` e sempre contra banco descartável.
+
+**Prova de hermeticidade:** `go test -count=1 ./...` com `MY_MEMORY_PG_URL`
+**presente** no ambiente → **exit 0, 27/27 pacotes ok**. As contagens do store
+real antes e depois foram **idênticas** (`documents 456 | chunks 455 |
+graph_nodes 792 | graph_edges 527 | document_tags 105`, `code_* 0`) e
+`0` bancos `mymemory_pgtest_*` ficaram para trás.
+
+#### Limpeza do store real
+
+O lixo acumulado (**126 repositórios**, 370 documentos, 67 chunks, 586
+graph_nodes, 5 graph_edges, 105 document_tags) foi removido em **uma transação**,
+escopado por uma **lista explícita de 126 repositórios** derivada dos dados
+(sem `LIKE`/curinga), com:
+- guard de runtime que **aborta** se a lista contiver um repositório legítimo;
+- exclusão explícita de `repo_central` e `FelipeMiiller/my-memory` em **cada**
+  `DELETE` (cinta e suspensorio);
+- `document_tags` deletado explicitamente (não tem FK para `documents`).
+
+**Conferência posterior:** `repo_central` intacto em `86 documents / 388 chunks
+/ 204 graph_nodes / 522 graph_edges`, `FelipeMiiller/my-memory` com seus 2 nós,
+**0** documentos e **0** graph_nodes de lixo restantes.
 
 

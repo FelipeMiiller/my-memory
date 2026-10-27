@@ -248,6 +248,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A suíte de testes escrevia no Postgres real do dono.** `internal/db` e
+  `internal/store` não tinham `TestMain` neutralizando `MY_MEMORY_PG_URL` — que tem
+  precedência sobre qualquer config — então os testes de integração desses pacotes
+  gravavam direto no banco de produção a cada `go test` (foram medidos **126
+  repositórios** e **370 documentos** de lixo no store real). Os dois pacotes agora
+  usam o mesmo padrão já existente em `cmd/mem`: capturar a URL **antes** de
+  neutralizar, limpar `MY_MEMORY_PG_URL`/`MY_MEMORY_PG_PASSWORD`/`POSTGRES_URL`/
+  `DATABASE_URL` e restaurar no fim. O harness compartilhado ficou em
+  `internal/pgtest`: a integração só roda com `MY_MEMORY_PG_TEST=1` e sempre contra
+  um **banco descartável** (`CREATE DATABASE mymemory_pgtest_*` +
+  `DROP DATABASE ... WITH (FORCE)`) — o banco `mymemory` do dono nunca é alvo.
+  **Hermeticidade provada:** `go test -count=1 ./...` com a variável **presente** no
+  ambiente passa (27/27 pacotes) e as contagens do store real ficam **idênticas**
+  antes e depois.
 - **`mem search --tag=` descartava o filtro silenciosamente.** Com a flag presente e
   o valor vazio (`--tag=` ou `--tag ""`), o comando ignorava o filtro pedido,
   buscava sem ele e saía com código 0 — o resultado parecia o filtrado e não era.
@@ -502,6 +516,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CI
 
+- **A integração PostgreSQL agora é opt-in explícito.** Os jobs de Postgres do
+  workflow passam a definir `MY_MEMORY_PG_TEST=1`, que habilita os testes de
+  integração (eles são pulados por padrão, mantendo a suíte hermética fora do CI).
+  O pacote novo `internal/pgtest` entrou no passo de cobertura — o gate de
+  `internal/ci` exige que todo pacote de `go list ./...` apareça em algum step.
 - **Cobertura dos pacotes que o workflow nunca executava** (ISSUE-012).
 - `.gitattributes` (`* text=auto eol=lf`) adicionado para que o gate de `gofmt`
   seja executável também no Windows.

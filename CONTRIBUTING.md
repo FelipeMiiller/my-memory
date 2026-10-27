@@ -84,6 +84,31 @@ Qualquer proposta de mudança que envolva bibliotecas estruturais, esquemas do b
   go tool cover -func=coverage.txt
   ```
 
+### Testes de integração PostgreSQL (opt-in)
+
+A suíte padrão é **hermética**: mesmo com `MY_MEMORY_PG_URL` no ambiente, nenhum
+teste escreve no seu Postgres — os pacotes `internal/db` e `internal/store`
+neutralizam as variáveis de storage durante a execução (o mesmo padrão de
+`cmd/mem`).
+
+Para rodar a **integração PostgreSQL** de verdade, habilite o opt-in:
+
+```bash
+MY_MEMORY_PG_TEST=1 go test -count=1 ./internal/db/... ./internal/store/... ./cmd/mem/...
+```
+
+Com o opt-in ligado, os testes rodam contra um **banco descartável** que eles
+mesmos criam (`mymemory_pgtest_<pid>_<nanos>`) e derrubam no fim
+(`DROP DATABASE ... WITH (FORCE)`). O banco configurado em `MY_MEMORY_PG_URL`
+**nunca** é alvo de escrita — ele só é usado para criar e derrubar o banco de
+teste, então o servidor precisa permitir `CREATE DATABASE`.
+
+> [!WARNING]
+> `MY_MEMORY_PG_URL` tem **precedência sobre qualquer config**. Rodar a suíte
+> com a variável presente e sem o opt-in é seguro (a neutralização impede a
+> escrita), mas desligar a neutralização — como era antes — gravava lixo no
+> seu banco de produção.
+
 ---
 
 ## 📬 Submetendo um Pull Request
