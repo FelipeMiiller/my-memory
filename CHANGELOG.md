@@ -474,6 +474,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Limitação conhecida: `mem index` aborta contra um Postgres com pooler em
+  modo transacional** (ISSUE-032). O `lib/pq` usa o statement "unnamed" do
+  servidor para toda query parametrizada, e o pooler pode mandar o Parse e o
+  Bind para backends diferentes — o servidor passa a responder `26000
+  (unnamed prepared statement does not exist)` ou `08P01 (bind message
+  supplies N parameters, but prepared statement "" requires M)`, e a indexação
+  **morre no meio**, deixando o vault parcial. **Workaround verificado:** usar o
+  endpoint **direto** (sem `-pooler`) no `~/.memory/config.yaml` — com ele a
+  indexação completa (276 documentos). A correção de código (tolerar o erro
+  por documento em vez de abortar tudo) está aberta para decisão.
 - **Skills do repositório atualizadas com a superfície de tags**: `skills/**` e
   `.agents/skills/my-memory/SKILL.md` ganharam `mem tags --folder` e
   `mem tags --total`, a tabela de **exit codes** da superfície de tags e da busca,

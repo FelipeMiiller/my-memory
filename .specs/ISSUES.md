@@ -1260,4 +1260,77 @@ escopado por uma **lista explícita de 126 repositórios** derivada dos dados
 / 204 graph_nodes / 522 graph_edges`, `FelipeMiiller/my-memory` com seus 2 nós,
 **0** documentos e **0** graph_nodes de lixo restantes.
 
+## ISSUE-032 — `mem index` aborta no Postgres: a prepared statement "unnamed" do servidor é corrompida (26000 / 08P01)
 
+- **Severidade:** 🟠 alta (impede a indexação do vault num Postgres com pooler)
+- **Status:** 🔵 **open** — **workaround aplicado e verificado** (indexação completa em 276 documentos), **correção de código pendente de decisão do dono**
+- **Achado em:** 2026-10-29, durante a indexação do vault deste repositório no Postgres real (operação autorizada pelo dono)
+
+**Sintoma.** Contra o endpoint **com pooler** do Neon (`*-pooler.*`), o `mem index`
+**aborta** no meio da execução com erro de protocolo:
+
+```
+Erro durante a indexação: pq: unnamed prepared statement does not exist (26000)
+Erro durante a indexação: pq: bind message supplies 11 parameters, but prepared statement "" requires 4 (08P01)
+```
+
+Antes do abort, aparecem avisos do mesmo tipo em gravuras de vetor
+(`Aviso: falha ao gravar vetor de "…" (pq: bind message supplies 6 parameters,
+but prepared statement "" requires 2 (08P01)); chunk fica sem embedding`).
+
+**Por que é grave.** O `lib/pq` usa o **statement "unnamed"** do servidor para
+toda query parametrizada (todo `ExecContext`/`QueryRowContext` com argumentos).
+Os dois erros significam que o statement unnamed do servidor **não é mais o que
+o cliente acha que é**: ou ele sumiu (`26000`), ou ele tem outra forma
+(`requires 4` quando o cliente mandou 11 parâmetros). A partir daí, **toda**
+query parametrizada daquela sessão falha, e o `mem index` — que aborta no
+primeiro erro fatal — para. O vault fica **parcialmente indexado**, sem
+aviso de que sobrou documento de fora.
+
+**Observações importantes.**
+
+1. **Não é concorrência no código.** O `mem index` é **sequencial**
+   (`filepath.WalkDir`, sem worker pool — `cmd/mem/main.go:1724`). O erro
+   acontece numa sessão de uma conexão só.
+2. **É determinístico.** 10 execuções seguidas falharam **no mesmo documento**
+   (`.specs/features/federated-central-vault-and-repo-identity/spec.md`),
+   sempre com `requires 4`.
+3. **O pooler é o gatilho.** Com o endpoint **direto** (sem `-pooler`), o mesmo
+   `mem index` passa pelo ponto exato onde falhava e **completa**: `🎉
+   Concluído! 276 documentos processados no PostgreSQL (190 indexados, 86 em
+   cache, 0 podados)`. O `lib/pq` + pooler em modo transacional é a causa
+   clássica desse par de erros: o Parse vai para um backend e o Bind vai para
+   outro.
+4. **Um probe dedicado não reproduz isolado.** 300 × (SELECT de 2 params +
+   INSERT de 4 params) contra o pooler deu `26000=9, 08P01=42` na primeira
+   versão do probe (que tinha um bug próprio: 11 argumentos para 4
+   placeholders) e `ok=300/300` depois de corrigido, nos **dois** endpoints. Ou
+   seja: o gatilho é a **variedade de formas de statement** do caminho de
+   indexação (2, 4, 6 e 11 parâmetros), não o volume de queries.
+
+**Workaround aplicado (2026-10-29).** Indexar com o endpoint **direto**:
+`MY_MEMORY_PG_URL` apontando para `ep-<id>.<region>.aws.neon.tech` (sem
+`-pooler`). A env var tem precedência sobre o config (ADR-040), então **o
+`~/.memory/config.yaml` do dono não foi alterado**. Resultado: 276 documentos,
+2415 chunks, 151 arestas, 333 nós em `repo_e4c8f3b1a2d5`; `repo_central`
+intacto (86/388/522/204); `FelipeMiiller/my-memory` no baseline (0/0/0/2).
+
+**Opções de correção (decisão do dono).**
+
+| # | Abordagem | Custo | Efeito |
+| :--- | :--- | :--- | :--- |
+| **A** | Usar o endpoint **direto** no `~/.memory/config.yaml` | zero código | resolve para o usuário; o pooler continua disponível para quem precisar de multiplexação |
+| **B** | Trocar `lib/pq` por `pgx` com `default_query_exec_mode=simple_protocol` | médio (driver + SQL placeholder) | resolve no código, e é a recomendação canônica para poolers em modo transacional |
+| **C** | Tornar o `mem index` **tolerante**: erro de protocolo no documento = documento falhou, seguir o próximo | baixo | deixa de abortar a indexação inteira; **não** conserta a causa |
+| **D** | Configurar o pool (`SetMaxOpenConns`, `SetConnMaxLifetime`) | baixo | pode reduzir a exposição; **não** está isolado como causa |
+
+**Recomendação:** **A + C**. A resolve o caso do dono hoje, sem código; C
+transforma "a indexação inteira morreu sem aviso" em "um documento falhou e foi
+reportado". B é a correção de raiz e pode entrar depois, por fluxo spec-driven.
+
+**Não é regressão do P1.** A integração com Postgres foi provada em 2026-10-27
+(ISSUE-031 §P1) contra um banco **descartável** — que usava o mesmo endpoint
+com pooler e passou. O que falhou aqui é o caminho de **indexação em volume**,
+que faz muito mais queries por documento do que o teste de integração.
+
+---
