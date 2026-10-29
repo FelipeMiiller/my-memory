@@ -1333,4 +1333,59 @@ reportado". B é a correção de raiz e pode entrar depois, por fluxo spec-drive
 com pooler e passou. O que falhou aqui é o caminho de **indexação em volume**,
 que faz muito mais queries por documento do que o teste de integração.
 
+## ISSUE-033 — `validate_state.py` reprova 11 das 41 features por desenho, não por conteúdo
+
+- **Severidade:** 🟡 média (dívida de documentação + gate que não distingue relatório de plano)
+- **Status:** 🔵 **open** — achado em 2026-10-29, durante a leitura dos 83 alertas de drift
+- **Achado em:** verificação do gate do fluxo spec-driven após a indexação do vault
+- **Impacto no CI:** **nenhum** — `validate_state.py` **não roda no CI** (o workflow roda `go test`, build e front-end). É um gate **manual**.
+
+**O que acontece.** `validate_state.py` coleta as linhas "candidatas" do
+`validation.md` — as que casam com `^#{1,4}\s*validation\b` ou
+`\*{0,2}result\*{0,2}\s*:` — e procura `PASS`/`FAIL` **só nelas**. O problema
+tem duas faces:
+
+1. **O fallback é errado.** Sem nenhuma linha candidata, o script usa o
+   **texto inteiro** como palha (`hay = text`). Um relatório longo que contenha
+   as duas palavras — como `viewer-dashboard` (**53 PASS, 2 FAIL**) — é
+   classificado como **"template não preenchido"**, embora não seja template
+   nenhum. É um **falso positivo do validador**.
+2. **O filtro não reconhece o relatório.** O veredito precisa estar **na linha
+   do heading ou da linha `Result:`** — não basta estar no documento. Um
+   relatório cujo H1 é `# Validation Report: X` e cujo veredito está numa
+   tabela 200 linhas abaixo tem 0 candidatos uteis.
+
+**Resultado:** **11 das 41 features** reprovam o cross-check. Elas se dividem
+em dois grupos bem diferentes:
+
+| Grupo | Features | Realidade |
+| :--- | :--- | :--- |
+| **Têm veredito de verdade, o validador não acha** | `embedder-builtin-onnx-minilm` (2 PASS), `event-runtime-event-log` (2 PASS / 10 FAIL), `feat-code-ast` (19/4), `post-release-v1.3.0-bugfixes` (18/0), `triptych-node-inspector` (9/0), `viewer-dashboard` (53/2) | O relatório existe e é real; **só o formato não é lido** |
+| **O `validation.md` é um PLANO, não um relatório** | `ai-tool-auto-wiring`, `context-packager-and-subgraph-bundle`, `graph-path-discovery`, `progressive-context-loading`, `staleness-detection-and-banners` | O H1 é `# Validation Plan: X` e o arquivo tem **0 PASS e 0 FAIL** — nunca houve relatório de verificação. Aqui o gate está **certo**: falta a evidência |
+
+As 3 features tocadas em 2026-10-28/29 (`code-graph-real`,
+`doctor-empty-vault-score`, `repo-id-alignment`) reprovavam e **passam** agora
+pelo bloco canônico `## Validation: PASS` + `**Result**: PASS` — que é
+exatamente a forma que o validador lê.
+
+**Opções (decisão do dono).**
+
+| # | Abordagem | Custo | Efeito |
+| :--- | :--- | :--- | :--- |
+| **A** | Corrigir o **validador**: aceitar linhas `Verdict`/`Veredito`/`Resultado` como candidatas e, **sem** candidatas, devolver "sem veredito" em vez de varrer o texto inteiro | ~5 linhas em `validate_state.py` | elimina o falso "unfilled" e faz 6 features passarem **sem tocar em nenhum relatório** |
+| **B** | Escrever o bloco canônico `**Result**: PASS` nos 6 relatórios que **já têm** veredito real | 6 edições de 1 linha | as 6 passam — **só** se o veredito do relatório for de fato PASS (conferir um a um) |
+| **C** | Para as 5 features de "# Validation Plan": escrever o relatório de verificação que nunca existiu | fluxo spec-driven por feature | fecha o buraco de verdade, mas é trabalho de verdade |
+
+**Recomendação:** **A + B** para o gate (A corrige o bug do validador, B
+normaliza os 6 relatórios reais), e **C** comoitem separado — porque as 5
+features do grupo "plan" **nunca foram verificadas**, e fingir que foram é
+pior que deixar o gate vermelho.
+
+**Nota de método (2026-10-29):** as 2 features cujo drift era real
+(`viewer-dashboard/validation.md` e
+`federated-central-vault-and-repo-identity/validation.md`) foram corrigidas
+na mesma rodada, porque as minhas mudanças é que as deixaram desatualizadas. O
+resto dos 81 alertas de drift era a reação mecânica do detector a uma rodada
+grande — ver `.specs/STATE.md`.
+
 ---
