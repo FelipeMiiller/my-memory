@@ -169,7 +169,7 @@ mem drift --strict --json
 | `mem setup` | Register central vault and repositories |
 | `mem central status` | Audit the central vault |
 | `mem central bootstrap` | Create canonical folders, templates, index pages |
-| `mem repos` | List federated repositories |
+| `mem repos` | List federated repositories; audits each entry's `repo_id` against the global catalog and exits non-zero on divergence |
 | `mem export` | Export a subgraph as JSON Canvas (`.canvas`) |
 
 ```bash

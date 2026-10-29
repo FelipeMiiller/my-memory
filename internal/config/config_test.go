@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -831,5 +832,203 @@ func TestSaveConfigNaoDeclaraSecaoCode(t *testing.T) {
 	}
 	if strings.Contains(string(data), "code:") {
 		t.Errorf("o config salvo nao deve declarar a secao `code`:\n%s", string(data))
+	}
+}
+
+// TestLoadVaultRepoID: a leitura do repo_id do vault é restrita ao path
+// informado e read-only (ISSUE-028).
+func TestLoadVaultRepoID(t *testing.T) {
+	writeVault := func(t *testing.T, dir, name, content string) string {
+		t.Helper()
+		target := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			t.Fatalf("erro ao criar diretorio: %v", err)
+		}
+		if err := os.WriteFile(target, []byte(content), 0644); err != nil {
+			t.Fatalf("erro ao escrever config: %v", err)
+		}
+		return target
+	}
+
+	t.Run("le o repo_id do config yaml", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgPath := writeVault(t, dir, filepath.Join(".memory", "config.yaml"), "version: 1\nrepo_id: \"repo_yaml_1\"\n")
+
+		repoID, cfg, err := LoadVaultRepoID(dir)
+		if err != nil {
+			t.Fatalf("erro inesperado: %v", err)
+		}
+		if repoID != "repo_yaml_1" {
+			t.Errorf("esperava repo_id 'repo_yaml_1', obteve '%s'", repoID)
+		}
+		if cfg != cfgPath {
+			t.Errorf("esperava o caminho '%s', obteve '%s'", cfgPath, cfg)
+		}
+	})
+
+	t.Run("le o repo_id do config json", func(t *testing.T) {
+		dir := t.TempDir()
+		writeVault(t, dir, filepath.Join(".memory", "config.json"), `{"version":1,"repo_id":"repo_json_1"}`)
+
+		repoID, _, err := LoadVaultRepoID(dir)
+		if err != nil {
+			t.Fatalf("erro inesperado: %v", err)
+		}
+		if repoID != "repo_json_1" {
+			t.Errorf("esperava repo_id 'repo_json_1', obteve '%s'", repoID)
+		}
+	})
+
+	t.Run("path sem config devolve os.ErrNotExist", func(t *testing.T) {
+		repoID, cfg, err := LoadVaultRepoID(t.TempDir())
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("esperava os.ErrNotExist, obteve %v", err)
+		}
+		if repoID != "" || cfg != "" {
+			t.Errorf("sem config o resultado deve ser vazio, obteve repo_id='%s' cfg='%s'", repoID, cfg)
+		}
+	})
+
+	t.Run("config sem repo_id devolve vazio sem erro", func(t *testing.T) {
+		dir := t.TempDir()
+		writeVault(t, dir, filepath.Join(".memory", "config.yaml"), "version: 1\nrepository: \"test/sem-id\"\n")
+
+		repoID, cfg, err := LoadVaultRepoID(dir)
+		if err != nil {
+			t.Fatalf("erro inesperado: %v", err)
+		}
+		if repoID != "" {
+			t.Errorf("esperava repo_id vazio, obteve '%s'", repoID)
+		}
+		if cfg == "" {
+			t.Error("um config existente precisa devolver o caminho do arquivo lido")
+		}
+	})
+
+	t.Run("nao sobe para os diretorios pais", func(t *testing.T) {
+		parent := t.TempDir()
+		writeVault(t, parent, filepath.Join(".memory", "config.yaml"), "version: 1\nrepo_id: \"repo_do_pai\"\n")
+
+		child := filepath.Join(parent, "sub", "repo")
+		if err := os.MkdirAll(child, 0755); err != nil {
+			t.Fatalf("erro ao criar diretorio: %v", err)
+		}
+
+		repoID, _, err := LoadVaultRepoID(child)
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("a leitura nao pode herdar o vault do diretorio pai: repo_id='%s' err=%v", repoID, err)
+		}
+	})
+
+	t.Run("config invalido devolve erro de leitura", func(t *testing.T) {
+		dir := t.TempDir()
+		writeVault(t, dir, filepath.Join(".memory", "config.yaml"), "repo_id: 'unterminated\n")
+
+		_, _, err := LoadVaultRepoID(dir)
+		if err == nil {
+			t.Fatal("esperava erro de decodificacao")
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			t.Error("um config invalido nao pode virar os.ErrNotExist")
+		}
+	})
+}
+
+// TestLoadCascadingConfig_CatalogOverrideSobreviveMove: com o id do catalogo
+// alinhado ao repo_id do vault, o override de storage por repositorio
+// continua valendo mesmo depois de o repositorio mudar de pasta. E o
+// beneficio concreto do alinhamento (ISSUE-028): o repo_id viaja junto com o
+// repositorio, o path do catalogo nao.
+func TestLoadCascadingConfig_CatalogOverrideSobreviveMove(t *testing.T) {
+	globalDir := t.TempDir()
+	t.Setenv(GlobalConfigDirEnv, globalDir)
+
+	repoDir := t.TempDir()
+	memDir := filepath.Join(repoDir, ".memory")
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	localYaml := "version: 1\nrepo_id: \"repo_moved\"\nrepository: \"test/moved\"\n"
+	if err := os.WriteFile(filepath.Join(memDir, "config.yaml"), []byte(localYaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A entrada do catalogo ainda aponta para o path ANTIGO do repositorio.
+	oldPath := filepath.Join(t.TempDir(), "old-location")
+	globalCfg := GlobalConfig{
+		Version: 1,
+		Storage: StorageConfig{
+			Engine:      "postgres",
+			PostgresURL: "postgres://global_default_db",
+		},
+		Repositories: []RepositoryCatalogEntry{
+			{
+				ID:   "repo_moved",
+				Path: oldPath,
+				Name: "test/moved",
+				Storage: &StorageConfig{
+					Engine:      "postgres",
+					PostgresURL: "postgres://isolated_repo_db",
+				},
+			},
+		},
+	}
+	if err := SaveGlobalConfig(&globalCfg); err != nil {
+		t.Fatalf("erro ao salvar global config: %v", err)
+	}
+
+	loaded, _, err := LoadCascadingConfig(repoDir)
+	if err != nil {
+		t.Fatalf("erro ao carregar cascading config: %v", err)
+	}
+	if loaded.Storage.PostgresURL != "postgres://isolated_repo_db" {
+		t.Errorf("esperava o postgres_url do catalogo (match por id mesmo com path antigo), obteve '%s'", loaded.Storage.PostgresURL)
+	}
+}
+
+// TestRegisterRepositoryInGlobalConfig_RealignsStaleIDByPath: o caminho oficial
+// de registro (mem init -> RegisterRepositoryInGlobalConfig) realinha o id de
+// uma entrada desatualizada quando o path e o mesmo, e preserva o bloco
+// `storage:` da entrada — que e o override de Postgres do repositorio.
+func TestRegisterRepositoryInGlobalConfig_RealignsStaleIDByPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv(GlobalConfigDirEnv, tmpDir)
+
+	repoPath := filepath.Join(tmpDir, "my-repo")
+	stale := RepositoryCatalogEntry{
+		ID:   "repo_stale_000000",
+		Path: repoPath,
+		Name: "test/my-repo",
+		Storage: &StorageConfig{
+			Engine:      "postgres",
+			PostgresURL: "postgres://isolated_repo_db",
+		},
+	}
+	if err := RegisterRepositoryInGlobalConfig(stale); err != nil {
+		t.Fatalf("erro ao registrar entrada desatualizada: %v", err)
+	}
+
+	// Re-registro pelo caminho oficial, com o repo_id real do vault.
+	aligned := RepositoryCatalogEntry{
+		ID:   "repo_real_111111",
+		Path: repoPath,
+		Name: "test/my-repo",
+	}
+	if err := RegisterRepositoryInGlobalConfig(aligned); err != nil {
+		t.Fatalf("erro ao re-registrar: %v", err)
+	}
+
+	gcfg, err := LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("erro ao carregar global config: %v", err)
+	}
+	if len(gcfg.Repositories) != 1 {
+		t.Fatalf("esperava 1 entrada no catalogo, obteve %d", len(gcfg.Repositories))
+	}
+	if gcfg.Repositories[0].ID != "repo_real_111111" {
+		t.Errorf("esperava o id realinhado 'repo_real_111111', obteve '%s'", gcfg.Repositories[0].ID)
+	}
+	if gcfg.Repositories[0].Storage == nil || gcfg.Repositories[0].Storage.PostgresURL != "postgres://isolated_repo_db" {
+		t.Errorf("o re-registro precisa preservar o bloco storage da entrada, obteve %+v", gcfg.Repositories[0].Storage)
 	}
 }

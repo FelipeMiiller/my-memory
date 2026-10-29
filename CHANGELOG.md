@@ -250,6 +250,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`mem repos` não auditava a identidade dos repositórios registrados.** O `id`
+  do catálogo global é a chave que casa o repositório com o override de
+  storage por repositório (`matchesID || matchesPath`). Com o `id` divergente
+  do `repo_id` do `.memory/config.yaml`, o casamento passava a depender **só do
+  caminho** — e um repositório **clonado ou movido** perdia o override
+  **em silêncio**, sem um único aviso. Pior: o `id` exibido pelo `mem repos`
+  não era o `repo_id` real, o que enganava no diagnóstico.
+  - O `mem repos` agora compara, para cada entrada do catálogo, o `id` com o
+    `repo_id` declarado no vault do path registrado. Divergência é marcada com
+    `❌`, imprime os **dois valores**, o path, o arquivo lido e a ação, e o
+    comando sai com **código ≠ 0** — trocando o silêncio por erro explícito.
+  - Entrada **sem** vault inicializado, ou com vault que não declara
+    `repo_id`, **não** é divergência (não há contra o que comparar): continua
+    listada com `⚠️` e sai com 0. O formato da tabela não mudou.
+  - A auditoria é estritamente **read-only**: não escreve no catálogo global nem
+    no vault.
+  - Com o `id` alinhado, o repositório **continua casando pelo id** mesmo
+    depois de movido — o override de storage sobrevive à mudança de path.
+  - O `repo_id` do disco é a fonte da verdade: ele é persistido no
+    `.memory/config.yaml` e não muda com a mudança de pasta.
+  - Spec: `.specs/features/repo-id-alignment/`.
 - **`mem doctor` dava Health Score 100/100 num vault que nunca foi indexado.** A
   métrica é uma razão sobre a população de documentos indexados, mas o cálculo
   inteiro estava dentro de `if report.TotalDocuments > 0` — num vault vazio a

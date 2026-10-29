@@ -2,11 +2,11 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/FelipeMiiller/my-memory/internal/config"
@@ -271,6 +271,88 @@ func runReposCLI(args []string) error {
 	return runReposCommand(args, os.Stdout)
 }
 
+// catalogEntryAudit é o resultado da verificação de identidade de uma entrada
+// do catálogo global (ISSUE-028).
+type catalogEntryAudit struct {
+	Entry      config.RepositoryCatalogEntry
+	HasVault   bool   // existe configuração de vault no path registrado
+	DiskRepoID string // repo_id declarado pelo vault (vazio se o vault não declarar)
+	ConfigPath string // arquivo de configuração lido (vazio se não houver)
+	Divergent  bool   // o id do catálogo difere do repo_id do disco
+	ReadError  error  // falha ao ler a configuração do vault (nil se leu)
+}
+
+// auditRepositoryCatalog verifica, para cada entrada do catálogo global, se o
+// id registrado corresponde ao repo_id declarado pelo vault no path registrado.
+//
+// A auditoria é estritamente read-only (ISSUE-028): lê apenas a configuração do
+// vault em cada path e nunca escreve no catálogo global nem no vault.
+//
+// Entradas sem vault inicializado, ou com vault que não declara repo_id, NÃO
+// são divergência — não há contra o que comparar.
+func auditRepositoryCatalog(repos []config.RepositoryCatalogEntry) []catalogEntryAudit {
+	results := make([]catalogEntryAudit, 0, len(repos))
+	for _, entry := range repos {
+		result := catalogEntryAudit{Entry: entry}
+
+		diskRepoID, cfgPath, err := config.LoadVaultRepoID(entry.Path)
+		switch {
+		case err == nil:
+			result.HasVault = true
+			result.DiskRepoID = diskRepoID
+			result.ConfigPath = cfgPath
+			result.Divergent = diskRepoID != "" && entry.ID != diskRepoID
+		case errors.Is(err, os.ErrNotExist):
+			// Vault não inicializado: não há repo_id para comparar.
+		default:
+			result.ReadError = err
+		}
+
+		results = append(results, result)
+	}
+	return results
+}
+
+// repoIDDivergenceError monta a mensagem de erro de uma divergência de
+// repo_id: traz os dois valores, o path e a ação para alinhar o catálogo.
+//
+// Os paths vão com %s (e não %q) porque %q escapa as barras invertidas do
+// Windows e entregaria um caminho illegível ao usuário.
+func repoIDDivergenceError(a catalogEntryAudit, globalPath string) error {
+	return fmt.Errorf(
+		"divergência de repo_id no catálogo global: id do catálogo %q (path %s) não corresponde ao repo_id %q declarado em %s; alinhe o catálogo global %s definindo repositories[].id como %q — o repo_id do disco é a fonte da verdade",
+		a.Entry.ID, a.Entry.Path, a.DiskRepoID, a.ConfigPath, globalPath, a.DiskRepoID,
+	)
+}
+
+// printRepoIDDivergences imprime o bloco de erro explícito das divergências de
+// identidade entre o id do catálogo global e o repo_id do disco.
+func printRepoIDDivergences(out io.Writer, audits []catalogEntryAudit, globalPath string) {
+	total := 0
+	for _, audit := range audits {
+		if audit.Divergent {
+			total++
+		}
+	}
+
+	fmt.Fprintf(out, "❌ Divergência de repo_id no catálogo global (%d entrada(s) divergente(s)):\n", total)
+
+	n := 0
+	for _, audit := range audits {
+		if !audit.Divergent {
+			continue
+		}
+		n++
+		fmt.Fprintf(out, "\n  [%d] id do catálogo:    %s\n", n, audit.Entry.ID)
+		fmt.Fprintf(out, "      path registrado:  %s\n", audit.Entry.Path)
+		fmt.Fprintf(out, "      repo_id do disco: %s  (declarado em %s)\n", audit.DiskRepoID, audit.ConfigPath)
+		fmt.Fprintf(out, "      → Alinhe o catálogo global (%s): defina repositories[].id como %q\n", globalPath, audit.DiskRepoID)
+		fmt.Fprintf(out, "        O repo_id do disco é a fonte da verdade. Alternativa: rode\n")
+		fmt.Fprintf(out, "        \"mem init --force\" dentro do repositório (re-registra a entrada com o\n")
+		fmt.Fprintf(out, "        repo_id do vault, mas reescreve o .memory/config.yaml).\n")
+	}
+}
+
 // runReposCommand executa a listagem com injeção de saída
 func runReposCommand(args []string, out io.Writer) error {
 	gcfg, err := config.LoadGlobalConfig()
@@ -288,20 +370,50 @@ func runReposCommand(args []string, out io.Writer) error {
 		return nil
 	}
 
+	// Auditoria de identidade (ISSUE-028): o id do catálogo tem de bater com o
+	// repo_id declarado pelo vault no path registrado. Leitura read-only.
+	audits := auditRepositoryCatalog(gcfg.Repositories)
+
 	fmt.Fprintf(out, "%-20s | %-25s | %s\n", "REPO ID", "NOME", "CAMINHO NO DISCO")
 	fmt.Fprintf(out, "%s\n", strings.Repeat("-", 75))
-	for _, repo := range gcfg.Repositories {
+	for _, audit := range audits {
+		entry := audit.Entry
 		status := "✅"
-		memDir := filepath.Join(repo.Path, ".memory")
-		if _, err := os.Stat(memDir); err != nil {
+		if audit.Divergent {
+			// Listar como OK seria exatamente o defeito da ISSUE-028.
+			status = "❌"
+		} else if !audit.HasVault {
+			// Vault sem inicializar: aviso, não erro.
 			status = "⚠️"
 		}
-		name := repo.Name
+		name := entry.Name
 		if name == "" {
 			name = "-"
 		}
-		fmt.Fprintf(out, "%-20s | %-25s | %s %s\n", repo.ID, name, status, repo.Path)
+		fmt.Fprintf(out, "%-20s | %-25s | %s %s\n", entry.ID, name, status, entry.Path)
+	}
+
+	// Vault ilegível: aviso explícito, sem alterar o código de saída.
+	for _, audit := range audits {
+		if audit.ReadError != nil {
+			fmt.Fprintf(out, "⚠️ Não foi possível verificar o vault de %q: %v\n", audit.Entry.Path, audit.ReadError)
+		}
 	}
 	fmt.Fprintln(out)
+
+	// Divergência: erro explícito e saída com código diferente de zero, para
+	// que um script/CI pegue o catálogo desalinhado.
+	var divergenceErrs []error
+	for _, audit := range audits {
+		if audit.Divergent {
+			divergenceErrs = append(divergenceErrs, repoIDDivergenceError(audit, globalPath))
+		}
+	}
+	if len(divergenceErrs) > 0 {
+		printRepoIDDivergences(out, audits, globalPath)
+		fmt.Fprintln(out)
+		return errors.Join(divergenceErrs...)
+	}
+
 	return nil
 }

@@ -945,8 +945,9 @@ Fase 3 consolidadas num único arquivo). **Estado consolidado e pendências:**
 ## ISSUE-028 — O `repo_id` do repositório diverge do `id` no catálogo global
 
 - **Severidade:** 🟠 alta
-- **Status:** 🔵 open
+- **Status:** ✅ **resolved** (2026-10-29) — o dono aprovou: *alinhar o `id` do catálogo com o `repo_id` do repositório e fazer o `mem repos` rejeitar divergência*. As duas metades foram feitas: o catálogo global foi alinhado e o `mem repos` agora acusa a divergência com erro explícito e exit ≠ 0
 - **Achado em:** 2026-10-24, durante o planejamento da mudança do repositório de `C:\repository\my-memory` para `D:`
+- **Spec**: `.specs/features/repo-id-alignment/` (spec.md, tasks.md, validation.md)
 
 **Contexto.** O `repo_id` é um identificador **criptográfico** (`repo_<12-hex>`,
 gerado por `crypto/rand` em `internal/config/config.go:458-465`) e é
@@ -987,6 +988,58 @@ trocando o silencio por um erro explícito.
 **Nota.** O `repo_id` **não** muda com a mudança de pasta: ele é persistido no
 `.memory/config.yaml`, que move junto com o repositório. O que precisa ser
 atualizado no catálogo global é o `path`.
+
+### Correção (2026-10-29) — decisão do dono + fluxo spec-driven
+
+O dono aprovou a proposta: **alinhar o `id` do catálogo com o `repo_id` do
+repositório** e **fazer o `mem repos` rejeitar divergência** — trocando o
+silêncio por erro explícito.
+
+**O que foi feito:**
+
+| Metade | O quê | Onde |
+| :--- | :--- | :--- |
+| **A — dado** | O catálogo global (`~/.memory/config.yaml`) passou de `repo_271444ab0133` para **`repo_e4c8f3b1a2d5`**, que é o `repo_id` real do repositório | `C:\Users\Felipe\.memory\config.yaml` → `repositories[0].id` |
+| **B — código** | `mem repos` compara o `id` de cada entrada do catálogo com o `repo_id` declarado no vault do path registrado; divergência vira `❌` + erro explícito + **exit ≠ 0** | `cmd/mem/setup.go:274-418` (`auditRepositoryCatalog`, `repoIDDivergenceError`, `printRepoIDDivergences`) + `internal/config/config.go:330-396` (`LoadVaultRepoID`, read-only, restrito ao path registrado) |
+
+**Por que isso fecha o risco 1 (repo clonado/movido).** Com o `id` alinhado, o
+cascateamento casa pelo **id** (`matchesID || matchesPath`), e não mais só pelo
+caminho: o override de storage (engine + URL do Postgres) **sobrevive à
+mudança de path** — provado por `internal/config/config_test.go:942`. O risco 2
+(split-brain por registro em dois caminhos) muda de forma: o `repo_id` é
+imutável e viaja com o repo, então dois paths do **mesmo** repo continuam
+sendo o mesmo repositório — que é o comportamento correto. O caso patológico é
+o clone com o `.memory/config.yaml` **copiado**, que compartilha o `repo_id`; é
+exatamente aí que a divergência passa a ser acusável pelo `mem repos`.
+
+**Comportamento do `mem repos` depois da correção:**
+
+| Situação | Marcador | Exit |
+| :--- | :--- | :--- |
+| `id` do catálogo igual ao `repo_id` do disco | ✅ | 0 |
+| Entrada sem vault inicializado no path | ⚠️ | 0 |
+| Vault sem `repo_id` declarado | ⚠️ | 0 |
+| `id` do catálogo **≠** `repo_id` do disco | ❌ + erro com os dois valores, o path e a ação | **≠ 0** |
+
+A auditoria é **read-only** (provado: os bytes do catálogo global e do vault
+ficam idênticos e nenhum arquivo é criado).
+
+**Prova contra o defeito.** Dois mutantes injetados no código real (com backup
+byte-exato): (a) `Divergent = false` — o comportamento antigo, silêncio + exit
+0; (b) listar a entrada divergente como `✅`. Ambos os mutantes **mataram** o
+teste `TestRunReposCommand_DivergenciaRepoID` com o sintoma exato. Restaurado:
+tudo verde.
+
+**Gate:** `go build`/`go vet`/`go test -count=1 ./...` exit 0 (26 pacotes `ok`, verificado de forma independente pelo gestor); `gofmt -l` vazio na cópia LF; `validate_spec.py` / `validate_tasks.py` / `validate_state.py` sem erro.
+
+**Por que não há `mem repos --fix`.** Decisão registrada na spec: a
+auto-correção escreve no arquivo de configuração do usuário e pode **agravar**
+o split-brain (o caminho oficial de realinhamento sobrescreve a entrada e
+preserva o bloco `storage:`, mas um `--fix` genérico não tem essa garantia).
+Ficou como feature própria, com dry-run e backup, se o dono pedir.
+
+**Sem ADR nova.** O cascateamento de config (ADR-040) e a identidade federada
+(ADR-033) continuam válidos e intocados; a mudança é de **diagnóstico**.
 
 ## ISSUE-029 — 8 defeitos na feature `code-graph-real`, achados pela verificação independente
 

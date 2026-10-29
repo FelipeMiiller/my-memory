@@ -1582,6 +1582,29 @@ Exibe todos os projetos locais registrados e rastreados pelo My-Memory:
 mem repos
 ```
 
+**Auditoria de identidade (ISSUE-028).** O `id` do catálogo global é a chave
+que casa o repositório com o override de storage por repositório
+(`matchesID || matchesPath`). Quando os dois divergem, o casamento passa a
+depender **só do caminho** — e um repositório clonado ou movido perde o
+override **em silêncio**. Por isso o `mem repos` compara, para cada entrada, o
+`id` do catálogo com o `repo_id` declarado no `.memory/config.yaml` do path
+registrado:
+
+| Situação | Marcador | Saída |
+| :--- | :--- | :--- |
+| `id` do catálogo **igual** ao `repo_id` do disco | ✅ | normal, **exit 0** |
+| Entrada **sem** vault inicializado no path | ⚠️ | normal, **exit 0** (não há `repo_id` para comparar) |
+| Vault sem `repo_id` declarado | ⚠️ | normal, **exit 0** (não há contra o que comparar) |
+| `id` do catálogo **diferente** do `repo_id` do disco | ❌ | **erro explícito** e **exit ≠ 0** |
+
+Na divergência, o comando imprime os dois valores, o path, o arquivo de config
+lido e a ação: alinhar `repositories[].id` no catálogo global com o `repo_id`
+do disco — que é a fonte da verdade (o `repo_id` é persistido no
+`.memory/config.yaml` e **não** muda com a mudança de pasta).
+
+A auditoria é estritamente **read-only**: o `mem repos` não escreve no catálogo
+global nem no vault.
+
 ### 4. Zero-Credentials no Git & Identidade Imutável (`repo_id`)
 * Cada repositório recebe um identificador criptográfico imutável (`repo_id: repo_<12-hex-chars>`) gerado automaticamente no `mem init`.
 * O `.memory/config.yaml` local **nunca** armazena senhas, URLs de banco ou caminhos absolutos do host, garantindo que o versionamento via Git seja 100% limpo e seguro para commits públicos ou equipes corporativas.

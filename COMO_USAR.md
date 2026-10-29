@@ -338,6 +338,14 @@ mem central bootstrap
 mem repos
 ```
 
+Além de listar, o comando **audita a identidade** de cada entrada: compara o
+`id` do catálogo global com o `repo_id` declarado no `.memory/config.yaml` do
+path registrado. Divergência é marcada com `❌` e sai com **código de erro**,
+porque o `id` do catálogo é o que casa o repositório com o override de storage
+— e um repositório clonado ou movido perderia esse override em silêncio. A
+correção é alinhar `repositories[].id` no `~/.memory/config.yaml` com o
+`repo_id` do disco, que é a fonte da verdade.
+
 ### 4. Busca Federada Transparente
 Ao executar `mem search` ou consultar a IA via MCP (`memory_search`), o My-Memory consulta o repositório local e o cofre central de forma simultânea e combina os resultados via Reciprocal Rank Fusion (RRF), anotando a proveniência de cada nota (`[local]` ou `[central]`).
 
@@ -350,7 +358,7 @@ Ao executar `mem search` ou consultar a IA via MCP (`memory_search`), o My-Memor
 | `mem init [--all]` | Inicializa `.memory/` com `repo_id`, `config.yaml`, `.gitignore` e `AGENTS.md` (zero-credentials). |
 | `mem setup` | Assistente interativo global que grava em `~/.memory/config.yaml`. |
 | `mem central <status\|bootstrap>` | Audita e inicializa o Cofre Central de Conhecimento (Global Brain no Google Drive / OneDrive). |
-| `mem repos` | Lista todos os repositórios federados registrados no catálogo global. |
+| `mem repos` | Lista todos os repositórios federados registrados no catálogo global e **audita a identidade** de cada entrada (divergência de `repo_id` → `❌` + código de erro). |
 | `mem install [--tools]` | Auto-configura MCP em ferramentas de IA instaladas (Cursor, VS Code, Claude Desktop). |
 | `mem index [--force]` | Indexa arquivos Markdown com cache SHA-256 e pruning de deletados. |
 | `mem search "<pergunta>"` | Busca híbrida federada com RRF, vetores, BM25 e decaimento temporal opcional (por data de edição do arquivo). |

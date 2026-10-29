@@ -327,6 +327,61 @@ func FindConfigFile(startDir string) (string, error) {
 	return "", os.ErrNotExist
 }
 
+// vaultRepoIDProbe é o formato mínimo do arquivo de configuração do vault
+// necessário para extrair o repo_id declarado.
+type vaultRepoIDProbe struct {
+	RepoID string `yaml:"repo_id" json:"repo_id"`
+}
+
+// LoadVaultRepoID lê o repo_id declarado pelo arquivo de configuração do vault
+// que está em repoDir.
+//
+// A busca é restrita ao próprio repoDir — nunca sobe para os diretórios pais —
+// porque o valor procurado é o do repositório registrado no catálogo global, e
+// não o de um repositório ancestral qualquer (FindConfigFile sobe até a raiz
+// do Git e poderia ler o vault errado).
+//
+// Devoluções:
+//   - repoID e cfgPath preenchidos: o vault declara repo_id;
+//   - repoID vazio e cfgPath preenchido: existe config, mas sem repo_id;
+//   - erro que satisfaz errors.Is(err, os.ErrNotExist): não há config no path.
+//
+// A função é estritamente read-only: nada é escrito no disco.
+func LoadVaultRepoID(repoDir string) (repoID string, cfgPath string, err error) {
+	if strings.TrimSpace(repoDir) == "" {
+		return "", "", os.ErrNotExist
+	}
+
+	dir := ExpandPath(repoDir)
+	for _, candidate := range CandidateConfigFileNames {
+		p := filepath.Join(dir, candidate)
+		stat, statErr := os.Stat(p)
+		if statErr != nil || stat.IsDir() {
+			continue
+		}
+
+		data, readErr := os.ReadFile(p)
+		if readErr != nil {
+			return "", p, fmt.Errorf("erro ao ler configuração do vault '%s': %w", p, readErr)
+		}
+
+		var probe vaultRepoIDProbe
+		if strings.ToLower(filepath.Ext(p)) == ".json" {
+			if err := json.Unmarshal(data, &probe); err != nil {
+				return "", p, fmt.Errorf("erro ao decodificar JSON de '%s': %w", p, err)
+			}
+		} else {
+			if err := yaml.Unmarshal(data, &probe); err != nil {
+				return "", p, fmt.Errorf("erro ao decodificar YAML de '%s': %w", p, err)
+			}
+		}
+
+		return strings.TrimSpace(probe.RepoID), p, nil
+	}
+
+	return "", "", os.ErrNotExist
+}
+
 // hasTopLevelKey devolve true se o documento declara a chave informada no
 // primeiro nível. Serve para distinguir "seção ausente" de "seção vazia" —
 // o unmarshal não faz essa diferença, e o `mem index` precisa das duas para
