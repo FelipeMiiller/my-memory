@@ -48,6 +48,15 @@ const (
 	// Uma nota maior que isso é truncada: a ponte é um índice de MENÇÃO, e
 	// mencionar um símbolo nas primeiras centenas de KB já é o caso comum.
 	bridgeMaxDocBytes = 1 << 20
+
+	// bridgeMaxBatchRows é o teto de LINHAS por statement da ponte.
+	//
+	// O limite que aperta é o de PARÂMETROS do engine: o SQLite aceita
+	// MAX_VARIABLE_NUMBER=32766 (medido no driver deste repo) e o Postgres
+	// aceita 65535. Com 4 parâmetros por linha de aresta, 2000 linhas = 8000
+	// parâmetros — folga larga nos dois. Acima do teto o lote é partido em
+	// pedaços: o conteúdo gravado não muda, só o número de statements.
+	bridgeMaxBatchRows = 2000
 )
 
 // CodeBridgeResult resume o que a ponte construiu num passe.
@@ -115,11 +124,35 @@ func BuildCodeBridgeForDocument(ctx context.Context, database *sql.DB, documentI
 // buildCodeBridge é o núcleo da ponte. Com documentID vazio, processa todos
 // os documentos.
 func buildCodeBridge(ctx context.Context, database *sql.DB, documentID string) (*CodeBridgeResult, error) {
+	return buildCodeBridgeWithWriter(ctx, database, documentID, database)
+}
+
+// bridgeWriter é a costura de ESCRITA da ponte.
+//
+// A produção usa o próprio *sql.DB (que satisfaz a interface sem adapter);
+// o teste usa um wrapper que conta os statements emitidos — a trava de que a
+// ponte grava em LOTE (1 nó + 1 aresta por documento) e não linha a linha.
+type bridgeWriter interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// buildCodeBridgeWithWriter é o núcleo da ponte com a escrita separated do
+// *sql.DB.
+//
+// O CASAMENTO (literais por qualified name, por path e o match fraco por nome)
+// é intocado: o que muda aqui é só a FORMA de emitir as escritas — um INSERT
+// multi-linha de nós e um INSERT multi-linha de arestas por documento, em
+// vez de 2 statements por par documento→símbolo.
+func buildCodeBridgeWithWriter(ctx context.Context, database *sql.DB, documentID string, writer bridgeWriter) (*CodeBridgeResult, error) {
 	if database == nil {
 		return nil, fmt.Errorf("BuildCodeBridge: database == nil")
 	}
+	if writer == nil {
+		return nil, fmt.Errorf("BuildCodeBridge: writer == nil")
+	}
 
 	dialect := DetectDialect(ctx, database)
+	repository := RepositoryFromContext(ctx)
 
 	docs, err := loadBridgeDocuments(ctx, database, dialect)
 	if err != nil {
@@ -217,18 +250,25 @@ func buildCodeBridge(ctx context.Context, database *sql.DB, documentID string) (
 		}
 		sort.Strings(nodeIDs)
 
+		nodeRows := make([]bridgeNodeRow, 0, len(nodeIDs))
+		edgeRows := make([]bridgeEdgeRow, 0, len(nodeIDs))
 		for _, nodeID := range nodeIDs {
 			sym := symbolOf[nodeID]
-			if err := upsertBridgeNode(ctx, database, dialect, nodeID, sym.Name); err != nil {
-				return nil, err
-			}
-			result.Nodes++
-			if err := upsertBridgeEdge(ctx, database, dialect, doc.ID, nodeID, statuses[nodeID]); err != nil {
-				return nil, err
-			}
-			result.Edges++
-			result.Matched++
+			nodeRows = append(nodeRows, bridgeNodeRow{ID: nodeID, Name: sym.Name})
+			edgeRows = append(edgeRows, bridgeEdgeRow{TargetID: nodeID, Status: statuses[nodeID]})
 		}
+
+		// NÓS ANTES DAS ARESTAS: `graph_edges` tem FK para `graph_nodes` nos
+		// dois engines (o nó do documento também é garantido pelo indexador).
+		if err := writeBridgeNodes(ctx, writer, dialect, repository, nodeRows); err != nil {
+			return nil, err
+		}
+		if err := writeBridgeEdges(ctx, writer, dialect, repository, doc.ID, edgeRows); err != nil {
+			return nil, err
+		}
+		result.Nodes += len(nodeRows)
+		result.Edges += len(edgeRows)
+		result.Matched += len(edgeRows)
 	}
 
 	return result, nil
@@ -307,49 +347,148 @@ func bridgeSymbolIndex(ctx context.Context, database *sql.DB, force bool) (*brid
 	return idx, nil
 }
 
+// bridgeNodeRow é uma linha do INSERT multi-linha de `graph_nodes`.
+type bridgeNodeRow struct {
+	ID   string
+	Name string
+}
+
+// bridgeEdgeRow é uma linha do INSERT multi-linha de `graph_edges`.
+type bridgeEdgeRow struct {
+	TargetID string
+	Status   string
+}
+
+// bridgeNodeName devolve o nome gravado no nó: quando o símbolo não tem
+// nome, o próprio id do nó é o nome (identidade do nó).
+func bridgeNodeName(nodeID, name string) string {
+	if strings.TrimSpace(name) == "" {
+		return nodeID
+	}
+	return name
+}
+
+// bridgeEdgeStatus devolve o status epistêmico gravado na aresta: um status
+// vazio é INFERRED (o match mais fraco).
+func bridgeEdgeStatus(status string) string {
+	if strings.TrimSpace(status) == "" {
+		return EpistemicInferred
+	}
+	return status
+}
+
+// buildNodeInsert monta o INSERT multi-linha de `graph_nodes`.
+//
+// O texto do SQL é o MESMO do helper por símbolo (`upsertBridgeNode`) — muda
+// só o número de tuplas no VALUES. A query volta com `?`: quem executa
+// aplica o `Dialect.Bind` (o `?` de dentro de literal de string não existe
+// aqui, então a conversão é segura).
+func buildNodeInsert(dialect Dialect, repository string, rows []bridgeNodeRow) (string, []any) {
+	if len(rows) == 0 {
+		return "", nil
+	}
+	tuples := make([]string, 0, len(rows))
+	args := make([]any, 0, len(rows)*3)
+	if dialect.IsPostgres() {
+		for _, row := range rows {
+			tuples = append(tuples, "(?, ?, '"+CodeSymbolNodeType+"', ?)")
+			args = append(args, row.ID, repository, bridgeNodeName(row.ID, row.Name))
+		}
+		return `INSERT INTO graph_nodes (id, repository, type, name)
+			VALUES ` + strings.Join(tuples, ", ") + `
+			ON CONFLICT (repository, id) DO NOTHING`, args
+	}
+	for _, row := range rows {
+		tuples = append(tuples, "(?, '"+CodeSymbolNodeType+"', ?)")
+		args = append(args, row.ID, bridgeNodeName(row.ID, row.Name))
+	}
+	return `INSERT OR IGNORE INTO graph_nodes (id, type, name)
+		VALUES ` + strings.Join(tuples, ", "), args
+}
+
+// buildEdgeInsert monta o INSERT multi-linha de `graph_edges`.
+//
+// O texto do SQL é o MESMO do helper por símbolo (`upsertBridgeEdge`) — muda
+// só o número de tuplas no VALUES. O `ON CONFLICT` atualiza o status
+// epistêmico, como antes (a idempotência da ponte não muda).
+func buildEdgeInsert(dialect Dialect, repository, documentID string, rows []bridgeEdgeRow) (string, []any) {
+	if len(rows) == 0 {
+		return "", nil
+	}
+	tuples := make([]string, 0, len(rows))
+	args := make([]any, 0, len(rows)*4)
+	if dialect.IsPostgres() {
+		for _, row := range rows {
+			tuples = append(tuples, "(?, ?, ?, '"+BridgeRelation+"', ?, 1.0)")
+			args = append(args, documentID, row.TargetID, repository, bridgeEdgeStatus(row.Status))
+		}
+		return `INSERT INTO graph_edges (source_id, target_id, repository, relation, epistemic_status, weight)
+			VALUES ` + strings.Join(tuples, ", ") + `
+			ON CONFLICT (repository, source_id, target_id, relation)
+			DO UPDATE SET epistemic_status = excluded.epistemic_status`, args
+	}
+	for _, row := range rows {
+		tuples = append(tuples, "(?, ?, '"+BridgeRelation+"', ?, 1.0)")
+		args = append(args, documentID, row.TargetID, bridgeEdgeStatus(row.Status))
+	}
+	return `INSERT INTO graph_edges (source_id, target_id, relation, epistemic_status, weight)
+		VALUES ` + strings.Join(tuples, ", ") + `
+		ON CONFLICT(source_id, target_id, relation)
+		DO UPDATE SET epistemic_status = excluded.epistemic_status`, args
+}
+
+// writeBridgeNodes grava os nós de um documento (em pedaços quando o lote
+// passa do teto de parâmetros).
+func writeBridgeNodes(ctx context.Context, writer bridgeWriter, dialect Dialect, repository string, rows []bridgeNodeRow) error {
+	for start := 0; start < len(rows); start += bridgeMaxBatchRows {
+		end := start + bridgeMaxBatchRows
+		if end > len(rows) {
+			end = len(rows)
+		}
+		query, args := buildNodeInsert(dialect, repository, rows[start:end])
+		if _, err := writer.ExecContext(ctx, dialect.Bind(query), args...); err != nil {
+			return fmt.Errorf("BuildCodeBridge: grava nós do símbolo: %w", err)
+		}
+	}
+	return nil
+}
+
+// writeBridgeEdges grava as arestas de um documento (em pedaços quando o
+// lote passa do teto de parâmetros).
+func writeBridgeEdges(ctx context.Context, writer bridgeWriter, dialect Dialect, repository, documentID string, rows []bridgeEdgeRow) error {
+	for start := 0; start < len(rows); start += bridgeMaxBatchRows {
+		end := start + bridgeMaxBatchRows
+		if end > len(rows) {
+			end = len(rows)
+		}
+		query, args := buildEdgeInsert(dialect, repository, documentID, rows[start:end])
+		if _, err := writer.ExecContext(ctx, dialect.Bind(query), args...); err != nil {
+			return fmt.Errorf("BuildCodeBridge: grava aresta references_code: %w", err)
+		}
+	}
+	return nil
+}
+
 // upsertBridgeNode garante que o nó do símbolo existe no grafo único.
 //
 // O nó da origem (o documento) também é garantido: `graph_edges` tem FK
 // para `graph_nodes` nos dois engines.
+//
+// Mantido para uso unitário: o caminho de produção grava o documento inteiro
+// em UM statement (ver writeBridgeNodes).
 func upsertBridgeNode(ctx context.Context, database *sql.DB, dialect Dialect, nodeID, name string) error {
-	if strings.TrimSpace(name) == "" {
-		name = nodeID
-	}
-	if dialect.IsPostgres() {
-		query := DetectDialect(ctx, database).Bind(`
-			INSERT INTO graph_nodes (id, repository, type, name)
-			VALUES (?, ?, '` + CodeSymbolNodeType + `', ?)
-			ON CONFLICT (repository, id) DO NOTHING`)
-		_, err := database.ExecContext(ctx, query, nodeID, RepositoryFromContext(ctx), name)
-		return err
-	}
-	query := `
-		INSERT OR IGNORE INTO graph_nodes (id, type, name)
-		VALUES (?, '` + CodeSymbolNodeType + `', ?)`
-	_, err := database.ExecContext(ctx, query, nodeID, name)
+	query, args := buildNodeInsert(dialect, RepositoryFromContext(ctx), []bridgeNodeRow{{ID: nodeID, Name: name}})
+	_, err := database.ExecContext(ctx, dialect.Bind(query), args...)
 	return err
 }
 
 // upsertBridgeEdge grava (ou atualiza) a aresta documento → símbolo.
+//
+// Mantido para uso unitário: o caminho de produção grava as arestas do
+// documento em UM statement (ver writeBridgeEdges).
 func upsertBridgeEdge(ctx context.Context, database *sql.DB, dialect Dialect, documentID, nodeID, status string) error {
-	if strings.TrimSpace(status) == "" {
-		status = EpistemicInferred
-	}
-	if dialect.IsPostgres() {
-		query := DetectDialect(ctx, database).Bind(`
-			INSERT INTO graph_edges (source_id, target_id, repository, relation, epistemic_status, weight)
-			VALUES (?, ?, ?, '` + BridgeRelation + `', ?, 1.0)
-			ON CONFLICT (repository, source_id, target_id, relation)
-			DO UPDATE SET epistemic_status = excluded.epistemic_status`)
-		_, err := database.ExecContext(ctx, query, documentID, nodeID, RepositoryFromContext(ctx), status)
-		return err
-	}
-	query := `
-		INSERT INTO graph_edges (source_id, target_id, relation, epistemic_status, weight)
-		VALUES (?, ?, '` + BridgeRelation + `', ?, 1.0)
-		ON CONFLICT(source_id, target_id, relation)
-		DO UPDATE SET epistemic_status = excluded.epistemic_status`
-	_, err := database.ExecContext(ctx, query, documentID, nodeID, status)
+	query, args := buildEdgeInsert(dialect, RepositoryFromContext(ctx), documentID, []bridgeEdgeRow{{TargetID: nodeID, Status: status}})
+	_, err := database.ExecContext(ctx, dialect.Bind(query), args...)
 	return err
 }
 

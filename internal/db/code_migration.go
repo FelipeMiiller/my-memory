@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -268,6 +269,309 @@ func UpsertCodeSymbol(ctx context.Context, db *sql.DB, fileID int64, kind, name,
 	return id, nil
 }
 
+// CodeSymbolRow é uma linha de code_symbols no upsert EM LOTE.
+//
+// O file_id fica de fora da linha: o lote é por arquivo (é o que faz do
+// `INSERT` multi-linha valer a pena).
+type CodeSymbolRow struct {
+	Kind          string
+	Name          string
+	QualifiedName string
+	Signature     string
+	DocComment    string
+	StartLine     int
+	EndLine       int
+	StartCol      int
+	EndCol        int
+}
+
+// codeMaxBatchRows é o teto de LINHAS por statement do code graph.
+//
+// O limite que aperta é o de PARÂMETROS do engine: o SQLite aceita
+// MAX_VARIABLE_NUMBER=32766 (medido no driver deste repo) e o Postgres aceita
+// 65535. O insert de símbolo usa 11 colunas → 2000 linhas = 22 000
+// parâmetros, folga larga nos dois. Acima do teto o lote é partido: o
+// conteúdo gravado não muda.
+const codeMaxBatchRows = 2000
+
+// codeSymbolKey é a chave de identidade de um símbolo em code_symbols: a
+// mesma do alvo de ON CONFLICT (file_id, kind, qualified_name, start_line),
+// sem o file_id (que é o mesmo do arquivo inteiro).
+//
+// O qualified_name vazio é gravado como NULL; o COALESCE do SELECT de
+// resolução devolve "" — as duas pontas falam a mesma língua.
+func codeSymbolKey(kind, qualifiedName string, startLine int) string {
+	return kind + "\x00" + qualifiedName + "\x00" + strconv.Itoa(startLine)
+}
+
+// dedupCodeSymbolRows remove do lote as chaves repetidas.
+//
+// O Postgres REJEITA um `ON CONFLICT DO UPDATE` que afete a mesma linha duas
+// vezes ("ON CONFLICT DO UPDATE command cannot affect row a second time") —
+// o SQLite aceita. Remover a duplicata deixa os dois engines iguais e
+// reproduz o caminho por símbolo, onde o segundo upsert ATUALIZA a linha do
+// primeiro (o payload do último vence, o id é o mesmo).
+func dedupCodeSymbolRows(rows []CodeSymbolRow) []CodeSymbolRow {
+	order := make([]string, 0, len(rows))
+	byKey := make(map[string]CodeSymbolRow, len(rows))
+	for _, row := range rows {
+		key := codeSymbolKey(row.Kind, row.QualifiedName, row.StartLine)
+		if _, seen := byKey[key]; !seen {
+			order = append(order, key)
+		}
+		byKey[key] = row
+	}
+	out := make([]CodeSymbolRow, 0, len(order))
+	for _, key := range order {
+		out = append(out, byKey[key])
+	}
+	return out
+}
+
+// buildCodeSymbolInsert monta o INSERT multi-linha de code_symbols.
+//
+// O texto do SQL é o MESMO de `UpsertCodeSymbol` — as mesmas 11 colunas e o
+// mesmo alvo de ON CONFLICT — muda só o número de tuplas no VALUES.
+func buildCodeSymbolInsert(repository string, fileID int64, rows []CodeSymbolRow) (string, []any) {
+	tuples := make([]string, 0, len(rows))
+	args := make([]any, 0, len(rows)*11)
+	for _, row := range rows {
+		tuples = append(tuples, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		args = append(args,
+			repository, fileID, row.Kind, row.Name,
+			nullString(row.QualifiedName), nullString(row.Signature), nullString(row.DocComment),
+			row.StartLine, row.EndLine, row.StartCol, row.EndCol,
+		)
+	}
+	return `
+		INSERT INTO code_symbols (repository, file_id, kind, name, qualified_name, signature, doc_comment, start_line, end_line, start_col, end_col)
+		VALUES ` + strings.Join(tuples, ", ") + `
+		ON CONFLICT(file_id, kind, qualified_name, start_line) DO UPDATE SET
+			repository = excluded.repository,
+			name = excluded.name,
+			signature = excluded.signature,
+			doc_comment = excluded.doc_comment,
+			end_line = excluded.end_line,
+			start_col = excluded.start_col,
+			end_col = excluded.end_col
+	`, args
+}
+
+// queryCodeSymbolIDs resolve o id de cada símbolo do arquivo.
+//
+// Um SELECT por arquivo: o lib/pq não implementa LastInsertId, então o id
+// precisa ser lido. O casamento é feito em Go, pela chave
+// (kind, qualified_name, start_line) — o MESMO do alvo de ON CONFLICT.
+//
+// Quando a chave tem mais de uma linha (o qualified_name vazio é NULL, e NULL
+// não conflita no índice único), vence a linha de MAIOR id: é a que o lote
+// acabou de gravar.
+func (c codeStore) queryCodeSymbolIDs(ctx context.Context, fileID int64) (map[string]int64, error) {
+	rows, err := c.query(ctx, `
+		SELECT id, kind, COALESCE(qualified_name, ''), start_line
+		  FROM code_symbols
+		 WHERE file_id = ?
+	`, fileID)
+	if err != nil {
+		return nil, fmt.Errorf("UpsertCodeSymbols: resolução de ids falhou: %w", err)
+	}
+	defer rows.Close()
+
+	ids := make(map[string]int64)
+	for rows.Next() {
+		var id int64
+		var kind, qualifiedName string
+		var startLine int
+		if err := rows.Scan(&id, &kind, &qualifiedName, &startLine); err != nil {
+			return nil, fmt.Errorf("UpsertCodeSymbols: leitura de id falhou: %w", err)
+		}
+		key := codeSymbolKey(kind, qualifiedName, startLine)
+		if current, ok := ids[key]; !ok || id > current {
+			ids[key] = id
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("UpsertCodeSymbols: leitura de ids falhou: %w", err)
+	}
+	return ids, nil
+}
+
+// UpsertCodeSymbols grava TODAS as linhas de um arquivo em UM statement
+// multi-linha e devolve os ids na MESMA ORDEM da entrada.
+//
+// É a forma em LOTE de `UpsertCodeSymbol`: as mesmas 11 colunas, o mesmo
+// alvo de ON CONFLICT e a mesma idempotência — o que muda é o número de
+// round-trips (1 statement + 1 SELECT de resolução por arquivo, em vez de 2
+// por símbolo).
+//
+// Os ids devolvidos são os das linhas gravadas: é deles que as arestas do
+// arquivo (src_symbol_id/dst_symbol_id) dependem.
+func UpsertCodeSymbols(ctx context.Context, db *sql.DB, fileID int64, rows []CodeSymbolRow) ([]int64, error) {
+	if db == nil {
+		return nil, errors.New("UpsertCodeSymbols: db == nil")
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	store, err := newCodeStore(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+
+	unique := dedupCodeSymbolRows(rows)
+	repository := RepositoryFromContext(ctx)
+	for start := 0; start < len(unique); start += codeMaxBatchRows {
+		end := start + codeMaxBatchRows
+		if end > len(unique) {
+			end = len(unique)
+		}
+		query, args := buildCodeSymbolInsert(repository, fileID, unique[start:end])
+		if _, err := store.exec(ctx, query, args...); err != nil {
+			return nil, fmt.Errorf("UpsertCodeSymbols falhou: %w", err)
+		}
+	}
+
+	ids, err := store.queryCodeSymbolIDs(ctx, fileID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		key := codeSymbolKey(row.Kind, row.QualifiedName, row.StartLine)
+		id, ok := ids[key]
+		if !ok {
+			return nil, fmt.Errorf("UpsertCodeSymbols: id do símbolo %q não foi resolvido", key)
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
+// CodeEdgeRow é uma linha de code_edges no upsert EM LOTE.
+type CodeEdgeRow struct {
+	SrcSymbolID     int64
+	DstSymbolID     int64
+	FileID          int64
+	Kind            string
+	StartLine       int
+	EndLine         int
+	Confidence      float64
+	EpistemicStatus string
+}
+
+// codeEdgeKey é a chave de identidade de uma aresta: a mesma do alvo de
+// ON CONFLICT (src_symbol_id, dst_symbol_id, kind).
+func codeEdgeKey(src, dst int64, kind string) string {
+	return strconv.FormatInt(src, 10) + "\x00" + strconv.FormatInt(dst, 10) + "\x00" + kind
+}
+
+// dedupCodeEdgeRows funde as arestas repetidas do lote.
+//
+// O Postgres rejeita o conflito da mesma linha duas vezes no mesmo statement.
+// A fusão reproduz o que o caminho por aresta faz: a POSIÇÃO que fica é a
+// MENOR (o ON CONFLICT guarda a menor start_line/end_line) e o payload
+// (file_id, confidence, epistemic_status) é o do ÚLTIMO.
+func dedupCodeEdgeRows(rows []CodeEdgeRow) []CodeEdgeRow {
+	order := make([]string, 0, len(rows))
+	byKey := make(map[string]CodeEdgeRow, len(rows))
+	for _, row := range rows {
+		key := codeEdgeKey(row.SrcSymbolID, row.DstSymbolID, row.Kind)
+		current, seen := byKey[key]
+		if !seen {
+			order = append(order, key)
+			byKey[key] = row
+			continue
+		}
+		if row.StartLine < current.StartLine {
+			current.StartLine = row.StartLine
+		}
+		if row.EndLine < current.EndLine {
+			current.EndLine = row.EndLine
+		}
+		// O payload (file_id, confidence, epistemic_status) é o do ÚLTIMO —
+		// é o que o ON CONFLICT (DO UPDATE) grava a cada upsert.
+		current.FileID = row.FileID
+		current.Confidence = row.Confidence
+		current.EpistemicStatus = row.EpistemicStatus
+		byKey[key] = current
+	}
+	out := make([]CodeEdgeRow, 0, len(order))
+	for _, key := range order {
+		out = append(out, byKey[key])
+	}
+	return out
+}
+
+// buildCodeEdgeInsert monta o INSERT multi-linha de code_edges.
+//
+// O texto do SQL é o MESMO de `UpsertCodeEdgeWithStatus` — as mesmas 9
+// colunas, o mesmo alvo de ON CONFLICT e o mesmo CASE WHEN que mantém a
+// menor posição.
+func buildCodeEdgeInsert(repository string, rows []CodeEdgeRow) (string, []any) {
+	tuples := make([]string, 0, len(rows))
+	args := make([]any, 0, len(rows)*9)
+	for _, row := range rows {
+		tuples = append(tuples, "(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		args = append(args,
+			repository, row.SrcSymbolID, row.DstSymbolID, row.Kind, row.FileID,
+			row.StartLine, row.EndLine, row.Confidence, row.EpistemicStatus,
+		)
+	}
+	return `
+		INSERT INTO code_edges (repository, src_symbol_id, dst_symbol_id, kind, file_id, start_line, end_line, confidence, epistemic_status)
+		VALUES ` + strings.Join(tuples, ", ") + `
+		ON CONFLICT(src_symbol_id, dst_symbol_id, kind) DO UPDATE SET
+			repository = excluded.repository,
+			file_id = excluded.file_id,
+			start_line = CASE WHEN excluded.start_line < code_edges.start_line THEN excluded.start_line ELSE code_edges.start_line END,
+			end_line = CASE WHEN excluded.end_line < code_edges.end_line THEN excluded.end_line ELSE code_edges.end_line END,
+			confidence = excluded.confidence,
+			epistemic_status = excluded.epistemic_status
+	`, args
+}
+
+// UpsertCodeEdges grava as arestas de um arquivo (ou do lote) em UM statement
+// multi-linha.
+//
+// É a forma em LOTE de `UpsertCodeEdgeWithStatus`: as mesmas 9 colunas, o
+// mesmo alvo de ON CONFLICT e a mesma idempotência — muda o número de
+// round-trips (1 statement por arquivo, em vez de 1 por aresta).
+//
+// Aresta com confidence < 0.5 é recusada com o mesmo erro do caminho por
+// aresta: quem grava essa aresta é `InsertCodeEdgeUncertain`.
+func UpsertCodeEdges(ctx context.Context, db *sql.DB, rows []CodeEdgeRow) error {
+	if db == nil {
+		return errors.New("UpsertCodeEdges: db == nil")
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	for _, row := range rows {
+		if row.Confidence < 0.5 {
+			return errors.New("UseInsertCodeEdgeUncertain para confidence < 0.5")
+		}
+	}
+	store, err := newCodeStore(ctx, db)
+	if err != nil {
+		return err
+	}
+
+	unique := dedupCodeEdgeRows(rows)
+	repository := RepositoryFromContext(ctx)
+	for start := 0; start < len(unique); start += codeMaxBatchRows {
+		end := start + codeMaxBatchRows
+		if end > len(unique) {
+			end = len(unique)
+		}
+		query, args := buildCodeEdgeInsert(repository, unique[start:end])
+		if _, err := store.exec(ctx, query, args...); err != nil {
+			return fmt.Errorf("UpsertCodeEdges falhou: %w", err)
+		}
+	}
+	return nil
+}
+
 // UpsertCodeEdge insere (ou atualiza) uma aresta em code_edges com
 // epistemic_status = EXTRACTED (a aresta veio da estrutura do código).
 //
@@ -315,21 +619,129 @@ func UpsertCodeEdgeWithStatus(ctx context.Context, db *sql.DB, srcSymbolID, dstS
 
 // InsertCodeEdgeUncertain insere uma aresta de baixa confiança em code_edges_uncertain.
 func InsertCodeEdgeUncertain(ctx context.Context, db *sql.DB, srcSymbolID, fileID int64, dstCandidateName, kind, reason string, confidence float64, startLine int) error {
+	query, args := buildCodeEdgeUncertainInsert(RepositoryFromContext(ctx), []CodeEdgeUncertainRow{{
+		SrcSymbolID:      srcSymbolID,
+		FileID:           fileID,
+		DstCandidateName: dstCandidateName,
+		Kind:             kind,
+		Confidence:       confidence,
+		Reason:           reason,
+		StartLine:        startLine,
+	}})
 	store, err := newCodeStore(ctx, db)
 	if err != nil {
 		return err
 	}
-	_, err = store.exec(ctx, `
+	_, err = store.exec(ctx, query, args...)
+	return err
+}
+
+// CodeEdgeUncertainRow é uma linha de code_edges_uncertain no upsert EM LOTE.
+type CodeEdgeUncertainRow struct {
+	SrcSymbolID      int64
+	FileID           int64
+	DstCandidateName string
+	Kind             string
+	Confidence       float64
+	Reason           string
+	StartLine        int
+}
+
+// codeEdgeUncertainKey é a chave de identidade de uma aresta incerta: a
+// mesma do alvo de ON CONFLICT (src_symbol_id, dst_candidate_name, kind).
+func codeEdgeUncertainKey(srcSymbolID int64, dstCandidateName, kind string) string {
+	return strconv.FormatInt(srcSymbolID, 10) + "\x00" + dstCandidateName + "\x00" + kind
+}
+
+// dedupCodeEdgeUncertainRows remove do lote as chaves repetidas.
+//
+// O Postgres REJEITA um `ON CONFLICT DO UPDATE` que afete a mesma linha duas
+// vezes ("ON CONFLICT DO UPDATE command cannot affect row a second time") —
+// o SQLite aceita. Remover a duplicata deixa os dois engines iguais e
+// reproduz o caminho por aresta, onde o segundo upsert ATUALIZA a linha do
+// primeiro (o payload do ÚLTIMO vence, porque o ON CONFLICT grava
+// `excluded` em todas as colunas).
+func dedupCodeEdgeUncertainRows(rows []CodeEdgeUncertainRow) []CodeEdgeUncertainRow {
+	order := make([]string, 0, len(rows))
+	byKey := make(map[string]CodeEdgeUncertainRow, len(rows))
+	for _, row := range rows {
+		key := codeEdgeUncertainKey(row.SrcSymbolID, row.DstCandidateName, row.Kind)
+		if _, seen := byKey[key]; !seen {
+			order = append(order, key)
+		}
+		byKey[key] = row
+	}
+	out := make([]CodeEdgeUncertainRow, 0, len(order))
+	for _, key := range order {
+		out = append(out, byKey[key])
+	}
+	return out
+}
+
+// buildCodeEdgeUncertainInsert monta o INSERT multi-linha de
+// code_edges_uncertain.
+//
+// O texto do SQL é o MESMO de `InsertCodeEdgeUncertain` — as mesmas 8 colunas
+// e o mesmo alvo de ON CONFLICT (a chave única
+// UNIQUE(src_symbol_id, dst_candidate_name, kind) existe nos DOIS engines:
+// `internal/db/schema.go` e `internal/store/postgres.go`).
+func buildCodeEdgeUncertainInsert(repository string, rows []CodeEdgeUncertainRow) (string, []any) {
+	tuples := make([]string, 0, len(rows))
+	args := make([]any, 0, len(rows)*8)
+	for _, row := range rows {
+		tuples = append(tuples, "(?, ?, ?, ?, ?, ?, ?, ?)")
+		args = append(args,
+			repository, row.SrcSymbolID, row.DstCandidateName, row.Kind, row.FileID,
+			row.Confidence, row.Reason, row.StartLine,
+		)
+	}
+	return `
 		INSERT INTO code_edges_uncertain (repository, src_symbol_id, dst_candidate_name, kind, file_id, confidence, reason, start_line)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES ` + strings.Join(tuples, ", ") + `
 		ON CONFLICT(src_symbol_id, dst_candidate_name, kind) DO UPDATE SET
 			repository = excluded.repository,
 			file_id = excluded.file_id,
 			confidence = excluded.confidence,
 			reason = excluded.reason,
 			start_line = excluded.start_line
-	`, RepositoryFromContext(ctx), srcSymbolID, dstCandidateName, kind, fileID, confidence, reason, startLine)
-	return err
+	`, args
+}
+
+// InsertCodeEdgeUncertains grava as arestas incertas de um arquivo (ou do
+// lote) em UM statement multi-linha.
+//
+// É a forma em LOTE de `InsertCodeEdgeUncertain`: as mesmas 8 colunas, o
+// mesmo alvo de ON CONFLICT e a mesma idempotência — muda o número de
+// round-trips (1 statement por arquivo, em vez de 1 por aresta).
+//
+// A medição que motivou o lote: no Postgres remoto (≈268 ms por round-trip)
+// o bucket era gravado a ~1,6 aresta/s — ~110 min só para popular
+// `code_edges_uncertain` do repo inteiro, contra ~5 min dos símbolos.
+func InsertCodeEdgeUncertains(ctx context.Context, db *sql.DB, rows []CodeEdgeUncertainRow) error {
+	if db == nil {
+		return errors.New("InsertCodeEdgeUncertains: db == nil")
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	store, err := newCodeStore(ctx, db)
+	if err != nil {
+		return err
+	}
+
+	unique := dedupCodeEdgeUncertainRows(rows)
+	repository := RepositoryFromContext(ctx)
+	for start := 0; start < len(unique); start += codeMaxBatchRows {
+		end := start + codeMaxBatchRows
+		if end > len(unique) {
+			end = len(unique)
+		}
+		query, args := buildCodeEdgeUncertainInsert(repository, unique[start:end])
+		if _, err := store.exec(ctx, query, args...); err != nil {
+			return fmt.Errorf("InsertCodeEdgeUncertains falhou: %w", err)
+		}
+	}
+	return nil
 }
 
 // GetCodeFileHash devolve (content_hash, ast_hash) do code_files.path.

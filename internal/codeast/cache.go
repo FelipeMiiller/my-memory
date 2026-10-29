@@ -155,6 +155,11 @@ func (c *CodeFileCache) UpdateAfterIndex(ctx context.Context, path, language str
 // PersistSymbols grava os símbolos extraídos em code_symbols e devolve um
 // slice de IDs na mesma ordem de symbols.
 //
+// A gravação é EM LOTE: um INSERT multi-linha para o arquivo inteiro (mais um
+// SELECT de resolução dos ids), em vez de um INSERT+SELECT por símbolo — o
+// round-trip por símbolo é o que torna o code stage inviável num engine
+// remoto (2 round-trips × N símbolos).
+//
 // Caller deve fazer o commit/rollback do tx; esta função usa o db diretamente
 // para simplificar (CASO T3 só precisa validar a forma; T4 introduzirá tx).
 func (c *CodeFileCache) PersistSymbols(ctx context.Context, fileID int64, symbols []Symbol) ([]int64, error) {
@@ -164,13 +169,23 @@ func (c *CodeFileCache) PersistSymbols(ctx context.Context, fileID int64, symbol
 	if len(symbols) == 0 {
 		return nil, nil
 	}
-	ids := make([]int64, 0, len(symbols))
+	rows := make([]db.CodeSymbolRow, 0, len(symbols))
 	for _, s := range symbols {
-		id, err := db.UpsertCodeSymbol(ctx, c.db, fileID, string(s.Kind), s.Name, s.QualifiedName, s.Signature, s.DocComment, s.StartLine, s.EndLine, s.StartCol, s.EndCol)
-		if err != nil {
-			return nil, fmt.Errorf("PersistSymbols falhou em %q: %w", s.HashKey(), err)
-		}
-		ids = append(ids, id)
+		rows = append(rows, db.CodeSymbolRow{
+			Kind:          string(s.Kind),
+			Name:          s.Name,
+			QualifiedName: s.QualifiedName,
+			Signature:     s.Signature,
+			DocComment:    s.DocComment,
+			StartLine:     s.StartLine,
+			EndLine:       s.EndLine,
+			StartCol:      s.StartCol,
+			EndCol:        s.EndCol,
+		})
+	}
+	ids, err := db.UpsertCodeSymbols(ctx, c.db, fileID, rows)
+	if err != nil {
+		return nil, fmt.Errorf("PersistSymbols falhou no lote de %d símbolos: %w", len(symbols), err)
 	}
 	return ids, nil
 }

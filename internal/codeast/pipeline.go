@@ -358,6 +358,12 @@ func (fp *FileProcessor) collectEdges(ctx context.Context, edges []Edge, symbols
 // A resolução acontece DEPOIS que todos os arquivos foram indexados: assim
 // uma chamada para um símbolo definido em um arquivo ainda não processado
 // resolve pelo qualified name (EXTRACTED) em vez de cair em "não resolvido".
+//
+// A ESCRITA é em lote: UM statement por arquivo em CADA bucket — as arestas
+// resolvidas (`code_edges`) e as incertas (`code_edges_uncertain`). Antes,
+// os dois buckets eram 1 statement por aresta; no Postgres remoto
+// (≈268 ms/round-trip) o bucket das incertas sozinho levava ≈110 min para
+// popular o repo inteiro (medido: ~1,6 aresta/s).
 func (fp *FileProcessor) FlushEdges(ctx context.Context) error {
 	if len(fp.pending) == 0 {
 		return nil
@@ -365,9 +371,43 @@ func (fp *FileProcessor) FlushEdges(ctx context.Context) error {
 	pending := fp.pending
 	fp.pending = nil
 	resolver := newEdgeResolver(ctx, fp.db)
+
+	// 1) Resolve as arestas (resolver NÃO grava).
+	edgesByFile := make(map[int64][]db.CodeEdgeRow)
+	uncertainByFile := make(map[int64][]db.CodeEdgeUncertainRow)
+	var fileOrder []int64
+	seenFile := make(map[int64]bool)
 	for _, pe := range pending {
-		if err := fp.resolveEdge(ctx, pe, resolver); err != nil {
+		resolved, err := fp.resolveEdgeRow(ctx, pe, resolver)
+		if err != nil {
 			return err
+		}
+		if resolved == nil {
+			continue
+		}
+		fileID := pe.fileID
+		if !seenFile[fileID] {
+			seenFile[fileID] = true
+			fileOrder = append(fileOrder, fileID)
+		}
+		if resolved.edge != nil {
+			edgesByFile[fileID] = append(edgesByFile[fileID], *resolved.edge)
+			continue
+		}
+		uncertainByFile[fileID] = append(uncertainByFile[fileID], *resolved.uncertain)
+	}
+
+	// 2) Grava: UM statement por arquivo em cada bucket.
+	for _, fileID := range fileOrder {
+		if rows := edgesByFile[fileID]; len(rows) > 0 {
+			if err := db.UpsertCodeEdges(ctx, fp.db, rows); err != nil {
+				return err
+			}
+		}
+		if rows := uncertainByFile[fileID]; len(rows) > 0 {
+			if err := db.InsertCodeEdgeUncertains(ctx, fp.db, rows); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -468,15 +508,45 @@ func (r *edgeResolver) lookupInFile(fileID int64, column, value string) ([]int64
 	return ids, nil
 }
 
+// resolvedEdge é o resultado da resolução de UMA aresta.
+//
+// Exatamente um dos dois campos é preenchido: `edge` quando a aresta foi
+// resolvida (vai para `code_edges`), `uncertain` quando ela não pôde ser
+// resolvida (vai para o bucket `code_edges_uncertain`).
+type resolvedEdge struct {
+	edge      *db.CodeEdgeRow
+	uncertain *db.CodeEdgeUncertainRow
+}
+
 // resolveEdge resolve UMA aresta nos três níveis de resolução e grava o
-// resultado:
+// resultado (caminho por aresta).
+//
+// O caminho em LOTE usa resolveEdgeRow — que só resolve — e grava o conjunto
+// de uma vez (ver FlushEdges).
+func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolver *edgeResolver) error {
+	resolved, err := fp.resolveEdgeRow(ctx, pe, resolver)
+	if err != nil {
+		return err
+	}
+	if resolved == nil {
+		return nil
+	}
+	if resolved.edge != nil {
+		return db.UpsertCodeEdges(ctx, fp.db, []db.CodeEdgeRow{*resolved.edge})
+	}
+	return db.InsertCodeEdgeUncertains(ctx, fp.db, []db.CodeEdgeUncertainRow{*resolved.uncertain})
+}
+
+// resolveEdgeRow resolve UMA aresta nos três níveis de resolução e devolve a
+// linha resolvida — SEM GRAVAR.
 //
 //  1. escopo de pacote (qualified name bate e é único) → EXTRACTED
 //  2. só por nome (único no repositório)              → INFERRED
 //  3. mais de um candidato ou nada resolvido         → code_edges_uncertain
 //
-// O nível 3 NUNCA promove o candidato a aresta resolvida.
-func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolver *edgeResolver) error {
+// O nível 3 NUNCA promove o candidato a aresta resolvida: a aresta vai para
+// o bucket das incertas (gravada em lote no fim).
+func (fp *FileProcessor) resolveEdgeRow(ctx context.Context, pe pendingEdge, resolver *edgeResolver) (*resolvedEdge, error) {
 	// O kind de símbolo aceitável como destino depende do kind da aresta:
 	// uma aresta de TIPO (uses_type/inherits) só pode apontar para um tipo
 	// (struct/interface/class) — sem isso, o nível "por nome" resolveria
@@ -490,11 +560,19 @@ func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolv
 	if pe.kind == EdgeImports && pe.dstQualifiedName != "" {
 		ids, err := resolver.lookupInFile(pe.fileID, "qualified_name", pe.dstQualifiedName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(ids) == 1 {
-			return db.UpsertCodeEdgeWithStatus(ctx, fp.db, pe.srcSymbolID, ids[0], pe.fileID,
-				string(pe.kind), pe.line, pe.line, 1.0, db.EpistemicExtracted)
+			return &resolvedEdge{edge: &db.CodeEdgeRow{
+				SrcSymbolID:     pe.srcSymbolID,
+				DstSymbolID:     ids[0],
+				FileID:          pe.fileID,
+				Kind:            string(pe.kind),
+				StartLine:       pe.line,
+				EndLine:         pe.line,
+				Confidence:      1.0,
+				EpistemicStatus: db.EpistemicExtracted,
+			}}, nil
 		}
 	}
 
@@ -502,15 +580,23 @@ func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolv
 	if pe.dstQualifiedName != "" {
 		ids, err := resolver.lookup("qualified_name", pe.dstQualifiedName, kinds)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(ids) == 1 {
-			return db.UpsertCodeEdgeWithStatus(ctx, fp.db, pe.srcSymbolID, ids[0], pe.fileID,
-				string(pe.kind), pe.line, pe.line, 1.0, db.EpistemicExtracted)
+			return &resolvedEdge{edge: &db.CodeEdgeRow{
+				SrcSymbolID:     pe.srcSymbolID,
+				DstSymbolID:     ids[0],
+				FileID:          pe.fileID,
+				Kind:            string(pe.kind),
+				StartLine:       pe.line,
+				EndLine:         pe.line,
+				Confidence:      1.0,
+				EpistemicStatus: db.EpistemicExtracted,
+			}}, nil
 		}
 		if len(ids) > 1 {
-			return fp.insertUncertain(ctx, pe, fmt.Sprintf("ambíguo: %d símbolos com o qualified name %q",
-				len(ids), pe.dstQualifiedName), 0.5)
+			return &resolvedEdge{uncertain: fp.uncertainRow(pe, fmt.Sprintf("ambíguo: %d símbolos com o qualified name %q",
+				len(ids), pe.dstQualifiedName), 0.5)}, nil
 		}
 	}
 
@@ -518,15 +604,23 @@ func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolv
 	if pe.dstName != "" {
 		ids, err := resolver.lookup("name", pe.dstName, kinds)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(ids) == 1 {
-			return db.UpsertCodeEdgeWithStatus(ctx, fp.db, pe.srcSymbolID, ids[0], pe.fileID,
-				string(pe.kind), pe.line, pe.line, 0.8, db.EpistemicInferred)
+			return &resolvedEdge{edge: &db.CodeEdgeRow{
+				SrcSymbolID:     pe.srcSymbolID,
+				DstSymbolID:     ids[0],
+				FileID:          pe.fileID,
+				Kind:            string(pe.kind),
+				StartLine:       pe.line,
+				EndLine:         pe.line,
+				Confidence:      0.8,
+				EpistemicStatus: db.EpistemicInferred,
+			}}, nil
 		}
 		if len(ids) > 1 {
-			return fp.insertUncertain(ctx, pe, fmt.Sprintf("ambíguo: %d símbolos com o nome %q",
-				len(ids), pe.dstName), 0.5)
+			return &resolvedEdge{uncertain: fp.uncertainRow(pe, fmt.Sprintf("ambíguo: %d símbolos com o nome %q",
+				len(ids), pe.dstName), 0.5)}, nil
 		}
 	}
 
@@ -536,7 +630,7 @@ func (fp *FileProcessor) resolveEdge(ctx context.Context, pe pendingEdge, resolv
 	if reason == "" {
 		reason = fmt.Sprintf("destino não encontrado no repositório: %q", pe.dstName)
 	}
-	return fp.insertUncertain(ctx, pe, reason, 0.3)
+	return &resolvedEdge{uncertain: fp.uncertainRow(pe, reason, 0.3)}, nil
 }
 
 // dstKindFilter devolve os kinds de símbolo que podem ser o DESTINO de uma
@@ -555,14 +649,26 @@ func dstKindFilter(kind EdgeKind) []string {
 	return nil
 }
 
-// insertUncertain grava a aresta no bucket de incertas.
-func (fp *FileProcessor) insertUncertain(ctx context.Context, pe pendingEdge, reason string, confidence float64) error {
+// uncertainRow monta a linha do bucket de incertas (SEM GRAVAR).
+//
+// O bucket é gravado em LOTE no fim (ver FlushEdges): gravar a aresta
+// incerta na hora custava 1 statement por aresta — no Postgres remoto
+// (≈268 ms/round-trip) o bucket era populado a ~1,6 aresta/s, ≈110 min
+// só para o repo inteiro.
+func (fp *FileProcessor) uncertainRow(pe pendingEdge, reason string, confidence float64) *db.CodeEdgeUncertainRow {
 	candidate := pe.dstQualifiedName
 	if candidate == "" {
 		candidate = pe.dstName
 	}
-	return db.InsertCodeEdgeUncertain(ctx, fp.db, pe.srcSymbolID, pe.fileID, candidate,
-		string(pe.kind), reason, confidence, pe.line)
+	return &db.CodeEdgeUncertainRow{
+		SrcSymbolID:      pe.srcSymbolID,
+		FileID:           pe.fileID,
+		DstCandidateName: candidate,
+		Kind:             string(pe.kind),
+		Confidence:       confidence,
+		Reason:           reason,
+		StartLine:        pe.line,
+	}
 }
 
 // resolveAndInsertEdges faz a varredura simples para v1 (ADR-047 §CA-01 —
@@ -612,6 +718,10 @@ func resolveAndInsertEdges(ctx context.Context, database *sql.DB, symbols []Symb
 	}
 
 	// Para cada symbol do source, procura match.
+	// As arestas resolvidas E as incertas são gravadas EM LOTE no fim (um
+	// statement por bucket para o arquivo inteiro).
+	var edges []db.CodeEdgeRow
+	var uncertain []db.CodeEdgeUncertainRow
 	for i, s := range symbols {
 		if s.Kind == KindImport {
 			continue // imports tratados separadamente em T+ (parser mais rico)
@@ -633,19 +743,39 @@ func resolveAndInsertEdges(ctx context.Context, database *sql.DB, symbols []Symb
 			continue
 		}
 		if len(candidates) == 1 {
-			if err := db.UpsertCodeEdgeWithStatus(ctx, database, ids[i], candidates[0], fileID, "references",
-				s.StartLine, s.EndLine, 0.8, db.EpistemicInferred); err != nil {
-				return err
-			}
+			edges = append(edges, db.CodeEdgeRow{
+				SrcSymbolID:     ids[i],
+				DstSymbolID:     candidates[0],
+				FileID:          fileID,
+				Kind:            "references",
+				StartLine:       s.StartLine,
+				EndLine:         s.EndLine,
+				Confidence:      0.8,
+				EpistemicStatus: db.EpistemicInferred,
+			})
 			continue
 		}
 		// Múltiplos matches: vira uncertain (confidence < 0.5)
 		for _, c := range candidates {
 			_ = c
 		}
-		if err := db.InsertCodeEdgeUncertain(ctx, database, ids[i], fileID, key, "references",
-			fmt.Sprintf("ambíguo: %d matches", len(candidates)),
-			0.5, s.StartLine); err != nil {
+		uncertain = append(uncertain, db.CodeEdgeUncertainRow{
+			SrcSymbolID:      ids[i],
+			FileID:           fileID,
+			DstCandidateName: key,
+			Kind:             "references",
+			Confidence:       0.5,
+			Reason:           fmt.Sprintf("ambíguo: %d matches", len(candidates)),
+			StartLine:        s.StartLine,
+		})
+	}
+	if len(edges) > 0 {
+		if err := db.UpsertCodeEdges(ctx, database, edges); err != nil {
+			return err
+		}
+	}
+	if len(uncertain) > 0 {
+		if err := db.InsertCodeEdgeUncertains(ctx, database, uncertain); err != nil {
 			return err
 		}
 	}
