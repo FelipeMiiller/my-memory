@@ -7,17 +7,19 @@ tags: [my-memory, code-graph, adr-061, handoff, spec]
 
 # Handoff — `code-graph-real`: onde a execução parou
 
-> **Data do retrato:** 2026-10-24 · **Branch:** `develop` · **Base:** `35b01ed`
+> **Data do retrato:** 2026-10-24 · **Última atualização:** 2026-10-28 · **Branch:** `develop` · **Base:** `35b01ed`
 > (commit anterior da rodada das skills) · **Estado do working tree no momento
-> deste documento:** limpo, exceto pelo arquivo de validação da Fase 3 que o
-> worker estava finalizando.
+> do primeiro retrato:** limpo, exceto pelo arquivo de validação da Fase 3 que o
+> worker estava finalizando. Esse arquivo foi absorvido no `validation.md`
+> único em 2026-10-28 (item 4 da tabela abaixo).
 
-> [!warning] **Veredito da verificação independente: 🔶 PARTIAL (não é PASS) —
-> os 8 defeitos já foram corrigidos e revalidados.**
-> O núcleo técnico está sólido e verificadamente real, mas a verificação
-> encontrou **2 defeitos de severidade alta** que quebram ACs declaradas
-> (D1: a migração quebra em vault existente; D2: `include_code` é no-op para
-> qualquer `repo_id` ≠ `default`), **1 alto-médio** (D3: o build
+> [!warning] **Veredito da verificação independente: 🟢 PASS (revisto em
+> 2026-10-28) — os 8 defeitos já foram corrigidos, revalidados e o Postgres
+> real foi provado.**
+> O veredito original (2026-10-24) era 🔶 **PARTIAL**, porque a verificação
+> independente encontrou **2 defeitos de severidade alta** que quebravam ACs
+> declaradas (D1: a migração quebra em vault existente; D2: `include_code` é
+> no-op para qualquer `repo_id` ≠ `default`), **1 alto-médio** (D3: o build
 > `-tags treesitter` esvazia o code graph em silêncio) e **3 médios**.
 > **Relatório completo:** `.specs/features/code-graph-real/verification.md`.
 > **Correções:** `b3ed53f` (D1) · `fbd3d62` (D2) · `b34abd8` (D3) ·
@@ -26,11 +28,18 @@ tags: [my-memory, code-graph, adr-061, handoff, spec]
 > **Revalidação (2026-10-26):** as 16 hipóteses foram repetidas **mais** 8
 > tentativas de refutar cada correção e 5 riscos residuais — **8/8 correções
 > sobreviveram**, 26 de 29 checagens confirmadas com evidência empírica e
-> **nenhuma hipótese refutada**. Os 3 itens em aberto são **limite de ambiente**
-> (Postgres real), não defeito. Um achado residual novo (**R-1**: o fallback do
+> **nenhuma hipótese refutada**. Um achado residual novo (**R-1**: o fallback do
 > `MockParser` só casa símbolos de mesmo nome simples) virou `ISSUE-030`, com a
-> documentação corrigida. Relatório:
-> `.specs/features/code-graph-real/validation-revalidation.md`.
+> documentação corrigida.
+> **Fechamento (2026-10-27 e 2026-10-28):** os **2 itens** que dependiam do
+> Postgres real foram **provados** contra um **PostgreSQL 16.15** em banco
+> descartável (P1 e a metade Postgres de H4 — ver `ISSUE-031` §P1), e o **P5**
+> (colisão cross-repo no SQLite) foi **corrigido** (`c3c6267`). Resta **1 item**,
+> por **limite de ambiente** e não por defeito: o **ramo end-to-end da viewer**
+> com o MCP fora do ar (risco P4) — a lógica do ramo tem teste unitário verde,
+> mas o fluxo no browser não foi exercitado.
+> Relatórios: `.specs/features/code-graph-real/validation-revalidation.md` (veredito
+> revisto no topo) e `validation.md` (evidência consolidada das duas fases).
 
 Este documento é o **ponto de retomada** da feature. Ele existe porque a
 pasta do repositório vai ser movida de `C:\repository\my-memory` para `D:\...`
@@ -181,7 +190,7 @@ Evidência detalhada (Fase 2 + Fase 3 consolidadas num único arquivo):
 | # | Pendência | Como fazer | Quem |
 | :--- | :--- | :--- | :--- |
 | 0 | **Corrigir os 8 defeitos da verificação** — D1 (migração) e D2 (`include_code` sem repo) são de severidade **alta** e quebram ACs; D3 (build `-tags treesitter` degrada), D4 (hub threshold poda o vizinho direto), D5 (`mem code-graph` descarta `--repo`), D6 (hash estrutural inclui linha), D7 (viewer cita a ADR errada), D8 (precedência env × config) | ✅ **feito** — `b3ed53f` (D1) · `fbd3d62` (D2) · `b34abd8` (D3) · `1dc845a` (D4) · `b84dfce` (D5) · `aadd791` (D6) · `e64e389` (D7) · `aac0c0b` (D8). Evidência D7/D8 em `validation-d7-d8.md` | — |
-| 1 | **Revalidar** depois das correções: repetir as 16 hipóteses, com foco em D1/D2/D3 | ✅ **feito** (2026-10-26) — briefing com **29 checagens** (16 hipóteses + **8 tentativas de refutar cada correção** + 5 riscos residuais). Resultado: **8/8 correções sobreviveram**, 26 confirmadas com evidência empírica, **nenhuma hipótese refutada**. Os 3 itens em aberto são **limite de ambiente** (Postgres real), não defeito. Relatório: `validation-revalidation.md` | — |
+| 1 | **Revalidar** depois das correções: repetir as 16 hipóteses, com foco em D1/D2/D3 | ✅ **feito** (2026-10-26) — briefing com **29 checagens** (16 hipóteses + **8 tentativas de refutar cada correção** + 5 riscos residuais). Resultado: **8/8 correções sobreviveram**, 26 confirmadas com evidência empírica, **nenhuma hipótese refutada**. Os 3 itens que estavam em aberto eram **limite de ambiente** (Postgres real), não defeito — **2 deles foram fechados com prova** em 2026-10-27 (ver item 12) e o veredito foi revisto para 🟢 PASS em 2026-10-28. Relatório: `validation-revalidation.md` | — |
 | 2 | **Gate final único**, sem escritores ativos: `go build ./... && go vet ./... && go test -count=1 ./...` + `cd viewer && npm run typecheck && npm run test && npm run build` + medição do gzip | o gate de `internal/ci` só quebra se **aparecer um pacote Go novo** — nenhum worker criou um | ✅ **feito** (2026-10-26) — Go: `build`/`vet`/`test` exit **0**, **26/26 pacotes `ok`** (incluindo `internal/ci`, que flakeou na rodada anterior). Front-end: typecheck 0 · lint 0 · **95/95** testes · build 0 · **144.787/163.840 bytes gzip** · **0 CDN** | — |
 | 3 | **Ticar os 18 "Done when"** em `tasks.md` e revalidar `validate_tasks.py` | ✅ **feito** (commit `3012f76`) | gestor |
 | 4 | **Consolidar a validação** num `validation.md` único (Fase 2 + Fase 3) | ✅ **feito** (2026-10-28) — a evidência das duas fases foi unida num único `validation.md`: Fase 2 nas seções 1–6 e Fase 3 nas seções 7–13, com o texto das duas fases preservado na íntegra (a única mudança foi a numeração das seções da Fase 3). O arquivo separado da Fase 3 foi absorvido e removido | gestor |

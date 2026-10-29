@@ -15,7 +15,40 @@ Verifier independente (read-only): sessão `mvs_7f50fda216dd4cc489ad94e95bf75b93
 Repo: `D:\repository\my-memory` · branch `develop` · HEAD `339d14eee118d43ea23086f8013eb7a6056325b7`
 Data: 2026-10-26 (07:22 -> 07:40 BRT)
 
-## Veredito global: **PARTIAL**
+## Atualização 2026-10-28 — veredito revisto: 🟢 PASS
+
+> Esta seção **supera** o veredito original de 2026-10-26 (registrado abaixo e
+> repetido no fim do relatório). O **corpo do relatório continua intacto**, como
+> registro do que era verificável na data da revalidação (HEAD `339d14e`).
+> Nada foi reinterpretado: os dois itens que estavam abertos por limite de
+> ambiente foram **fechados com prova empírica** depois.
+
+**O que mudou desde 2026-10-26:** dois dos três itens que estavam abertos por
+**limite de ambiente** foram fechados com prova — não por reinterpretação.
+
+| Item | Em 2026-10-26 | Hoje | Evidência |
+| :--- | :--- | :--- | :--- |
+| **P1** — escrita real em Postgres: `ON CONFLICT (repository, path)`, índice único composto de `code_files`, `?`→`$1` em runtime real | **NÃO VERIFICÁVEL NESTE AMBIENTE** | ✅ **FECHADO** (2026-10-27) | Verificado contra um **PostgreSQL 16.15 real** (Neon), sempre em **banco descartável** criado e derrubado pelo próprio teste (`internal/pgtest`: `CREATE DATABASE mymemory_pgtest_*` + `DROP ... WITH (FORCE)`). Cada asserção foi provada **contra o defeito**. Detalhe: `ISSUE-031` → *P1* |
+| **H4** (metade Postgres) — code graph gravado no engine configurado, dialeto certo | **PARCIAL** — SQLite confirmado, Postgres não verificável | ✅ **CONFIRMADA** — H4 passa a **16/16** confirmadas | `cmd/mem/codeindex_postgres_test.go::TestCodeIndexCLI_PostgresGravaCodeGraphNoEngineConfigurado` — a CLI real grava `code_files`/`code_symbols`/`code_edges` no **Postgres** (`"engine": "postgres"`), com `content_hash` SHA-256 e a aresta `calls` no **ponto de chamada** (linha 4, não a da definição, linha 3) |
+| **P5** — colisão cross-repo no nó `code:<qualified_name>` | **REPRODUZIDO** (só em SQLite) | ✅ **CORRIGIDO** (2026-10-26, `c3c6267`) — decisão do dono: alinhar o SQLite com o Postgres; o id do nó passou a ser `code:<repository>:<qualified_name>` nos dois engines | Teste de regressão **provado contra o defeito** (com o fix revertido, falha com o sintoma exato do P5). Migração zero |
+| **P4** — viewer sem MCP no ar: ramo "MCP indisponível" | **PARCIAL** — o ramo existe e está coberto por teste unitário (95/95 verdes), mas o **fluxo end-to-end** (viewer carregando `/code` com o MCP fora do ar) **não foi exercitado** | 🔶 **ÚNICO ITEM AINDA ABERTO** — **limite de ambiente** (exige subir o dev server e dirigir o browser), não defeito | `viewer/src/routes/code.tsx:196-201` e `:317-322`; `viewer/src/lib/mcp-client.test.ts`; `viewer/src/lib/code-view.test.ts` |
+| **R-1** — achado residual: o fallback do `MockParser` só casa símbolos de mesmo nome simples | achado novo, **pré-existente** | 📌 **documentado** — virou **ISSUE-030**; o dono decidiu **deixar como está** e a documentação foi corrigida (`README.md`, `docs/CLI_GUIDE.md`, `docs/ARCHITECTURE.md`, `docs/adr/README.md`, `CHANGELOG.md`) | `internal/codeast/pipeline.go:607-622` |
+
+### Veredito revisto (2026-10-28)
+
+🟢 **PASS** — nenhuma das 16 hipóteses foi refutada, as 8 correções sobreviveram
+à refutação, e os dois itens que dependiam do Postgres real foram **provados**
+contra um PostgreSQL real em 2026-10-27. **Resta 1 item** (P4 end-to-end da
+viewer), que é **limite de ambiente**: a lógica do ramo é coberta por teste
+unitário verde.
+
+O que foi provado em 2026-10-27 está em `.specs/ISSUES.md` → *ISSUE-031 → P1*; a
+evidência de execução das duas fases está em
+`.specs/features/code-graph-real/validation.md`.
+
+---
+
+## Veredito global (original, 2026-10-26): **PARTIAL**
 
 As **8 correções D1..D8 sobreviveram** a refutação (Fase B: 8/8). Das 29 checagens,
 **26 confirmadas com evidência empírica**. **3 itens ficam por verificar** por
@@ -189,7 +222,11 @@ Todo scratch em `D:\.minimax\scratch\subagents\revalidacao\`; nada em `%TEMP%`,
 na raiz do workspace ou dentro do repo. Nenhum comando de exclusao de arquivo;
 nenhum `gofmt -w`.
 
-# Veredito global: **PARTIAL**
+# Veredito global (original, 2026-10-26): **PARTIAL**
+
+> **Revisto em 2026-10-28 → 🟢 PASS.** P1 e a metade Postgres de H4 foram
+> fechados com prova empírica; P5 foi corrigido. Resta 1 item por limite de
+> ambiente (P4 end-to-end da viewer). Ver a atualização no topo do relatório.
 
 - **Fase A:** 14/16 confirmadas, H4 parcial (metade Postgres) - nenhuma **refutada**.
 - **Fase B:** **8/8 correcoes sobreviveram** - nenhuma refutacao consumada.

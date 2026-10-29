@@ -25,6 +25,22 @@ tags: [validation, code-graph-real, code-ast, epistemic-status, call-site, bridg
 > em **arquivos separados**, por decisão do gestor: não são evidência de execução,
 > são veredictos de terceiro.
 
+## Validation: PASS
+
+**Result**: PASS
+
+**Veredito global (revisto em 2026-10-28): 🟢 PASS.** As duas fases da feature
+estão verificadas e a evidência está neste documento — Fase 2 nas seções 1–6
+(veredito PASS próprio na linha 35) e Fase 3 nas seções 7–13. Nenhuma das **16
+hipóteses** da verificação independente foi refutada e as **8 correções** (D1..D8)
+sobreviveram à refutação (`validation-revalidation.md`: 8/8). O **P1** — Postgres
+real — foi fechado em 2026-10-27 contra um **PostgreSQL 16.15** em banco
+descartável, com cada asserção provada contra o defeito (`ISSUE-031` §P1).
+
+**Resta 1 item**, por **limite de ambiente** e não por defeito: o **ramo
+end-to-end da viewer** com o MCP fora do ar (risco **P4**) — a lógica do ramo é
+coberta por teste unitário verde, mas o fluxo no browser não foi exercitado.
+
 ## Parte I — Fase 2 (grafo estrutural)
 
 **Data**: 2026-10-23
