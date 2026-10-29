@@ -908,8 +908,8 @@ número correto, não há embedding de struct no repo), proveniência
 `EXTRACTED` 6367 / `INFERRED` 581, e **10 593 linhas** em
 `code_edges_uncertain` (nunca promovidas a aresta resolvida).
 
-**Evidência completa:** `.specs/features/code-graph-real/validation.md` (Fase 2)
-e `validation-t13-t15-t17.md` (Fase 3). **Estado consolidado e pendências:**
+**Evidência completa:** `.specs/features/code-graph-real/validation.md` (Fase 2 +
+Fase 3 consolidadas num único arquivo). **Estado consolidado e pendências:**
 `.specs/features/code-graph-real/HANDOFF.md`.
 
 **Pendência que sobrou (não bloqueia o issue):** a verificação independente

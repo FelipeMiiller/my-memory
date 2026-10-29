@@ -171,9 +171,8 @@ sem CGO) e funcional na máquina do dono (que não tem gcc). A **ADR-047
 > decisão D1 da Fase 3 e está dentro do que a spec pede, mas sugere um **limite
 > por documento** como evolução futura.
 
-Evidência detalhada por fase:
-`.specs/features/code-graph-real/validation.md` (Fase 2) e
-`.specs/features/code-graph-real/validation-t13-t15-t17.md` (Fase 3).
+Evidência detalhada (Fase 2 + Fase 3 consolidadas num único arquivo):
+`.specs/features/code-graph-real/validation.md`.
 
 ---
 
@@ -185,7 +184,7 @@ Evidência detalhada por fase:
 | 1 | **Revalidar** depois das correções: repetir as 16 hipóteses, com foco em D1/D2/D3 | ✅ **feito** (2026-10-26) — briefing com **29 checagens** (16 hipóteses + **8 tentativas de refutar cada correção** + 5 riscos residuais). Resultado: **8/8 correções sobreviveram**, 26 confirmadas com evidência empírica, **nenhuma hipótese refutada**. Os 3 itens em aberto são **limite de ambiente** (Postgres real), não defeito. Relatório: `validation-revalidation.md` | — |
 | 2 | **Gate final único**, sem escritores ativos: `go build ./... && go vet ./... && go test -count=1 ./...` + `cd viewer && npm run typecheck && npm run test && npm run build` + medição do gzip | o gate de `internal/ci` só quebra se **aparecer um pacote Go novo** — nenhum worker criou um | ✅ **feito** (2026-10-26) — Go: `build`/`vet`/`test` exit **0**, **26/26 pacotes `ok`** (incluindo `internal/ci`, que flakeou na rodada anterior). Front-end: typecheck 0 · lint 0 · **95/95** testes · build 0 · **144.787/163.840 bytes gzip** · **0 CDN** | — |
 | 3 | **Ticar os 18 "Done when"** em `tasks.md` e revalidar `validate_tasks.py` | ✅ **feito** (commit `3012f76`) | gestor |
-| 4 | **Consolidar a validação** num `validation.md` único (Fase 2 + Fase 3) | hoje são dois arquivos | gestor |
+| 4 | **Consolidar a validação** num `validation.md` único (Fase 2 + Fase 3) | ✅ **feito** (2026-10-28) — a evidência das duas fases foi unida num único `validation.md`: Fase 2 nas seções 1–6 e Fase 3 nas seções 7–13, com o texto das duas fases preservado na íntegra (a única mudança foi a numeração das seções da Fase 3). O arquivo separado da Fase 3 foi absorvido e removido | gestor |
 | 5 | **Fechar a ISSUE-027**: marcar C1..C12 como resolvidos, com o commit que fechou cada um | ✅ **feito** (`3012f76`) | gestor |
 | 6 | **Atualizar `STATE.md`** com o estado da feature | ✅ **feito** (`3012f76`) | gestor |
 | 7 | **Limpar o scratch** dos subagents: `D:\.minimax\scratch\subagents\*` (o clone do Graphify é referência — manter ou remover conforme a decisão do dono) | `mavis-trash.cmd` (deleção permanente é bloqueada) | ✅ **feito** (2026-10-26) — ~880 MB liberados; o clone do Graphify (`graphify-study/`) foi **mantido** porque a spec o cita como repositório canônico da análise | gestor |
@@ -332,8 +331,7 @@ C: com ~3,3 GB livres no fim; D: com ~153 GB livres.
 | :--- | :--- |
 | Spec (**29** ACs em EARS) | `.specs/features/code-graph-real/spec.md` |
 | Tarefas (18, 3 fases) | `.specs/features/code-graph-real/tasks.md` |
-| Evidência Fase 2 | `.specs/features/code-graph-real/validation.md` |
-| Evidência Fase 3 | `.specs/features/code-graph-real/validation-t13-t15-t17.md` |
+| **Evidência consolidada (Fase 2 + Fase 3)** | `.specs/features/code-graph-real/validation.md` |
 | **Verificação independente** (veredito PARTIAL + 8 defeitos) | `.specs/features/code-graph-real/verification.md` |
 | **Revalidação pós-correção** (8/8 sobreviveram, veredito PARTIAL) | `.specs/features/code-graph-real/validation-revalidation.md` |
 | Evidência D7/D8 | `.specs/features/code-graph-real/validation-d7-d8.md` |
