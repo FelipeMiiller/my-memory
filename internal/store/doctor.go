@@ -4,6 +4,14 @@ import (
 	"context"
 )
 
+// codeSymbolNodeType é o `type` do graph_nodes que representa um símbolo de
+// código (ADR-061, CG-17/CG-18).
+//
+// O literal é repetido aqui porque `internal/store` não pode importar
+// `internal/db` (o `internal/db` importa o `internal/store` — o ciclo
+// quebraria o build). O valor é o mesmo de `db.CodeSymbolNodeType`.
+const codeSymbolNodeType = "code_symbol"
+
 // HealthScoreApplicable reports whether the report's Health Score can be read
 // as a verdict.
 //
@@ -91,6 +99,13 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents WHERE repository = $1 AND COALESCE(mtime, 0) = 0`, repo).Scan(&report.MissingMTimeCount)
 
 	// 2. Dead Links (arestas que apontam para notas inexistentes, ignorando tags)
+	//
+	// O alvo de uma aresta `references_code` (ADR-061) é um NÓ de código
+	// (`type='code_symbol'`, id = "code:<repository>:<qualified_name>") — ele
+	// não é documento, mas também não está quebrado: o nó existe no grafo.
+	// Sem esta cláusula, todas as arestas da ponte contavam como link morto
+	// (ISSUE-036). O escopo de repositório é o mesmo da aresta: no PostgreSQL
+	// a identidade do nó é (repository, id).
 	deadRows, err := s.db.QueryContext(ctx, `
 		SELECT e.source_id, e.target_id, e.relation
 		FROM graph_edges e
@@ -98,8 +113,9 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 		  AND e.target_id NOT LIKE '#%'
 		  AND e.target_id NOT IN (SELECT id FROM documents WHERE repository = $1)
 		  AND e.target_id NOT IN (SELECT title FROM documents WHERE repository = $1)
+		  AND e.target_id NOT IN (SELECT id FROM graph_nodes WHERE repository = $1 AND type = $2)
 		ORDER BY e.source_id, e.target_id
-	`, repo)
+	`, repo, codeSymbolNodeType)
 	if err == nil {
 		defer deadRows.Close()
 		for deadRows.Next() {
@@ -255,7 +271,8 @@ func (s *PostgresStore) FixHealthIssues(ctx context.Context, repo string) (int, 
 		  AND target_id NOT LIKE '#%'
 		  AND target_id NOT IN (SELECT id FROM documents WHERE repository = $1)
 		  AND target_id NOT IN (SELECT title FROM documents WHERE repository = $1)
-	`, repo)
+		  AND target_id NOT IN (SELECT id FROM graph_nodes WHERE repository = $1 AND type = $2)
+	`, repo, codeSymbolNodeType)
 	if err != nil {
 		return 0, err
 	}
