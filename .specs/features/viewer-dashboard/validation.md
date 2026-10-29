@@ -209,7 +209,7 @@ sem participação na implementação. O veredito dele foi **PASS-WITH-GAPS**.
 | Verificação | Método | Resultado |
 |---|---|---|
 | Gramática Go × TS | **diferencial**: 30 casos de `parseWikilink` + 9 corpos Markdown + 13 relações, com `internal/parser` e `viewer/src/lib/wikilinks.ts` executados de verdade | **0 divergências** — os campos `target`, `relation`, `anchor`, `blockId`, `alias`, `isSameDoc`, `isFederated`, `federatedRepo` e `federatedPath` idênticos dos dois lados |
-| Forma × zod, campo a campo | leitura comparativa Go × `viewer/src/lib/schemas.ts` | os 10 payloads batem em nomes e tipos |
+| Forma × zod, campo a campo | leitura comparativa Go × `viewer/src/lib/schemas.ts` | os 10 payloads batem em nomes e tipos — **com uma ressalva desde 2026-10-29**: `memory_doctor.health_score` passou a ser **anulável** (o campo **não viaja** no payload quando o Health Score não se aplica, porque o vault não tem documentos indexados). O `zod` do repositório passou a tolerar **ausência e `null`** (`z.pipe(z.nullish(...), z.transform(...))`), e o tile do Overview mostra "—" com o rótulo "vault sem documentos". Detalhe: `.specs/features/doctor-empty-vault-score/` |
 | `null` × `undefined` no zod | `zod/mini` 4.6.7 do repositório | `z.optional(z.array(...)).safeParse(null)` → **FAIL**; `undefined` → passa. A base do achado A1 |
 | Payload real do drift | handler Go real → JSON → `driftReportSchema` real do repositório | **FAIL** em `drifted_notes` e `uncovered_code` — achado A1, **corrigido nesta rodada** |
 | Tabela de casos espelhada | ADR-060 D-2 vs `viewer/src/lib/wikilinks.test.ts` | a mitigação é **real**: os 13 casos (9 formas + 4 contextos) existem dos dois lados |

@@ -39,7 +39,7 @@ Result: PASS
 ### Linha de Comando e Catálogo Global (`cmd/mem`)
 - [x] **Assistente `mem setup`**: Configuração interativa e não-interativa (`--yes`) gravando em `~/.memory/config.yaml` (`cmd/mem/setup_test.go:19`).
 - [x] **Subcomandos `mem central status` e `mem central bootstrap`**: Auditoria de conectividade e inicialização de vault virgem sob demanda (`cmd/mem/setup_test.go:50`).
-- [x] **Catálogo `mem repos`**: Listagem tabular de todos os repositórios registrados com detecção de integridade em disco (`cmd/mem/setup_test.go:83`).
+- [x] **Catálogo `mem repos`**: Listagem tabular de todos os repositórios registrados com detecção de integridade em disco (`cmd/mem/setup_test.go:83`). **Desde 2026-10-29 (ISSUE-028)** o comando também **audita a identidade**: compara o `id` de cada entrada do catálogo com o `repo_id` declarado no `.memory/config.yaml` do path registrado, marca a divergência com `❌` e sai com **código ≠ 0** — trocando o casamento silencioso por caminho por erro explícito. Spec: `.specs/features/repo-id-alignment/`.
 - [x] **Zero-Credentials no Git**: Template de `mem init` não contém bloco de credenciais de banco de dados (`cmd/mem/main.go:802`).
 - [x] **Auditoria e Status**: `mem status` exibe `Repo ID` imutável e conectividade do Cofre Central (`cmd/mem/status.go:107`).
 
