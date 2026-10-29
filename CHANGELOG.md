@@ -248,6 +248,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`mem doctor` dava Health Score 100/100 num vault que nunca foi indexado.** A
+  métrica é uma razão sobre a população de documentos indexados, mas o cálculo
+  inteiro estava dentro de `if report.TotalDocuments > 0` — num vault vazio a
+  guarda pulava tudo e o score ficava no valor inicial `100`, a nota máxima. O
+  relatório deixou de distinguir "vault saudável" de "vault inexistente", que é
+  justamente o uso principal dele. A guarda **e** a matemática de penalidades
+  estavam duplicadas nos dois motores (SQLite e PostgreSQL), e foi essa
+  duplicação que produziu o defeito.
+  - O Health Score agora **só se aplica a um vault com documentos indexados**.
+    Sem documentos, o relatório diz **"não se aplica"** e aponta a ação de
+    recuperação (`mem index`); no CLI o indicador visual é neutro (⚪) em vez
+    de verde. Um vault nunca indexado não é um vault doente.
+  - No payload público da tool MCP `memory_doctor`, `health_score` passou a ser
+    **anulável**: quando o score não se aplica, a chave **não viaja** no payload.
+    Ausência **não** é 0 (saúde catastrófica) e **não** é 100 (saúde perfeita). O
+    campo viaja ausente, e não `null`, porque o contrato do wire do
+    `structuredContent` proíbe `null` — a viewer valida com `zod/mini`, que aceita
+    ausência mas rejeita `null`. O JSON dos vaults com documentos continua
+    **byte-idêntico**. A viewer tolera ausência e `null`, e mostra "—" com o
+    rótulo "vault sem documentos".
+  - A matemática das penalidades da ADR-013 (5 por dead link, até 40; órfãs
+    proporcionais, até 30; 5 por self-loop, até 15; 2 por chunk dessincronizado,
+    até 15) foi extraída para **uma função só**, compartilhada pelos dois
+    motores — para que o defeito não reapareça em um deles só. O caminho
+    saudável não regrediu: 100 no relatório perfeito, 90 com 2 dead links, 87
+    com órfã + self-loop.
+  - Spec e evidências: `.specs/features/doctor-empty-vault-score/`.
 - **A suíte de testes escrevia no Postgres real do dono.** `internal/db` e
   `internal/store` não tinham `TestMain` neutralizando `MY_MEMORY_PG_URL` — que tem
   precedência sobre qualquer config — então os testes de integração desses pacotes

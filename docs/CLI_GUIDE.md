@@ -378,7 +378,7 @@ Audita a saúde do grafo e tabelas relacionais de conhecimento:
 * Identifica **Notas Órfãs** (documentos sem conexões de entrada ou saída).
 * Identifica **Self-Loops** (notas apontando reflexivamente para si mesmas).
 * Identifica **Ortografia** (termos em português escrito sem acento — ISSUE-017, em [`.specs/ISSUES.md`](../.specs/ISSUES.md)).
-* Calcula o **Health Score** (0 a 100).
+* Calcula o **Health Score** (0 a 100) — **só se aplica a um vault com documentos indexados**. Sem nenhum documento indexado a métrica não tem denominador, e o relatório diz **"não se aplica"** em vez de anunciar uma nota máxima: um vault nunca indexado não é um vault doente (ISSUE-019). Rode `mem index` para popular o vault e medir a saúde do grafo.
 * A flag `--fix` remove automaticamente conexões mortas e loops conhecidos.
 * A flag `--events` acrescenta uma seção **Events** com a saúde do `event_runtime` (ADR-043): tamanho do buffer, último `sequence_id` e erros de escrita.
 

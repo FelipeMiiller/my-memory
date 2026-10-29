@@ -150,7 +150,15 @@ type DoctorReport struct {
 	TotalChunks    int `json:"total_chunks"`
 	TotalEdges     int `json:"total_edges"`
 	TotalNodes     int `json:"total_nodes"`
-	HealthScore    int `json:"health_score"` // 0 a 100
+	// HealthScore é anulável: ausente do payload significa "não se aplica" — o
+	// vault não tem documentos indexados, então a métrica não tem denominador
+	// e não existe (ISSUE-019). Não é 0 (saúde catastrófica) nem 100 (saúde
+	// perfeita). Um vault nunca indexado não é um vault doente.
+	//
+	// O campo viaja ausente, e não `null`: o contrato do wire proíbe null
+	// (TestStructuredContentNeverEmitsNullArrays) e a viewer lê ausência como
+	// `undefined` (zod/mini `.optional()`).
+	HealthScore *int `json:"health_score,omitempty"`
 	// ADR-057: documentos com mtime = 0 foram indexados antes de a coluna
 	// existir. Sem esta contagem o agente não tem como saber que o índice
 	// conhece a nota mas não sabe quando ela foi editada.
@@ -831,7 +839,16 @@ func FormatDoctorReport(report *DoctorReport, fixedCount int) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("# 🩺 Diagnóstico de Memória & Grafo (Health Score: %d/100)\n\n", report.HealthScore))
+	if report.HealthScore == nil {
+		// ISSUE-019: sem documentos indexados a métrica não tem denominador.
+		// Dizer "não se aplica" é honesto; dizer 0 accuse um vault intacto e
+		// dizer 100 (o que acontecia) acusa um vault inexistente de perfeito.
+		sb.WriteString("# 🩺 Diagnóstico de Memória & Grafo (Health Score: não se aplica)\n\n")
+		sb.WriteString("⚠️ **Vault sem documentos indexados** — o Health Score não se aplica: a métrica precisa de pelo menos um documento indexado para ter denominador.\n")
+		sb.WriteString("Rode `mem index` para popular o vault e medir a saúde do grafo.\n\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("# 🩺 Diagnóstico de Memória & Grafo (Health Score: %d/100)\n\n", *report.HealthScore))
+	}
 	sb.WriteString(fmt.Sprintf("- **Documentos**: %d | **Chunks**: %d | **Arestas**: %d | **Nós**: %d\n",
 		report.TotalDocuments, report.TotalChunks, report.TotalEdges, report.TotalNodes))
 
@@ -854,7 +871,12 @@ func FormatDoctorReport(report *DoctorReport, fixedCount int) string {
 		}
 		sb.WriteString("\n")
 	} else {
-		sb.WriteString("## 🔗 Links Quebrados\n- Nenhum dead link detectado. Todas as conexões apontam para notas existentes.\n\n")
+		sb.WriteString("## 🔗 Links Quebrados\n")
+		if report.HealthScore == nil {
+			sb.WriteString("- Nenhum dead link detectado — o vault ainda não tem documentos indexados.\n\n")
+		} else {
+			sb.WriteString("- Nenhum dead link detectado. Todas as conexões apontam para notas existentes.\n\n")
+		}
 	}
 
 	if len(report.OrphanNotes) > 0 {
@@ -868,7 +890,12 @@ func FormatDoctorReport(report *DoctorReport, fixedCount int) string {
 		}
 		sb.WriteString("\n")
 	} else {
-		sb.WriteString("## 🏝️ Notas Órfãs\n- Nenhuma nota órfã detectada. Todo o conhecimento está interligado no grafo.\n\n")
+		sb.WriteString("## 🏝️ Notas Órfãs\n")
+		if report.HealthScore == nil {
+			sb.WriteString("- Nenhuma nota órfã detectada — o vault ainda não tem documentos indexados.\n\n")
+		} else {
+			sb.WriteString("- Nenhuma nota órfã detectada. Todo o conhecimento está interligado no grafo.\n\n")
+		}
 	}
 
 	if len(report.SelfLoops) > 0 {
@@ -926,7 +953,9 @@ func NewMemoryDoctorHandler(diagnoseFn DoctorDiagnoseFunc, fixFn DoctorFixFunc) 
 			return nil, NewError(CodeInternalError, fmt.Sprintf("Erro ao auditar integridade da memória: %v", err), nil)
 		}
 
-		// structuredContent: {total_documents: number, total_chunks: number, total_edges: number, total_nodes: number, health_score: number, missing_mtime_count: number, dead_links: [{source_id: string, target_id: string, relation: string}], orphan_notes: [{id: string, title: string}], self_loops: [{node_id: string, relation: string}], desynced_chunks: [{chunk_id: string, document_id: string, issue: string}]}
+		// structuredContent: {total_documents: number, total_chunks: number, total_edges: number, total_nodes: number, health_score: number (ausente quando não se aplica), missing_mtime_count: number, dead_links: [{source_id: string, target_id: string, relation: string}], orphan_notes: [{id: string, title: string}], self_loops: [{node_id: string, relation: string}], desynced_chunks: [{chunk_id: string, document_id: string, issue: string}]}
+		// health_score fica ausente quando o vault não tem documentos indexados:
+		// a métrica não tem denominador e não se aplica (ISSUE-019).
 		if report == nil {
 			report = &DoctorReport{}
 		}

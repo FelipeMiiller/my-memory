@@ -724,6 +724,14 @@ func TestFormatInsights_Empty(t *testing.T) {
 	}
 }
 
+// healthScorePtr monta o valor anulável do Health Score do relatório.
+//
+// O score é anulável porque a métrica só existe quando o vault tem documentos
+// indexados (ISSUE-019): nil significa "não se aplica".
+func healthScorePtr(score int) *int {
+	return &score
+}
+
 func TestServer_ToolsCall_MemoryDoctor_Success(t *testing.T) {
 	in := `{"jsonrpc": "2.0", "id": 60, "method": "tools/call", "params": {"name": "memory_doctor", "arguments": {"repository": "my-repo"}}}` + "\n"
 	var out bytes.Buffer
@@ -742,7 +750,7 @@ func TestServer_ToolsCall_MemoryDoctor_Success(t *testing.T) {
 				TotalChunks:    15,
 				TotalEdges:     10,
 				TotalNodes:     8,
-				HealthScore:    90,
+				HealthScore:    healthScorePtr(90),
 				DeadLinks: []DeadLink{
 					{SourceID: "notes/a.md", TargetID: "Ghost", Relation: "links_to"},
 				},
@@ -788,7 +796,7 @@ func TestServer_ToolsCall_MemoryDoctor_WithFix(t *testing.T) {
 		func(ctx context.Context, repo string) (*DoctorReport, error) {
 			return &DoctorReport{
 				TotalDocuments: 3,
-				HealthScore:    100,
+				HealthScore:    healthScorePtr(100),
 			}, nil
 		},
 		func(ctx context.Context, repo string) (int, error) {
@@ -826,7 +834,7 @@ func TestServer_ToolsCall_MemoryDoctor_ReportaMTimeFaltante(t *testing.T) {
 		func(ctx context.Context, repo string) (*DoctorReport, error) {
 			return &DoctorReport{
 				TotalDocuments:    4,
-				HealthScore:       95,
+				HealthScore:       healthScorePtr(95),
 				MissingMTimeCount: 3,
 				DeadLinks:         []DeadLink{},
 				OrphanNotes:       []OrphanNote{},
@@ -865,7 +873,7 @@ func TestServer_ToolsCall_MemoryDoctor_ReportaMTimeFaltante(t *testing.T) {
 func TestFormatDoctorReport_SemMTimeNaoPolui(t *testing.T) {
 	report := &DoctorReport{
 		TotalDocuments: 4,
-		HealthScore:    100,
+		HealthScore:    healthScorePtr(100),
 		DeadLinks:      []DeadLink{},
 		OrphanNotes:    []OrphanNote{},
 		SelfLoops:      []SelfLoop{},
@@ -874,6 +882,117 @@ func TestFormatDoctorReport_SemMTimeNaoPolui(t *testing.T) {
 	text := FormatDoctorReport(report, 0)
 	if strings.Contains(text, "sem mtime") {
 		t.Errorf("vault com MissingMTimeCount = 0 não deveria mencionar mtime ausente:\n%s", text)
+	}
+}
+
+// TestFormatDoctorReport_VazioNaoSeAplica fecha a ISSUE-019 na camada MCP:
+// um vault sem documentos indexados não tem denominador para a métrica, então
+// o relatório diz "não se aplica" em vez de anunciar uma nota máxima.
+func TestFormatDoctorReport_VazioNaoSeAplica(t *testing.T) {
+	report := &DoctorReport{
+		TotalDocuments: 0,
+		DeadLinks:      []DeadLink{},
+		OrphanNotes:    []OrphanNote{},
+		SelfLoops:      []SelfLoop{},
+	}
+
+	text := FormatDoctorReport(report, 0)
+	if strings.Contains(text, "Health Score: 100/100") {
+		t.Errorf("vault vazio não pode ser anunciado como 100/100:\n%s", text)
+	}
+	if !strings.Contains(text, "não se aplica") {
+		t.Errorf("o relatório deveria dizer que o score não se aplica:\n%s", text)
+	}
+	if !strings.Contains(text, "sem documentos indexados") {
+		t.Errorf("o relatório deveria dizer que o vault não tem documentos indexados:\n%s", text)
+	}
+	if !strings.Contains(text, "mem index") {
+		t.Errorf("o relatório precisa indicar a ação de recuperação:\n%s", text)
+	}
+}
+
+// TestServer_ToolsCall_MemoryDoctor_VazioNaoEmiteHealthScore fixa o contrato
+// do payload: num vault sem documentos indexados o campo health_score viaja
+// AUSENTE (não `null`, não 0, não 100). Ausência é o "não se aplica" do
+// contrato do wire, que proíbe null.
+func TestServer_ToolsCall_MemoryDoctor_VazioNaoEmiteHealthScore(t *testing.T) {
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(""), &bytes.Buffer{}, nil)
+	srv.SetDoctorHandler(
+		func(ctx context.Context, repo string) (*DoctorReport, error) {
+			return &DoctorReport{
+				TotalDocuments: 0,
+				DeadLinks:      []DeadLink{},
+				OrphanNotes:    []OrphanNote{},
+				SelfLoops:      []SelfLoop{},
+			}, nil
+		},
+		nil,
+	)
+
+	handler := srv.toolHandlers["memory_doctor"]
+	if handler == nil {
+		t.Fatalf("memory_doctor sem executor após SetDoctorHandler")
+	}
+
+	callRes, callErr := handler(context.Background(), json.RawMessage(`{}`))
+	if callErr != nil {
+		t.Fatalf("erro inesperado: %v", callErr)
+	}
+
+	result, ok := callRes.(CallToolResult)
+	if !ok || len(result.Content) == 0 {
+		t.Fatalf("resultado inválido: %+v", callRes)
+	}
+
+	payload, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("falha ao serializar o payload: %v", err)
+	}
+	if strings.Contains(string(payload), "health_score") {
+		t.Errorf("health_score deveria viajar ausente num vault sem documentos:\n%s", payload)
+	}
+	if strings.Contains(string(payload), ":null") {
+		t.Errorf("o payload não pode serializar null:\n%s", payload)
+	}
+	if !strings.Contains(result.Content[0].Text, "não se aplica") {
+		t.Errorf("o texto legível deveria declarar que o score não se aplica:\n%s", result.Content[0].Text)
+	}
+}
+
+// TestServer_ToolsCall_MemoryDoctor_ComDocumentosEmiteHealthScore garante o
+// caminho saudável no payload: com documentos indexados o campo health_score
+// continua presente e numérico.
+func TestServer_ToolsCall_MemoryDoctor_ComDocumentosEmiteHealthScore(t *testing.T) {
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(""), &bytes.Buffer{}, nil)
+	srv.SetDoctorHandler(
+		func(ctx context.Context, repo string) (*DoctorReport, error) {
+			return &DoctorReport{
+				TotalDocuments: 7,
+				HealthScore:    healthScorePtr(100),
+				DeadLinks:      []DeadLink{},
+				OrphanNotes:    []OrphanNote{},
+				SelfLoops:      []SelfLoop{},
+			}, nil
+		},
+		nil,
+	)
+
+	handler := srv.toolHandlers["memory_doctor"]
+	callRes, callErr := handler(context.Background(), json.RawMessage(`{}`))
+	if callErr != nil {
+		t.Fatalf("erro inesperado: %v", callErr)
+	}
+
+	result := callRes.(CallToolResult)
+	payload, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("falha ao serializar o payload: %v", err)
+	}
+	if !strings.Contains(string(payload), `"health_score":100`) {
+		t.Errorf("health_score deveria continuar presente e numérico:\n%s", payload)
+	}
+	if !strings.Contains(result.Content[0].Text, "Health Score: 100/100") {
+		t.Errorf("o texto legível deveria continuar anunciando o score:\n%s", result.Content[0].Text)
 	}
 }
 

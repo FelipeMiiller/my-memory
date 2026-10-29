@@ -349,43 +349,12 @@ func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error
 		}
 	}
 
-	// 6. Cálculo de Health Score (0 a 100)
-	score := 100
-	if report.TotalDocuments > 0 {
-		// Penalidade por Dead Links: até 40 pontos (5 pts cada)
-		deadPenalty := len(report.DeadLinks) * 5
-		if deadPenalty > 40 {
-			deadPenalty = 40
-		}
-		score -= deadPenalty
-
-		// Penalidade por Orphan Notes: até 30 pontos proporcional
-		orphanRatio := float64(len(report.OrphanNotes)) / float64(report.TotalDocuments)
-		orphanPenalty := int(orphanRatio * 40.0)
-		if orphanPenalty > 30 {
-			orphanPenalty = 30
-		}
-		score -= orphanPenalty
-
-		// Penalidade por Self-Loops: até 15 pontos (5 pts cada)
-		loopPenalty := len(report.SelfLoops) * 5
-		if loopPenalty > 15 {
-			loopPenalty = 15
-		}
-		score -= loopPenalty
-
-		// Penalidade por Chunks dessincronizados: até 15 pontos (2 pts cada)
-		desyncPenalty := len(report.DesyncedChunks) * 2
-		if desyncPenalty > 15 {
-			desyncPenalty = 15
-		}
-		score -= desyncPenalty
-
-		if score < 0 {
-			score = 0
-		}
-	}
-	report.HealthScore = score
+	// 6. Cálculo de Health Score (0 a 100). ISSUE-019: a guarda que pulava o
+	// cálculo inteiro quando o vault não tinha documentos deixava o score no
+	// valor inicial (100) — nota máxima para um vault que não existe. A
+	// matemática é compartilhada com o PostgreSQL (store.CalculateHealthScore)
+	// e o score só existe quando há denominador.
+	report.HealthScore = store.CalculateHealthScore(*report)
 
 	// 7. Aviso de ortografia (ISSUE-017). Fica DEPOIS do Health Score de propósito:
 	// "sao" e "são" tokenizam diferente e a busca falha, mas isso não é corrupção

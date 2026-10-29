@@ -3610,18 +3610,31 @@ func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
 		return
 	}
 
+	// ISSUE-019: o Health Score só existe quando o vault tem documentos
+	// indexados. Sem denominador, o dashboard não apresenta número nenhum —
+	// 0 acusaria um vault intacto e 100 (o defeito) acusaria um vault
+	// inexistente de perfeito.
+	aplicavel := report.HealthScoreApplicable()
 	scoreColor := "🟢"
-	if report.HealthScore < 70 {
+	scoreText := fmt.Sprintf("%d/100", report.HealthScore)
+	if !aplicavel {
+		scoreColor = "⚪"
+		scoreText = "não se aplica"
+	} else if report.HealthScore < 70 {
 		scoreColor = "🔴"
 	} else if report.HealthScore < 90 {
 		scoreColor = "🟡"
 	}
 
 	fmt.Println("\n" + strings.Repeat("=", 90))
-	fmt.Printf(" %s RELATÓRIO DE SAÚDE DA MEMÓRIA & GRAFO (Health Score: %d/100)\n", scoreColor, report.HealthScore)
+	fmt.Printf(" %s RELATÓRIO DE SAÚDE DA MEMÓRIA & GRAFO (Health Score: %s)\n", scoreColor, scoreText)
 	fmt.Println(strings.Repeat("=", 90))
 	fmt.Printf(" Documentos: %d | Chunks: %d | Arestas: %d | Nós: %d\n",
 		report.TotalDocuments, report.TotalChunks, report.TotalEdges, report.TotalNodes)
+	if !aplicavel {
+		fmt.Println(" ⚠ Vault sem documentos indexados — o Health Score não se aplica (a métrica exige ao menos um documento indexado).")
+		fmt.Println("   Rode 'mem index' para popular o vault e medir a saúde do grafo.")
+	}
 	// ADR-057: documentos sem mtime não são stales — são documentos cujos
 	// metadados de arquivo nunca foram capturados (índice anterior à coluna).
 	if report.MissingMTimeCount > 0 {
@@ -3636,7 +3649,11 @@ func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
 	// Dead Links
 	fmt.Printf(" [🔗 Links Quebrados / Dead Links] (%d)\n", len(report.DeadLinks))
 	if len(report.DeadLinks) == 0 {
-		fmt.Println("  ✔ Nenhum link quebrado detectado. Todas as conexões apontam para notas existentes.")
+		if aplicavel {
+			fmt.Println("  ✔ Nenhum link quebrado detectado. Todas as conexões apontam para notas existentes.")
+		} else {
+			fmt.Println("  · Nenhum link quebrado — o vault ainda não tem documentos indexados.")
+		}
 	} else {
 		for i, dl := range report.DeadLinks {
 			if i >= 15 {
@@ -3651,7 +3668,11 @@ func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
 	// Orphan Notes
 	fmt.Printf(" [🏝️  Notas Órfãs / Sem Conexões] (%d)\n", len(report.OrphanNotes))
 	if len(report.OrphanNotes) == 0 {
-		fmt.Println("  ✔ Nenhuma nota isolada. Todos os documentos possuem ao menos 1 conexão.")
+		if aplicavel {
+			fmt.Println("  ✔ Nenhuma nota isolada. Todos os documentos possuem ao menos 1 conexão.")
+		} else {
+			fmt.Println("  · Nenhuma nota órfã — o vault ainda não tem documentos indexados.")
+		}
 	} else {
 		for i, on := range report.OrphanNotes {
 			if i >= 15 {
@@ -3703,6 +3724,20 @@ func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
 	fmt.Println()
 }
 
+// healthScoreForMCP converte o Health Score interno no valor anulável do
+// payload MCP.
+//
+// Um vault sem documentos indexados não tem denominador para a métrica: o
+// score não se aplica e a chave sai ausente do payload (ISSUE-019). O valor
+// interno nesse caso é inerte (0) e nunca é apresentado como veredito.
+func healthScoreForMCP(rep *store.DoctorReport) *int {
+	if rep == nil || !rep.HealthScoreApplicable() {
+		return nil
+	}
+	score := rep.HealthScore
+	return &score
+}
+
 func convertStoreDoctorReportToMCP(rep *store.DoctorReport) *mcp.DoctorReport {
 	if rep == nil {
 		return nil
@@ -3712,7 +3747,7 @@ func convertStoreDoctorReportToMCP(rep *store.DoctorReport) *mcp.DoctorReport {
 		TotalChunks:       rep.TotalChunks,
 		TotalEdges:        rep.TotalEdges,
 		TotalNodes:        rep.TotalNodes,
-		HealthScore:       rep.HealthScore,
+		HealthScore:       healthScoreForMCP(rep),
 		MissingMTimeCount: rep.MissingMTimeCount,
 		DeadLinks:         make([]mcp.DeadLink, len(rep.DeadLinks)),
 		OrphanNotes:       make([]mcp.OrphanNote, len(rep.OrphanNotes)),

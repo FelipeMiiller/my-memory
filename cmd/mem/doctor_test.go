@@ -14,6 +14,7 @@ import (
 
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/event_runtime"
+	"github.com/FelipeMiiller/my-memory/internal/store"
 )
 
 // seedEventLogForDoctor creates a tempdir with .memory/config.yaml and an
@@ -126,6 +127,104 @@ func runMemDoctor(t *testing.T, rootDir string, args ...string) (string, string,
 		t.Fatalf("run mem: %v", execErr)
 	}
 	return out.String(), errOut.String(), exit
+}
+
+// TestDoctor_EmptyVault_DoesNotReportPerfectScore fecha a ISSUE-019 no binário
+// real: um vault sem documentos indexados não pode receber a nota máxima.
+//
+// O defeito original imprimia "Health Score: 100/100" com 0 documentos — a
+// métrica não distinguia "vault saudável" de "vault inexistente".
+func TestDoctor_EmptyVault_DoesNotReportPerfectScore(t *testing.T) {
+	rootDir := t.TempDir()
+	dbPath := filepath.Join(rootDir, "vault-vazio.db")
+
+	stdout, stderr, exit := runMemDoctor(t, rootDir, "doctor", "--storage=sqlite", "--db", dbPath, "--repo", "acme")
+	if exit != 0 {
+		t.Fatalf("exit=%d stderr=%s stdout=%s", exit, stderr, stdout)
+	}
+
+	if strings.Contains(stdout, "Health Score: 100/100") {
+		t.Errorf("vault vazio não pode reportar Health Score 100/100:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "não se aplica") {
+		t.Errorf("vault vazio deveria declarar que o score não se aplica:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "Vault sem documentos indexados") {
+		t.Errorf("vault vazio deveria dizer que não tem documentos indexados:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "mem index") {
+		t.Errorf("o relatório precisa indicar a ação de recuperação:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "🟢") {
+		t.Errorf("vault vazio não pode receber o indicador de saúde verde:\n%s", stdout)
+	}
+}
+
+// TestDoctor_IndexedVault_KeepsHealthScore garante o caminho saudável: um
+// vault indexado e sem anomalias continua reportando 100/100. É a regressão
+// contra a correção da ISSUE-019 — o score não pode ser desligado junto.
+func TestDoctor_IndexedVault_KeepsHealthScore(t *testing.T) {
+	rootDir := t.TempDir()
+	dbPath := filepath.Join(rootDir, "vault-cheio.db")
+
+	database, err := db.InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	ctx := context.Background()
+	for _, d := range []struct{ id, path string }{
+		{"nota-a", "notas/a.md"},
+		{"nota-b", "notas/b.md"},
+	} {
+		if err := db.InsertDocumentWithMeta(ctx, database, d.id, d.path, d.id, 1_700_000_000, "hash-"+d.id, "", "Resumo", "resource", 1_700_000_000, 100); err != nil {
+			database.Close()
+			t.Fatalf("insert falhou: %v", err)
+		}
+	}
+	// Wikilink entre as duas notas: nenhuma órfã, nenhum dead link.
+	if err := db.InsertEdge(ctx, database, "nota-a", "nota-b", "links_to"); err != nil {
+		database.Close()
+		t.Fatalf("insert edge falhou: %v", err)
+	}
+	database.Close()
+
+	stdout, stderr, exit := runMemDoctor(t, rootDir, "doctor", "--storage=sqlite", "--db", dbPath, "--repo", "acme")
+	if exit != 0 {
+		t.Fatalf("exit=%d stderr=%s stdout=%s", exit, stderr, stdout)
+	}
+
+	if !strings.Contains(stdout, "Health Score: 100/100") {
+		t.Errorf("vault indexado sem anomalias deveria reportar Health Score 100/100:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "não se aplica") {
+		t.Errorf("vault indexado não deveria declarar o score como não aplicável:\n%s", stdout)
+	}
+}
+
+// TestHealthScoreForMCP_VazioNaoEmiteScore cobre a conversão store → MCP: um
+// vault sem documentos indexados não pode virar health_score no payload. É o
+// caminho de produção do structuredContent da ferramenta memory_doctor.
+func TestHealthScoreForMCP_VazioNaoEmiteScore(t *testing.T) {
+	rep := &store.DoctorReport{TotalDocuments: 0, HealthScore: 100}
+
+	got := healthScoreForMCP(rep)
+	if got != nil {
+		t.Fatalf("vault sem documentos não pode emitir health_score, obteve %d", *got)
+	}
+}
+
+// TestHealthScoreForMCP_ComDocumentosEmiteScore garante o caminho saudável da
+// conversão: com documentos indexados o score viaja como número.
+func TestHealthScoreForMCP_ComDocumentosEmiteScore(t *testing.T) {
+	rep := &store.DoctorReport{TotalDocuments: 3, HealthScore: 88}
+
+	got := healthScoreForMCP(rep)
+	if got == nil {
+		t.Fatal("vault com documentos indexados tem de emitir health_score")
+	}
+	if *got != 88 {
+		t.Fatalf("health_score = %d, esperava 88", *got)
+	}
 }
 
 // TestDoctor_EventsFlag_ReportsMetrics: setup 3 events (2 acked, 1 unacked);

@@ -240,6 +240,37 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 >
 > **Frase canônica:** flag CLI > variável de ambiente > config (global ou local) > SQLite auto-scope; a fonte que vence é registrada em log (`storage: <engine> (fonte: <origem>)`).
 
+> [!note]
+> **ADR-013: o Health Score é "não aplicável" quando o vault não tem documentos indexados.**
+> O corpo da ADR é imutável, e o contrato que ela define — *Health Score* de 0 a 100
+> com penalidades graduadas — **continua valendo integralmente** para qualquer vault
+> com documentos indexados. O que a correção de 2026-10-28 (ISSUE-019) acrescenta é a
+> **precondição de aplicabilidade**: o Health Score é uma razão sobre a população de
+> documentos indexados, e sem documentos ele não tem denominador. Antes, a guarda
+> (`if report.TotalDocuments > 0`) pulava o cálculo inteiro e o relatório ficava com o
+> valor inicial `100` — um vault nunca indexado saía com a nota máxima.
+>
+> Três consequências concretas:
+> - No payload público da tool MCP `memory_doctor`, `health_score` é **anulável**:
+>   quando o score não se aplica, a chave **não viaja** no payload (`omitempty`).
+>   Ausência **não** é 0 (saúde catastrófica) e **não** é 100 (saúde perfeita) — um
+>   vault nunca indexado não é um vault doente. O tipo interno
+>   `store.DoctorReport.HealthScore` continua `int`; a ausência nasce na conversão
+>   para o payload MCP. O campo viaja **ausente, e não `null`**, porque o contrato
+>   do wire do `structuredContent` proíbe `null`
+>   (`TestStructuredContentNeverEmitsNullArrays`, em
+>   `internal/mcp/structured_content_test.go`): o `encoding/json` serializa ponteiro
+>   nil como `null` quando o campo não tem `omitempty`, e a viewer — que valida com
+>   `zod/mini` — aceita ausência mas **rejeita** `null`, caindo no fallback textual.
+> - A regra de aplicabilidade é única: `DoctorReport.HealthScoreApplicable()`
+>   (`TotalDocuments > 0`).
+> - A matemática de penalidades passou a viver numa **função só**
+>   (`store.CalculateHealthScore`), usada pelo SQLite (`internal/db/graph.go`) e pelo
+>   PostgreSQL (`internal/store/doctor.go`). Antes a guarda *e* a matemática estavam
+>   duplicadas nos dois motores — e foi essa duplicação que produziu o defeito.
+>
+> Spec e evidências: `.specs/features/doctor-empty-vault-score/`.
+
 ---
 
 ## 🗄️ ADRs Obsoletas — viewer Electron (removido em 2026-10-18)

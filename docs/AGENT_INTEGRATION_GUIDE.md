@@ -341,7 +341,7 @@ As **doze** tools que preenchem o campo:
 
 | Tool | `structuredContent` |
 |---|---|
-| `memory_doctor` | `{total_documents, total_chunks, total_edges, total_nodes, health_score, missing_mtime_count, dead_links[], orphan_notes[], self_loops[], desynced_chunks[]}` |
+| `memory_doctor` | `{total_documents, total_chunks, total_edges, total_nodes, health_score, missing_mtime_count, dead_links[], orphan_notes[], self_loops[], desynced_chunks[]}` — `health_score` é **anulável**: quando o score não se aplica, a chave **não viaja** no payload (o vault não tem documentos indexados, então a métrica não tem denominador — ISSUE-019). Ausência **não** é 0 e **não** é 100. |
 | `memory_get_hubs` | `[{id, name, in_degree, out_degree, total_degree}]` (grau) ou `[{id, name, score, rank, in_degree, out_degree}]` (PageRank) |
 | `memory_get_clusters` | lista de clusters com modularidade e memberships |
 | `memory_get_insights` | `[{source_id, source_name, target_id, target_name, similarity, reason}]` |

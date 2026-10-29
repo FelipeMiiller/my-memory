@@ -437,7 +437,7 @@ O pacote `internal/graphview` compila a topologia do grafo em um artefato HTML/S
 ## 🔄 Higiene e Sincronização Contínua (ADR-013, ADR-017)
 
 * **Indexação Contínua (`mem watch`):** Monitoramento reativo em segundo plano com debouncing de 500ms, reindexação cirúrgica e remoção instantânea de arquivos deletados.
-* **Linter de Grafo (`mem doctor`):** Diagnóstico automático de links quebrados (*dead links*), notas órfãs, loops reflexivos (*self-loops*) e cálculo de Health Score (0-100), com reparo automático (`--fix`).
+* **Linter de Grafo (`mem doctor`):** Diagnóstico automático de links quebrados (*dead links*), notas órfãs, loops reflexivos (*self-loops*) e cálculo de Health Score (0-100), com reparo automático (`--fix`). O Health Score é uma razão sobre a população de documentos indexados: sem documentos ele **não se aplica** e o relatório diz isso explicitamente em vez de anunciar 100/100 (ISSUE-019).
 
 ---
 

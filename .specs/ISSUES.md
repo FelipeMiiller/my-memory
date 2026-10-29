@@ -612,9 +612,9 @@ Os negativos importam mais que os positivos — um detector que "corrige" palavr
 ## ISSUE-019 — `mem doctor` dá Health Score 100/100 num grafo vazio
 
 - **Severidade:** 🟡 medium
-- **Status:** 🔴 open
+- **Status:** ✅ **resolved** (2026-10-28) — o **Defeito 1** (grafo vazio pontua perfeito) foi **corrigido** pelo fluxo spec-driven; o **Defeito 2** (o vault deste repositório não está indexado) é **operação**, não código, e segue **pendente com o dono**
 - **Achado em:** sessão 2026-10-18 — tool MCP `memory_doctor` no vault `FelipeMiiller/my-memory`
-- **Relacionada:** `ISSUE-006` (Health Score persistentemente baixo), já aberta. Esta issue **não** a substitui e não a duplica — cross-referência.
+- **Relacionada:** `ISSUE-006` (Health Score persistentemente baixo), já aberta. Esta issue **não** a substitui e não a duplica — cross-referência. · ADR-013 (`docs/adr/013-higiene-de-grafo-pruning-e-doctor.md`) · spec `.specs/features/doctor-empty-vault-score/`
 
 **Evidência (saída do próprio MCP do projeto).** `memory_doctor` com `repository: FelipeMiiller/my-memory` retornou:
 
@@ -627,6 +627,32 @@ Os negativos importam mais que os positivos — um detector que "corrige" palavr
 **Defeito 2 — o vault deste repositório está efetivamente não indexado.** Os 8.094 arquivos modificados/novos do banner staleness, contra 0 documentos no grafo, são o mesmo fato visto de dois ângulos: a memória do próprio repositório não existe no banco. `mem index` no vault local resolve este; o Defeito 1 é a correção de código.
 
 **Por que não duplica `ISSUE-006`.** `ISSUE-006` trata o Health Score *persistentemente baixo* num vault indexado — é calibração de pesos. O caso daqui é o oposto e anterior na cadeia: score alto com grafo vazio, por uma guarda que pula o cálculo inteiro. As duas convivem; corrigir uma não arruma a outra.
+
+### Correção (2026-10-28) — fluxo spec-driven
+
+Spec: `.specs/features/doctor-empty-vault-score/` (`spec.md`, `tasks.md`, `validation.md`).
+
+**Causa-raiz completa.** A guarda `if report.TotalDocuments > 0` não estava só no PostgreSQL: a **matemática de penalidades inteira** estava duplicada nos dois motores — `internal/db/graph.go` (SQLite) e `internal/store/doctor.go` (PostgreSQL) — e em ambos o score começava em `100` e o cálculo era pulado quando não havia documentos. A duplicação foi o que escondeu o defeito.
+
+**O que mudou:**
+
+| Item | Antes | Agora |
+| :--- | :--- | :--- |
+| Regra de aplicabilidade | implícita, duplicada em 2 lugares | **uma** regra: `store.DoctorReport.HealthScoreApplicable()` (`TotalDocuments > 0`) |
+| Matemática das penalidades | copiada em 2 lugares | **uma** função: `store.CalculateHealthScore(report)`, usada pelos dois motores |
+| Relatório (CLI) | `🟢 … (Health Score: 100/100)` num vault vazio | `⚪ … (Health Score: não se aplica)` + o aviso e a ação (`mem index`) |
+| Relatório (MCP, Markdown) | `Health Score: 100/100` | `Health Score: não se aplica` + "vault sem documentos indexados" |
+| `structuredContent` | `health_score` sempre presente | `health_score` **anulável** — quando não se aplica, a chave **não viaja** (ausência ≠ 0 ≠ 100) |
+| Viewer | — | aceita ausência **e** `null`; o tile mostra "—" e "vault sem documentos" |
+| Caminho com documentos | 100 no relatório perfeito | **inalterado**: 100 perfeito, 90 com 2 dead links, 87 com órfã + self-loop; o JSON dos vaults com documentos continua **byte-idêntico** |
+
+**Prova contra o defeito.** O defeito foi reintroduzido em três pontos (o cálculo que voltava a 100, a conversão que voltava a emitir o número, a impressão que voltava a mostrar a nota) e **três camadas de teste falharam com o sintoma exato** — `TestDoctorHealthScore_VazioNaoSeAplica` ("obteve 100"), `TestDoctor_EmptyVault_DoesNotReportPerfectScore` (o binário real imprimindo `🟢 … 100/100` com 0 documentos) e `TestHealthScoreForMCP_VazioNaoEmiteScore`. Restaurado, os três passam.
+
+**Gate:** `go build`/`go vet`/`go test -count=1 ./...` exit 0 (26 pacotes `ok`); `gofmt -l` vazio; front-end — typecheck 0, **98/98** testes, build 0, **144.813/163.840 bytes gzip**; `validate_spec.py` / `validate_tasks.py` / `validate_state.py` sem erro.
+
+**Contrato público.** A ADR-013 continua válida: o Health Score de 0 a 100 com penalidades graduadas **não mudou**. O que mudou é a **precondição de aplicabilidade**, registrada como nota de vigência em `docs/adr/README.md`. O campo do payload viaja **ausente, e não `null`**, porque o contrato do wire do `structuredContent` proíbe `null` (`TestStructuredContentNeverEmitsNullArrays`).
+
+**O que fica pendente (não é código).** O **Defeito 2** — o vault deste repositório está efetivamente não indexado (0 documentos no grafo) — é **operação**: resolver com `mem index` no vault, decisão do dono. A correção de código acima não muda esse fato; ela só faz o relatório dizer a verdade enquanto ele durar.
 
 ---
 

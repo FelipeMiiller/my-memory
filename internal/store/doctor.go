@@ -4,6 +4,69 @@ import (
 	"context"
 )
 
+// HealthScoreApplicable reports whether the report's Health Score can be read
+// as a verdict.
+//
+// The metric is a ratio over the indexed documents: without documents there is
+// no denominator, so the score does not apply (ISSUE-019). A vault that was
+// never indexed is not a sick vault — there is nothing to penalize. This is the
+// single rule of applicability: the calculation and every consumer ask it.
+func (r DoctorReport) HealthScoreApplicable() bool {
+	return r.TotalDocuments > 0
+}
+
+// CalculateHealthScore computes the Health Score (0-100) from the anomalies
+// found in the report.
+//
+// The penalties are the ones established in ADR-013: 5 points per dead link
+// (max 40), the orphan ratio times 40 (max 30), 5 points per self-loop
+// (max 15) and 2 points per desynchronized chunk (max 15).
+//
+// A report with no indexed documents returns 0: the score has no denominator,
+// so it does not apply, and 0 here is an inert value — never a verdict. The
+// caller must consult HealthScoreApplicable before presenting it (ISSUE-019).
+func CalculateHealthScore(report DoctorReport) int {
+	if !report.HealthScoreApplicable() {
+		return 0
+	}
+
+	score := 100
+
+	// Penalidade por Dead Links: até 40 pontos (5 pts cada)
+	deadPenalty := len(report.DeadLinks) * 5
+	if deadPenalty > 40 {
+		deadPenalty = 40
+	}
+	score -= deadPenalty
+
+	// Penalidade por Orphan Notes: até 30 pontos proporcional
+	orphanRatio := float64(len(report.OrphanNotes)) / float64(report.TotalDocuments)
+	orphanPenalty := int(orphanRatio * 40.0)
+	if orphanPenalty > 30 {
+		orphanPenalty = 30
+	}
+	score -= orphanPenalty
+
+	// Penalidade por Self-Loops: até 15 pontos (5 pts cada)
+	loopPenalty := len(report.SelfLoops) * 5
+	if loopPenalty > 15 {
+		loopPenalty = 15
+	}
+	score -= loopPenalty
+
+	// Penalidade por Chunks dessincronizados: até 15 pontos (2 pts cada)
+	desyncPenalty := len(report.DesyncedChunks) * 2
+	if desyncPenalty > 15 {
+		desyncPenalty = 15
+	}
+	score -= desyncPenalty
+
+	if score < 0 {
+		score = 0
+	}
+	return score
+}
+
 // DiagnoseHealth audita a integridade topológica do grafo e tabelas relacionais no PostgreSQL
 func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*DoctorReport, error) {
 	if repo == "" {
@@ -111,39 +174,12 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 		}
 	}
 
-	// 6. Cálculo de Health Score (0 a 100)
-	score := 100
-	if report.TotalDocuments > 0 {
-		deadPenalty := len(report.DeadLinks) * 5
-		if deadPenalty > 40 {
-			deadPenalty = 40
-		}
-		score -= deadPenalty
-
-		orphanRatio := float64(len(report.OrphanNotes)) / float64(report.TotalDocuments)
-		orphanPenalty := int(orphanRatio * 40.0)
-		if orphanPenalty > 30 {
-			orphanPenalty = 30
-		}
-		score -= orphanPenalty
-
-		loopPenalty := len(report.SelfLoops) * 5
-		if loopPenalty > 15 {
-			loopPenalty = 15
-		}
-		score -= loopPenalty
-
-		desyncPenalty := len(report.DesyncedChunks) * 2
-		if desyncPenalty > 15 {
-			desyncPenalty = 15
-		}
-		score -= desyncPenalty
-
-		if score < 0 {
-			score = 0
-		}
-	}
-	report.HealthScore = score
+	// 6. Cálculo de Health Score (0 a 100). ISSUE-019: a guarda que pulava o
+	// cálculo inteiro quando o vault não tinha documentos deixava o score no
+	// valor inicial (100) — nota máxima para um vault que não existe. Agora a
+	// matemática vive em CalculateHealthScore, compartilhada com o SQLite, e o
+	// score só existe quando há denominador.
+	report.HealthScore = CalculateHealthScore(*report)
 
 	// 7. Aviso de ortografia (ISSUE-017). Fica DEPOIS do Health Score de propósito:
 	// "sao" e "são" tokenizam diferente e a busca falha, mas isso não é corrupção

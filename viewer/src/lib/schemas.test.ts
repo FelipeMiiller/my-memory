@@ -318,4 +318,65 @@ describe("schemas zod do contrato MCP", () => {
 
     expect(resultado.success).toBe(true)
   })
+
+  // ISSUES-019: num vault sem documentos indexados o Health Score não tem
+  // denominador e não se aplica. O Go manda `health_score: null` (ou omite a
+  // chave). Se a viewer rejeitasse esse payload, o painel do Overview deixaria
+  // de renderizar — o defeito trocaria "100/100 enganoso" por "painel quebrado".
+  it("memory_doctor aceita o payload de vault vazio com health_score null", () => {
+    const resultado = doctorReportSchema.safeParse({
+      total_documents: 0,
+      total_chunks: 0,
+      total_edges: 0,
+      total_nodes: 0,
+      health_score: null,
+      missing_mtime_count: 0,
+      dead_links: [],
+      orphan_notes: [],
+      self_loops: [],
+      desynced_chunks: [],
+    })
+
+    expect(
+      resultado.success,
+      "payload de vault vazio foi rejeitado pela viewer"
+    ).toBe(true)
+    if (resultado.success) {
+      expect(resultado.data.health_score).toBeUndefined()
+    }
+  })
+
+  it("memory_doctor aceita o payload de vault vazio sem a chave health_score", () => {
+    const resultado = doctorReportSchema.safeParse({
+      total_documents: 0,
+      total_chunks: 0,
+      total_edges: 0,
+      total_nodes: 0,
+      missing_mtime_count: 0,
+      dead_links: [],
+      orphan_notes: [],
+      self_loops: [],
+      desynced_chunks: [],
+    })
+
+    expect(
+      resultado.success,
+      "payload de vault vazio sem health_score foi rejeitado pela viewer"
+    ).toBe(true)
+    if (resultado.success) {
+      expect(resultado.data.health_score).toBeUndefined()
+    }
+  })
+
+  it("memory_doctor ainda rejeita health_score com tipo errado", () => {
+    const resultado = doctorReportSchema.safeParse({
+      ...doctorValido,
+      health_score: "alta",
+    })
+
+    expect(
+      resultado.success,
+      "health_score com o tipo errado foi aceito"
+    ).toBe(false)
+  })
 })

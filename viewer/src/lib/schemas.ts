@@ -83,13 +83,17 @@ export interface DesyncedChunk {
  * mcp.DoctorReport
  * {total_documents, total_chunks, total_edges, total_nodes, health_score,
  *  missing_mtime_count, dead_links[], orphan_notes[], self_loops[], desynced_chunks[]}
+ *
+ * `health_score` é opcional: quando o vault não tem documentos indexados a
+ * métrica não tem denominador e o campo viaja `null` (ou ausente) (ISSUE-019).
+ * Ausência é diferente de 0 (saúde catastrófica) e de 100 (saúde perfeita).
  */
 export interface DoctorReport {
   total_documents: number
   total_chunks: number
   total_edges: number
   total_nodes: number
-  health_score: number
+  health_score?: number
   missing_mtime_count?: number
   dead_links?: DeadLink[]
   orphan_notes?: OrphanNote[]
@@ -97,12 +101,29 @@ export interface DoctorReport {
   desynced_chunks?: DesyncedChunk[]
 }
 
+/**
+ * Health Score tolerante à ausência de valor.
+ *
+ * O Go manda `health_score: null` — ou omite a chave — quando o vault não tem
+ * documentos indexados: a métrica não tem denominador e não se aplica
+ * (ISSUE-019). Ausência ≠ 0 (saúde catastrófica) ≠ 100 (saúde perfeita).
+ *
+ * O transform normaliza `null` e a chave ausente para `undefined`, que é como
+ * o tile do Overview decide o que mostrar ("—" / "vault sem documentos").
+ */
+const healthScoreSchema = z.pipe(
+  z.nullish(z.number()),
+  z.transform<number | null | undefined, number | undefined>(
+    (value) => value ?? undefined
+  )
+)
+
 export const doctorReportSchema: MiniSchema<DoctorReport> = z.object({
   total_documents: z.number(),
   total_chunks: z.number(),
   total_edges: z.number(),
   total_nodes: z.number(),
-  health_score: z.number(),
+  health_score: healthScoreSchema,
   missing_mtime_count: z.optional(z.number()),
   dead_links: z.optional(
     z.array(

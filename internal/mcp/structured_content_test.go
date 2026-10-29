@@ -72,7 +72,7 @@ func TestMemoryDoctorTool_StructuredContentJSONIsStable(t *testing.T) {
 		TotalChunks:       42,
 		TotalEdges:        7,
 		TotalNodes:        9,
-		HealthScore:       88,
+		HealthScore:       healthScorePtr(88),
 		MissingMTimeCount: 1,
 		DeadLinks:         []DeadLink{{SourceID: "a.md", TargetID: "b.md", Relation: "relates_to"}},
 		OrphanNotes:       []OrphanNote{{ID: "c.md", Title: "C"}},

@@ -92,8 +92,18 @@ function OverviewRoute() {
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   <Stat
                     label="Health score"
-                    value={`${report.health_score}/100`}
-                    hint={report.health_score >= 80 ? "saudável" : "atenção"}
+                    value={
+                      report.health_score === undefined
+                        ? "—"
+                        : `${report.health_score}/100`
+                    }
+                    hint={
+                      report.health_score === undefined
+                        ? "vault sem documentos"
+                        : report.health_score >= 80
+                          ? "saudável"
+                          : "atenção"
+                    }
                   />
                   <Stat label="Documentos" value={report.total_documents} />
                   <Stat label="Chunks" value={report.total_chunks} />
