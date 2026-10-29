@@ -7,6 +7,15 @@
 
 ---
 
+## Validation: PASS
+
+**Result**: PASS
+
+Evidência `file:line` do que esta validação mediu:
+
+- `internal/graphview/template_test.go:120` — `TestRenderHTML_UTF8Encoding` (trilha A1: a saída HTML preserva UTF-8 literal, sem BOM e sem entidades numéricas).
+- `cmd/mem/graph_test.go:131` — `TestResolveStorageAndRepo_DerivesRepoFromDBPath` (trilha A2: o slug do repositório é derivado do path do DB quando `--repo` não vem).
+
 ## Validation Summary
 
 | Category | Target | Status | Notes |

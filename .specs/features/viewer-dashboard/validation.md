@@ -15,6 +15,10 @@ tags: [validation, viewer, spa, react, vite, tanstack, wikilinks, adr-059, adr-0
 
 ---
 
+## Validation: PASS
+
+**Result**: PASS
+
 ## Veredito
 
 **PASS** — 47/47 critérios satisfeitos. Typecheck, teste, lint e build verdes; o

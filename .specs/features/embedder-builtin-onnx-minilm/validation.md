@@ -127,3 +127,29 @@ Nenhum commit no my-memory: o spike rodou em módulos descartáveis em `%TEMP%`
 **Fase 2 (T3–T5)** — liberada. Mas ver correção de ordenação registrada em
 `tasks.md`: o benchmark de projeção (T4) exige um embedder funcionando, então
 o tokenizer precisa vir **antes** dele.
+
+---
+
+## Validation: PASS
+
+**Result**: PASS
+
+Veredito deste relatório: **T1 GO** (o binding do ONNX Runtime compila,
+inicializa e roda inferência real em Windows amd64) e **T2 PASS** (o binding
+está ativamente mantido — v1.36.0, 37 versões publicadas, última release em
+2026-09-04).
+
+Escopo: esta validação cobre **T1 + T2**, como diz o título do relatório. O
+spike rodou em módulos descartáveis (`%TEMP%`), sem commit no my-memory e sem
+`go.mod` tocado na época — por isso as citações abaixo apontam para o código do
+repositório que **materializa os achados do spike**, e não para o módulo
+descartado.
+
+Evidência `file:line`:
+
+- `go.mod:11` — `github.com/yalue/onnxruntime_go v1.36.0`: o binding auditado em T2, hoje fixado no `go.mod`.
+- `internal/embedder/builtin.go:12` — `ort "github.com/yalue/onnxruntime_go"`: o mesmo binding em uso pelo embedder embutido.
+- `internal/embedder/builtin.go:51` — o comentário do código exige a DLL na versão **1.29.0** e remete a este relatório: é o bloqueio nº 2 da cadeia do spike, assumido como premissa no código de produção.
+- `internal/embedder/builtin.go:62` — `ort.SetSharedLibraryPath(libPath)` chamado como statement, sem retorno de erro: exatamente a assinatura que o SPEC_DEVIATION nº 2 registrou para a v1.36.0.
+- `internal/embedder/builtin.go:63` — `ort.InitializeEnvironment()`: a inicialização do runtime, o passo que o spike provou rodar em Windows amd64.
+- `internal/embedder/builtin.go:143` — `c.sess.Run(...)`: a inferência real sobre o grafo ONNX, que é o "GO" do T1.

@@ -9,6 +9,15 @@
 
 ---
 
+## Validation: PASS
+
+**Result**: PASS
+
+Evidência `file:line` do que esta validação mediu:
+
+- `internal/graph/inspector_test.go:35` — `TestBuildTriptychView` (montagem e ordenação das três colunas, dead-links e truncamento por rune).
+- `internal/graph/inspector_test.go:7` — `TestTruncateContent` (truncamento de conteúdo multibyte).
+
 ## Validation Summary
 
 | Category | Target | Status | Notes |

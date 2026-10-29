@@ -19,6 +19,16 @@ tags: [validation, code-ast, tlc-spec-driven, feat-code-ast]
 
 ---
 
+## Validation: PARTIAL
+
+**Result**: PARTIAL
+
+A feature **não** está pronta. 14 de 17 ACs passam, 3 são SPEC-GAP (CA-01 /
+CA-12 / CA-16) mais o sub-item CA-14a, e sobra 1 mutante sobrevivente (Fault D).
+`PARTIAL` é um veredito próprio — **não** é PASS — e o gate determinístico
+reporta esta feature como vermelha até GAP-1/2/3 serem fechados e o relatório
+ser re-verificado.
+
 ## 1. Spec-Anchored Outcome Check
 
 Re-derived independently. Each AC scored PASS / PARTIAL / FAIL / SPEC-GAP with concrete `file:line` evidence.
