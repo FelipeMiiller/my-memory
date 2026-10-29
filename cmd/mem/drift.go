@@ -42,7 +42,7 @@ func runDriftCommand(ctx context.Context, defaultRepo string, args []string, out
 	}
 
 	cfg := resolveConfig()
-	_, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
 	var errOverride error
 	resolvedDB, resolvedPG, errOverride = applyStorageOverride(*storage, resolvedDB, resolvedPG)
 	if errOverride != nil {
@@ -76,6 +76,13 @@ func runDriftCommand(ctx context.Context, defaultRepo string, args []string, out
 	if runner == nil {
 		runner = drift.NewOSGitRunner()
 	}
+
+	// O drift é escopado por REPOSITÓRIO: no PostgreSQL, as consultas de
+	// code_files/code_symbols filtram por `repository` e o id do nó da ponte é
+	// prefixado com ele (`db.CodeSymbolNodeID`). Sem o repositório no
+	// contexto, o hash estrutural gravado volta vazio e TODO arquivo
+	// indexado é reportado como mudança estrutural (ISSUE-035).
+	ctx = db.WithRepository(ctx, resolvedRepo)
 
 	// Executa análise de desvio de conhecimento
 	report, err := drift.AnalyzeDrift(ctx, runner, database, repoRoot, vaultName, *sinceFlag, *threshFlag, *uncoveredFlag)
