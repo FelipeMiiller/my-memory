@@ -1693,7 +1693,28 @@ func runCodeStage(ctx context.Context, database *sql.DB, rootDir string, cfg *co
 	}
 }
 
-func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.Embedder, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
+// postgresIndexStore é a costura estreita do caminho de indexação no
+// PostgreSQL: apenas os métodos que a varredura de documentos usa.
+//
+// Ela existe para que o contrato de tolerância a falha por documento
+// (ISSUE-032, opção C) possa ser testado sem Postgres: o teste injeta um
+// store falso que falha a gravação de um documento escolhido.
+// `*store.PostgresStore` satisfaz a interface — nada em `internal/store` foi
+// alterado.
+type postgresIndexStore interface {
+	ListDocumentTitles(ctx context.Context, repo string) ([]string, error)
+	ListDocumentIDTitles(ctx context.Context, repo string) (map[string]string, error)
+	GetDocumentIndexState(ctx context.Context, repo, id string) (contentHash, embedEpoch string, err error)
+	DeleteDocumentData(ctx context.Context, repo, id string) error
+	InsertDocumentWithMeta(ctx context.Context, repo, id, path, title string, updatedAt int64, contentHash, embedEpoch, abstract, category string, mtime, size int64) error
+	InsertDocumentTags(ctx context.Context, repository, documentID string, tags []store.TagBinding) error
+	InsertEdgeWithProps(ctx context.Context, repo, sourceID, targetID, relation, epistemicStatus string, weight float64) error
+	InsertChunk(ctx context.Context, repo, chunkID, docID, content string, index int, vec []float32) error
+	PruneDeletedDocuments(ctx context.Context, repo, rootDir string, activeDocIDs []string) ([]string, error)
+	DeleteDocumentTags(ctx context.Context, repository, documentID string) error
+}
+
+func runIndexPostgres(ctx context.Context, s postgresIndexStore, emb embedder.Embedder, cfg *config.Config, targetRepo, rootDir string, force, prune bool) {
 	if cfg == nil {
 		def := config.DefaultConfig()
 		cfg = &def
@@ -1702,6 +1723,11 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 	totalCount := 0
 	indexedCount := 0
 	cachedCount := 0
+	// Documentos que falharam ao ser gravados (ISSUE-032, opção C). A falha é
+	// por documento: a varredura continua e o relatório final carrega a
+	// contagem e o nome de quem ficou de fora do índice.
+	failedCount := 0
+	var failedDocs []string
 	var activeDocIDs []string
 
 	// Epoch corrente: quem produz os vetores desta execução. Vazio quando não há
@@ -1723,7 +1749,9 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			// Erro de nível de varredura (ex.: diretório ilegível): aborta.
+			// A tolerância da opção C é por documento, não da varredura.
+			return err
 		}
 
 		relPath, relErr := filepath.Rel(rootDir, path)
@@ -1825,7 +1853,19 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 		// mtime e size vêm do disco (ADR-057), não do relógio da indexação.
 		fileMtime, fileSize := store.FileStatValues(path)
 		if err := s.InsertDocumentWithMeta(ctx, targetRepo, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category, fileMtime, fileSize); err != nil {
-			return err
+			// ISSUE-032 (opção C): a falha de gravação de UM documento não
+			// aborta a varredura. O `return err` antigo matava a indexação
+			// inteira no primeiro erro de protocolo (o statement "unnamed" do
+			// pooler), deixando o vault pela metade sem aviso.
+			//
+			// O documento fica de fora do índice e não conta como indexado.
+			// Ele já está em activeDocIDs (adicionado acima, antes da
+			// gravação), então o --prune não o remove: ter falhado não é o
+			// mesmo que não existir mais no disco.
+			failedCount++
+			failedDocs = append(failedDocs, path)
+			fmt.Printf("Aviso: falha ao gravar documento %q (%v); documento fica de fora do índice\n", path, err)
+			return nil
 		}
 		// O documento recém-indexado entra no mapa de resolução: uma tag que o
 		// nomeia resolve para o id dele.
@@ -1906,7 +1946,14 @@ func runIndexPostgres(ctx context.Context, s *store.PostgresStore, emb embedder.
 		}
 	}
 
-	fmt.Printf("🎉 Concluído! %d documentos processados no PostgreSQL (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
+	if failedCount > 0 {
+		fmt.Printf("⚠️  Documentos que falharam e ficaram de fora do índice (%d):\n", failedCount)
+		for _, doc := range failedDocs {
+			fmt.Printf("   - %s\n", doc)
+		}
+	}
+
+	fmt.Printf("🎉 Concluído! %d documentos processados no PostgreSQL (%d indexados, %d em cache, %d podados, %d falhos).\n", totalCount, indexedCount, cachedCount, prunedCount, failedCount)
 }
 
 func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer, cfg *config.Config, rootDir string, force, prune bool) {
@@ -1918,6 +1965,12 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 	totalCount := 0
 	indexedCount := 0
 	cachedCount := 0
+	// Documentos que falharam ao ser gravados (ISSUE-032, opção C). O
+	// contrato é do comando, não do driver: o caminho SQLite é idêntico ao
+	// Postgres — a falha é por documento, a varredura continua e o relatório
+	// final carrega a contagem e o nome de quem ficou de fora do índice.
+	failedCount := 0
+	var failedDocs []string
 	var activeDocIDs []string
 
 	// Epoch corrente: quem produz os vetores desta execução. Vazio quando não há
@@ -1942,7 +1995,9 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			// Erro de nível de varredura (ex.: diretório ilegível): aborta.
+			// A tolerância da opção C é por documento, não da varredura.
+			return err
 		}
 
 		relPath, relErr := filepath.Rel(rootDir, path)
@@ -2044,7 +2099,14 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		// mtime e size vêm do disco (ADR-057), não do relógio da indexação.
 		fileMtime, fileSize := store.FileStatValues(path)
 		if err := db.InsertDocumentWithMeta(ctx, database, docID, path, title, time.Now().Unix(), currentHash, currentEpoch, abstract, category, fileMtime, fileSize); err != nil {
-			return err
+			// ISSUE-032 (opção C): a falha de gravação de UM documento não
+			// aborta a varredura. O documento fica de fora do índice e não
+			// conta como indexado; ele já está em activeDocIDs (adicionado
+			// acima, antes da gravação), então o --prune não o remove.
+			failedCount++
+			failedDocs = append(failedDocs, path)
+			fmt.Printf("Aviso: falha ao gravar documento %q (%v); documento fica de fora do índice\n", path, err)
+			return nil
 		}
 		// O documento recém-indexado entra no mapa de resolução: uma tag que o
 		// nomeia resolve para o id dele.
@@ -2128,7 +2190,14 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		}
 	}
 
-	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados).\n", totalCount, indexedCount, cachedCount, prunedCount)
+	if failedCount > 0 {
+		fmt.Printf("⚠️  Documentos que falharam e ficaram de fora do índice (%d):\n", failedCount)
+		for _, doc := range failedDocs {
+			fmt.Printf("   - %s\n", doc)
+		}
+	}
+
+	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados, %d falhos).\n", totalCount, indexedCount, cachedCount, prunedCount, failedCount)
 }
 
 // buildTagBindings monta os vínculos documento→tag a partir das tags cruas do
