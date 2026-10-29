@@ -36,6 +36,23 @@ exclude:
   - ".trash/**"
   - ".memory/**"
 
+# Escopo de CODIGO do vault de repositorio (ADR-061) - separado do
+# include/exclude de NOTAS acima. Sem esta secao o `mem index` nao roda o
+# code stage; com ela declarada e `code.include` nao vazio, o code stage
+# grava o code graph (code_files/code_symbols/code_edges) no mesmo engine.
+#
+# O backend de code AST do build padrao e o de Go puro (stdlib):
+# internal/codeast/go_parser.go. As outras linguagens cairiam no MockParser
+# (simbolos sinteticos, sem assinatura real), e o drift so consegue comparar
+# o hash estrutural gravado com o atual quando os dois lados vem do mesmo
+# parser. Por isso o escopo fica em Go.
+code:
+  include:
+    - "**/*.go"
+  exclude:
+    - "vendor/**"
+    - "node_modules/**"
+
 # Configurações do modelo de embeddings
 # O provider vetorial é o "builtin" (internal/embedder): ONNX MiniLM multilíngue,
 # dimensão nativa 384. O caminho Ollama saiu do código (ADR-035).

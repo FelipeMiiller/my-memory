@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`mem index` não morre mais no primeiro documento que falha (ISSUE-032, opção C)**: a
+  falha de gravação de um documento não aborta mais a varredura — o documento falho é
+  registrado com o erro, a indexação segue para o próximo e o comando fecha com um resumo
+  "N documentos processados (X indexados, Y em cache, Z falhos)". Vale para os **dois**
+  motores (PostgreSQL e SQLite), porque o contrato é do comando, não do driver. Erros de
+  nível de varredura (diretório ilegível) voltam a abortar, em vez de serem engolidos em
+  silêncio. Spec: `.specs/features/fix-index-tolerancia/`.
+- **O gate do fluxo spec-driven parou de reprovar feature que tem veredito real
+  (ISSUE-033, opções A+B)**: o `validate_state.py` agora reconhece linhas `Verdict:`,
+  `Veredito:` e `Resultado:` como candidatas, devolve **"sem veredito"** — em vez de varrer
+  o texto inteiro — quando não há candidata, e trata `PARTIAL` como veredito próprio
+  (nunca PASS). Cross-check: **11 erros → 6**, sem nenhuma regressão. Os 6 que restam são
+  os 5 relatórios que nunca foram verificados (são `# Validation Plan`, não relatórios) e
+  o `feat-code-ast`, cujo veredito real é PARTIAL. Os 5 relatórios com veredito PASS
+  legítimo ganharam o bloco canônico `## Validation: PASS` + `**Result**: PASS`.
+  Spec: `.specs/features/fix-validate-state-verdict/`.
+- **O code graph deixou de gravar uma linha por round-trip (ISSUE-034)**: com o escopo
+  `code:` habilitado, o `mem index` num Postgres remoto levaria **~6 h** — o code stage e a
+  ponte `notes↔código` gravavam uma linha por statement, e cada round-trip no Neon custa
+  ~268 ms. As escritas agora são **multi-linha por documento/arquivo**, com as mesmas
+  colunas, o mesmo `ON CONFLICT` e a mesma idempotência (**sem** mudança de schema e **sem**
+  troca de driver): `code_symbols` sai de 2 round-trips por símbolo para 2 por arquivo,
+  `code_edges` e `code_edges_uncertain` de 1 por aresta para 1 por arquivo, e a ponte de 2
+  por (documento, símbolo) para 2 por documento. Medido no Neon: a primeira população do
+  code graph (374 arquivos / 7 309 símbolos) saiu de **>2 h para ~10 min**, e o `mem index`
+  de rotina, com cache quente, fica em ~2,5 min. Spec:
+  `.specs/features/batch-code-bridge-writes/`.
+- **O `mem drift` voltou a usar o caminho estrutural no Postgres (ISSUE-035)**: o comando
+  resolvia o repositório e **o descartava**, então o contexto da análise não carregava o
+  `repository` — e, no Postgres, a consulta dos símbolos gravados (que filtra por
+  repositório) voltava vazia. Consequência: o hash estrutural gravado ficava vazio e
+  **todo** arquivo indexado era reportado como mudança estrutural, inclusive arquivos que
+  **não tinham mudado** desde o último índice; a atribuição pela ponte `references_code`
+  também estava morta pelo mesmo motivo. Agora o drift roda com escopo de repositório:
+  mudança cosmética (comentário, whitespace) é **suprimida** e mudança de assinatura é
+  detectada e atribuída às notas que referenciam o arquivo. O defeito só aparecia no
+  Postgres (no SQLite não há filtro de repositório) — por isso os testes nunca pegaram.
+  Spec: `.specs/features/fix-drift-repo-context/`.
+- **O `mem doctor` deixou de contar 38 306 links `references_code` como quebrados
+  (ISSUE-036)**: o check de dead links considerava "vivo" só o alvo que resolve para um
+  **documento**, e o alvo de uma aresta da ponte é um **nó de código** (`code_symbol`) —
+  que existe no grafo, mas não é documento. Além de rebaixar o Health Score do vault em 15
+  pontos (75 → 60), a rotina de correção **apagava** as 38 304 arestas da ponte. Agora o
+  nó de código é reconhecido como alvo vivo (nos dois engines e também no caminho de
+  correção): **38 306 → 2** dead links (os 2 restantes são reais) e Health Score **90/100**.
+  Spec: `.specs/features/fix-doctor-dead-links-code-nodes/`.
+
+### Changed
+
+- **O vault deste repositório passou a ter escopo de código**: a seção `code:` no
+  `.memory/config.yaml` habilita o code stage (ADR-061) e, com ele, a gravação de
+  `ast_hash` — que é o que faz o `mem drift` distinguir mudança **cosmética** de mudança
+  **estrutural**, em vez de reportar por menção textual. O escopo ficou em **Go** porque o
+  backend de code AST do build padrão é o de Go puro (stdlib); as demais linguagens
+  cairiam no `MockParser` (símbolos sintéticos, sem assinatura real).
+
 ## [3.0.0] — 2026-10-28
 
 ### Added

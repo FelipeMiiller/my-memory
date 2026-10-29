@@ -1263,7 +1263,7 @@ escopado por uma **lista explícita de 126 repositórios** derivada dos dados
 ## ISSUE-032 — `mem index` aborta no Postgres: a prepared statement "unnamed" do servidor é corrompida (26000 / 08P01)
 
 - **Severidade:** 🟠 alta (impede a indexação do vault num Postgres com pooler)
-- **Status:** 🔵 **open** — **workaround aplicado e verificado** (indexação completa em 276 documentos), **correção de código pendente de decisão do dono**
+- **Status:** 🟡 **parcial** — **opção A entregue** (2026-10-29: endpoint direto no config global **e** na env var de escopo User) e **opção C entregue** (2026-10-29: `mem index` tolerante, `.specs/features/fix-index-tolerancia/`); **opção B (pgx) adiada** pelo dono — fica para feature própria com ADR
 - **Achado em:** 2026-10-29, durante a indexação do vault deste repositório no Postgres real (operação autorizada pelo dono)
 
 **Sintoma.** Contra o endpoint **com pooler** do Neon (`*-pooler.*`), o `mem index`
@@ -1308,12 +1308,26 @@ aviso de que sobrou documento de fora.
    seja: o gatilho é a **variedade de formas de statement** do caminho de
    indexação (2, 4, 6 e 11 parâmetros), não o volume de queries.
 
-**Workaround aplicado (2026-10-29).** Indexar com o endpoint **direto**:
-`MY_MEMORY_PG_URL` apontando para `ep-<id>.<region>.aws.neon.tech` (sem
-`-pooler`). A env var tem precedência sobre o config (ADR-040), então **o
-`~/.memory/config.yaml` do dono não foi alterado**. Resultado: 276 documentos,
-2415 chunks, 151 arestas, 333 nós em `repo_e4c8f3b1a2d5`; `repo_central`
-intacto (86/388/522/204); `FelipeMiiller/my-memory` no baseline (0/0/0/2).
+**Correção A aplicada (2026-10-29).** O endpoint **direto** foi configurado em
+**dois** lugares, porque a env var tem precedência sobre o config (ADR-040) e
+*sombreava* o config global:
+
+1. `~/.memory/config.yaml` → `storage.postgres_url` sem `-pooler.`;
+2. variável de ambiente `MY_MEMORY_PG_URL` no **escopo User do Windows**, que
+   apontava para o pooler → realinhada para o endpoint direto.
+
+A existência da env var de escopo User apontando para o pooler foi **achado
+novo**: trocar **só** o config não entregaria a opção A. Verificado: `env ==
+config (host)`.
+
+Resultado (endpoint direto): 276 documentos, 2424 chunks, 151 arestas, 333 nós
+em `repo_e4c8f3b1a2d5` — `mem doctor --storage=postgres --repo
+repo_e4c8f3b1a2d5` → Health Score **75/100**; `repo_central` intacto
+(86/388/522/204); `FelipeMiiller/my-memory` no baseline (0/0/0/2).
+
+⚠️ **Mudança fora do repositório:** o config global do dono e a env var de
+escopo User foram alterados. Reverter é voltar ao host com `-pooler.` **nos
+dois** lugares.
 
 **Opções de correção (decisão do dono).**
 
@@ -1328,6 +1342,24 @@ intacto (86/388/522/204); `FelipeMiiller/my-memory` no baseline (0/0/0/2).
 transforma "a indexação inteira morreu sem aviso" em "um documento falhou e foi
 reportado". B é a correção de raiz e pode entrar depois, por fluxo spec-driven.
 
+**Resolução (2026-10-29).** O dono aprovou "A + C" e adiou "B".
+
+| # | Abordagem | Decisão | Entrega |
+| :--- | :--- | :--- | :--- |
+| **A** | endpoint direto | ✅ **aplicada** | config global + env var de escopo User apontando para o endpoint direto; verificado por `mem doctor` (75/100) |
+| **B** | `lib/pq` → `pgx` | ⏸ **adiada** | fica para feature própria com ADR; **não** foi feita |
+| **C** | `mem index` tolerante | ✅ **entregue** | `.specs/features/fix-index-tolerancia/` — a falha de um documento não aborta a varredura: o documento falho é registrado, o index segue para o próximo e o comando fecha com um resumo "N falhos" |
+| **D** | pool configurado | — | não escolhida |
+
+**B fica registrada como pendência.** A causa de raiz (o statement "unnamed" do
+servidor) continua lá: **A** contorna e **C** contém o estrago, mas quem
+corrige a causa é **B**.
+
+**Fora do escopo desta ISSUE, mas discovered na mesma rodada:** o
+`internal/watcher/indexer.go` tem o **próprio** indexador, que ainda aborta
+inteiro no primeiro erro de documento. O `mem index` (CLI) ficou tolerante; o
+watcher não. Follow-up registrado.
+
 **Não é regressão do P1.** A integração com Postgres foi provada em 2026-10-27
 (ISSUE-031 §P1) contra um banco **descartável** — que usava o mesmo endpoint
 com pooler e passou. O que falhou aqui é o caminho de **indexação em volume**,
@@ -1336,7 +1368,7 @@ que faz muito mais queries por documento do que o teste de integração.
 ## ISSUE-033 — `validate_state.py` reprova 11 das 41 features por desenho, não por conteúdo
 
 - **Severidade:** 🟡 média (dívida de documentação + gate que não distingue relatório de plano)
-- **Status:** 🔵 **open** — achado em 2026-10-29, durante a leitura dos 83 alertas de drift
+- **Status:** 🟢 **A + B entregues** (2026-10-29, `.specs/features/fix-validate-state-verdict/`); **C adiada** pelo dono — as 5 features de plano continuam **vermelhas de propósito**
 - **Achado em:** verificação do gate do fluxo spec-driven após a indexação do vault
 - **Impacto no CI:** **nenhum** — `validate_state.py` **não roda no CI** (o workflow roda `go test`, build e front-end). É um gate **manual**.
 
@@ -1381,11 +1413,164 @@ normaliza os 6 relatórios reais), e **C** comoitem separado — porque as 5
 features do grupo "plan" **nunca foram verificadas**, e fingir que foram é
 pior que deixar o gate vermelho.
 
+**Resolução (2026-10-29).** O dono aprovou "A + B"; "C" foi **adiada**.
+
+| # | Abordagem | Decisão | Entrega |
+| :--- | :--- | :--- | :--- |
+| **A** | corrigir o validador | ✅ **entregue** | `validate_state.py` reconhece `Verdict:`/`Veredito:`/`Resultado:`; **sem** candidata → "sem veredito" (o fallback que varria o texto inteiro saiu); `PARTIAL` passou a ser veredito próprio |
+| **B** | bloco canônico nos 6 relatórios | ✅ **entregue** | 5 relatórios com veredito PASS real ganharam `## Validation: PASS` + `**Result**: PASS` (com evidência `file:line` conferida); `feat-code-ast` ficou **PARTIAL** |
+| **C** | escrever os 5 relatórios de plano | ⏸ **adiada** | continuam vermelhos — falta a evidência |
+
+**Antes → depois: 11 erros → 6** (os 5 de plano + `feat-code-ast` como
+PARTIAL), com **zero regressões** entre as features que já passavam. O teste
+novo do validador (17 casos, incluindo 2 mutantes) está em
+`.agents/skills/tlc-spec-driven/scripts/test_validate_state.py`.
+
+**`feat-code-ast` continua vermelha, de propósito.** O relatório diz, na seção
+"6. Verdict Summary": `**Verdict final**: **PARTIAL**. Não PASS puro (CA-01
+stub + CA-12 placeholder)`. Carimbar `PASS` ali seria verde por cima de 3 ACs
+com SPEC-GAP (CA-01 / CA-12 / CA-16) mais o sub-item CA-14a. O validador agora
+trata `PARTIAL` como veredito próprio e reporta a feature como não-promovível,
+com a mensagem de fechamento. O relatório recomenda abrir fix-tasks para
+GAP-1/2/3 antes de promover a feature.
+
 **Nota de método (2026-10-29):** as 2 features cujo drift era real
 (`viewer-dashboard/validation.md` e
 `federated-central-vault-and-repo-identity/validation.md`) foram corrigidas
 na mesma rodada, porque as minhas mudanças é que as deixaram desatualizadas. O
 resto dos 81 alertas de drift era a reação mecânica do detector a uma rodada
 grande — ver `.specs/STATE.md`.
+
+---
+
+## ISSUE-034 — O code graph grava uma linha por round-trip: com o escopo `code:` ligado, o `mem index` levaria ~6 h num Postgres remoto
+
+- **Severidade:** 🟠 alta (torna o ADR-061 inutilizável em engine remoto)
+- **Status:** 🟢 **corrigida** (2026-10-29, `.specs/features/batch-code-bridge-writes/`) — as três escritas foram posto em lote; restou **um** ponto medido como próximo candidato
+- **Achado em:** 2026-10-29, ao habilitar o escopo `code:` no vault deste repositório
+
+**Sintoma.** Com o escopo `code:` habilitado (ADR-061), o `mem index` passa a rodar
+o code stage **e** a ponte `notes↔código`. Os dois caminhos de escrita gravam
+**uma linha por round-trip**:
+
+| Caminho | Escritas por rodada | Round-trips |
+| :--- | :--- | :--- |
+| `internal/codeast/cache.go:160` → `PersistSymbols` | 1 `INSERT` + 1 `SELECT` de id por **símbolo** (o `lib/pq` não implementa `LastInsertId`) | ~2 × ~6 750 símbolos |
+| `internal/db/code_bridge.go` → `buildCodeBridge` | 1 `INSERT` por nó + 1 por aresta, por **(documento, símbolo)** | ~2 × ~34 000 arestas |
+
+**Medição no Neon** (us-east-1, desta máquina): **~268 ms por round-trip** →
+**0,78 símbolos/s**. Popular o `code_symbols` do repo levaria **~2 h**; a ponte,
+**~4,7 h** por execução do `mem index`.
+
+**Por que é grave.** O defeito nunca apareceu nos testes porque o SQLite local
+faz as mesmas escritas em milissegundos. Em engine remoto a mesma lógica é
+inviável: um `mem index` de rotina levaria horas, e o dono não pode adotar um
+custo assim.
+
+**Correção entregue (2026-10-29).** `.specs/features/batch-code-bridge-writes/` —
+as **três** escritas que gravavam uma linha por round-trip passaram a gravar
+**uma linha por documento/arquivo**, com as mesmas colunas, o mesmo
+`ON CONFLICT` e a mesma idempotência. **Sem** mudança de schema, **sem** troca
+de driver, **sem** índice novo.
+
+| Escrita | Antes | Depois | No Neon (268 ms/round-trip) |
+| :--- | :--- | :--- | :--- |
+| `PersistSymbols` → `code_symbols` | 2 round-trips por **símbolo** | 2 por **arquivo** | ~2 h → **~3,4 min** |
+| `FlushEdges` → `code_edges` | 1 por **aresta** | 1 por **arquivo** | ~30 min → **~1,7 min** |
+| `FlushEdges` → `code_edges_uncertain` | 1 por **aresta incerta** | 1 por **arquivo** | ~110 min → **~1,7 min** |
+| `buildCodeBridge` (ponte) | 2 por **(documento, símbolo)** | 2 por **documento** | ~4,7 h → **~2,5 min** |
+
+Medido no run real: a primeira população do code graph deste repo (374 arquivos
+/ 7 309 símbolos) saiu em **~10 min** — antes, >2 h e impraticável. O `mem
+index` de rotina, com cache quente, fica em **~2,5 min**.
+
+**Um ponto ficou de fora, com a medição:** as **lookups de resolução** das
+arestas (1 `SELECT` por destino distinto, cacheadas por lote). O tamanho real
+se mede com `SELECT COUNT(DISTINCT dst_candidate_name) FROM
+code_edges_uncertain;` — no pior caso (~10,5 mil) seriam ~47 min de SELECTs.
+Loteá-las exige mudar a semântica da resolução (carregar os símbolos do repo
+uma vez e casar em memória), o que **não** foi feito aqui.
+
+---
+
+## ISSUE-035 — O caminho estrutural do `mem drift` está morto no Postgres: o repositório não chega no contexto
+
+- **Severidade:** 🟠 alta (o detector de drift estrutural — ADR-061 AC-26 — nunca engage no engine de produção)
+- **Status:** 🟢 **corrigida** (2026-10-29, `.specs/features/fix-drift-repo-context/`) — o `mem drift` roda com escopo de repositório; mudança cosmética é suprimida e a estrutural é detectada e atribuída
+- **Achado em:** 2026-10-29, ao medir o drift com o code graph populado pela primeira vez
+
+**O bug.** `cmd/mem/drift.go:45` resolve o repositório e **o descarta**:
+
+```go
+_, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, *pgURL, defaultRepo)
+```
+
+O `ctx` que chega em `drift.AnalyzeDrift(ctx, ...)` (`:81`) **não carrega o
+`repository`** — ao contrário de `cmd/mem/codeindex.go:84`,
+`cmd/mem/codegraph.go:68` e `cmd/mem/main.go:1620`, que fazem
+`ctx = db.WithRepository(ctx, repository)`.
+
+**Consequência no Postgres.** `internal/db/code_bridge.go` →
+`CodeSymbolSignatures` filtra por repositório **só no Postgres** (`f.repository
+= ? AND s.repository = ?`); com o contexto vazio a consulta devolve **0 linhas**.
+Então `internal/drift/drift.go:561` calcula o hash estrutural gravado como `""`,
+contra um hash atual não-vazio → **`res.Structural = true` para todo arquivo
+indexado**. E a atribuição pela ponte erra o alvo pelo mesmo motivo: o id do nó
+é prefixado com o repositório (`db.CodeSymbolNodeID`).
+
+**Prova medida.** `internal/config/config_test.go`, cujo `content_hash` gravado
+era **idêntico** ao SHA-256 do arquivo em disco (o arquivo não tinha mudado):
+
+| Contexto | Lado gravado | Lado atual | Veredito |
+| :--- | :--- | :--- | :--- |
+| com `WithRepository` | 37 símbolos · `1ef039df…` | 37 símbolos · `1ef039df…` | **iguais** → cosmético → fora do drift |
+| sem repositório | 0 símbolos · `""` | 37 símbolos · `1ef039df…` | divergentes → **estrutural** (falso) |
+
+**Por que ninguém pegou.** No **SQLite** não há filtro de repositório em
+`CodeSymbolSignatures` — os testes de `internal/drift` (fixture SQLite) passam
+e o defeito só aparece no Postgres, que é o engine de produção.
+
+**Sintoma no relatório.** Todo arquivo de código indexado aparece como
+`structural_changes` e as notas que o mencionam são acusadas como drift
+(**15 HIGH + 3 MÉDIO** no range `adfb8cc~5..adfb8cc`) — inclusive arquivos que
+**não mudaram** desde o último índice.
+
+---
+
+## ISSUE-036 — O `mem doctor` conta 38 306 links `references_code` como quebridos, e a rotina de correção apagaria o code graph
+
+- **Severidade:** 🟠 alta (o Health Score do vault cai 15 pontos e o "fix" do doctor destrói as arestas do code graph)
+- **Status:** 🟢 **corrigida** (2026-10-29, `.specs/features/fix-doctor-dead-links-code-nodes/`) — o nó de código não é mais contado como link quebrado, e a rotina de correção não apaga mais o code graph
+- **Achado em:** 2026-10-29, ao rodar o `mem doctor` depois de popular o code graph pela primeira vez
+
+**O defeito.** O check de dead links do `mem doctor` considera "vivo" **só** o
+alvo que resolve para um **documento** (id ou title) — as tags (`#%`) são
+ignoradas por desenho. Os nós do code graph (tipo `code_symbol`, ADR-061) **não
+são documentos**, e o id deles é `code:<repo>:<qualified_name>`
+(`db.CodeSymbolNodeID`). Então **toda** aresta `references_code` é contada como
+link quebrado:
+
+- **Postgres** — `internal/store/doctor.go:96-101`;
+- **SQLite** — `internal/db/graph.go:271-278` (mesma forma, sem filtro de repositório).
+
+**E o caminho de correção apaga o code graph.** `internal/db/graph.go:420-426`
+(`DELETE FROM graph_edges WHERE target_id NOT LIKE '#%' AND … NOT IN (SELECT id
+FROM documents) AND … NOT IN (SELECT title FROM documents)`) classifica as
+**38 304 arestas `references_code`** como mortas e **as apaga**. Quem rodar essa
+rotina num vault com code graph destrói a ponte notas↔código.
+
+**Prova medida (Neon, `repo_e4c8f3b1a2d5`).**
+
+| Métrica | Valor |
+| :--- | :--- |
+| nós `code:*` no grafo | **2 959** (existem) |
+| arestas `references_code` | **38 304** |
+| arestas `references_code` **sem** nó de destino | **0** → nenhum link está realmente quebrado |
+| `mem doctor` reportando | **38 306** dead links (falso positivo) |
+| Health Score | **60/100** (antes do code graph: **75/100**) |
+
+**Por que é grave.** A configuração recomendada (habilitar o escopo `code:`)
+**rebaixa o Health Score do vault em 15 pontos** com 38 mil falsos positivos — e
+o "fix" do doctor, se rodar, leva o code graph junto.
 
 ---
