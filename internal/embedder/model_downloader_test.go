@@ -365,3 +365,55 @@ func TestDownloadRuntimeLibraryMembroAusenteNaoDeixaParcial(t *testing.T) {
 	}
 	assertNoLeftovers(t, dir)
 }
+
+// A AC5 fixa dois valores com precisão: a versão do ONNX Runtime (1.29.0) e o
+// destino (`~/.memory/models/`). Nada os asseverava — o downloader podia trocar
+// a versão ou o caminho sem nenhum teste reclamar, e o provider embutido
+// passaria a procurar o modelo onde ele não está.
+func TestManifestoFixaVersaoDoRuntimeEDestino(t *testing.T) {
+	if ORTVersion != "1.29.0" {
+		t.Errorf("ORTVersion = %q, a spec fixa 1.29.0 (o binding onnxruntime_go exige a API version 29)", ORTVersion)
+	}
+
+	// O destino default do modelo: ~/.memory/models/<ModelID>.
+	t.Setenv("MY_MEMORY_MINILM_MODEL_DIR", "")
+	dirModelo := DefaultModelsDir()
+	sufixo := filepath.Join(".memory", "models", ModelID)
+	if !strings.HasSuffix(dirModelo, sufixo) {
+		t.Errorf("DefaultModelsDir() = %q, deveria terminar em %q", dirModelo, sufixo)
+	}
+	if home, err := os.UserHomeDir(); err == nil && !strings.HasPrefix(dirModelo, home) {
+		t.Errorf("DefaultModelsDir() = %q, deveria estar sob o home %q", dirModelo, home)
+	}
+
+	// A variável de ambiente vence o default (é o override do instalador).
+	override := filepath.Join(t.TempDir(), "modelos")
+	t.Setenv("MY_MEMORY_MINILM_MODEL_DIR", override)
+	if got := DefaultModelsDir(); got != override {
+		t.Errorf("DefaultModelsDir() = %q, MY_MEMORY_MINILM_MODEL_DIR (%q) deveria vencer o default", got, override)
+	}
+
+	// A biblioteca do runtime vai para ~/.memory/models/onnxruntime.
+	dirRuntime := DefaultORTDir()
+	if !strings.HasSuffix(dirRuntime, filepath.Join(".memory", "models", "onnxruntime")) {
+		t.Errorf("DefaultORTDir() = %q, deveria terminar em .memory/models/onnxruntime", dirRuntime)
+	}
+
+	// O manifesto aponta para a release v1.29.0 do ONNX Runtime.
+	// A variável de override é zerada de novo: o manifesto do default tem de
+	// levar o modelo para ~/.memory/models/<ModelID>.
+	t.Setenv("MY_MEMORY_MINILM_MODEL_DIR", "")
+	manifest, err := DefaultManifest("", "")
+	if err != nil {
+		t.Fatalf("DefaultManifest: %v", err)
+	}
+	if !strings.Contains(manifest.Runtime.URL, "v"+ORTVersion+"/") {
+		t.Errorf("a URL do runtime = %q, deveria apontar para a release v%s", manifest.Runtime.URL, ORTVersion)
+	}
+	if !strings.Contains(manifest.Model.Dest, ModelID) {
+		t.Errorf("o destino do modelo = %q, deveria conter %q", manifest.Model.Dest, ModelID)
+	}
+	if !strings.Contains(manifest.Tokenizer.Dest, ModelID) {
+		t.Errorf("o destino do tokenizer = %q, deveria conter %q", manifest.Tokenizer.Dest, ModelID)
+	}
+}

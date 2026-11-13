@@ -393,13 +393,13 @@ asseverava: a versão `1.29.0` do ONNX Runtime e o destino `~/.memory/models/`.
 
 **Done when**:
 
-- [ ] `ORTVersion` é `"1.29.0"`
-- [ ] `DefaultModelsDir()` termina em `.memory/models/paraphrase-multilingual-MiniLM-L12-v2`
+- [x] `ORTVersion` é `"1.29.0"`
+- [x] `DefaultModelsDir()` termina em `.memory/models/paraphrase-multilingual-MiniLM-L12-v2`
       sob o home, e respeita `MY_MEMORY_MINILM_MODEL_DIR` quando definida
-- [ ] `DefaultORTDir()` é `.memory/models/onnxruntime`
-- [ ] A URL do runtime no manifesto aponta para a release `v1.29.0`
+- [x] `DefaultORTDir()` é `.memory/models/onnxruntime`
+- [x] A URL do runtime no manifesto aponta para a release `v1.29.0`
 
-**Status**: Pending
+**Status**: Verified (2026-11-13)
 
 **Tests**: unit
 **Gate**: quick
