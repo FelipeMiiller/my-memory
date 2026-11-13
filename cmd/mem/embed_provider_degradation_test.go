@@ -254,6 +254,43 @@ func TestProviderDegradationBuscaComProviderNaoDeclaraFallback(t *testing.T) {
 	}
 }
 
+// TestProviderDegradationBuscaComProviderDeclaraFonteVector prova o AC4 pelo
+// lado determinístico: com provider disponível, a saída da busca tem que
+// dizer DE ONDE veio o resultado — a fonte `vector` do RRF.
+//
+// O provider aqui é o dublê (`embedderFake`) e o vault é o fixture com vetor.
+// O que se prova é o CONTRATO DE RELATO (a busca declara a fonte vetorial
+// quando ela participou do ranqueamento), não a inferência do ONNX: essa tem
+// teste próprio, sob a tag `onnx`, com o provider real.
+//
+// O teste roda sem artefato e sem a tag de build — logo, roda na CI.
+func TestProviderDegradationBuscaComProviderDeclaraFonteVector(t *testing.T) {
+	database := newFixtureComVetores(t)
+	tq := turboquant.NewQuantizer(embedder.EmbeddingDim)
+
+	var out string
+	codigo := 0
+	out = captureStdout(t, func() {
+		codigo = runSearchSQLite(context.Background(), database, embedderFake{}, tq, "arquitetura", "hybrid", false, 10, 60,
+			store.DefaultDecayOptions(), store.SearchOptions{})
+	})
+
+	if codigo != 0 {
+		t.Errorf("a busca híbrida com provider deveria responder (código %d):\n%s", codigo, out)
+	}
+	if !strings.Contains(out, "Fontes RRF:") {
+		t.Errorf("a saída não traz as fontes RRF:\n%s", out)
+	}
+	if !strings.Contains(out, "vector:") {
+		t.Errorf("a saída não declara a fonte vetorial do RRF:\n%s", out)
+	}
+	// Não-vacuous: o documento tem de estar no resultado, senão o teste
+	// passaria mesmo com a busca quebrada.
+	if !strings.Contains(out, "nota-arquitetura-alpha") {
+		t.Errorf("a busca com provider não trouxe o documento; o teste não exercitou o caminho vetorial:\n%s", out)
+	}
+}
+
 // TestProviderDegradationBuscaVectorSemProviderFalha prova que o modo
 // vetorial sem provider continua sendo erro de uso: código diferente de zero.
 func TestProviderDegradationBuscaVectorSemProviderFalha(t *testing.T) {

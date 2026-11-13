@@ -414,9 +414,11 @@ asseverava: a versão `1.29.0` do ONNX Runtime e o destino `~/.memory/models/`.
 híbrida com provider traz a fonte `vector` nas fontes RRF. Roda sem artefato do
 ONNX (sem a tag, sem o modelo), então roda na CI.
 
-**Where**: `cmd/mem/embed_provider_degradation_test.go`
+**Where**: `cmd/mem/embed_provider_degradation_test.go` ·
+`internal/store/vector_source_test.go`
 **Depends on**: T11
-**Reuses**: `newFixtureComVetores` · `embedderFake` · `runSearchSQLite`
+**Reuses**: `newFixtureComVetores` · `embedderFake` · `runSearchSQLite` ·
+`pgtest.New` · `PostgresStore.SearchHybridWithOptions`
 **Requirement**: ROP-04 (AC4)
 
 **Tools**:
@@ -426,10 +428,13 @@ ONNX (sem a tag, sem o modelo), então roda na CI.
 **Done when**:
 
 - [ ] A saída contém `Fontes RRF:` com uma entrada `vector:`
-- [ ] O teste roda sem os artefatos do ONNX (sem a tag de build, sem modelo)
+- [ ] O caminho SQLite roda sem os artefatos do ONNX (sem a tag de build, sem
+      modelo) — logo, roda na CI
+- [ ] O caminho Postgres (o motor do cofre central) é coberto contra um banco
+      descartável
 - [ ] O teste não é vacuamente verde: exige o documento no resultado
 
-**Status**: Pending
+**Status**: Verified (2026-11-13)
 
 **Tests**: integration
 **Gate**: quick
