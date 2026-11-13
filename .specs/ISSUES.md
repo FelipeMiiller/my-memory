@@ -1355,10 +1355,13 @@ reportado". B é a correção de raiz e pode entrar depois, por fluxo spec-drive
 servidor) continua lá: **A** contorna e **C** contém o estrago, mas quem
 corrige a causa é **B**.
 
-**Fora do escopo desta ISSUE, mas discovered na mesma rodada:** o
-`internal/watcher/indexer.go` tem o **próprio** indexador, que ainda aborta
-inteiro no primeiro erro de documento. O `mem index` (CLI) ficou tolerante; o
-watcher não. Follow-up registrado.
+**Fora do escopo desta ISSUE, mas verificado na mesma rodada:** o
+`internal/watcher/indexer.go` tem indexador próprio, **por documento** (o
+watcher indexa um arquivo por evento) — e **não** tem o defeito de "abortar a
+indexação inteira": o loop do watcher (`cmd/mem/main.go:1324`) **reporta o erro
+do documento e segue**. O caminho Postgres do watcher já põe o repositório no
+contexto para a ponte (`internal/watcher/indexer.go:293`). **Nada a corrigir
+aqui.**
 
 **Não é regressão do P1.** A integração com Postgres foi provada em 2026-10-27
 (ISSUE-031 §P1) contra um banco **descartável** — que usava o mesmo endpoint
@@ -1480,16 +1483,25 @@ de driver, **sem** índice novo.
 | `FlushEdges` → `code_edges_uncertain` | 1 por **aresta incerta** | 1 por **arquivo** | ~110 min → **~1,7 min** |
 | `buildCodeBridge` (ponte) | 2 por **(documento, símbolo)** | 2 por **documento** | ~4,7 h → **~2,5 min** |
 
-Medido no run real: a primeira população do code graph deste repo (374 arquivos
-/ 7 309 símbolos) saiu em **~10 min** — antes, >2 h e impraticável. O `mem
-index` de rotina, com cache quente, fica em **~2,5 min**.
+Medido no run real: a primeira população do code graph deste repo (381 arquivos
+/ 7 418 símbolos) saiu em **2 173 s (36,2 min)** — antes, >2 h e impraticável. O
+`mem index` de rotina, com cache quente, fica em **~2,5 min**. (A fase de
+resolução, que sozinha pagava ~20 min, foi para <1 min depois — ver
+`.specs/features/batch-edge-resolution-lookups/`.)
 
-**Um ponto ficou de fora, com a medição:** as **lookups de resolução** das
-arestas (1 `SELECT` por destino distinto, cacheadas por lote). O tamanho real
-se mede com `SELECT COUNT(DISTINCT dst_candidate_name) FROM
-code_edges_uncertain;` — no pior caso (~10,5 mil) seriam ~47 min de SELECTs.
-Loteá-las exige mudar a semântica da resolução (carregar os símbolos do repo
-uma vez e casar em memória), o que **não** foi feito aqui.
+**O ponto que ficou de fora foi fechado depois (2026-10-29).** As **lookups de
+resolução** (1 `SELECT` por destino distinto) foram posto em lote por
+`.specs/features/batch-edge-resolution-lookups/`: antes de resolver as arestas,
+o resolver busca **todos** os destinos necessários com um punhado de queries
+(`IN (...)`, blocos de 500 valores), preenchendo o mesmo cache do caminho por
+destino. **A chave da segurança:** a resolução acontece só depois que todos os
+arquivos do lote foram indexados (`internal/codeast/pipeline.go`, §Run), então o
+conjunto de símbolos é o mesmo — o resultado é idêntico, provado aresta a
+aresta, e o caminho por destino continua como fallback. **Medido:** a fase de
+resolução saiu de **~20 min para <1 min** e a população completa do code graph
+de **2 173 s (36,2 min) → 1 226 s (20,4 min)**; o número de queries que chega
+ao servidor cai de **≥10 para ≤2** (10 destinos) e para **zero** durante a
+resolução com o cache cheio.
 
 ---
 

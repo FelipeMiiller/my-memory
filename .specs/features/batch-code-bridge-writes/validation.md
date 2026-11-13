@@ -66,6 +66,14 @@ Medição do dono **em produção** depois da primeira entrega (Neon, run de 08:
 | Primeira população (~374 arquivos) | ~374 × 6 (2 `code_files` + 2 símbolos + 1 arestas + 1 incertas) ≈ **2 244** | **≈10 min** |
 | Rotina com cache quente (tudo indexado) | a ponte: ~276 docs × 2 ≈ **552** (o code stage não escreve nada) | **≈2,5 min** |
 
+> **Números medidos depois desta entrega (2026-10-29).** A tabela acima é uma
+> **projeção** (round-trips × 268 ms) e ela **subestimou** o tempo real: a
+> primeira população do code graph deste repo saiu em **2 173 s (36,2 min)**, e
+> não ~10 min — a diferença é a fase de **resolução**, que pagava uma query por
+> destino (~4 500 queries ≈ 20 min) e não estava no modelo. Essa fase foi
+> posta em lote depois (`.specs/features/batch-edge-resolution-lookups/`), e a
+> população completa caiu para **1 226 s (20,4 min)**.
+
 ### Custo real do `UpsertCodeFile` (a pergunta do dono)
 
 **2 round-trips por arquivo no Postgres** — o `INSERT` e um `SELECT` extra para resolver o id, porque o `lib/pq` não implementa `LastInsertId` (`internal/db/code_migration.go:220`). Medido com o `pgtest.Recorder`:

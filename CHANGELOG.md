@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   troca de driver): `code_symbols` sai de 2 round-trips por símbolo para 2 por arquivo,
   `code_edges` e `code_edges_uncertain` de 1 por aresta para 1 por arquivo, e a ponte de 2
   por (documento, símbolo) para 2 por documento. Medido no Neon: a primeira população do
-  code graph (374 arquivos / 7 309 símbolos) saiu de **>2 h para ~10 min**, e o `mem index`
+  code graph (381 arquivos / 7 418 símbolos) saiu de **>2 h para 36,2 min**, e o `mem index`
   de rotina, com cache quente, fica em ~2,5 min. Spec:
   `.specs/features/batch-code-bridge-writes/`.
 - **O `mem drift` voltou a usar o caminho estrutural no Postgres (ISSUE-035)**: o comando
@@ -55,6 +55,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nó de código é reconhecido como alvo vivo (nos dois engines e também no caminho de
   correção): **38 306 → 2** dead links (os 2 restantes são reais) e Health Score **90/100**.
   Spec: `.specs/features/fix-doctor-dead-links-code-nodes/`.
+- **A resolução das arestas do code graph deixou de custar uma query por destino
+  (ISSUE-034)**: com o escopo `code:` habilitado, a **resolução** pagava ~4 500
+  `SELECT`s (~20 min no Neon) — uma lookup por destino de aresta. Agora, antes de
+  resolver, o resolver busca **todos** os destinos necessários com um punhado de
+  queries (`IN (...)`, blocos de 500 valores), preenchendo o mesmo cache do
+  caminho por destino. O resultado é **idêntico** — a resolução já acontecia
+  depois de todos os arquivos do lote serem indexados, então o conjunto de
+  símbolos é o mesmo, e o caminho por destino continua como fallback. Medido no
+  Neon: a fase de resolução saiu de **~20 min para <1 min** e a primeira
+  população do code graph de **36,2 min para 20,4 min**. Spec:
+  `.specs/features/batch-edge-resolution-lookups/`.
 
 ### Changed
 
