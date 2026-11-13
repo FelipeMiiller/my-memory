@@ -1644,7 +1644,7 @@ dono (Windows, sem gcc no PATH) também deve tê-la: a resposta é sim, com o
 ## ISSUE-038 — O doctor conta a aresta de tag (`tagged_as`) como link morto: o Health Score do cofre central é 60/100 sem motivo
 
 - **Severidade:** 🟡 média (medição errada que penaliza o vault mais saudável)
-- **Status:** 🔵 **open**
+- **Status:** 🟢 **parcialmente corrigida** (2026-11-13, `.specs/features/fix-doctor-tag-edges/`) — a tag que existe em `document_tags` deixou de ser dead link; **resta** a parte que depende da checagem em disco (ISSUE-039)
 - **Achado em:** 2026-11-13, ao rodar o `mem doctor` do cofre central
 
 **O defeito.** O check de dead links considera "vivo" só o alvo que resolve para
@@ -1665,19 +1665,30 @@ link morto.
 
 | Origem | Count | Realidade |
 | :--- | :--- | :--- |
-| `tagged_as` | **80** | **falso positivo** — a tag existe em `document_tags` |
-| `links_to` | **68** | real no índice (apontam para o material bruto excluído — ISSUE-039) |
+| `tagged_as` | **80** | **falso positivo** — o alvo é uma tag ou uma referência a nota; **10** delas têm a tag em `document_tags` (corrigido em 2026-11-13) e as outras **70** apontam para material fora do índice → ISSUE-039 |
+| `links_to` | **68** | material bruto fora do índice (existe no disco) → ISSUE-039 |
 | **Total reportado pelo doctor** | **148** | Health Score **60/100** (a penalidade de dead link tem teto de 40 pontos) |
 
-Sem os 80 falsos positivos, o cofre sairia em **~90/100** — o valor compatível
-com um vault com 0 órfãos.
+Sem os 148, o cofre sairia em **100/100** — o valor compatível com um vault com 0
+órfãos.
 
-**Correção proposta.** O check de dead link passa a reconhecer o alvo de
-`tagged_as` como tag (via `document_tags`/a relação), em vez de exigir que ele
-seja um documento. Hmm: a correção pode ser no doctor (não contar `tagged_as`)
-**ou** no indexador (gravar o alvo da tag com `#`), e a segunda é melhor porque
-alinha os dois caminhos de tag — hmm, mas muda o formato do dado gravado e,
-portanto, exige reindex. Hmm: a decisão é do dono na spec.
+**Correção entregue (2026-11-13, `.specs/features/fix-doctor-tag-edges/`).** O
+check de dead link agora conhece a tag: o alvo está vivo se for um documento
+(id/título), uma **tag conhecida** (`document_tags`, por `tag` ou `tag_key`) ou um
+**símbolo de código** (`graph_nodes` com `type='code_symbol'`). Medido: cofre
+central **148 → 138** dead links; vault do repo **2** (os dois `[[ADR-035]]`
+reais, com Health Score 90/100).
+
+> ⚠️ **Um contra-teste que mudou a solução:** a primeira versão aceitava
+> "qualquer nó do grafo" como vivo — e o teste **passou**. Era errado: o grafo
+> cria **nós-placeholder** para todo link citado (no cofre central, 238 nós
+> para 94 documentos), então a regra zerava o contador de dead links **e**
+> mascarava links realmente quebrados. A regra final não aceita placeholder.
+
+**O que falta (ISSUE-039).** Os **138** restantes são referências a material
+que **existe no disco** e está fora do índice por decisão — a distinção que o
+dono definiu ("fora do índice por decisão" ≠ "link rompido") exige a checagem em
+disco, e o `doctor` precisa do caminho do vault.
 
 **Referência:** ADR-062 §D-2.
 
@@ -1686,7 +1697,7 @@ portanto, exige reindex. Hmm: a decisão é do dono na spec.
 ## ISSUE-039 — 68 wikilinks do cofre central apontam para o material bruto que está fora do índice
 
 - **Severidade:** 🟡 média (o vault parece quebrado no Obsidian e no grafo ao mesmo tempo)
-- **Status:** 🔵 **open** — **decisão de política do dono**
+- **Status:** 🔵 **open** — **decisão do dono (2026-11-13): distinguir "fora do índice por decisão" de "link rompido"** (o `doctor` passa a checar o disco do vault)
 - **Achado em:** 2026-11-13, ao decompor os 148 "dead links" do cofre central
 
 **O fato.** O `config.yaml` do cofre exclui do índice o material bruto
@@ -1700,8 +1711,11 @@ Mas as notas do catálogo **linkam** esse material (`[[SKILL]]`,
 arquivos existem no disco); no **índice** eles não (os alvos não são
 documentos indexados) → o doctor os conta como links mortos.
 
-**Prova medida.** 68 `links_to` do `repo_central` apontam para caminhos que
-existem em disco mas **não** estão em `documents`.
+**Prova medida.** Os **138** dead links restantes do `repo_central` (depois da
+correção da ISSUE-038) apontam para caminhos que **existem em disco** mas
+**não** estão em `documents`: **68** `links_to` + **70** `tagged_as` (o alvo de
+uma aresta de tag também pode ser uma referência a uma nota — e a nota pode estar
+fora do índice).
 
 **As três saídas possíveis (decisão do dono).**
 

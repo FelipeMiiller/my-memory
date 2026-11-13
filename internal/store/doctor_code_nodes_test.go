@@ -38,7 +38,7 @@ func TestPostgresDoctorNaoContaNoDeCodigoComoDeadLink(t *testing.T) {
 	nodeID := "code:" + repo + ":pkg.Alpha"
 	if _, err := database.ExecContext(ctx, `
 		INSERT INTO graph_nodes (id, repository, type, name) VALUES ($1, $2, $3, $4)
-	`, nodeID, repo, codeSymbolNodeType, "Alpha"); err != nil {
+	`, nodeID, repo, "code_symbol", "Alpha"); err != nil {
 		t.Fatalf("insert do nó de código: %v", err)
 	}
 	if _, err := database.ExecContext(ctx, `
@@ -126,7 +126,7 @@ func TestPostgresFixHealthIssuesNaoApagaCodeGraph(t *testing.T) {
 	nodeID := "code:" + repo + ":pkg.Alpha"
 	if _, err := database.ExecContext(ctx, `
 		INSERT INTO graph_nodes (id, repository, type, name) VALUES ($1, $2, $3, $4)
-	`, nodeID, repo, codeSymbolNodeType, "Alpha"); err != nil {
+	`, nodeID, repo, "code_symbol", "Alpha"); err != nil {
 		t.Fatalf("insert do nó de código: %v", err)
 	}
 	if _, err := database.ExecContext(ctx, `

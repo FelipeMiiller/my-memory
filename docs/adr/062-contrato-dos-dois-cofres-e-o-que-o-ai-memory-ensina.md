@@ -155,9 +155,12 @@ funcionando".
    `codeast-cgo-on`), e o caminho de instalação documentando o toolchain
    (mingw/MSYS2) quando ele não existir.
 2. **GAP-2 — o doctor não conta aresta de tag como link morto.** 80 dos 148
-   "dead links" do cofre são `tagged_as` (o alvo da tag não leva `#`, e o check
-   só isenta alvos com `#`). É bug de **medição**: o Health Score do cofre está
-   penalizado por algo que não está quebrado.
+   "dead links" do cofre são `tagged_as` (o alvo de uma aresta de tag é uma tag
+   ou uma referência a nota, não um documento indexado) e os outros 68 são
+   `links_to` para o material bruto. É bug de **medição**: o Health Score do
+   cofre está penalizado por algo que não está quebrado. *(Parcialmente
+   corrigido em 2026-11-13: o check passou a conhecer a tag — 148 → 138; o que
+   resta é a checagem em disco do GAP-3.)*
 3. **GAP-3 — os 68 wikilinks para o material bruto.** Resolvem no Obsidian, não
    no índice. Decisão de política (resolver contra o disco / aceitar como
    "não indexado por decisão" / remover os links).

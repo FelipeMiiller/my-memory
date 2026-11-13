@@ -4,14 +4,6 @@ import (
 	"context"
 )
 
-// codeSymbolNodeType é o `type` do graph_nodes que representa um símbolo de
-// código (ADR-061, CG-17/CG-18).
-//
-// O literal é repetido aqui porque `internal/store` não pode importar
-// `internal/db` (o `internal/db` importa o `internal/store` — o ciclo
-// quebraria o build). O valor é o mesmo de `db.CodeSymbolNodeType`.
-const codeSymbolNodeType = "code_symbol"
-
 // HealthScoreApplicable reports whether the report's Health Score can be read
 // as a verdict.
 //
@@ -113,9 +105,14 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 		  AND e.target_id NOT LIKE '#%'
 		  AND e.target_id NOT IN (SELECT id FROM documents WHERE repository = $1)
 		  AND e.target_id NOT IN (SELECT title FROM documents WHERE repository = $1)
-		  AND e.target_id NOT IN (SELECT id FROM graph_nodes WHERE repository = $1 AND type = $2)
+		  AND e.target_id NOT IN (SELECT id FROM graph_nodes WHERE repository = $1 AND type = 'code_symbol')
+		  AND e.target_id NOT IN (
+		      SELECT tag FROM document_tags WHERE repository = $1
+		      UNION
+		      SELECT tag_key FROM document_tags WHERE repository = $1
+		  )
 		ORDER BY e.source_id, e.target_id
-	`, repo, codeSymbolNodeType)
+	`, repo)
 	if err == nil {
 		defer deadRows.Close()
 		for deadRows.Next() {
@@ -271,8 +268,13 @@ func (s *PostgresStore) FixHealthIssues(ctx context.Context, repo string) (int, 
 		  AND target_id NOT LIKE '#%'
 		  AND target_id NOT IN (SELECT id FROM documents WHERE repository = $1)
 		  AND target_id NOT IN (SELECT title FROM documents WHERE repository = $1)
-		  AND target_id NOT IN (SELECT id FROM graph_nodes WHERE repository = $1 AND type = $2)
-	`, repo, codeSymbolNodeType)
+		  AND target_id NOT IN (SELECT id FROM graph_nodes WHERE repository = $1 AND type = 'code_symbol')
+		  AND target_id NOT IN (
+		      SELECT tag FROM document_tags WHERE repository = $1
+		      UNION
+		      SELECT tag_key FROM document_tags WHERE repository = $1
+		  )
+	`, repo)
 	if err != nil {
 		return 0, err
 	}

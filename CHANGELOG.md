@@ -66,6 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Neon: a fase de resolução saiu de **~20 min para <1 min** e a primeira
   população do code graph de **36,2 min para 20,4 min**. Spec:
   `.specs/features/batch-edge-resolution-lookups/`.
+- **O `mem doctor` parou de contar a aresta de tag como link morto (ISSUE-038)**: o alvo
+  de uma aresta `tagged_as` é uma **tag** (que vive em `document_tags`, ADR-055) ou uma
+  referência a nota — não um documento indexado. O check só aceitava documento (id/título),
+  então as 80 arestas de tag do cofre central viravam "dead links" e o Health Score caía
+  de ~90 para 60 — sem nada estar quebrado. Agora o alvo está vivo quando é documento,
+  tag conhecida ou símbolo de código (`code_symbol`). Hmm, e a regra **não** aceita
+  "qualquer nó": o grafo cria nós-placeholder para todo link citado, e aceitar esses
+  tornaria o contador de dead links vacuamente verde e mascararia links realmente
+  quebrados (o contra-teste está na spec). Spec: `.specs/features/fix-doctor-tag-edges/`.
 
 ### Changed
 

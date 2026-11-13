@@ -274,9 +274,16 @@ func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error
 		WHERE e.target_id NOT LIKE '#%'
 		  AND e.target_id NOT IN (SELECT id FROM documents)
 		  AND e.target_id NOT IN (SELECT title FROM documents)
-		  AND e.target_id NOT IN (SELECT id FROM graph_nodes WHERE type = ?)
+		  AND e.target_id NOT IN (
+		      SELECT id FROM graph_nodes WHERE type = 'code_symbol'
+		  )
+		  AND e.target_id NOT IN (
+		      SELECT tag FROM document_tags
+		      UNION
+		      SELECT tag_key FROM document_tags
+		  )
 		ORDER BY e.source_id, e.target_id
-	`, CodeSymbolNodeType)
+	`)
 	if err == nil {
 		defer deadRows.Close()
 		for deadRows.Next() {
@@ -423,8 +430,15 @@ func FixHealthIssues(ctx context.Context, db *sql.DB) (int, error) {
 		WHERE target_id NOT LIKE '#%'
 		  AND target_id NOT IN (SELECT id FROM documents)
 		  AND target_id NOT IN (SELECT title FROM documents)
-		  AND target_id NOT IN (SELECT id FROM graph_nodes WHERE type = ?)
-	`, CodeSymbolNodeType)
+		  AND target_id NOT IN (
+		      SELECT id FROM graph_nodes WHERE type = 'code_symbol'
+		  )
+		  AND target_id NOT IN (
+		      SELECT tag FROM document_tags
+		      UNION
+		      SELECT tag_key FROM document_tags
+		  )
+	`)
 	if err != nil {
 		return 0, err
 	}
