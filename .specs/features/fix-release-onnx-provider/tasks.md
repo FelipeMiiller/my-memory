@@ -203,11 +203,13 @@ rename atômico.
 
 **Done when**:
 
-- [ ] `mem embed download` baixa os artefatos e imprime o path final
-- [ ] `mem embed doctor` reporta provider ativo, path do modelo, path da DLL,
+- [x] `mem embed download` baixa os artefatos e imprime o path final
+- [x] `mem embed doctor` reporta provider ativo, path do modelo, path da DLL,
       dimensão e existência de cada artefato
-- [ ] `mem embed doctor` funciona sem provider (reporta "indisponível", não
+- [x] `mem embed doctor` funciona sem provider (reporta "indisponível", não
       quebra)
+
+**Status**: Verified (2026-11-13)
 
 **Tests**: unit
 **Gate**: quick

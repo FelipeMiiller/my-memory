@@ -834,6 +834,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "embed":
+		if err := runEmbedCLI(ctx, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		if err := runVersionCLI(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Erro: %v\n", err)
@@ -862,6 +868,10 @@ func printHelp() {
 	fmt.Println("      Instala ou remove o Git pre-commit hook para indexação automática pré-commit")
 	fmt.Println("  mem doctor [--fix] [--events] [--db <arq>] [--postgres <url>] [--repo <slug>]")
 	fmt.Println("      Audita a saúde do grafo (dead links, notas órfãs, self-loops e Health Score). Use --events para inspecionar o event_runtime")
+	fmt.Println("  mem embed download [--provider builtin]")
+	fmt.Println("      Baixa o modelo, o tokenizer e a biblioteca do ONNX Runtime para ~/.memory/models/")
+	fmt.Println("  mem embed doctor")
+	fmt.Println("      Diagnostica o provider: caminhos, dimensão e presença de cada artefato no disco")
 	fmt.Println("  mem search [--mode hybrid|vector|fts] [--level l0|l1|l2] [--category resource|memory|skill] [--tag <tag>] [-tq] [--decay] [--half-life 30] [--decay-weight 0.3] [--k 60] [--limit 5] [--db <arq>] [--postgres <url>] [--repo <slug>] \"<pergunta>\"")
 	fmt.Println("      Busca com Progressive Context Loading (L0/L1/L2), filtro de categoria, filtro de tag (Obsidian), RRF, decaimento temporal e grafo")
 
