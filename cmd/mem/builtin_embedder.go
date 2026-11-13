@@ -3,7 +3,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/FelipeMiiller/my-memory/internal/config"
@@ -12,26 +11,17 @@ import (
 
 // defaultModelsDir é onde `mem embed download` deixa os artefatos.
 func defaultModelsDir() string {
-	if d := os.Getenv("MY_MEMORY_MINILM_MODEL_DIR"); d != "" {
-		return d
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ".memory/models/paraphrase-multilingual-MiniLM-L12-v2"
-	}
-	return filepath.Join(home, ".memory", "models", "paraphrase-multilingual-MiniLM-L12-v2")
+	return embedder.DefaultModelsDir()
 }
 
+// defaultORTLibPath é onde `mem embed download` deixa a biblioteca do
+// ONNX Runtime.
+//
+// O nome do arquivo não é o mesmo em todo sistema (onnxruntime.dll no
+// Windows, libonnxruntime.so no Linux): o runtime é carregado por dlopen no
+// caminho exato.
 func defaultORTLibPath() string {
-	if p := os.Getenv("MY_MEMORY_ORT_LIB"); p != "" {
-		return p
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	// Linux/macOS ficam a cargo de LD_LIBRARY_PATH / DYLD_LIBRARY_PATH.
-	return filepath.Join(home, ".memory", "models", "onnxruntime", "onnxruntime.dll")
+	return embedder.DefaultORTLibPath()
 }
 
 // newBuiltinEmbedder constrói o provider embutido (ADR-035). Só existe na

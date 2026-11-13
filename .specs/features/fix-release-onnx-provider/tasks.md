@@ -174,11 +174,13 @@ rename atômico.
 
 **Done when**:
 
-- [ ] O download grava no path que `cmd/mem/builtin_embedder.go` procura
-- [ ] O tamanho de cada arquivo é verificado antes do rename final
-- [ ] Falha de download nomeia a URL tentada e o destino, e não deixa parcial
-- [ ] O teste com `httptest` prova o caminho feliz, o arquivo parcial
+- [x] O download grava no path que `cmd/mem/builtin_embedder.go` procura
+- [x] O tamanho de cada arquivo é verificado antes do rename final
+- [x] Falha de download nomeia a URL tentada e o destino, e não deixa parcial
+- [x] O teste com `httptest` prova o caminho feliz, o arquivo parcial
       descartado e o erro explícito
+
+**Status**: Verified (2026-11-13)
 
 **Tests**: unit
 **Gate**: quick
