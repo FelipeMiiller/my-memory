@@ -114,9 +114,11 @@ onnx"` e `CGO_ENABLED=1`.
 
 **Done when**:
 
-- [ ] O build Linux usa as duas tags e `CGO_ENABLED=1`
-- [ ] O `-ldflags` e o nome do artefato seguem intactos
-- [ ] O artefato resultante passa no smoke test de `mem search` (fonte `vector`)
+- [x] O build Linux usa as duas tags e `CGO_ENABLED=1`
+- [x] O `-ldflags` e o nome do artefato seguem intactos
+- [x] O artefato resultante passa no smoke test de `mem search` (fonte `vector`)
+
+**Status**: Verified (2026-11-13)
 
 **Tests**: none
 **Gate**: tagged

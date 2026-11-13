@@ -115,7 +115,12 @@ jobs:
           TAG="${{ needs.check-eligibility.outputs.next_tag }}"
           COMMIT="${{ github.sha }}"
           BUILD_DATE="${{ steps.date.outputs.date }}"
-          CGO_ENABLED=1 go build -tags "sqlite_fts5" \
+          # A tag `onnx` traz o provider semantico embutido (ADR-035). Sem ela
+          # o binario publicado roda em FTS lexical e grava vetor zero ao
+          # indexar (ISSUE-037). O runtime do ONNX e carregado por dlopen em
+          # runtime, entao o build so precisa do compilador C -- que o runner
+          # garante no passo "Install CGO dependencies (Ubuntu)".
+          CGO_ENABLED=1 go build -tags "sqlite_fts5 onnx" \
             -ldflags "-s -w -X main.Version=${TAG} -X main.GitCommit=${COMMIT} -X main.BuildDate=${BUILD_DATE}" \
             -v -o dist/mem ./cmd/mem
           tar -czvf "dist/my-memory-${TAG}-linux-amd64.tar.gz" -C dist mem
