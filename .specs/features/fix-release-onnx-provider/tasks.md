@@ -262,9 +262,11 @@ diretório do modelo.
 
 **Done when**:
 
-- [ ] O instalador chama `mem embed download` e não aborta se o download falhar
-- [ ] O instalador imprime o path do diretório do modelo
-- [ ] `bash -n scripts/install.sh` passa
+- [x] O instalador chama `mem embed download` e não aborta se o download falhar
+- [x] O instalador imprime o path do diretório do modelo
+- [x] `bash -n scripts/install.sh` passa
+
+**Status**: Verified (2026-11-13)
 
 **Tests**: none
 **Gate**: build gate only (parse do script)

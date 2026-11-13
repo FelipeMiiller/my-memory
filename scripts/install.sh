@@ -281,6 +281,22 @@ else
     warn "Aviso ao testar o binário: ${VERSION_OUT}"
 fi
 
+# 10. Baixar os artefatos do provider semântico
+#
+# O binário sozinho não basta: o provider de embedding precisa do modelo, do
+# tokenizer e da biblioteca do ONNX Runtime no disco. Sem eles o `mem index`
+# cai para FTS léxico. A falha aqui NÃO aborta a instalação -- quem instala
+# pode estar sem rede, e o provider pode ser buscado depois.
+step "Baixando os artefatos do provider semântico (modelo + ONNX Runtime)..."
+if EMBED_OUT=$("$TARGET_BIN" embed download 2>&1); then
+    success "Provider semântico pronto!"
+    printf "%s\n" "$EMBED_OUT"
+else
+    warn "O download do provider falhou. Rode 'mem embed download' manualmente quando a rede estiver disponível."
+    printf "%s\n" "$EMBED_OUT"
+fi
+printf "   Diretório do modelo: %s\n" "${HOME}/.memory/models/paraphrase-multilingual-MiniLM-L12-v2"
+
 printf "\n"
 printf "${GREEN}  Instalação concluída com sucesso!${NC}\n\n"
 printf "${CYAN}  Para começar a usar no seu projeto:${NC}\n"
