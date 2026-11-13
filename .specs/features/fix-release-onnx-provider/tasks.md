@@ -65,6 +65,16 @@ T4 -> T5 -> T6 -> T7
 T8 -> T9
 ```
 
+### Phase 4: Fechamento das lacunas do Verifier (FAIL de 2026-11-13)
+
+```
+T10 -> T11 -> T12 -> T13 -> T14 -> T15
+```
+
+> A fase é estritamente sequencial (regra da execução). T10 abre a fase; T11
+> e T12 não têm dependência de dados entre si, mas a ordem do diagrama é a
+> ordem de execução.
+
 ---
 
 ## Task Breakdown
@@ -334,21 +344,220 @@ resultado veio do fallback textual.
 
 ---
 
+### T10: O `mem index` sem provider é asseverado como exit code 0
+
+**What**: o teste da degradação passa a capturar o retorno real de `runIndexCLI` e
+assevera `err == nil`. Hoje a closure aninhada devolve `nil` literal, então
+`if err != nil` nunca pode falhar — a asserção é vacuamente verdadeira e o
+mutante que faz o index devolver erro depois de indexar sobrevive.
+
+**Where**: `cmd/mem/embed_provider_degradation_test.go`
+**Depends on**: None
+**Reuses**: `runIndexCLI` (`cmd/mem/main.go:1612`) · `captureStdout`
+**Requirement**: ROP-11 (AC11)
+
+**Tools**:
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O teste captura o valor de retorno real de `runIndexCLI` (sem closure com
+      `nil` hard-coded)
+- [x] O mutante "devolve erro depois de indexar tudo" é morto pelo teste
+- [x] O resto do contrato (um aviso, contagem de documentos, banco gravado)
+      continua asseverado
+
+**Status**: Verified (2026-11-13)
+
+**Tests**: integration
+**Gate**: quick
+
+**Commit**: `test(index): asvera o exit code 0 do index sem provider`
+
+---
+
+### T11: A versão do ONNX Runtime e o destino do modelo são asseverados
+
+**What**: teste que fixa os dois pontos precisos que a AC5 nomeia e que nada
+asseverava: a versão `1.29.0` do ONNX Runtime e o destino `~/.memory/models/`.
+
+**Where**: `internal/embedder/model_downloader_test.go`
+**Depends on**: T10
+**Reuses**: `DefaultManifest` · `DefaultModelsDir` · `DefaultORTDir` · `ORTVersion`
+**Requirement**: ROP-05 (AC5)
+
+**Tools**:
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] `ORTVersion` é `"1.29.0"`
+- [ ] `DefaultModelsDir()` termina em `.memory/models/paraphrase-multilingual-MiniLM-L12-v2`
+      sob o home, e respeita `MY_MEMORY_MINILM_MODEL_DIR` quando definida
+- [ ] `DefaultORTDir()` é `.memory/models/onnxruntime`
+- [ ] A URL do runtime no manifesto aponta para a release `v1.29.0`
+
+**Status**: Pending
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `test(embedder): fixa a versão do ONNX Runtime e o destino do modelo`
+
+---
+
+### T12: A busca com provider declara a fonte RRF `vector`
+
+**What**: teste de regressão **determinístico** que prova que a saída da busca
+híbrida com provider traz a fonte `vector` nas fontes RRF. Roda sem artefato do
+ONNX (sem a tag, sem o modelo), então roda na CI.
+
+**Where**: `cmd/mem/embed_provider_degradation_test.go`
+**Depends on**: T11
+**Reuses**: `newFixtureComVetores` · `embedderFake` · `runSearchSQLite`
+**Requirement**: ROP-04 (AC4)
+
+**Tools**:
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] A saída contém `Fontes RRF:` com uma entrada `vector:`
+- [ ] O teste roda sem os artefatos do ONNX (sem a tag de build, sem modelo)
+- [ ] O teste não é vacuamente verde: exige o documento no resultado
+
+**Status**: Pending
+
+**Tests**: integration
+**Gate**: quick
+
+**Commit**: `test(search): asvera a fonte RRF vector na busca com provider`
+
+---
+
+### T13: O provider real produz a fonte `vector` (end-to-end)
+
+**What**: teste sob a tag `onnx` que indexa um vault com o provider embutido
+**real** e assevera a fonte `vector` na saída da busca — o caminho que a AC4
+descreve ("`mem search` contra um vault vetorizado reporta a fonte `vector`").
+Pula com motivo explícito quando os artefatos não estão no disco (caso da CI).
+
+**Where**: `cmd/mem/search_vector_source_test.go` (novo, `//go:build onnx`)
+**Depends on**: T12
+**Reuses**: `newBuiltinEmbedder` · `runIndexCLI` · `runSearchSQLite`
+**Requirement**: ROP-04 (AC4)
+
+**Tools**:
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O arquivo tem `//go:build onnx` e só compila na build com a tag
+- [ ] Com os artefatos presentes, a busca devolve `vector:` na fonte RRF
+- [ ] Sem os artefatos, o teste **pula** com motivo explícito (não falha)
+
+**Status**: Pending
+
+**Tests**: integration (ONNX real)
+**Gate**: tagged
+
+**Commit**: `test(search): prova a fonte vector com o provider real`
+
+---
+
+### T14: O instalador imprime o diretório que o download usou
+
+**What**: os dois instaladores imprimem o **mesmo** diretório que o
+`mem embed download` usou — `MY_MEMORY_MINILM_MODEL_DIR` quando definida, senão
+o default. Hoje imprimem um caminho fixo, que é o oposto do "SHALL print the
+model directory it used" da AC7.
+
+**Where**: `scripts/install.ps1` · `scripts/install.sh`
+**Depends on**: T13
+**Reuses**: a mesma resolução de `embedder.DefaultModelsDir()`
+**Requirement**: ROP-07 (AC7)
+
+**Tools**:
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Com `MY_MEMORY_MINILM_MODEL_DIR` definido, o instalador imprime esse
+      diretório
+- [ ] Sem a variável, imprime `~/.memory/models/paraphrase-multilingual-MiniLM-L12-v2`
+- [ ] Os scripts continuam válidos (parse do PowerShell + `bash -n`)
+
+**Status**: Pending
+
+**Tests**: none
+**Gate**: build gate only (parse dos scripts)
+
+**Commit**: `fix(installer): imprime o diretório do modelo que o download usou`
+
+---
+
+### T15: Documentação, spec e issues reconciliados com o comportamento novo
+
+**What**: reconciliar a documentação que ainda descreve o aviso **por documento**
+removido por esta feature; listar `mem embed download` e `mem embed doctor` no
+README; atualizar CHANGELOG, STATE.md e ISSUE-037; corrigir a precisão de AC9 e
+AC10 (os dois gaps de precisão apontados pelo Verifier); marcar Goals e Success
+Criteria; registrar o traceability real.
+
+**Where**: `docs/CLI_GUIDE.md` · `docs/CENTRAL_VAULT.md` · `docs/ARCHITECTURE.md` ·
+`README.md` · `CHANGELOG.md` · `.specs/STATE.md` · `.specs/ISSUES.md` ·
+`.specs/features/fix-release-onnx-provider/spec.md` · `.specs/LESSONS.md` ·
+`.specs/lessons.json`
+**Depends on**: T14
+**Reuses**: o texto real dos avisos em `cmd/mem/main.go`
+**Requirement**: ROP-01..ROP-11
+
+**Tools**:
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Nenhuma documentação descreve o aviso por documento removido
+- [ ] O README lista `mem embed download` e `mem embed doctor`
+- [ ] A AC9 diz **documentos** (a unidade que o contrato da T8 usa) e a AC10
+      fixa os marcadores que o teste asseverar (`LEXICAL` e a declaração de que
+      a similaridade vetorial não foi usada)
+- [ ] Os 4 Goals e os 4 Success Criteria da spec estão marcados
+- [ ] O traceability da spec reflete o estado real (`Verified`)
+- [ ] A ISSUE-037 deixa de estar `open`
+- [ ] O CHANGELOG e o STATE.md registram a entrega
+
+**Status**: Pending
+
+**Tests**: none
+**Gate**: spec
+
+**Commit**: `docs: reconcilia a documentação com o provider semântico no release`
+
+---
+
 ## Phase Execution Map
 
 ```
-Phase 1 → Phase 2 → Phase 3
+Phase 1 → Phase 2 → Phase 3 → Phase 4
 
 Phase 1:  T1 -> T2 -> T3
 Phase 2:  T4 -> T5 -> T6 -> T7
 Phase 3:  T8 -> T9
+Phase 4:  T10 -> T11 -> T12 -> T13 -> T14 -> T15
 ```
 
 Execution is strictly sequential - there is no intra-phase parallelism. A single
 agent (or batch worker) works one task at a time, in order.
 
-**Contagem de tarefas**: 9 — cabem em um único lote (≤ ~8 por worker), então a
-execução é **inline**, sem sub-agente.
+**Contagem de tarefas**: 15 — a fase 4 (6 tarefas) cabe em um único lote
+(≤ ~8 por worker), então a execução é **inline**, sem sub-agente.
 
 ---
 
@@ -365,6 +574,12 @@ execução é **inline**, sem sub-agente.
 | T7 | T6 | T6 -> T7 | ✅ Match |
 | T8 | None | (início da fase 3) | ✅ Match |
 | T9 | T8 | T8 -> T9 | ✅ Match |
+| T10 | None | (início da fase 4) | ✅ Match |
+| T11 | T10 | T10 -> T11 | ✅ Match |
+| T12 | T11 | T11 -> T12 | ✅ Match |
+| T13 | T12 | T12 -> T13 | ✅ Match |
+| T14 | T13 | T13 -> T14 | ✅ Match |
+| T15 | T14 | T14 -> T15 | ✅ Match |
 
 Nenhuma dependência aponta para uma fase posterior.
 
@@ -383,6 +598,12 @@ Nenhuma dependência aponta para uma fase posterior.
 | T7 | Instalador (script) | none | none | ✅ OK |
 | T8 | Degradação no index | integration | integration | ✅ OK |
 | T9 | Degradação na busca | integration | integration | ✅ OK |
+| T10 | Degradação no index (asserção do exit code) | integration | integration | ✅ OK |
+| T11 | Download do modelo e da DLL (fixação de versão/destino) | unit | unit | ✅ OK |
+| T12 | Degradação na busca (fonte `vector`) | integration | integration | ✅ OK |
+| T13 | Fonte `vector` com o provider real | integration (ONNX real) | integration (ONNX real) | ✅ OK |
+| T14 | Instalador (script) | none | none | ✅ OK |
+| T15 | Documentação e spec | none | none | ✅ OK |
 
 ---
 
@@ -399,3 +620,9 @@ Nenhuma dependência aponta para uma fase posterior.
 | T7: instalador POSIX | 1 script | ✅ Granular |
 | T8: aviso do index | 1 função | ✅ Granular |
 | T9: aviso da busca | 1 função | ✅ Granular |
+| T10: asserção do exit code | 1 asserção em 1 arquivo de teste | ✅ Granular |
+| T11: versão e destino | 1 teste novo em 1 arquivo | ✅ Granular |
+| T12: fonte `vector` determinística | 1 teste novo em 1 arquivo | ✅ Granular |
+| T13: fonte `vector` com o provider real | 1 arquivo de teste novo (tag `onnx`) | ✅ Granular |
+| T14: diretório do modelo no instalador | 2 scripts, 1 linha cada | ✅ Granular |
+| T15: documentação | artefatos de doc + spec | ✅ Granular |

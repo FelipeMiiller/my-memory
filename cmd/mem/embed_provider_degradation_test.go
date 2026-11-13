@@ -120,20 +120,22 @@ func TestProviderDegradationIndexTerminaComCodigoZero(t *testing.T) {
 	t.Setenv("MY_MEMORY_MINILM_MODEL_DIR", filepath.Join(t.TempDir(), "sem-modelo"))
 	t.Setenv("MY_MEMORY_ORT_LIB", filepath.Join(t.TempDir(), "sem-runtime", "onnxruntime.dll"))
 
+	// O retorno REAL de runIndexCLI é capturado: é ele que o `main` traduz em
+	// os.Exit(1). Uma closure que devolvesse nil fixo deixaria a asserção
+	// vacuamente verdadeira — o mutante "indexa tudo e devolve erro" passaria
+	// pelo teste.
 	var out string
-	err := func() error {
-		out = captureStdout(t, func() {
-			runIndexCLI(context.Background(), "repo_teste", []string{
-				"--storage=sqlite",
-				"--db", dbPath,
-				"--repo", "repo_teste",
-				vault,
-			})
+	var errIndex error
+	out = captureStdout(t, func() {
+		errIndex = runIndexCLI(context.Background(), "repo_teste", []string{
+			"--storage=sqlite",
+			"--db", dbPath,
+			"--repo", "repo_teste",
+			vault,
 		})
-		return nil
-	}()
-	if err != nil {
-		t.Fatalf("runIndexCLI: %v", err)
+	})
+	if errIndex != nil {
+		t.Fatalf("indexar sem provider é um modo válido e não pode falhar, mas runIndexCLI devolveu: %v", errIndex)
 	}
 
 	provaAvisoConsolidado(t, out, 3)
