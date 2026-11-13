@@ -292,10 +292,12 @@ existentes (`:1897`, `:2138`)
 
 **Done when**:
 
-- [ ] O aviso aparece uma vez por execução, não uma vez por documento
-- [ ] O aviso nomeia a tag ausente e a consequência (chunks sem vetor)
-- [ ] A saída final diz quantos documentos ficaram sem vetor
-- [ ] O exit code continua 0
+- [x] O aviso aparece uma vez por execução, não uma vez por documento
+- [x] O aviso nomeia a tag ausente e a consequência (chunks sem vetor)
+- [x] A saída final diz quantos documentos ficaram sem vetor
+- [x] O exit code continua 0
+
+**Status**: Verified (2026-11-13)
 
 **Tests**: integration
 **Gate**: quick

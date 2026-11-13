@@ -385,7 +385,10 @@ func main() {
 			log.Println(errOverride)
 			os.Exit(1)
 		}
-		emb, tq, _ := resolveEmbedder(cfg)
+		emb, tq, _, providerErr := resolveEmbedderStatus(cfg)
+		if providerErr != nil {
+			fmt.Fprintf(os.Stderr, "Aviso: %v; o servidor MCP responde em modo léxico FTS\n", providerErr)
+		}
 
 		targetHTTP := *httpAddr
 		if targetHTTP == "" && *port > 0 {
@@ -1463,15 +1466,43 @@ func resolveStorageAndRepo(cfg *config.Config, targetRepo, dbPath, pgURL, defaul
 // (768) e devolvia um `dim` incompatível com a coluna, exatamente a migração
 // 768 → 384 que o ADR-035 consolidou.
 func resolveEmbedder(cfg *config.Config) (embedder.Embedder, *turboquant.Quantizer, int) {
+	emb, tq, dim, _ := resolveEmbedderStatus(cfg)
+	return emb, tq, dim
+}
+
+// resolveEmbedderStatus devolve o provider vetorial, o quantizador, a
+// dimensão e o motivo de o provider não estar disponível.
+//
+// O aviso de degradação NÃO é impresso aqui: quem decide o que dizer é o
+// comando. O `mem index` emite um aviso consolidado com a contagem de
+// documentos sem vetor (AC9); a busca declara o fallback léxico (AC10).
+// Imprimir aqui duplicava a mesma linha a cada chamada, porque o `main`
+// resolve o provider antes do comando — que o resolve de novo.
+func resolveEmbedderStatus(cfg *config.Config) (embedder.Embedder, *turboquant.Quantizer, int, error) {
 	dim := embedder.EmbeddingDim
 
 	emb, err := newBuiltinEmbedder(cfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Aviso: %v; indexando em modo léxico FTS\n", err)
 		emb = nil
 	}
 	tq := turboquant.NewQuantizer(dim)
-	return emb, tq, dim
+	return emb, tq, dim, err
+}
+
+// warnProviderUnavailable imprime o aviso CONSOLIDADO da degradação vetorial.
+//
+// O aviso sai UMA vez por execução, não uma vez por documento: era esse
+// excesso que fazia a degradação passar batido (AC9, ROP-09). A mensagem nomeia
+// a tag que falta e a consequência, e o número diz quantos documentos
+// ficaram sem vetor (AC11, ROP-11).
+//
+// Exit code continua 0: indexar em modo léxico é um modo válido, só não é o
+// que o dono espera de um cofre com busca semântica.
+func warnProviderUnavailable(docsSemVetor int) {
+	if docsSemVetor <= 0 {
+		return
+	}
+	fmt.Printf("⚠️  Provider vetorial indisponível: %d documento(s) indexado(s) SEM VETOR — a busca semântica não funciona para eles. Causa provável: binário compilado SEM a tag `onnx` (o da release já vem com ela). Diagnóstico: `mem embed doctor`.\n", docsSemVetor)
 }
 
 // preCollectDocTitles faz um walk rápido do rootDir e retorna os títulos
@@ -1733,6 +1764,9 @@ func runIndexPostgres(ctx context.Context, s postgresIndexStore, emb embedder.Em
 	totalCount := 0
 	indexedCount := 0
 	cachedCount := 0
+	// Documentos indexados sem nenhum vetor real (provider indisponível). O
+	// aviso de degradação é consolidado e quantificado no fim do comando.
+	docsSemVetor := 0
 	// Documentos que falharam ao ser gravados (ISSUE-032, opção C). A falha é
 	// por documento: a varredura continua e o relatório final carrega a
 	// contagem e o nome de quem ficou de fora do índice.
@@ -1897,19 +1931,17 @@ func runIndexPostgres(ctx context.Context, s postgresIndexStore, emb embedder.Em
 
 		// 3. Divide em chunks e gera embeddings (com fallback FTS se offline)
 		chunks := parser.ChunkText(content, 200, 30)
+		// O documento tem vetor? O aviso de degradação é CONSOLIDADO no fim do
+		// comando (AC9): uma linha por documento escondia a queda do vetor.
+		docSemVetor := false
 		for i, c := range chunks {
 			chunkID := fmt.Sprintf("%s#%d", docID, i)
 			var vec []float32
-			if emb == nil && i == 0 {
-				// Antes este ramo era totalmente silencioso: o aviso só existia
-				// dentro do `if emb != nil`. Sem provider, a indexação caía para
-				// FTS5 e ninguém era avisado.
-				fmt.Printf("Aviso: sem provider de embedding; %s indexado em modo léxico FTS\n", docID)
-			}
 			if emb != nil {
 				v, err := emb.GenerateEmbedding(c)
 				if err == nil {
 					vec = v
+					docSemVetor = true
 				} else if i == 0 {
 					fmt.Printf("Aviso: falha ao gerar embedding (%s); indexando em modo léxico FTS\n", chunkID)
 				}
@@ -1932,6 +1964,9 @@ func runIndexPostgres(ctx context.Context, s postgresIndexStore, emb embedder.Em
 			}
 		}
 
+		if !docSemVetor {
+			docsSemVetor++
+		}
 		indexedCount++
 		fmt.Printf("✔ Indexado no Postgres: %s (%d arestas, %d chunks)\n", title, len(connections.Edges), len(chunks))
 		return nil
@@ -1964,6 +1999,7 @@ func runIndexPostgres(ctx context.Context, s postgresIndexStore, emb embedder.Em
 	}
 
 	fmt.Printf("🎉 Concluído! %d documentos processados no PostgreSQL (%d indexados, %d em cache, %d podados, %d falhos).\n", totalCount, indexedCount, cachedCount, prunedCount, failedCount)
+	warnProviderUnavailable(docsSemVetor)
 }
 
 func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder, tq *turboquant.Quantizer, cfg *config.Config, rootDir string, force, prune bool) {
@@ -1975,6 +2011,9 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 	totalCount := 0
 	indexedCount := 0
 	cachedCount := 0
+	// Documentos indexados sem nenhum vetor real (provider indisponível). O
+	// aviso de degradação é consolidado e quantificado no fim do comando.
+	docsSemVetor := 0
 	// Documentos que falharam ao ser gravados (ISSUE-032, opção C). O
 	// contrato é do comando, não do driver: o caminho SQLite é idêntico ao
 	// Postgres — a falha é por documento, a varredura continua e o relatório
@@ -2138,19 +2177,17 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 
 		// 3. Divide em chunks e gera embeddings (com fallback FTS se offline)
 		chunks := parser.ChunkText(content, 200, 30)
+		// O documento tem vetor? O aviso de degradação é CONSOLIDADO no fim do
+		// comando (AC9): uma linha por documento escondia a queda do vetor.
+		docSemVetor := false
 		for i, c := range chunks {
 			chunkID := fmt.Sprintf("%s#%d", docID, i)
 			var vec []float32
-			if emb == nil && i == 0 {
-				// Antes este ramo era totalmente silencioso: o aviso só existia
-				// dentro do `if emb != nil`. Sem provider, a indexação caía para
-				// FTS5 e ninguém era avisado.
-				fmt.Printf("Aviso: sem provider de embedding; %s indexado em modo léxico FTS\n", docID)
-			}
 			if emb != nil {
 				v, err := emb.GenerateEmbedding(c)
 				if err == nil {
 					vec = v
+					docSemVetor = true
 				} else if i == 0 {
 					fmt.Printf("Aviso: falha ao gerar embedding (%s); indexando em modo léxico FTS\n", chunkID)
 				}
@@ -2176,6 +2213,9 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 			}
 		}
 
+		if !docSemVetor {
+			docsSemVetor++
+		}
 		indexedCount++
 		fmt.Printf("✔ Indexado no SQLite: %s (%d arestas, %d chunks comprimidos)\n", title, len(connections.Edges), len(chunks))
 		return nil
@@ -2208,6 +2248,7 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 	}
 
 	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados, %d falhos).\n", totalCount, indexedCount, cachedCount, prunedCount, failedCount)
+	warnProviderUnavailable(docsSemVetor)
 }
 
 // buildTagBindings monta os vínculos documento→tag a partir das tags cruas do
