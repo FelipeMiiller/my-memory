@@ -76,6 +76,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   backend de code AST do build padrão é o de Go puro (stdlib); as demais linguagens
   cairiam no `MockParser` (símbolos sintéticos, sem assinatura real).
 
+### Documentation
+
+- **ADR-062 — o contrato dos dois cofres e o que o `ai-memory` ensina**: o cofre central
+  responde "o que eu aprendi" (busca semântica, Obsidian); o vault de repositório responde
+  "como este código se conecta" (travessia do grafo). A ADR registra o critério de
+  "pronto" de cada lado, a matriz de padrões do [graphify](https://github.com/Graphify-Labs/graphify)
+  e do [ai-memory](https://github.com/akitaonrails/ai-memory) e a **causa raiz medida** de o
+  cofre central não funcionar como memória: o binário distribuído nunca é compilado com a
+  tag `onnx`, então o provider semântico está morto em todo artefato oficial e cada nota
+  reindexada perde o vetor **em silêncio**. Gaps rastreados: ISSUE-037, ISSUE-038,
+  ISSUE-039.
+
 ## [3.0.0] — 2026-10-28
 
 ### Added

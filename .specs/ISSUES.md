@@ -1586,3 +1586,137 @@ rotina num vault com code graph destrói a ponte notas↔código.
 o "fix" do doctor, se rodar, leva o code graph junto.
 
 ---
+
+## ISSUE-037 — O binário distribuído nunca carrega o provider semântico: a busca vetorial do cofre decai em silêncio
+
+- **Severidade:** 🟠 alta (a ADR-035 fica sem efeito prático no artefato que o dono usa)
+- **Status:** 🔵 **open** — decisão de política pendente (ver ADR-062 §C)
+- **Achado em:** 2026-11-13, ao diagnosticar por que o dono "não consegue documentar aprendizados no cofre central"
+
+**O defeito.** O provider de embedding embutido (ONNX MiniLM, ADR-035) mora atrás
+de `//go:build onnx` (`internal/embedder/builtin.go:1`). Mas:
+
+- o **release** compila com `CGO_ENABLED=1 go build -tags "sqlite_fts5"`
+  (`.github/workflows/release.yml:118,131`) — **sem** a tag `onnx`;
+- a **CI** não tem job com a tag `onnx` (tem o do `treesitter`,
+  `codeast-cgo-on`), ou seja, **o provider nunca é compilado nem testado** no
+  pipeline.
+
+Resultado: **todo binário oficial roda em FTS lexical** e avisa
+"Aviso: provider builtin indisponível: este binário foi compilado sem a tag
+`onnx`; indexando em modo léxico FTS" — aviso que passa batido, porque a
+busca **funciona**.
+
+**Por que é grave.** A reindexação regrava o chunk **sem embedding** → cada nota
+tocada pelo binário oficial **perde o vetor** → a busca semântica do cofre
+central **decai nota a nota, em silêncio**. É exatamente "a aplicação não está
+funcionando" sem erro em lugar nenhum.
+
+**Prova medida (2026-11-13, cofre central `repo_central`).**
+
+| Binário | Resposta da busca | Fonte RRF |
+| :--- | :--- | :--- |
+| build padrão (sem tag) | `Aviso: provider builtin indisponível` | `[fts:1]` |
+| `CGO_ENABLED=1 go build -tags onnx` | funciona, 35.634.166 bytes | **`[vector:1]`** |
+
+O toolchain **existe** nesta máquina: `C:\msys64\ucrt64\bin\gcc.exe` (MSYS2
+ucrt64), apenas **fora do PATH** — por isso `CGO_ENABLED=0` é o default aqui.
+O modelo (`~/.memory/models/paraphrase-multilingual-MiniLM-L12-v2/model_int8.onnx`,
+118 MB) e a DLL do ONNX Runtime
+(`~/.memory/models/onnxruntime/onnxruntime.dll`, 16 MB) **já estão no disco**.
+
+**Correção proposta.** (a) o release passa a compilar com a tag `onnx` **quando
+houver toolchain C**, e **sem** ela quando não houver — com **aviso explícito**
+no boot; (b) a CI ganha um job com a tag `onnx` (copiando o padrão do
+`codeast-cgo-on`); (c) o instalador (ADR-032) documenta o pré-requisito de
+toolchain (mingw/MSYS2) quando o build com a tag for possível.
+
+**Pendência de decisão (dono).** Onde o binário oficial é construído? Hmm: o
+release do GitHub roda em Linux (toolchain C disponível) — então **o binário
+oficial pode e deve ter a tag**. Hmm, a questão real é se o **build local** do
+dono (Windows, sem gcc no PATH) também deve tê-la: a resposta é sim, com o
+`C:\msys64\ucrt64\bin` no PATH do build.
+
+**Referência:** ADR-062 §C.
+
+---
+
+## ISSUE-038 — O doctor conta a aresta de tag (`tagged_as`) como link morto: o Health Score do cofre central é 60/100 sem motivo
+
+- **Severidade:** 🟡 média (medição errada que penaliza o vault mais saudável)
+- **Status:** 🔵 **open**
+- **Achado em:** 2026-11-13, ao rodar o `mem doctor` do cofre central
+
+**O defeito.** O check de dead links considera "vivo" só o alvo que resolve para
+um **documento** (id ou title) e isenta os alvos que começam com `#`:
+
+```sql
+AND e.target_id NOT LIKE '#%'
+AND e.target_id NOT IN (SELECT id FROM documents WHERE repository = $1)
+AND e.target_id NOT IN (SELECT title FROM documents WHERE repository = $1)
+```
+
+Mas o caminho de **tag do frontmatter** grava o alvo da tag **sem** o prefixo
+`#` (o prefixo só existe no caminho da tag inline `#tag`). Resultado: **toda**
+aresta `tagged_as` cujo nome de tag não exista como documento é contada como
+link morto.
+
+**Prova medida (cofre central `repo_central`, 2026-11-13).**
+
+| Origem | Count | Realidade |
+| :--- | :--- | :--- |
+| `tagged_as` | **80** | **falso positivo** — a tag existe em `document_tags` |
+| `links_to` | **68** | real no índice (apontam para o material bruto excluído — ISSUE-039) |
+| **Total reportado pelo doctor** | **148** | Health Score **60/100** (a penalidade de dead link tem teto de 40 pontos) |
+
+Sem os 80 falsos positivos, o cofre sairia em **~90/100** — o valor compatível
+com um vault com 0 órfãos.
+
+**Correção proposta.** O check de dead link passa a reconhecer o alvo de
+`tagged_as` como tag (via `document_tags`/a relação), em vez de exigir que ele
+seja um documento. Hmm: a correção pode ser no doctor (não contar `tagged_as`)
+**ou** no indexador (gravar o alvo da tag com `#`), e a segunda é melhor porque
+alinha os dois caminhos de tag — hmm, mas muda o formato do dado gravado e,
+portanto, exige reindex. Hmm: a decisão é do dono na spec.
+
+**Referência:** ADR-062 §D-2.
+
+---
+
+## ISSUE-039 — 68 wikilinks do cofre central apontam para o material bruto que está fora do índice
+
+- **Severidade:** 🟡 média (o vault parece quebrado no Obsidian e no grafo ao mesmo tempo)
+- **Status:** 🔵 **open** — **decisão de política do dono**
+- **Achado em:** 2026-11-13, ao decompor os 148 "dead links" do cofre central
+
+**O fato.** O `config.yaml` do cofre exclui do índice o material bruto
+(`catalog-skills/skills/**`, 704 arquivos) por decisão registrada: *"Material
+BRUTO das skills: é FONTE para destilação, não conhecimento. Sem esta exclusão,
+os ~700 arquivos de references/rules em inglês competem na busca semântica"* (o
+Health Score caiu de 100 para 57 quando isso aconteceu, em 2026-10-17).
+
+Mas as notas do catálogo **linkam** esse material (`[[SKILL]]`,
+`[[review-standards]]`, `[[mcp-guide]]`…). No Obsidian esses links resolvem (os
+arquivos existem no disco); no **índice** eles não (os alvos não são
+documentos indexados) → o doctor os conta como links mortos.
+
+**Prova medida.** 68 `links_to` do `repo_central` apontam para caminhos que
+existem em disco mas **não** estão em `documents`.
+
+**As três saídas possíveis (decisão do dono).**
+
+1. **Resolver contra o disco** no check de dead link: o alvo existe como
+   arquivo → não é link morto. Hmm: o doctor passaria a depender do filesystem
+   do vault (que em Postgres pode não estar no mesmo host).
+2. **Aceitar como "não indexado por decisão"**: o doctor distingue
+   "rompido" de "fora do índice por política" — hmm, e o Health Score para de
+   punir um link que funciona no Obsidian.
+3. **Remover os links** do material bruto das notas do catálogo (o catálogo
+   aponta para a skill pelo **nome**, não por `[[wikilink]]`).
+
+**Nota.** As três opções mexem em **conteúdo** ou em **semântica de medição** —
+não é bug de código puro. Hmm: a opção 1 e a 2 sãochanges no doctor (código);
+a 3 é uma edição de conteúdo do cofre.
+
+**Referência:** ADR-062 §D-3.
+

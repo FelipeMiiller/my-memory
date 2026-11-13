@@ -62,6 +62,7 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-059](059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** | SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP | Aceito — **Emendado pela ADR-060** | 2026-10-19 | `viewer`, `react`, `vite`, `mcp`, `http`, `build-estatico`, `seguranca` |
 | **[ADR-060](060-stack-do-frontend-da-viewer-e-fallback-spa.md)** | Stack do frontend da viewer (TanStack) e a rota de fallback SPA | Aceito | 2026-10-19 | `viewer`, `react`, `tanstack`, `router`, `query`, `zustand`, `zod`, `markdown`, `wikilinks`, `spa` |
 | **[ADR-061](061-dois-conceitos-de-memoria-vault-central-e-code-graph.md)** | Dois conceitos de memória — Vault Central (aprendizagem) e Vault de Repositório (code graph) | Aceito — **Implementado** | 2026-10-23 | `code-graph`, `central-vault`, `obsidian`, `graphify`, `provenance`, `federation`, `cgo`, `adr-047` |
+| **[ADR-062](062-contrato-dos-dois-cofres-e-o-que-o-ai-memory-ensina.md)** | Contrato dos dois cofres, critério de prontidão por lado e o que o `ai-memory` ensina | Aceito | 2026-11-13 | `central-vault`, `code-graph`, `ai-memory`, `graphify`, `embeddings`, `onnx`, `cgo`, `gaps` |
 > [!success]
 > **ADR-055: implementada.** A pergunta que a ADR deixou em
 > aberto — para onde `resolved_doc_id` aponta — foi respondida em 2026-10-21:
@@ -152,6 +153,28 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > SPA**. O `@tanstack/config` está deprecado no npm ("Package no longer
 > supported") e o sucessor é de biblioteca. A `vite.config.ts` da viewer segue
 > explícita e local — 56 linhas, sem preset.
+
+> [!warning]
+> **ADR-062: o contrato dos dois cofres, e o que ainda impede o Cofre Central de
+> funcionar como memória.** A ADR-061 separou os conceitos; a ADR-062 fecha o
+> contrato de **cada lado** (o que o cofre central responde: "o que eu aprendi",
+> busca semântica; o que o vault de repositório responde: "como este código se
+> conecta", travessia do grafo), escreve o **critério de "pronto"** de cada lado
+> e registra a matriz de padrões do [graphify](https://github.com/Graphify-Labs/graphify)
+> e do [ai-memory](https://github.com/akitaonrails/ai-memory) — o `my-memory` é
+> **superior** em grafo de código, vetor, multi-repo, drift e blast radius, e
+> **deficiente** em captura de sessão, handoff, decaimento por tier e artefato
+> portátil.
+>
+> A ADR-062 registra também a **causa raiz medida** de "a aplicação não está
+> funcionando": o provider semântico (ADR-035) está atrás de `//go:build onnx`,
+> e **nem o release nem a CI compilam com essa tag** → todo binário oficial
+> roda em FTS lexical e **cada nota reindexada perde o vetor em silêncio**. O
+> toolchain existe nesta máquina (`C:\msys64\ucrt64\bin\gcc.exe`, fora do PATH)
+> e o build com a tag foi **provado** (`CGO_ENABLED=1 go build -tags onnx` →
+> a busca passa a responder `[vector:1]`). Gaps rastreados: ISSUE-037 (binário
+> sem o provider), ISSUE-038 (o doctor conta aresta de tag como link morto) e
+> ISSUE-039 (os wikilinks para o material bruto fora do índice).
 
 > [!warning]
 > **ADR-047: decisão mantida, motor trocado — e a ADR-054:37 afirma o contrário.**
