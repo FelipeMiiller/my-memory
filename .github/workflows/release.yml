@@ -125,6 +125,39 @@ jobs:
             -v -o dist/mem ./cmd/mem
           tar -czvf "dist/my-memory-${TAG}-linux-amd64.tar.gz" -C dist mem
 
+      - name: Verify C Toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # A tag `onnx` exige CGO. O runner Windows traz o gcc pelo MSYS2, mas a
+          # imagem NAO coloca o MSYS2 no PATH -- sem este passo o build falha com
+          # um erro de cgo que nao diz o que falta.
+          $gcc = Get-Command gcc -ErrorAction SilentlyContinue
+          if (-not $gcc) {
+            # Select-Object -First 1 devolve uma string unica (nao um array de
+            # um elemento): indexar $candidates[0] sobre um escalar pegaria o
+            # primeiro caractere do caminho, nao o caminho.
+            $gccPath = @(
+              'C:\msys64\ucrt64\bin\gcc.exe',
+              'C:\msys64\mingw64\bin\gcc.exe'
+            ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+            if ($gccPath) {
+              $gccDir = Split-Path $gccPath -Parent
+              Write-Host "gcc encontrado em $gccDir; adicionando ao PATH"
+              Add-Content -Path $env:GITHUB_PATH -Value $gccDir
+              $env:PATH = "$gccDir;$env:PATH"
+              $gcc = Get-Command gcc -ErrorAction SilentlyContinue
+            }
+          }
+          if (-not $gcc) {
+            Write-Host "::error::Toolchain C ausente: o build Windows do release exige gcc para compilar a tag onnx (o provider semantico). Sem ela o artefato seria publicado SEM o provider, e o mem index gravaria vetor zero em cada nota. Instale a toolchain C no runner e rode o job de novo."
+            exit 1
+          }
+          Write-Host "gcc: $($gcc.Source)"
+          & gcc --version
+          Write-Host "CGO_ENABLED=$(go env CGO_ENABLED)"
+          Write-Host "CC=$(go env CC)"
+
       - name: Compile Binary with Embedded Metadata (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -133,7 +166,8 @@ jobs:
           $TAG = "${{ needs.check-eligibility.outputs.next_tag }}"
           $COMMIT = "${{ github.sha }}"
           $BUILD_DATE = "${{ steps.date.outputs.date }}"
-          go build -tags "sqlite_fts5" `
+          $env:CGO_ENABLED = '1'
+          go build -tags "sqlite_fts5 onnx" `
             -ldflags "-s -w -X main.Version=$TAG -X main.GitCommit=$COMMIT -X main.BuildDate=$BUILD_DATE" `
             -v -o dist/mem.exe ./cmd/mem
           Compress-Archive -Path dist/mem.exe -DestinationPath "dist/my-memory-$TAG-windows-amd64.zip"

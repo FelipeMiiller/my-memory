@@ -143,10 +143,12 @@ explícita em vez de publicar binário sem provider.
 
 **Done when**:
 
-- [ ] O build Windows usa as duas tags e `CGO_ENABLED=1`
-- [ ] Existe um passo que verifica a toolchain C e falha com mensagem explícita
+- [x] O build Windows usa as duas tags e `CGO_ENABLED=1`
+- [x] Existe um passo que verifica a toolchain C e falha com mensagem explícita
       quando ela não existe
-- [ ] O `checksums.txt` publicado cobre o novo artefato
+- [x] O `checksums.txt` publicado cobre o novo artefato
+
+**Status**: Verified (2026-11-13)
 
 **Tests**: none
 **Gate**: tagged
