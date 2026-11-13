@@ -1590,7 +1590,7 @@ o "fix" do doctor, se rodar, leva o code graph junto.
 ## ISSUE-037 — O binário distribuído nunca carrega o provider semântico: a busca vetorial do cofre decai em silêncio
 
 - **Severidade:** 🟠 alta (a ADR-035 fica sem efeito prático no artefato que o dono usa)
-- **Status:** 🔵 **open** — decisão de política pendente (ver ADR-062 §C)
+- **Status:** 🔵 **open** — decisão de política **já tomada** (2026-11-13): o release compila com a tag `onnx` e o instalador baixa a DLL do ONNX Runtime. **Spec escrita:** `.specs/features/fix-release-onnx-provider/` (9 ACs, 9 tarefas, 3 fases)
 - **Achado em:** 2026-11-13, ao diagnosticar por que o dono "não consegue documentar aprendizados no cofre central"
 
 **O defeito.** O provider de embedding embutido (ONNX MiniLM, ADR-035) mora atrás
@@ -1697,7 +1697,7 @@ disco, e o `doctor` precisa do caminho do vault.
 ## ISSUE-039 — 68 wikilinks do cofre central apontam para o material bruto que está fora do índice
 
 - **Severidade:** 🟡 média (o vault parece quebrado no Obsidian e no grafo ao mesmo tempo)
-- **Status:** 🔵 **open** — **decisão do dono (2026-11-13): distinguir "fora do índice por decisão" de "link rompido"** (o `doctor` passa a checar o disco do vault)
+- **Status:** 🔵 **open** — **decisão do dono (2026-11-13): distinguir "fora do índice por decisão" de "link rompido"** (o `doctor` passa a checar o disco do vault). **Spec escrita:** `.specs/features/fix-doctor-unindexed-links/` (9 ACs, 7 tarefas, 3 fases)
 - **Achado em:** 2026-11-13, ao decompor os 148 "dead links" do cofre central
 
 **O fato.** O `config.yaml` do cofre exclui do índice o material bruto
@@ -1733,4 +1733,49 @@ não é bug de código puro. Hmm: a opção 1 e a 2 sãochanges no doctor (códi
 a 3 é uma edição de conteúdo do cofre.
 
 **Referência:** ADR-062 §D-3.
+
+---
+
+## ISSUE-040 — O chunk indexado sem provider grava vetor zero: ninguém detecta e a busca vetorial devolve ruído
+
+- **Severidade:** 🟠 alta (a degradação é **invisível**: o doctor não vê, o score não cai, e a busca "responde")
+- **Status:** 🔵 **open** — **spec escrita** em 2026-11-13 (`.specs/features/fix-zero-vector-chunks/`, 7 ACs, 8 tarefas, 3 fases)
+- **Achado em:** 2026-11-13, ao ler o caminho de indexação do `cmd/mem/main.go` depois de escrever as specs do Vault Central
+
+**O defeito.** Quando não há provider de embedding, o indexador **não deixa o
+chunk sem vetor**: ele substitui por um vetor **zero** de 384 dimensões
+(`cmd/mem/main.go:1913` no caminho Postgres, e o bloco equivalente no SQLite).
+Três consequências, todas silenciosas:
+
+1. **O doctor não vê.** O check de chunks dessincronizados procura
+   `embedding IS NULL` (`internal/store/doctor.go:176`) — vetor zero **não** é
+   NULL. O Health Score do cofre não se move, e o dono lê "vault saudável"
+   sobre um índice sem um único vetor real.
+2. **A busca vetorial devolve ruído com cara de resultado.** Vetor zero numa
+   coluna `vector(384)` (pgvector) deixa a distância de cosseno indefinida
+   (NaN): a ordenação dos hits deixa de distinguir relevante de irrelevante, e
+   a resposta tem a aparência de uma busca normal.
+3. **O SQLite já sabia fazer certo.** `internal/db/store.go:357` só insere em
+   `chunks_vec` quando `len(vec) > 0` — o caminho "chunk sem vetor" **já
+   existia**. Foi o substituto zero no `cmd/mem/main.go` que estragou os dois
+   engines.
+
+**Por que isso importa agora.** A ADR-062 mediu "os 481 chunks têm vetor" com o
+binário **local** compilado com `-tags onnx`. O binário oficial (sem a tag)
+grava zeros: o mesmo cofre, indexado pelo artefato distribuído, fica com 481
+chunks de vetor zero — e nada no produto diz isso.
+
+**Correção proposta.** (a) o indexador para de substituir o vetor zero e grava
+o chunk **sem embedding** (NULL no Postgres — a coluna `embedding vector(384)`
+é nullable, `internal/store/postgres.go:53`; nenhuma linha em `chunks_vec` no
+SQLite); (b) o doctor passa a tratar vetor zero como chunk dessincronizado,
+além do NULL; (c) a busca vetorial deixa de devolver chunk sem vetor real;
+(d) prova E2E de que a nota do cofre volta **por sentido** e de que o reindex
+do zero não perde vetor.
+
+**Nota.** A correção (a) muda o **dado gravado**: chunks já gravados com vetor
+zero ficam assim até um `mem index --force` com provider presente. O doctor
+passa a listá-los — que é exatamente o ponto.
+
+**Referência:** ADR-062 §C e §B-4 · ADR-013 (penalidade de chunk dessincronizado) · ISSUE-037.
 

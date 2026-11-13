@@ -107,7 +107,7 @@ A lição central está em `docs/prior-art-implementation-findings.md`.
 | :--- | :--- | :--- |
 | Pergunta | "o que eu aprendi sobre isso?" | "como este código se conecta?" |
 | Unidade | a nota (frontmatter + `[[wikilinks]]` + `#tags`) | o símbolo e a aresta |
-| Busca | semântica/vectorial (FTS5 + TurboQuant 4-bit + RRF) | travessia do grafo (`code-search`, `code-graph`, `path`, `inspect`, `impact`, `clusters`, `hubs`, `drift`) |
+| Busca | semântica e vetorial (FTS5 + TurboQuant 4-bit + RRF) | travessia do grafo (`code-search`, `code-graph`, `path`, `inspect`, `impact`, `clusters`, `hubs`, `drift`) |
 | Fonte da verdade | Markdown no Drive | o código + as notas do repo |
 | Identidade | `repo_central` | `repo_id` por repositório, no mesmo Postgres |
 | Verificação | `mem doctor` (Health Score) + drift | drift por `ast_hash` |
@@ -225,3 +225,17 @@ funcionando".
    vault).
 4. `feat(codeast): backend multi-linguagem` (GAP-4) e `feat(export): graph.json
    por repositório` (GAP-5), na ordem que o dono escolher.
+
+### As specs escritas (2026-11-13)
+
+Os passos 1 e 3 viraram specs fechadas, e um **terceiro** gap apareceu no
+diagnóstico:
+
+| Spec | Gap | Issue |
+| :--- | :--- | :--- |
+| `.specs/features/fix-release-onnx-provider/` | GAP-1 — o binário distribuído carrega o provider semântico | ISSUE-037 |
+| `.specs/features/fix-doctor-unindexed-links/` | GAP-2/GAP-3 — "fora do índice por decisão" ≠ "link rompido" | ISSUE-039 |
+| `.specs/features/fix-zero-vector-chunks/` | **novo** — o chunk sem provider grava vetor zero, e ninguém detecta | ISSUE-040 |
+
+O GAP-4 (multi-linguagem) e o GAP-5 (`graph.json`) continuam sem spec: são do
+lado de repositório e dependem da ordem que o dono escolher.
