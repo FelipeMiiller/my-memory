@@ -321,9 +321,11 @@ resultado veio do fallback textual.
 
 **Done when**:
 
-- [ ] A saída da busca híbrida sem provider diz que o resultado é só lexical
-- [ ] A saída com provider **não** mostra o aviso de fallback
-- [ ] O modo `vector` sem provider continua saindo com código ≠ 0
+- [x] A saída da busca híbrida sem provider diz que o resultado é só lexical
+- [x] A saída com provider **não** mostra o aviso de fallback
+- [x] O modo `vector` sem provider continua saindo com código ≠ 0
+
+**Status**: Verified (2026-11-13)
 
 **Tests**: integration
 **Gate**: full

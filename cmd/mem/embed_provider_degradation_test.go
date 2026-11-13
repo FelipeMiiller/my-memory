@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/config"
 	"github.com/FelipeMiiller/my-memory/internal/db"
 	"github.com/FelipeMiiller/my-memory/internal/embedder"
+	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
 )
 
@@ -138,5 +140,131 @@ func TestProviderDegradationIndexTerminaComCodigoZero(t *testing.T) {
 
 	if _, err := os.Stat(dbPath); err != nil {
 		t.Errorf("o comando não gravou no banco indicado: %v", err)
+	}
+}
+
+// vetorFake é um vetor normalizado para o fixture: a busca vetorial precisa de
+// um vetor com norma 1 para a distância de cosseno fazer sentido.
+func vetorFake() []float32 {
+	v := make([]float32, embedder.EmbeddingDim)
+	v[0] = 1
+	return v
+}
+
+// embedderFake é um provider de mentira que devolve sempre o mesmo vetor.
+type embedderFake struct{}
+
+func (embedderFake) GenerateEmbedding(text string) ([]float32, error) {
+	return vetorFake(), nil
+}
+
+// newFixtureComVetores cria um vault SQLite com documentos, chunks COM vetor
+// real e as linhas TurboQuant — para que a busca tenha o que encontrar tanto
+// pelo FTS quanto pelo caminho vetorial.
+func newFixtureComVetores(t *testing.T) *sql.DB {
+	t.Helper()
+
+	database, err := db.InitDB(filepath.Join(t.TempDir(), "vault_fallback.db"))
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	ctx := context.Background()
+	tq := turboquant.NewQuantizer(embedder.EmbeddingDim)
+	for _, path := range []string{"nota-arquitetura-alpha.md", "nota-arquitetura-beta.md"} {
+		title := strings.TrimSuffix(path, ".md")
+		if err := db.InsertDocumentWithMeta(ctx, database, path, path, title, 1700000000, "hash-"+path, "epoch", "", "resource", 1700000000, 128); err != nil {
+			t.Fatalf("InsertDocumentWithMeta(%s) falhou: %v", path, err)
+		}
+		vec := vetorFake()
+		chunkID := path + "#0"
+		if err := db.InsertChunk(ctx, database, chunkID, path, "arquitetura do sistema "+title, 0, vec); err != nil {
+			t.Fatalf("InsertChunk(%s) falhou: %v", chunkID, err)
+		}
+		cv, err := tq.Quantize(vec)
+		if err != nil {
+			t.Fatalf("Quantize(%s) falhou: %v", chunkID, err)
+		}
+		if err := db.InsertTurboQuantChunk(ctx, database, chunkID, cv.Scale, cv.Data); err != nil {
+			t.Fatalf("InsertTurboQuantChunk(%s) falhou: %v", chunkID, err)
+		}
+	}
+	return database
+}
+
+// TestProviderDegradationBuscaHibridaDeclaraFallbackLexico prova o AC10: sem
+// provider, a saída da busca declara que o resultado é APENAS léxico.
+//
+// A busca já respondia antes (o aviso existia), mas o aviso dizia o que a
+// busca ESTAVA FAZENDO — não que o RESULTADO era só textual. A diferença é
+// o que o usuário lê: um resultado que parece semântico e não é.
+func TestProviderDegradationBuscaHibridaDeclaraFallbackLexico(t *testing.T) {
+	database := newFixtureComVetores(t)
+	tq := turboquant.NewQuantizer(embedder.EmbeddingDim)
+
+	var out string
+	codigo := 0
+	out = captureStdout(t, func() {
+		codigo = runSearchSQLite(context.Background(), database, nil, tq, "arquitetura", "hybrid", false, 10, 60,
+			store.DefaultDecayOptions(), store.SearchOptions{})
+	})
+
+	if codigo != 0 {
+		t.Errorf("a busca híbrida sem provider deveria responder (código %d):\n%s", codigo, out)
+	}
+	if !strings.Contains(out, "LEXICAL") {
+		t.Errorf("a saída não declara que o resultado é apenas léxico:\n%s", out)
+	}
+	if !strings.Contains(out, "NÃO usou similaridade vetorial") {
+		t.Errorf("a saída não diz que a similaridade vetorial não foi usada:\n%s", out)
+	}
+	// Não-vacuous: a busca encontrou os documentos (pelo FTS). Sem isto, o
+	// teste passaria mesmo com a busca quebrada.
+	if !strings.Contains(out, "nota-arquitetura-alpha") {
+		t.Errorf("a busca sem provider não trouxe o documento; o teste não exercitou o fallback:\n%s", out)
+	}
+}
+
+// TestProviderDegradationBuscaComProviderNaoDeclaraFallback prova o outro
+// lado do contrato: com provider disponível, a busca NÃO pode dizer que o
+// resultado é lexical.
+func TestProviderDegradationBuscaComProviderNaoDeclaraFallback(t *testing.T) {
+	database := newFixtureComVetores(t)
+	tq := turboquant.NewQuantizer(embedder.EmbeddingDim)
+
+	var out string
+	codigo := 0
+	out = captureStdout(t, func() {
+		codigo = runSearchSQLite(context.Background(), database, embedderFake{}, tq, "arquitetura", "hybrid", false, 10, 60,
+			store.DefaultDecayOptions(), store.SearchOptions{})
+	})
+
+	if codigo != 0 {
+		t.Errorf("a busca híbrida com provider deveria responder (código %d):\n%s", codigo, out)
+	}
+	if strings.Contains(out, "LEXICAL") {
+		t.Errorf("a saída declarou fallback léxico com o provider disponível:\n%s", out)
+	}
+	// Não-vacuous: a busca traz resultado E o caminho vetorial foi exercitado.
+	if !strings.Contains(out, "nota-arquitetura-alpha") {
+		t.Errorf("a busca com provider não trouxe o documento:\n%s", out)
+	}
+}
+
+// TestProviderDegradationBuscaVectorSemProviderFalha prova que o modo
+// vetorial sem provider continua sendo erro de uso: código diferente de zero.
+func TestProviderDegradationBuscaVectorSemProviderFalha(t *testing.T) {
+	database := newFixtureComVetores(t)
+	tq := turboquant.NewQuantizer(embedder.EmbeddingDim)
+
+	codigo := 0
+	captureStdout(t, func() {
+		codigo = runSearchSQLite(context.Background(), database, nil, tq, "arquitetura", "vector", false, 10, 60,
+			store.DefaultDecayOptions(), store.SearchOptions{})
+	})
+
+	if codigo == 0 {
+		t.Error("o modo vetorial sem provider deveria sair com código diferente de zero")
 	}
 }

@@ -1505,6 +1505,16 @@ func warnProviderUnavailable(docsSemVetor int) {
 	fmt.Printf("⚠️  Provider vetorial indisponível: %d documento(s) indexado(s) SEM VETOR — a busca semântica não funciona para eles. Causa provável: binário compilado SEM a tag `onnx` (o da release já vem com ela). Diagnóstico: `mem embed doctor`.\n", docsSemVetor)
 }
 
+// warnLexicalFallback declara que o resultado da busca é APENAS léxico.
+//
+// A busca devolve resultados que PARECEM semânticos, mas sem provider eles
+// vêm só do FTS textual. Sem esta linha o usuário confunde "respondeu" com
+// "respondeu bem" (AC10, ROP-10) — e a queda do vetor passa por uma busca
+// que parece funcionar.
+func warnLexicalFallback(motivo string) {
+	fmt.Printf("⚠️  Resultado apenas LEXICAL — %s. Esta busca NÃO usou similaridade vetorial; o resultado vem só do FTS textual.\n\n", motivo)
+}
+
 // preCollectDocTitles faz um walk rápido do rootDir e retorna os títulos
 // (do frontmatter `title:` se presente, senão basename) de todos os arquivos
 // .md, exceto os em dirs excluídos por padrão. Esse é o mesmo critério usado
@@ -2331,11 +2341,11 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder
 			// Sem provider a busca é só léxica. Antes isto era um
 			// nil-pointer-dereference: o binário sem a tag de build do
 			// provider derrubava `mem search` inteiro.
-			fmt.Println("Aviso: sem provider de embedding; executando busca textual FTS.")
+			warnLexicalFallback("sem provider de embedding")
 		} else {
 			vec, embErr := emb.GenerateEmbedding(query)
 			if embErr != nil {
-				fmt.Printf("Aviso: falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+				warnLexicalFallback(fmt.Sprintf("falha ao gerar embedding (%v)", embErr))
 			} else {
 				queryVec = vec
 			}
@@ -2480,11 +2490,11 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedde
 			// Sem provider a busca é só léxica. Antes isto era um
 			// nil-pointer-dereference: o binário sem a tag de build do
 			// provider derrubava `mem search` inteiro.
-			fmt.Println("Aviso: sem provider de embedding; executando busca textual FTS.")
+			warnLexicalFallback("sem provider de embedding")
 		} else {
 			vec, embErr := emb.GenerateEmbedding(query)
 			if embErr != nil {
-				fmt.Printf("Aviso: falha ao gerar embedding (%v). Executando fallback para busca textual FTS.\n\n", embErr)
+				warnLexicalFallback(fmt.Sprintf("falha ao gerar embedding (%v)", embErr))
 			} else {
 				queryVec = vec
 			}
