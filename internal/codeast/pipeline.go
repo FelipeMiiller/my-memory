@@ -372,6 +372,12 @@ func (fp *FileProcessor) FlushEdges(ctx context.Context) error {
 	fp.pending = nil
 	resolver := newEdgeResolver(ctx, fp.db)
 
+	// Os destinos de TODAS as arestas pendentes são buscados com um punhado de
+	// queries, em vez de uma query por destino (ver edgeResolver.preload).
+	if err := resolver.preload(pending); err != nil {
+		return fmt.Errorf("FlushEdges: preload da resolução falhou: %w", err)
+	}
+
 	// 1) Resolve as arestas (resolver NÃO grava).
 	edgesByFile := make(map[int64][]db.CodeEdgeRow)
 	uncertainByFile := make(map[int64][]db.CodeEdgeUncertainRow)
@@ -506,6 +512,190 @@ func (r *edgeResolver) lookupInFile(fileID int64, column, value string) ([]int64
 	}
 	r.cache[key] = ids
 	return ids, nil
+}
+
+// edgeResolverBatchSize é o número máximo de valores por statement no preload
+// da resolução. O teto vem do limite de PARÂMETROS do engine (SQLite 32 766,
+// Postgres 65 535): com 2 parâmetros fixos + 1 por valor, 500 valores dão
+// folga larga nos dois.
+const edgeResolverBatchSize = 500
+
+// preload resolve os destinos de TODAS as arestas pendentes antes da
+// resolução, em um punhado de queries, em vez de uma query por destino.
+//
+// POR QUE É SEGURO: a resolução das arestas acontece só depois que TODOS os
+// arquivos do lote foram indexados (§Run: "As arestas acumuladas são resolvidas
+// só agora"), então o conjunto de símbolos é exatamente o que a query por
+// destino encontraria. O preload preenche o MESMO cache do resolver — chave
+// idêntica, ids na MESMA ordem e cortados em 3 —, logo o resultado da resolução
+// é idêntico. Se alguma chave não vier no preload, o resolver cai no caminho
+// por destino (uma query) como antes.
+//
+// No Postgres remoto (~268 ms/round-trip) isso troca as ~4 500 queries da
+// resolução do repo (~20 min) por ~10 (~3 s).
+func (r *edgeResolver) preload(pending []pendingEdge) error {
+	if len(pending) == 0 {
+		return nil
+	}
+	type groupKey struct {
+		column string
+		kinds  string
+	}
+	values := make(map[groupKey]map[string]bool)
+	fileValues := make(map[int64]map[string]bool)
+	allFileValues := make(map[string]bool)
+
+	for _, pe := range pending {
+		kinds := strings.Join(dstKindFilter(pe.kind), ",")
+		if pe.kind == EdgeImports && pe.dstQualifiedName != "" {
+			if fileValues[pe.fileID] == nil {
+				fileValues[pe.fileID] = make(map[string]bool)
+			}
+			fileValues[pe.fileID][pe.dstQualifiedName] = true
+			allFileValues[pe.dstQualifiedName] = true
+		}
+		if pe.dstQualifiedName != "" {
+			k := groupKey{"qualified_name", kinds}
+			if values[k] == nil {
+				values[k] = make(map[string]bool)
+			}
+			values[k][pe.dstQualifiedName] = true
+		}
+		if pe.dstName != "" {
+			k := groupKey{"name", kinds}
+			if values[k] == nil {
+				values[k] = make(map[string]bool)
+			}
+			values[k][pe.dstName] = true
+		}
+	}
+
+	for key, set := range values {
+		list := sortedStringKeys(set)
+		for start := 0; start < len(list); start += edgeResolverBatchSize {
+			end := start + edgeResolverBatchSize
+			if end > len(list) {
+				end = len(list)
+			}
+			if err := r.preloadColumn(key.column, key.kinds, list[start:end]); err != nil {
+				return err
+			}
+		}
+	}
+
+	if len(fileValues) > 0 {
+		fileIDs := sortedInt64Keys(fileValues)
+		list := sortedStringKeys(allFileValues)
+		for start := 0; start < len(fileIDs); start += edgeResolverBatchSize {
+			end := start + edgeResolverBatchSize
+			if end > len(fileIDs) {
+				end = len(fileIDs)
+			}
+			if err := r.preloadInFiles(fileIDs[start:end], list); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// preloadColumn preenche o cache do resolver com os ids de `column` para cada
+// valor da lista. Os ids saem na ordem de `id` e cortados em 3 — o mesmo
+// resultado (e a mesma mensagem de ambiguidade) da query por destino.
+func (r *edgeResolver) preloadColumn(column, kinds string, values []string) error {
+	query := `SELECT id, ` + column + ` FROM code_symbols WHERE repository = ? AND ` + column +
+		` IN (` + placeholders(len(values)) + `)`
+	args := []any{db.RepositoryFromContext(r.ctx)}
+	for _, v := range values {
+		args = append(args, v)
+	}
+	if kinds != "" {
+		kindsList := strings.Split(kinds, ",")
+		query += ` AND kind IN (` + placeholders(len(kindsList)) + `)`
+		for _, k := range kindsList {
+			args = append(args, k)
+		}
+	}
+	query += ` ORDER BY id`
+
+	rows, err := r.db.QueryContext(r.ctx, db.DetectDialect(r.ctx, r.db).Bind(query), args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var value string
+		if err := rows.Scan(&id, &value); err != nil {
+			return err
+		}
+		key := column + "=" + value + "|" + kinds
+		ids := r.cache[key]
+		if len(ids) >= 3 {
+			continue
+		}
+		r.cache[key] = append(ids, id)
+	}
+	return rows.Err()
+}
+
+// preloadInFiles preenche o cache com os ids do símbolo qualificado de cada
+// arquivo — o lookup escopado por `file_id` que as arestas `imports` usam.
+//
+// Uma query traz as linhas de todos os (arquivo, valor) do lote e o casamento é
+// feito aqui, com o mesmo corte de 3 ids por par.
+func (r *edgeResolver) preloadInFiles(fileIDs []int64, values []string) error {
+	const column = "qualified_name"
+	query := `SELECT id, file_id, ` + column + ` FROM code_symbols WHERE repository = ? AND file_id IN (` +
+		placeholders(len(fileIDs)) + `) AND ` + column + ` IN (` + placeholders(len(values)) + `) ORDER BY id`
+	args := []any{db.RepositoryFromContext(r.ctx)}
+	for _, id := range fileIDs {
+		args = append(args, id)
+	}
+	for _, v := range values {
+		args = append(args, v)
+	}
+
+	rows, err := r.db.QueryContext(r.ctx, db.DetectDialect(r.ctx, r.db).Bind(query), args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, fileID int64
+		var value string
+		if err := rows.Scan(&id, &fileID, &value); err != nil {
+			return err
+		}
+		key := fmt.Sprintf("file=%d|%s=%s", fileID, column, value)
+		ids := r.cache[key]
+		if len(ids) >= 3 {
+			continue
+		}
+		r.cache[key] = append(ids, id)
+	}
+	return rows.Err()
+}
+
+// sortedStringKeys devolve as chaves de um conjunto em ordem alfabética — a
+// ordem das queries do preload é determinística (importa para o teste).
+func sortedStringKeys(set map[string]bool) []string {
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// sortedInt64Keys devolve as chaves de um conjunto em ordem numérica.
+func sortedInt64Keys(set map[int64]map[string]bool) []int64 {
+	out := make([]int64, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
 }
 
 // resolvedEdge é o resultado da resolução de UMA aresta.
