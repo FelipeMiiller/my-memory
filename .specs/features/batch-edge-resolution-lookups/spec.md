@@ -1,7 +1,7 @@
 # Feature: batch-edge-resolution-lookups
 
 - **Spec ID**: `batch-edge-resolution-lookups`
-- **Created**: 2026-10-29
+- **Created**: 2026-11-13
 - **Owner**: Felipe Miiller
 - **Source**: ISSUE-034 §"Um ponto ficou de fora" — `.specs/ISSUES.md`
 - **Related**: ADR-061 (code graph, CG-05/CG-08) · `.specs/features/batch-code-bridge-writes/` (a correção anterior, mesma classe de defeito)

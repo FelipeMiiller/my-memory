@@ -1,7 +1,7 @@
 # Tasks: batch-edge-resolution-lookups
 
 **Spec**: [spec.md](./spec.md)
-**Date**: 2026-10-29
+**Date**: 2026-11-13
 **Issue**: ISSUE-034 §"Um ponto ficou de fora" (`.specs/ISSUES.md`)
 
 ## Test Coverage Matrix

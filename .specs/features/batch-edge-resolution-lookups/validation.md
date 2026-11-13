@@ -1,7 +1,7 @@
 # Validation: batch-edge-resolution-lookups
 
 - **Feature**: batch-edge-resolution-lookups (ISSUE-034 §"Um ponto ficou de fora")
-- **Date**: 2026-10-29
+- **Date**: 2026-11-13
 - **Spec**: [spec.md](./spec.md)
 - **Verdict**: PASS
 

@@ -1489,7 +1489,7 @@ Medido no run real: a primeira população do code graph deste repo (381 arquivo
 resolução, que sozinha pagava ~20 min, foi para <1 min depois — ver
 `.specs/features/batch-edge-resolution-lookups/`.)
 
-**O ponto que ficou de fora foi fechado depois (2026-10-29).** As **lookups de
+**O ponto que ficou de fora foi fechado depois (2026-11-13).** As **lookups de
 resolução** (1 `SELECT` por destino distinto) foram posto em lote por
 `.specs/features/batch-edge-resolution-lookups/`: antes de resolver as arestas,
 o resolver busca **todos** os destinos necessários com um punhado de queries
