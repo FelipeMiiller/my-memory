@@ -365,6 +365,54 @@ jobs:
           go run .
 
   # ---------------------------------------------------------------------------
+  # Embedding provider ONNX (ADR-035) - ISSUE-037
+  # ---------------------------------------------------------------------------
+  # O provider semantico vive atras de `//go:build onnx`
+  # (internal/embedder/builtin.go). Ate este job, nenhuma pipeline compilava
+  # essa tag: o release publicava `-tags "sqlite_fts5"` e todo binario oficial
+  # rodava em FTS lexical, gravando vetor zero ao indexar (ISSUE-040).
+  #
+  # O job e um gate duro de proposito. Um job que nao pode falhar nao protege
+  # nada -- seria o mesmo verde-vazio que a invariante de internal/ci existe
+  # para impedir. gcc e confiavel em ubuntu-latest (apt-get), e o build da tag
+  # so precisa do compilador C: a biblioteca do ONNX Runtime e carregada por
+  # dlopen em runtime (github.com/yalue/onnxruntime_go), nao no link.
+  #
+  # Os testes que dependem do modelo e da DLL do runtime pulam quando os
+  # artefatos nao estao no disco (t.Skip em builtin_test.go). O que este job
+  # prova de forma dura e que a tag COMPILA e que a suite do provider passa
+  # sob ela.
+  embedder-onnx:
+    name: Embedding Provider (CGO on / -tags onnx)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Install C toolchain (gcc)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc
+          gcc --version
+          echo "CGO_ENABLED=$(go env CGO_ENABLED)"
+          echo "CC=$(go env CC)"
+
+      - name: Build CLI with the onnx tag
+        run: |
+          CGO_ENABLED=1 go build -tags "sqlite_fts5 onnx" -v -o bin/mem ./cmd/mem
+          ./bin/mem version
+
+      - name: Run Embedder Tests (-tags onnx)
+        run: |
+          CGO_ENABLED=1 go test -tags "sqlite_fts5 onnx" -v -count=1 ./internal/embedder/...
+
+  # ---------------------------------------------------------------------------
   # Frontend (viewer SPA) - ADR-059 / ADR-060
   # ---------------------------------------------------------------------------
   # O job `frontend` que existia foi removido junto com o viewer Electron em

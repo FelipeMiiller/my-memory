@@ -30,7 +30,7 @@ máquina nova, o provider não funciona nem com o binário certo.
 ## Goals
 
 - [ ] O artefato publicado (Linux e Windows) compila com a tag `onnx`.
-- [ ] A CI compila e testa o provider com a tag `onnx` — o provider deixa de ser
+- [x] A CI compila e testa o provider com a tag `onnx` — o provider deixa de ser
       código que "ninguém nunca compilou".
 - [ ] Existe um comando que baixa o modelo e a DLL do ONNX Runtime para
       `~/.memory/models/`, e o instalador o invoca.

@@ -13,7 +13,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Design**: inline nesta spec (mudança de pipeline + um comando novo; sem decisão de arquitetura nova — ADR-035 e ADR-032 já decidem o modelo e o instalador)
-**Status**: Draft
+**Status**: In Progress
 
 ---
 
@@ -85,10 +85,12 @@ e boot check)
 
 **Done when**:
 
-- [ ] Existe um job com a tag `onnx` no `ci.yml`
-- [ ] O job instala o toolchain C (`gcc`) e imprime `CGO_ENABLED`/`CC`
-- [ ] O job roda os testes do provider sob a tag
-- [ ] `go build -tags "sqlite_fts5 onnx" ./cmd/mem` compila localmente
+- [x] Existe um job com a tag `onnx` no `ci.yml`
+- [x] O job instala o toolchain C (`gcc`) e imprime `CGO_ENABLED`/`CC`
+- [x] O job roda os testes do provider sob a tag
+- [x] `go build -tags "sqlite_fts5 onnx" ./cmd/mem` compila localmente
+
+**Status**: Verified (2026-11-13)
 
 **Tests**: none (o gate é o próprio pipeline; a prova local é o build com a tag)
 **Gate**: tagged
