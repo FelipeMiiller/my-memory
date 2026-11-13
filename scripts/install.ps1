@@ -181,6 +181,27 @@ try {
     $VersionOutput = & $TargetBin version 2>&1
     Write-Success "Validação concluída: $VersionOutput"
 
+    # 6. Baixar os artefatos do provider semântico
+    #
+    # O binário sozinho não basta: o provider de embedding precisa do modelo,
+    # do tokenizer e da biblioteca do ONNX Runtime no disco. Sem eles o
+    # `mem index` cai para FTS léxico. A falha aqui NÃO aborta a instalação --
+    # o provider pode ser buscado depois, com rede.
+    Write-Step "Baixando os artefatos do provider semântico (modelo + ONNX Runtime)..."
+    try {
+        $EmbedOutput = & $TargetBin embed download 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Provider semântico pronto!"
+            Write-Host $EmbedOutput
+        } else {
+            Write-Warn "O download do provider falhou. Rode 'mem embed download' manualmente quando a rede estiver disponível."
+            Write-Host $EmbedOutput
+        }
+    } catch {
+        Write-Warn "Não foi possível baixar os artefatos do provider: $($_.Exception.Message). Rode 'mem embed download' manualmente."
+    }
+    Write-Host "   Diretório do modelo: $env:USERPROFILE\.memory\models\paraphrase-multilingual-MiniLM-L12-v2"
+
     Write-Host ""
     Write-Host "  Instalação concluída com sucesso!" -ForegroundColor Green
     Write-Host ""

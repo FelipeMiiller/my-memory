@@ -233,10 +233,12 @@ binário e imprime o diretório do modelo.
 
 **Done when**:
 
-- [ ] O instalador chama `mem embed download` e não aborta a instalação se o
+- [x] O instalador chama `mem embed download` e não aborta a instalação se o
       download falhar (aviso com o comando para rodar à mão)
-- [ ] O instalador imprime o path do diretório do modelo
-- [ ] O script continua sintaticamente válido (`-WhatIf` / parse sem erro)
+- [x] O instalador imprime o path do diretório do modelo
+- [x] O script continua sintaticamente válido (`-WhatIf` / parse sem erro)
+
+**Status**: Verified (2026-11-13)
 
 **Tests**: none
 **Gate**: build gate only (parse do script)
