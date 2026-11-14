@@ -1898,4 +1898,57 @@ busca vetorial: por isso a spec cobre os dois caminhos.
 equivalentes registrados), gate full e gate taggeado verdes, e as duas provas
 E2E rodando com o **provider ONNX real**. Relatório:
 `.specs/features/fix-zero-vector-chunks/validation.md`.
+---
 
+## ISSUE-041 — A suite de `cmd/mem` sobrescreve `bin/mem.exe` com um build SEM a tag `onnx`: o proximo `mem index` grava chunk sem vetor, em silencio
+
+- **Severidade:** 🔴 alta (degradacao **silenciosa** do indice do Cofre Central: o Health Score cai 15 pontos sem erro, aviso ou log)
+- **Status:** 🔵 **open** — achado em 2026-11-14 ao medir o comportamento incremental do `mem index`; reparo provado no cofre (rebuild taggeado + reindex), **correcao do codigo pendente de spec**
+- **Achado em:** 2026-11-14, durante a medicao do "atualizar so o conteudo que mudou" (spec `central-vault-concept-notes`)
+
+**O defeito.** Dois helpers de teste de `cmd/mem` compilam o binario **por cima do
+binario do usuario**, sem a tag `onnx`:
+
+- `cmd/mem/doctor_test.go:111` — `exec.Command("go", "build", "-o", path, "./cmd/mem")`
+- `cmd/mem/events_test.go:40` — idem
+
+O caminho e `<repoRoot>/bin/mem.exe` (`doctor_test.go:108`, `events_test.go:37`).
+O comentario dos testes diz *"Always rebuild to avoid stale-binary issues"* — mas
+o problema de binario velho se resolve compilando **novo num temp dir**, nao
+sobrescrevendo o artefato que o dono usa.
+
+**A cadeia medida (Cofre Central, 2026-11-14):**
+
+1. `bin/mem.exe` foi compilado com `-tags "sqlite_fts5 onnx"` (37.191.134 bytes) e
+   o `mem embed doctor` reportava `Status: ATIVO`.
+2. A suite completa rodou as 16:23 e sobrescreveu o binario por um build sem a
+   tag (26.481.664 bytes). O `mem embed doctor` passou a dizer
+   `Status: INDISPONIVEL - este binario foi compilado sem a tag 'onnx'`.
+3. O `mem index` seguinte rodou em **modo lexico**: os chunks da nota alterada
+   foram gravados **sem embedding** (ISSUE-040: sem provider, o chunk e gravado
+   sem vetor — nunca vetor zero).
+4. O `mem doctor` reportou **96/100** (2 chunks sem vetor real = 4 pontos) — e
+   **nenhum aviso** de que o provider tinha sumido. A causa nao aparece no
+   relatorio: o doctor ve o chunk sem vetor, nao o binario sem tag.
+
+**Por que o epoch nao salvou.** O gate do cache incremental exige hash **e**
+epoch iguais (`internal/db/store.go:151-170`). No modo lexico o epoch gravado e
+`""`; quando o provider volta, `"" != "paraphrase-multilingual-MiniLM-L12-v2:384:v1"`
+e o documento **nao** passa no gate — ou seja, o epoch **se auto-cura**: provado
+neste caso (1 documento reprocessado, 107 em cache, vetor de volta, score 100).
+O que falta e evitar o estrago: sem provider, nada deve ser gravado no indice do
+vault vetorizado sem aviso.
+
+**Correcao proposta.**
+(a) Os helpers de teste compilam num **temp dir** (`t.TempDir()`) e nunca em
+`bin/` — o binario do usuario deixa de ser efeito colateral da suite.
+(b) O `mem index` com o provider ausente **avisa por execução** que está
+gravando chunk sem vetor, com o mesmo peso do aviso consolidado do `mem index`
+(ISSUE-037) — o aviso existe para o binário oficial; falta para este caso.
+(c) O `mem embed doctor` ganha um veredito explicito quando o binario **foi**
+compilado com a tag mas o provider falhou ao carregar (distinguir "sem tag" de
+"artefato faltando").
+
+**Referência:** ADR-035 (o provider atras da tag) · ADR-062 §B-4 (o cofre com
+vetor) · ISSUE-037 (binario oficial sem provider) · ISSUE-040 (chunk sem vetor
+real) · ADR-063 (as tres categorias de link).
