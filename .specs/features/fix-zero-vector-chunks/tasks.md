@@ -142,13 +142,23 @@ sabe gravar chunk sem linha em `chunks_vec`.
 
 **Done when**:
 
-- [ ] O substituto zero **sai** do caminho SQLite
-- [ ] O chunk fica sem linha em `chunks_vec` **e** sem linha em
+- [x] O substituto zero **sai** do caminho SQLite
+- [x] O chunk fica sem linha em `chunks_vec` **e** sem linha em
       `chunks_turboquant` (verificado por query)
-- [ ] O aviso por documento continua
+- [x] O aviso por documento continua
 
 **Tests**: integration
 **Gate**: quick
+
+**Status**: Verified (2026-11-14)
+
+**Sensor** (3 mutações, `D:\.minimax\scratch\sensor_t3.py`):
+
+| Mutação | Efeito | Veredito |
+| :--- | :--- | :--- |
+| M-T3a — o substituto zero volta ao caminho SQLite | o teste acusa `chunks_vec` **e** `chunks_turboquant` com linha | MORTO |
+| M-T3b — só o caminho comprimido volta a gravar o zero | o teste acusa `chunks_turboquant` com linha | MORTO |
+| M-T3c — a guarda `if len(vec) > 0` é removida | o próprio `Quantize` rejeita dimensão inválida (`esperado 384, recebido 0`), então nada é gravado | SOBREVIVEU — **mutante equivalente** (subsumido pelo check de dimensão do `Quantize`); a guarda fica por explicitar o requisito da AC1 |
 
 **Commit**: `fix(index): o indexador SQLite nao grava mais vetor zero`
 

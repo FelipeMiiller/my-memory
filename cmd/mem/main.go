@@ -2199,24 +2199,27 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 					fmt.Printf("Aviso: falha ao gerar embedding (%s); indexando em modo léxico FTS\n", chunkID)
 				}
 			}
-			if vec == nil {
-				// A dimensão tem que ser a do schema (embedder.EmbeddingDim).
-				// O literal 768 aqui sobreviveu à migração 768 → 384: quando o
-				// embedding falha, o fallback gravava vetor de dimensão errada
-				// numa coluna 384 — que é justamente o caminho exercitado quando
-				// não há provider de embedding.
-				vec = make([]float32, embedder.EmbeddingDim)
-			}
-
+			// Sem vetor real, o chunk é gravado SEM embedding: o `InsertChunk`
+			// do SQLite já sabe disso (só insere em `chunks_vec` quando
+			// `len(vec) > 0`). O substituto vetor zero era o defeito da
+			// ISSUE-040: ele "existe", então o doctor via um vault sem um
+			// único vetor como saudável. A ausência tem de ser visível.
+			//
 			// Inserção padrão (sqlite-vec + FTS5)
 			if err := db.InsertChunk(ctx, database, chunkID, docID, c, i, vec); err != nil {
 				fmt.Printf("Aviso: falha ao gravar vetor de %q (%v); chunk fica sem embedding\n", docID, err)
 			}
 
-			// Inserção TurboQuant (4-bit comprimido: 384 bytes)
-			cv, err := tq.Quantize(vec)
-			if err == nil {
-				_ = db.InsertTurboQuantChunk(ctx, database, chunkID, cv.Scale, cv.Data)
+			// Inserção TurboQuant (4-bit comprimido: 384 bytes). Sem vetor real
+			// não há linha: um TurboQuant com todos os coeficientes zerados é
+			// o mesmo defeito no caminho comprimido — e é por ele que a busca
+			// vetorial continua devolvendo o chunk no Windows, onde
+			// `db.HasSqliteVec` é false e a busca lê `chunks_turboquant`.
+			if len(vec) > 0 {
+				cv, err := tq.Quantize(vec)
+				if err == nil {
+					_ = db.InsertTurboQuantChunk(ctx, database, chunkID, cv.Scale, cv.Data)
+				}
 			}
 		}
 
