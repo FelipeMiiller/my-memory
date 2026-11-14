@@ -616,7 +616,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runDoctorPostgres(ctx, pgStore, resolvedRepo, *fix)
+			runDoctorPostgres(ctx, pgStore, resolvedRepo, *fix, vaultRootForDoctor(resolvedRepo))
 			if *showEvents {
 				// Postgres event_log integration is out of scope for T12.
 				fmt.Fprintln(os.Stderr, "mem doctor --events: Postgres backend não suportado nesta versão")
@@ -3147,7 +3147,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				if repo == "" {
 					repo = defaultRepo
 				}
-				rep, err := pgStore.DiagnoseHealth(ctx, repo)
+				rep, err := pgStore.DiagnoseHealth(ctx, repo, vaultRootForDoctor(repo))
 				if err != nil {
 					return nil, err
 				}
@@ -3157,7 +3157,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				if repo == "" {
 					repo = defaultRepo
 				}
-				return pgStore.FixHealthIssues(ctx, repo)
+				return pgStore.FixHealthIssues(ctx, repo, vaultRootForDoctor(repo))
 			},
 		)
 
@@ -3696,11 +3696,11 @@ func displayInsightsTable(conns []store.SurprisingConnection) {
 	fmt.Println()
 }
 
-func runDoctorPostgres(ctx context.Context, s *store.PostgresStore, targetRepo string, fix bool) {
+func runDoctorPostgres(ctx context.Context, s *store.PostgresStore, targetRepo string, fix bool, vaultRoot string) {
 	fmt.Printf("🩺 Auditando integridade do grafo no PostgreSQL [%s]...\n", targetRepo)
 	fixedCount := 0
 	if fix {
-		n, err := s.FixHealthIssues(ctx, targetRepo)
+		n, err := s.FixHealthIssues(ctx, targetRepo, vaultRoot)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Erro ao aplicar correções: %v\n", err)
 		} else {
@@ -3708,7 +3708,7 @@ func runDoctorPostgres(ctx context.Context, s *store.PostgresStore, targetRepo s
 		}
 	}
 
-	report, err := s.DiagnoseHealth(ctx, targetRepo)
+	report, err := s.DiagnoseHealth(ctx, targetRepo, vaultRoot)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Erro ao diagnosticar banco: %v\n", err)
 		os.Exit(1)

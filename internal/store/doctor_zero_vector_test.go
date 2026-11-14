@@ -51,7 +51,7 @@ func TestDoctorZeroVectorPostgres(t *testing.T) {
 		t.Fatalf("InsertChunk com vetor real falhou: %v", err)
 	}
 
-	report, err := s.DiagnoseHealth(ctx, repo)
+	report, err := s.DiagnoseHealth(ctx, repo, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}

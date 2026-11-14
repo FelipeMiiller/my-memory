@@ -72,7 +72,7 @@ func TestPostgresDoctorNaoContaArestaDeTagVivaComoDeadLink(t *testing.T) {
 		t.Fatalf("insert da aresta de tag morta: %v", err)
 	}
 
-	report, err := s.DiagnoseHealth(ctx, repo)
+	report, err := s.DiagnoseHealth(ctx, repo, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestPostgresFixHealthIssuesPreservaArestaDeTagViva(t *testing.T) {
 		t.Fatalf("insert da aresta de tag morta: %v", err)
 	}
 
-	if _, err := s.FixHealthIssues(ctx, repo); err != nil {
+	if _, err := s.FixHealthIssues(ctx, repo, t.TempDir()); err != nil {
 		t.Fatalf("FixHealthIssues falhou: %v", err)
 	}
 

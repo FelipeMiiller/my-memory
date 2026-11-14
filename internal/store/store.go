@@ -250,8 +250,13 @@ type Store interface {
 	// GetNodeNeighbors executa busca recursiva de nós vizinhos conectados via CTE
 	GetNodeNeighbors(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error)
 
-	// DiagnoseHealth audita a integridade do grafo gerando um relatório de saúde
-	DiagnoseHealth(ctx context.Context, repo string) (*DoctorReport, error)
+	// DiagnoseHealth audita a integridade do grafo gerando um relatório de saúde.
+	//
+	// vaultRoot é a raiz do vault no disco. Com ela, o doctor distingue o
+	// link rompido do link que aponta para material fora do índice por
+	// decisão (ISSUE-039). Raiz vazia ou ilegível significa "não verificável":
+	// a suspeita mantém a penalidade e o score fica provisório.
+	DiagnoseHealth(ctx context.Context, repo string, vaultRoot string) (*DoctorReport, error)
 
 	// CalculateImpact calcula o fechamento de dependências reversas e score de risco (blast radius)
 	CalculateImpact(ctx context.Context, repo string, targetQuery string, maxDepth int) (*graph.ImpactResult, error)
@@ -268,8 +273,13 @@ type Store interface {
 	// GetDocumentsMetadata recupera o mapa de caminhos para metadados de documentos para detecção de staleness
 	GetDocumentsMetadata(ctx context.Context, repo string) (map[string]DocumentMeta, error)
 
-	// FixHealthIssues repara problemas comuns como self-loops e links mortos
-	FixHealthIssues(ctx context.Context, repo string) (int, error)
+	// FixHealthIssues repara problemas comuns como self-loops e links mortos.
+	//
+	// A correção apaga exatamente as arestas que o relatório lista como link
+	// rompido. Aresta cujo alvo existe em disco (fora do índice por decisão)
+	// e aresta não verificável são preservadas: sem prova de que estão
+	// quebradas, apagá-las seria perder link vivo.
+	FixHealthIssues(ctx context.Context, repo string, vaultRoot string) (int, error)
 
 	// Close encerra a conexão com o banco de dados
 	Close() error

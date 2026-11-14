@@ -232,11 +232,14 @@ suítes de `internal/db`, `internal/store` e `cmd/mem` verdes. `DiagnoseHealth` 
 ### T5: A classificação no Postgres
 
 **What**: o mesmo contrato no engine de produção — mesma classificação, mesma
-lista de correção.
-**Where**: `internal/store/doctor.go`
+lista de correção. A assinatura do doctor ganha a raiz do vault (a interface
+`Store` muda junto, porque é o engine Postgres que a usa).
+**Where**: `internal/store/doctor.go` · `internal/store/store.go` (a interface)
+· `internal/store/doctor_unindexed_test.go`
 **Depends on**: T4
 **Reuses**: a query de dead link do Postgres (a que já conhece `document_tags` e
-`code_symbol`)
+`code_symbol`) · `store.ClassifyLinks` e `store.NewVaultResolver` (o
+classificador compartilhado da T3)
 **Requirement**: DUL-01, DUL-02, DUL-06, DUL-07
 
 **Tools**:
@@ -245,9 +248,16 @@ lista de correção.
 
 **Done when**:
 
-- [ ] O contrato é idêntico ao do SQLite (mesmo teste, mesmo resultado)
-- [ ] O filtro é por `repository`, como o resto do doctor
-- [ ] O teste roda contra um Postgres real (skip sem `MY_MEMORY_PG_TEST`)
+- [x] O contrato é idêntico ao do SQLite (mesmo teste, mesmo resultado)
+- [x] O filtro é por `repository`, como o resto do doctor
+- [x] O teste roda contra um Postgres real (skip sem `MY_MEMORY_PG_TEST`)
+- [x] A correção apaga o lote em **um** statement (`unnest`), porque cada
+      round-trip no Postgres remoto custa ~268 ms
+
+**Status**: Verified (2026-11-14) — 6 testes contra Postgres real (Neon),
+gate `go build ./...` + `go vet` verdes. O gate completo apanhou que o pacote
+novo `internal/vaultfs` não tinha step de teste na CI — corrigido no commit
+`chore(ci)` da mesma rodada.
 
 **Tests**: integration
 **Gate**: quick

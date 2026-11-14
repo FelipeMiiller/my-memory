@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 )
 
 // HealthScoreApplicable reports whether the report's Health Score can be read
@@ -75,14 +76,104 @@ func CalculateHealthScore(report DoctorReport) int {
 	return score
 }
 
+// querier e o que o doctor precisa para listar candidatos: tanto o pool
+// quanto a transacao da correcao implementam.
+type querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// deadLinkCandidates lista as arestas que o SQL suspeita de link morto: o
+// alvo nao bate com documento indexado, titulo, tag conhecida nem simbolo de
+// codigo.
+//
+// A suspeita nao e veredito. O candidato so e link rompido depois de a
+// checagem em disco dizer que o alvo nao existe; se existir, o link esta fora
+// do indice por decisao (ISSUE-039).
+//
+// O filtro e por repository, como o resto do doctor: a mesma query, com o
+// escopo do repositorio auditado.
+func deadLinkCandidates(ctx context.Context, q querier, repo string) ([]LinkCandidate, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT e.source_id, e.target_id, e.relation
+		FROM graph_edges e
+		WHERE e.repository = $1
+		  AND e.target_id NOT LIKE '#%'
+		  AND e.target_id NOT IN (SELECT id FROM documents WHERE repository = $1)
+		  AND e.target_id NOT IN (SELECT title FROM documents WHERE repository = $1)
+		  AND e.target_id NOT IN (SELECT id FROM graph_nodes WHERE repository = $1 AND type = 'code_symbol')
+		  AND e.target_id NOT IN (
+		      SELECT tag FROM document_tags WHERE repository = $1
+		      UNION
+		      SELECT tag_key FROM document_tags WHERE repository = $1
+		  )
+		ORDER BY e.source_id, e.target_id
+	`, repo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var candidates []LinkCandidate
+	for rows.Next() {
+		var c LinkCandidate
+		if err := rows.Scan(&c.SourceID, &c.TargetID, &c.Relation); err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, c)
+	}
+	return candidates, rows.Err()
+}
+
+// deleteBrokenEdges apaga exatamente as arestas listadas como rompidas.
+//
+// O lote vai em um statement so (unnest): no Postgres remoto cada round-trip
+// custa ~268 ms (medido no Neon), e um --fix com centenas de arestas viraria
+// minutos de espera. Aresta cujo alvo existe em disco e aresta nao
+// verificavel nunca chegam aqui — a correcao apaga so o que o relatorio
+// provou quebrado.
+func deleteBrokenEdges(ctx context.Context, tx *sql.Tx, repo string, broken []DeadLink) (int64, error) {
+	if len(broken) == 0 {
+		return 0, nil
+	}
+
+	sourceIDs := make([]string, 0, len(broken))
+	targetIDs := make([]string, 0, len(broken))
+	relations := make([]string, 0, len(broken))
+	for _, dl := range broken {
+		sourceIDs = append(sourceIDs, dl.SourceID)
+		targetIDs = append(targetIDs, dl.TargetID)
+		relations = append(relations, dl.Relation)
+	}
+
+	res, err := tx.ExecContext(ctx, `
+		DELETE FROM graph_edges
+		WHERE repository = $1
+		  AND (source_id, target_id, relation) IN (
+		      SELECT * FROM unnest($2::text[], $3::text[], $4::text[])
+		  )
+	`, repo, sourceIDs, targetIDs, relations)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // DiagnoseHealth audita a integridade topológica do grafo e tabelas relacionais no PostgreSQL
-func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*DoctorReport, error) {
+//
+// vaultRoot é a raiz do vault no disco: com ela, o doctor distingue o link
+// rompido do link que aponta para material fora do índice por decisão. Raiz
+// vazia ou ilegível deixa os links não verificáveis: a suspeita mantém a
+// penalidade e o score fica provisório.
+func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string, vaultRoot string) (*DoctorReport, error) {
 	if repo == "" {
 		repo = "default"
 	}
 
 	report := &DoctorReport{
 		DeadLinks:         []DeadLink{},
+		OutOfIndexLinks:   []OutOfIndexLink{},
+		UnverifiableLinks: []DeadLink{},
 		OrphanNotes:       []OrphanNote{},
 		SelfLoops:         []SelfLoop{},
 		DesyncedChunks:    []DesyncedChunk{},
@@ -106,29 +197,21 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 	// Sem esta cláusula, todas as arestas da ponte contavam como link morto
 	// (ISSUE-036). O escopo de repositório é o mesmo da aresta: no PostgreSQL
 	// a identidade do nó é (repository, id).
-	deadRows, err := s.db.QueryContext(ctx, `
-		SELECT e.source_id, e.target_id, e.relation
-		FROM graph_edges e
-		WHERE e.repository = $1
-		  AND e.target_id NOT LIKE '#%'
-		  AND e.target_id NOT IN (SELECT id FROM documents WHERE repository = $1)
-		  AND e.target_id NOT IN (SELECT title FROM documents WHERE repository = $1)
-		  AND e.target_id NOT IN (SELECT id FROM graph_nodes WHERE repository = $1 AND type = 'code_symbol')
-		  AND e.target_id NOT IN (
-		      SELECT tag FROM document_tags WHERE repository = $1
-		      UNION
-		      SELECT tag_key FROM document_tags WHERE repository = $1
-		  )
-		ORDER BY e.source_id, e.target_id
-	`, repo)
-	if err == nil {
-		defer deadRows.Close()
-		for deadRows.Next() {
-			var dl DeadLink
-			if err := deadRows.Scan(&dl.SourceID, &dl.TargetID, &dl.Relation); err == nil {
-				report.DeadLinks = append(report.DeadLinks, dl)
-			}
-		}
+	// 2. Links: o SQL levanta a suspeita, o disco decide.
+	//
+	// O alvo de uma aresta `references_code` (ADR-061) é um NÓ de código
+	// (`type='code_symbol'`, id = "code:<repository>:<qualified_name>") — ele
+	// não é documento, mas também não está quebrado: o nó existe no grafo.
+	// Sem esta cláusula, todas as arestas da ponte contavam como link morto
+	// (ISSUE-036). O escopo de repositório é o mesmo da aresta: no PostgreSQL
+	// a identidade do nó é (repository, id).
+	//
+	// A suspeita vai para a checagem em disco: o alvo que resolve para um
+	// arquivo do vault está fora do índice por decisão, e o alvo que não
+	// resolve é link rompido. Sem raiz legível, todos ficam não verificáveis
+	// e o score é provisório.
+	if candidates, err := deadLinkCandidates(ctx, s.db, repo); err == nil {
+		report.ApplyLinkClassification(ClassifyLinks(candidates, NewVaultResolver(vaultRoot)))
 	}
 
 	// 3. Orphan Notes (documentos sem conexões de entrada ou saída).
@@ -264,7 +347,12 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 }
 
 // FixHealthIssues repara anomalias conhecidas do grafo no PostgreSQL (remove self-loops e links mortos)
-func (s *PostgresStore) FixHealthIssues(ctx context.Context, repo string) (int, error) {
+//
+// A correção apaga exatamente as arestas que o relatório lista como link
+// rompido. Aresta cujo alvo existe em disco (fora do índice por decisão) e
+// aresta não verificável são preservadas: sem prova de que estão quebradas,
+// apagá-las seria perder link vivo.
+func (s *PostgresStore) FixHealthIssues(ctx context.Context, repo string, vaultRoot string) (int, error) {
 	if repo == "" {
 		repo = "default"
 	}
@@ -283,23 +371,21 @@ func (s *PostgresStore) FixHealthIssues(ctx context.Context, repo string) (int, 
 	}
 	loopsFixed, _ := resLoops.RowsAffected()
 
-	resDead, err := tx.ExecContext(ctx, `
-		DELETE FROM graph_edges
-		WHERE repository = $1
-		  AND target_id NOT LIKE '#%'
-		  AND target_id NOT IN (SELECT id FROM documents WHERE repository = $1)
-		  AND target_id NOT IN (SELECT title FROM documents WHERE repository = $1)
-		  AND target_id NOT IN (SELECT id FROM graph_nodes WHERE repository = $1 AND type = 'code_symbol')
-		  AND target_id NOT IN (
-		      SELECT tag FROM document_tags WHERE repository = $1
-		      UNION
-		      SELECT tag_key FROM document_tags WHERE repository = $1
-		  )
-	`, repo)
+	// 2. Remove apenas os links comprovadamente rompidos.
+	//
+	// O que o SQL sozinho suspeitava era apagado inteiro, inclusive o link
+	// que aponta para material fora do indice por decisao - um link vivo no
+	// Obsidian. Agora a correcao apaga exatamente a lista que o relatorio
+	// lista como rompida, e preserva o que nao pode ser provado quebrado.
+	candidates, err := deadLinkCandidates(ctx, tx, repo)
 	if err != nil {
 		return 0, err
 	}
-	deadFixed, _ := resDead.RowsAffected()
+	classification := ClassifyLinks(candidates, NewVaultResolver(vaultRoot))
+	deadFixed, err := deleteBrokenEdges(ctx, tx, repo, classification.Broken)
+	if err != nil {
+		return 0, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return 0, err
