@@ -68,7 +68,7 @@ T8 -> T9
 ### Phase 4: Fechamento das lacunas do Verifier (FAIL de 2026-11-13)
 
 ```
-T10 -> T11 -> T12 -> T13 -> T14 -> T15
+T10 -> T11 -> T12 -> T13 -> T14 -> T15 -> T16
 ```
 
 > A fase é estritamente sequencial (regra da execução). T10 abre a fase; T11
@@ -547,6 +547,39 @@ Criteria; registrar o traceability real.
 
 ---
 
+### T16: O instalador tem uma asserção automatizada do diretório que imprime
+
+**What**: a AC7 ficou sem cobertura automatizada — a correção da T14 só era
+verificada por execução manual. O instalador não é unit-testável (ele baixa,
+instala e mexe no PATH), então a asserção é sobre o **fonte** do script: a
+linha que imprime o diretório do modelo não pode conter o caminho como
+literal, e o script tem que consultar `MY_MEMORY_MINILM_MODEL_DIR`.
+
+**Where**: `cmd/mem/install_scripts_test.go`
+**Depends on**: T15
+**Reuses**: a mesma resolução de `embedder.DefaultModelsDir()` que a T14 gravou
+**Requirement**: ROP-07 (AC7)
+
+**Tools**:
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Existe teste que assevera que os dois instaladores consultam
+      `MY_MEMORY_MINILM_MODEL_DIR`
+- [ ] O mesmo teste falha quando a linha de impressão volta a ser um literal
+      (sensor M6a e M6b)
+
+**Status**: Verified (2026-11-13)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `test(installer): asvera que o instalador imprime o diretorio usado`
+
+---
+
 ## Phase Execution Map
 
 ```
@@ -555,13 +588,13 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4
 Phase 1:  T1 -> T2 -> T3
 Phase 2:  T4 -> T5 -> T6 -> T7
 Phase 3:  T8 -> T9
-Phase 4:  T10 -> T11 -> T12 -> T13 -> T14 -> T15
+Phase 4:  T10 -> T11 -> T12 -> T13 -> T14 -> T15 -> T16
 ```
 
 Execution is strictly sequential - there is no intra-phase parallelism. A single
 agent (or batch worker) works one task at a time, in order.
 
-**Contagem de tarefas**: 15 — a fase 4 (6 tarefas) cabe em um único lote
+**Contagem de tarefas**: 16 — a fase 4 (7 tarefas) cabe em um único lote
 (≤ ~8 por worker), então a execução é **inline**, sem sub-agente.
 
 ---
@@ -585,6 +618,7 @@ agent (or batch worker) works one task at a time, in order.
 | T13 | T12 | T12 -> T13 | ✅ Match |
 | T14 | T13 | T13 -> T14 | ✅ Match |
 | T15 | T14 | T14 -> T15 | ✅ Match |
+| T16 | T15 | T15 -> T16 | ✅ Match |
 
 Nenhuma dependência aponta para uma fase posterior.
 
@@ -609,6 +643,7 @@ Nenhuma dependência aponta para uma fase posterior.
 | T13 | Fonte `vector` com o provider real | integration (ONNX real) | integration (ONNX real) | ✅ OK |
 | T14 | Instalador (script) | none | none | ✅ OK |
 | T15 | Documentação e spec | none | none | ✅ OK |
+| T16 | Invariante do instalador (script) | unit | unit | ✅ OK |
 
 ---
 
@@ -631,3 +666,4 @@ Nenhuma dependência aponta para uma fase posterior.
 | T13: fonte `vector` com o provider real | 1 arquivo de teste novo (tag `onnx`) | ✅ Granular |
 | T14: diretório do modelo no instalador | 2 scripts, 1 linha cada | ✅ Granular |
 | T15: documentação | artefatos de doc + spec | ✅ Granular |
+| T16: invariante do instalador | 1 arquivo de teste novo | ✅ Granular |
