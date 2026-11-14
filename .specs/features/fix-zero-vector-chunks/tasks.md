@@ -85,9 +85,11 @@ vazio, em vez de gravar um vetor zero.
 
 **Done when**:
 
-- [ ] Vetor vazio → `embedding` NULL (e não `''::vector`, que o cast rejeita)
-- [ ] Vetor real → gravado como antes (384 dimensões)
-- [ ] O teste confere o valor gravado no banco, não a chamada
+- [x] Vetor vazio → `embedding` NULL (e não `''::vector`, que o cast rejeita)
+- [x] Vetor real → gravado como antes (384 dimensões)
+- [x] O teste confere o valor gravado no banco, não a chamada
+
+**Status**: Verified (2026-11-14)
 
 **Tests**: unit
 **Gate**: quick

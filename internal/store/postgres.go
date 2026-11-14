@@ -317,14 +317,27 @@ func (s *PostgresStore) InsertChunk(ctx context.Context, repo, chunkID, docID, c
 		repo = "default"
 	}
 
-	vecStr := FormatVector(vec)
+	// Sem vetor real, o embedding é NULL — nunca um vetor zero.
+	//
+	// O vetor zero é o defeito da ISSUE-040: numa coluna vector(384) ele é
+	// indistinguível de um vetor de verdade para quem só olha se "existe
+	// embedding", e o doctor procura justamente `embedding IS NULL` para
+	// dizer que o chunk está dessincronizado.
+	//
+	// O cast `$6::vector` rejeita '[]' ("expected 384 dimensions, not 0"),
+	// então a ausência precisa chegar como NULL — e não como string vazia.
+	var vecValue any
+	if len(vec) > 0 {
+		vecValue = FormatVector(vec)
+	}
+
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO chunks (id, repository, document_id, chunk_index, content, embedding)
 		VALUES ($1, $2, $3, $4, $5, $6::vector)
 		ON CONFLICT (repository, id) DO UPDATE SET
 			content = EXCLUDED.content,
 			embedding = EXCLUDED.embedding
-	`, chunkID, repo, docID, index, content, vecStr)
+	`, chunkID, repo, docID, index, content, vecValue)
 	return err
 }
 
