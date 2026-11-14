@@ -21,6 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **O chunk indexado sem provider não grava mais vetor zero (ISSUE-040)**: sem provider de
+  embedding, o indexador substituía o embedding ausente por um vetor **zero** de 384
+  dimensões — e o vetor zero **existe** na coluna, então o doctor (que procurava
+  `embedding IS NULL`) não via nada, o Health Score não caía, e a busca vetorial devolvia
+  ruído com cara de resultado. Agora o chunk sem provider é gravado **sem embedding**
+  (`embedding` NULL no Postgres; **nenhuma** linha em `chunks_vec` **nem** em
+  `chunks_turboquant` no SQLite), o doctor reporta o chunk **sem vetor real** (ausente
+  **ou** vetor zero, nos **dois** caminhos de armazenamento do SQLite), e a busca
+  vetorial — nos três caminhos de leitura: Postgres, SQLite cru e SQLite comprimido —
+  não devolve chunk sem similaridade de verdade. O chunk continua alcançável pelo
+  conteúdo, mas **apenas pela fonte léxica**. Índice, correção e medição em
+  `.specs/features/fix-zero-vector-chunks/`.
 - **O binário oficial voltou a ter o provider semântico (ISSUE-037)**: o release compilava
   com `-tags "sqlite_fts5"` — **sem** a tag `onnx` — e a CI não tinha job que compilasse o
   provider. Resultado: todo binário oficial rodava em FTS lexical e, ao reindexar, gravava

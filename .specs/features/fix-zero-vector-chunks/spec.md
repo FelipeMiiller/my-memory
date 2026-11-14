@@ -50,11 +50,11 @@ TurboQuant zero **e** o embedding NULL que passa pelo filtro".
 
 ## Goals
 
-- [ ] Um chunk indexado sem provider fica **sem embedding**, e não com um vetor
+- [x] Um chunk indexado sem provider fica **sem embedding**, e não com um vetor
       zero.
-- [ ] O doctor detecta o chunk sem vetor real (ausente **ou** zero).
-- [ ] A busca vetorial não devolve chunk sem vetor real.
-- [ ] O cofre central, reindexado do zero com um provider funcionando, fica com
+- [x] O doctor detecta o chunk sem vetor real (ausente **ou** zero).
+- [x] A busca vetorial não devolve chunk sem vetor real.
+- [x] O cofre central, reindexado do zero com um provider funcionando, fica com
       **0** chunks sem vetor real.
 
 ## Out of Scope
@@ -189,9 +189,9 @@ confere a contagem de chunks sem vetor.
 
 ## Success Criteria
 
-- [ ] Indexar sem provider não grava nenhum vetor zero (verificável por query no
+- [x] Indexar sem provider não grava nenhum vetor zero (verificável por query no
       banco: `embedding IS NULL` para o chunk).
-- [ ] O doctor reporta o chunk sem vetor real e o score cai.
-- [ ] A busca vetorial não devolve chunk sem vetor real.
-- [ ] O teste E2E (com a tag `onnx`) prova a recuperação por sentido e o
+- [x] O doctor reporta o chunk sem vetor real e o score cai.
+- [x] A busca vetorial não devolve chunk sem vetor real.
+- [x] O teste E2E (com a tag `onnx`) prova a recuperação por sentido e o
       reindex do zero.

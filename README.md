@@ -145,7 +145,7 @@ mem embed doctor
 mem embed download
 ```
 
-Sem o provider, o `mem index` continua funcionando em modo léxico — mas avisa, em **uma** linha por execução, quantos documentos ficaram sem vetor, e a busca declara que o resultado é apenas lexical.
+Sem o provider, o `mem index` continua funcionando em modo léxico — mas avisa, em **uma** linha por execução, quantos documentos ficaram sem vetor, e a busca declara que o resultado é apenas lexical. O chunk sem provider é gravado **sem vetor** (nada em `chunks_vec`, nada em `chunks_turboquant`): o `mem doctor` passa a listar esses chunks como **sem vetor real** — ausentes **ou** com vetor zero — e a busca vetorial não devolve chunk sem similaridade de verdade.
 
 ### 5. Indexar o Code Graph e Registrar Lições
 ```bash
@@ -289,7 +289,7 @@ Quando executado como servidor MCP (`mem mcp`), o My-Memory disponibiliza 26 fer
 - `memory_get_hubs`: Identificação de God Nodes e nós líderes por grau ou PageRank ponderado.
 - `memory_get_insights`: Métricas globais da topologia da base de conhecimento (densidade, componentes, isolados).
 - `memory_inspect_node`: Inspeção cirúrgica de nós (in-links, out-links com sinalização cross-vault, chunks quantizados e status).
-- `memory_doctor`: Auditoria de integridade do grafo com detecção de dead links e notas órfãs. Também reporta quantos documentos foram indexados antes do metadado `mtime` existir.
+- `memory_doctor`: Auditoria de integridade do grafo com detecção de dead links e notas órfãs. Também reporta quantos documentos foram indexados antes do metadado `mtime` existir, e **quais chunks estão sem vetor real** (ausentes ou com vetor zero) — cada um deles custa 2 pontos do Health Score (ADR-013).
 - `memory_list_files` *(ADR-057)*: Lista os documentos indexados em ordem alfabética, com filtros opcionais de extensão e pasta.
 - `memory_read_note` *(ADR-057)*: Devolve o Markdown bruto de uma nota pelo caminho do vault, sem fragmentar em chunks.
 - `memory_note_outline` *(ADR-057)*: Retorna a estrutura de títulos de uma nota com o nível de cada heading, ignorando blocos de código.

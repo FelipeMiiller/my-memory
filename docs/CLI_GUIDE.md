@@ -378,6 +378,7 @@ Audita a saúde do grafo e tabelas relacionais de conhecimento:
 * Identifica **Dead Links** (wikilinks apontando para notas inexistentes).
 * Identifica **Notas Órfãs** (documentos sem conexões de entrada ou saída).
 * Identifica **Self-Loops** (notas apontando reflexivamente para si mesmas).
+* Identifica **Chunks sem vetor real** — o chunk indexado sem provider de embedding, que é gravado **sem embedding** (`embedding` NULL no Postgres; **nenhuma** linha em `chunks_vec` **nem** em `chunks_turboquant` no SQLite) ou com o **vetor zero**. O `Issue` diz qual dos dois casos é, e cada chunk custa **2 pontos** do Health Score (ADR-013, teto 15).
 * Identifica **Ortografia** (termos em português escrito sem acento — ISSUE-017, em [`.specs/ISSUES.md`](../.specs/ISSUES.md)).
 * Calcula o **Health Score** (0 a 100) — **só se aplica a um vault com documentos indexados**. Sem nenhum documento indexado a métrica não tem denominador, e o relatório diz **"não se aplica"** em vez de anunciar uma nota máxima: um vault nunca indexado não é um vault doente (ISSUE-019). Rode `mem index` para popular o vault e medir a saúde do grafo.
 * A flag `--fix` remove automaticamente conexões mortas e loops conhecidos.

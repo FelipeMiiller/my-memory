@@ -81,6 +81,9 @@ O **My-Memory** é uma engine de memória semântica e relacional local desenvol
 ### 4. Busca Vetorial Ultracompacta (`chunks_turboquant`)
 - `chunks_turboquant`: Armazena o vetor quantizado para 4-bits (384 bytes por chunk + float de escala). Permite economizar ~88% do espaço em disco.
 
+> [!IMPORTANT]
+> **O vetor é gravado só quando existe** (ISSUE-040). Um chunk indexado **sem** provider de embedding é gravado **sem vetor**: nada em `chunks_vec` e nada em `chunks_turboquant` (no PostgreSQL, `embedding` NULL). E a leitura é simétrica: a busca vetorial **não devolve** chunk sem vetor real — nem o ausente, nem o vetor zero — nos **três** caminhos (PostgreSQL, `chunks_vec` cru e `chunks_turboquant` comprimido). O `mem doctor` reporta cada chunk assim (2 pontos do Health Score, ADR-013) e o `Issue` diz se a ausência é por falta de provider ou se o vetor gravado era zero.
+
 ### 5. Grafo de Conhecimento (`graph_nodes` e `graph_edges`)
 - `graph_nodes`: Vértices do grafo (`note`, `tag`, `concept`, `decision`).
 - `graph_edges`: Arestas direcionadas tipadas com status epistêmico (`EXTRACTED`, `INFERRED`, `TAG`) e pesos associados.

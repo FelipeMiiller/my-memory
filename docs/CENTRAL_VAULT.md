@@ -124,10 +124,13 @@ Comportamento:
 - ⚠️ **Um** aviso por execução de `mem index` (não uma linha por documento):
   `Provider vetorial indisponível: N documento(s) indexado(s) SEM VETOR — a busca semântica não funciona para eles.`
   A mensagem nomeia a **tag ausente** (`onnx`) e a consequência.
-- ✅ Indexação **continua normalmente** no FTS5 + grafo + TurboQuant, e o `mem index` sai com **código 0** — o modo léxico é um modo válido.
-- ✅ Compressão TurboQuant funciona com vetor zero (perfeita, todos os coeficientes = 0)
+- ✅ Indexação **continua normalmente** no FTS5 + grafo, e o `mem index` sai com **código 0** — o modo léxico é um modo válido.
+- ✅ O chunk é gravado **sem vetor**: nada em `chunks_vec` e nada em `chunks_turboquant` (nenhuma linha comprimida com vetor zero). O `mem doctor` passa a listar esse chunk como **sem vetor real** — a ausência é visível, e o Health Score penaliza (2 pontos por chunk, ADR-013).
 - ❌ Busca semântica fica degradada — `mem search --mode hybrid` cai em FTS-only
 - ✅ `--mode fts` continua 100%
+
+> [!IMPORTANT]
+> O reparo de um cofre indexado sem provider é `mem index --force` **com** o provider presente (binário com a tag `onnx`): ele regrava os chunks com vetor real. Isso já valia antes — o que mudou é que agora o `mem doctor` **mostra** quais chunks estão sem vetor, em vez de declarar o cofre saudável.
 
 **Verifique se está em modo fallback** rodando:
 ```bash

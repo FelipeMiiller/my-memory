@@ -1758,7 +1758,7 @@ a 3 é uma edição de conteúdo do cofre.
 ## ISSUE-040 — O chunk indexado sem provider grava vetor zero: ninguém detecta e a busca vetorial devolve ruído
 
 - **Severidade:** 🟠 alta (a degradação é **invisível**: o doctor não vê, o score não cai, e a busca "responde")
-- **Status:** 🔵 **open** — **spec escrita** em 2026-11-13 (`.specs/features/fix-zero-vector-chunks/`, 7 ACs, 8 tarefas, 3 fases)
+- **Status:** 🟢 **corrigida** (2026-11-14, `.specs/features/fix-zero-vector-chunks/`) — o chunk sem provider é gravado **sem vetor** (não vetor zero), o doctor passa a ver o vetor zero **e** a ausência nos **dois** caminhos de armazenamento, a busca vetorial exclui o chunk sem vetor real, e há prova E2E de recuperação **por sentido** e de reindex do zero. Spec com **7 ACs, 8 tarefas, 3 fases**
 - **Achado em:** 2026-11-13, ao ler o caminho de indexação do `cmd/mem/main.go` depois de escrever as specs do Vault Central
 
 **O defeito.** Quando não há provider de embedding, o indexador **não deixa o
@@ -1797,4 +1797,29 @@ zero ficam assim até um `mem index --force` com provider presente. O doctor
 passa a listá-los — que é exatamente o ponto.
 
 **Referência:** ADR-062 §C e §B-4 · ADR-013 (penalidade de chunk dessincronizado) · ISSUE-037.
+
+### Resolução (2026-11-14)
+
+**O que foi corrigido** (spec `fix-zero-vector-chunks`, 8 tarefas, 3 fases, 9 commits de código em `d523d91..d9c5ebb`):
+
+| O que | Onde | Como |
+| :--- | :--- | :--- |
+| O indexador para de substituir o vetor zero | `cmd/mem/main.go` (Postgres **e** SQLite) | o chunk sem provider é gravado **sem embedding**: `embedding` NULL no Postgres, **nenhuma** linha em `chunks_vec` **nem** em `chunks_turboquant` no SQLite |
+| O doctor passa a ver o vetor zero | `internal/store/doctor.go` · `internal/db/graph.go` | o Postgres compara com `v <#> v = -||v||²` (zero só quando o vetor É o vetor zero); o SQLite compara o BLOB cru e a assinatura comprimida (todo nibble 7) |
+| A busca vetorial exclui o chunk sem vetor real | `internal/store/postgres.go` · `internal/db/graph.go` | os **três** caminhos de leitura (Postgres, SQLite cru, SQLite comprimido) |
+| Prova E2E | `cmd/mem/vault_retrieval_test.go` | a nota escrita por `mem lesson` volta na busca por uma **paráfrase sem palavra em comum**, pela fonte `vector`; e o reindex do zero deixa **0** chunks sem vetor real |
+
+**A dimensão que a spec emendou**: o SQLite tem **dois** caminhos de vetor e
+o Postgres **um** — e a busca vetorial do Windows lê o caminho **comprimido**
+(`chunks_turboquant`), não o cru. Zerar a coluna `chunks.vec` não matava a
+busca vetorial: por isso a spec cobre os dois caminhos.
+
+**O dado já gravado**: chunks com vetor zero continuam assim até um
+`mem index --force` com provider presente — e, a partir de agora, o doctor
+**os lista** (é o ponto). O reparo é o mesmo caminho que a ADR-062 mediu.
+
+**Verificação**: 5 sensores de mutação (16 mutações, 14 mortas + 2 mutantes
+equivalentes registrados), gate full e gate taggeado verdes, e as duas provas
+E2E rodando com o **provider ONNX real**. Relatório:
+`.specs/features/fix-zero-vector-chunks/validation.md`.
 

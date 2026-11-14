@@ -13,7 +13,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Design**: inline nesta spec (uma mudança de escrita, uma de leitura e uma de detecção; sem mudança de schema — a coluna `embedding` já é nullable)
-**Status**: In Progress
+**Status**: Verified (2026-11-14) — 8/8 tarefas, 9 commits, veredito PASS em `validation.md`
 
 ---
 

@@ -259,7 +259,7 @@ Mais detalhes em `docs/CLI_GUIDE.md` seção "Seleção de Storage".
 | `mem inspect` | Inspetor cirúrgico em 3 colunas: in-links (dependências), nó central e out-links. | `mem inspect "docs/ARCHITECTURE.md"` |
 | `mem path` | Descoberta de rotas e menor caminho ponderado por custos epistêmicos entre dois nós. | `mem path "auth" "redis"` |
 | `mem impact` | Analisa o raio de destruição (*Blast Radius*) e dependentes reversos de um nó. | `mem impact "internal/db/graph.go" --depth 2` |
-| `mem doctor` | Audita o grafo em busca de dead links, notas órfãs e self-loops. | `mem doctor` *(ou `mem doctor --fix`)* |
+| `mem doctor` | Audita o grafo em busca de dead links, notas órfãs, self-loops e **chunks sem vetor real** (ausentes ou com vetor zero — cada um custa 2 pontos do Health Score, ADR-013). | `mem doctor` *(ou `mem doctor --fix`)* |
 | `mem hubs` | Lista nós centrais por grau estrutural ou PageRank ponderado. | `mem hubs --algorithm pagerank --top 10` |
 | `mem clusters` | Detecta comunidades conceituais e módulos temáticos via algoritmo LPA. | `mem clusters --json` |
 | `mem insights` | Descobre conexões conceituais inesperadas (alta similaridade sem links diretos). | `mem insights --limit 5` |
