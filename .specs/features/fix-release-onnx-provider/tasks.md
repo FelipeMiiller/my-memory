@@ -13,7 +13,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Design**: inline nesta spec (mudança de pipeline + um comando novo; sem decisão de arquitetura nova — ADR-035 e ADR-032 já decidem o modelo e o instalador)
-**Status**: In Progress
+**Status**: Verified (2026-11-14) — rodadas 1 e 2 de verificação; `validate_state.py` exit 0
 
 ---
 
