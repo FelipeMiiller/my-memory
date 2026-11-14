@@ -67,7 +67,14 @@ func TestBuscaSQLitePopulaMTimeEmTodosOsCaminhos(t *testing.T) {
 
 	// Semente com quantizador (entra nos candidatos vetoriais) e vizinha sem
 	// quantizador (some do TurboQuant, sobrando só a via do grafo).
-	if _, err := IndexSingleFileSQLite(ctx, database, nil, quantizer, seedPath, true); err != nil {
+	//
+	// A semente recebe um provider de mentira que devolve um vetor REAL
+	// (não zero): desde a ISSUE-040 o chunk indexado sem vetor é gravado
+	// sem linha em `chunks_turboquant` — e a busca vetorial, com o filtro
+	// do vetor zero, não devolve chunk sem similaridade de verdade. Um
+	// fixture com vetor zero deixaria de exercitar o caminho vetorial (e
+	// foi exatamente isso que o defeito escondia).
+	if _, err := IndexSingleFileSQLite(ctx, database, embedderFake{}, quantizer, seedPath, true); err != nil {
 		t.Fatalf("indexar semente: %v", err)
 	}
 	if _, err := IndexSingleFileSQLite(ctx, database, nil, nil, neighborPath, true); err != nil {
@@ -184,4 +191,14 @@ func writeNote(path, content string, edited time.Time) error {
 		return err
 	}
 	return os.Chtimes(path, edited, edited)
+}
+
+// embedderFake é um provider de mentira que devolve sempre o mesmo vetor —
+// e um vetor de verdade (primeira componente = 1), nunca o vetor zero.
+type embedderFake struct{}
+
+func (embedderFake) GenerateEmbedding(text string) ([]float32, error) {
+	v := make([]float32, embedder.EmbeddingDim)
+	v[0] = 1
+	return v, nil
 }
