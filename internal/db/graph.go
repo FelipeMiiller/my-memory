@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/FelipeMiiller/my-memory/internal/deeplink"
+	"github.com/FelipeMiiller/my-memory/internal/embedder"
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
@@ -248,6 +249,94 @@ func GetNodeNeighbors(ctx context.Context, db *sql.DB, nodeID string, maxDepth i
 	return neighbors, nil
 }
 
+// chunksSemVetorReal lista os chunks que não têm vetor real — nem ausente,
+// nem vetor zero.
+//
+// O SQLite guarda o vetor em DOIS caminhos, e a busca vetorial lê um ou
+// outro conforme a plataforma: o cru (`chunks_vec`) quando há sqlite-vec e
+// o comprimido (`chunks_turboquant`) no Windows, onde `HasSqliteVec` é
+// false. O doctor olha os dois, porque "não tem vetor" precisa ter o mesmo
+// significado nos dois caminhos.
+//
+// Três estados dessincronizados:
+//   - sem vetor nenhum: não tem linha em `chunks_vec` nem em
+//     `chunks_turboquant` (falta provider);
+//   - vetor zero: a linha existe, então "existe" não denuncia nada — é
+//     preciso comparar com o vetor zero do schema;
+//   - vetor cru sem o comprimido: a busca no caminho comprimido (o do
+//     Windows) não encontraria o chunk.
+//
+// A comparação fica em Go porque o `chunks_vec` muda de forma conforme a
+// plataforma: tabela virtual `vec0` na Unix com cgo, tabela BLOB no resto.
+func chunksSemVetorReal(ctx context.Context, db *sql.DB) ([]store.DesyncedChunk, error) {
+	type chunkRef struct {
+		id  string
+		doc string
+	}
+
+	var chunks []chunkRef
+	rows, err := db.QueryContext(ctx, `SELECT id, document_id FROM chunks ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var c chunkRef
+		if err := rows.Scan(&c.id, &c.doc); err == nil {
+			chunks = append(chunks, c)
+		}
+	}
+	rows.Close()
+
+	// O vetor cru, por chunk.
+	vetoresCruzos := map[string][]byte{}
+	if rawRows, err := db.QueryContext(ctx, `SELECT chunk_id, embedding FROM chunks_vec`); err == nil {
+		for rawRows.Next() {
+			var chunkID string
+			var blob []byte
+			if err := rawRows.Scan(&chunkID, &blob); err == nil {
+				vetoresCruzos[chunkID] = blob
+			}
+		}
+		rawRows.Close()
+	}
+
+	// O vetor comprimido, por chunk.
+	comprimidos := map[string][]byte{}
+	if tqRows, err := db.QueryContext(ctx, `SELECT chunk_id, data FROM chunks_turboquant`); err == nil {
+		for tqRows.Next() {
+			var chunkID string
+			var data []byte
+			if err := tqRows.Scan(&chunkID, &data); err == nil {
+				comprimidos[chunkID] = data
+			}
+		}
+		tqRows.Close()
+	}
+
+	var desync []store.DesyncedChunk
+	for _, c := range chunks {
+		raw, temRaw := vetoresCruzos[c.id]
+		comprimido, temComprimido := comprimidos[c.id]
+
+		issue := ""
+		switch {
+		case temRaw && vetorCruzoEhZero(raw):
+			issue = "Zero vector embedding"
+		case temComprimido && turboQuantEhZero(comprimido, embedder.EmbeddingDim):
+			issue = "Zero vector embedding"
+		case !temRaw && !temComprimido:
+			issue = "Missing vector embedding"
+		case temRaw && !temComprimido:
+			issue = "Missing TurboQuant 4-bit compression"
+		}
+
+		if issue != "" {
+			desync = append(desync, store.DesyncedChunk{ChunkID: c.id, DocumentID: c.doc, Issue: issue})
+		}
+	}
+	return desync, nil
+}
+
 // DiagnoseHealth audita a integridade topológica do grafo e tabelas relacionais do SQLite
 func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error) {
 	report := &store.DoctorReport{
@@ -339,22 +428,9 @@ func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error
 		}
 	}
 
-	// 5. Chunks dessincronizados (chunks sem correspondência em chunks_turboquant)
-	desyncRows, err := db.QueryContext(ctx, `
-		SELECT c.id, c.document_id
-		FROM chunks c
-		WHERE c.id NOT IN (SELECT chunk_id FROM chunks_turboquant)
-		ORDER BY c.id
-	`)
-	if err == nil {
-		defer desyncRows.Close()
-		for desyncRows.Next() {
-			var dc store.DesyncedChunk
-			if err := desyncRows.Scan(&dc.ChunkID, &dc.DocumentID); err == nil {
-				dc.Issue = "Missing TurboQuant 4-bit compression"
-				report.DesyncedChunks = append(report.DesyncedChunks, dc)
-			}
-		}
+	// 5. Chunks dessincronizados (sem vetor REAL: ausente OU vetor zero)
+	if desync, err := chunksSemVetorReal(ctx, db); err == nil {
+		report.DesyncedChunks = append(report.DesyncedChunks, desync...)
 	}
 
 	// 6. Cálculo de Health Score (0 a 100). ISSUE-019: a guarda que pulava o

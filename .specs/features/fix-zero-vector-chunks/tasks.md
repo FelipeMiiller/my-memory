@@ -221,13 +221,36 @@ e `v <#> v = -||v||²`, que vale zero só quando o vetor É o vetor zero.
 
 **Done when**:
 
-- [ ] Chunk sem linha em `chunks_vec` **e** sem linha em `chunks_turboquant`
+- [x] Chunk sem linha em `chunks_vec` **e** sem linha em `chunks_turboquant`
       → dessincronizado
-- [ ] Chunk com vetor zero → dessincronizado
-- [ ] Chunk com vetor real → **não** dessincronizado
+- [x] Chunk com vetor zero → dessincronizado
+- [x] Chunk com vetor real → **não** dessincronizado
 
 **Tests**: unit
 **Gate**: quick
+
+**Status**: Verified (2026-11-14)
+
+**Sensor** (4 mutações, `D:\.minimax\scratch\sensor_t5.py`):
+
+| Mutação | Efeito | Veredito |
+| :--- | :--- | :--- |
+| M-T5a — `vetorCruzoEhZero` deixa de ver o zero | o chunk com vetor **cru** zero (e só cru) passa a ser reportado como "Missing TurboQuant" | MORTO |
+| M-T5b — `turboQuantEhZero` deixa de ver o zero | o chunk com vetor **comprimido** zero (e só comprimido) não é reportado | MORTO |
+| M-T5c — o caso da ausência some | o chunk sem vetor nenhum não é reportado | MORTO |
+| M-T5d — a regra "vetor cru sem o comprimido" some | o chunk que a busca comprimida não encontraria não é reportado | MORTO |
+
+**Notas de implementação**:
+
+- A comparação do zero ficou em Go (`internal/db/vector_zero.go`) porque o
+  `chunks_vec` muda de forma conforme a plataforma: tabela virtual `vec0`
+  na Unix com cgo, tabela BLOB no resto. A assinatura do vetor zero no
+  caminho comprimido é exata: o `Quantize` grava o valor quantizado como
+  nibble deslocado em 7, então o vetor zero é todo byte `0x77` — e um vetor
+  real sempre tem um componente que normaliza para ±7 (nibble 0 ou 14).
+- A regra anterior ("vetor cru sem o comprimido" → dessincronizado) foi
+  **mantida**: ela cobre o caso em que a busca no caminho comprimido — o do
+  Windows — não encontraria o chunk.
 
 **Commit**: `fix(doctor): o SQLite detecta chunk com vetor zero`
 
