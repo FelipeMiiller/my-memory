@@ -62,6 +62,8 @@ func normalizeStructuredContent(structured any) any {
 		}
 		normalized := *payload
 		normalized.DeadLinks = nonNilSlice(payload.DeadLinks)
+		normalized.OutOfIndexLinks = nonNilSlice(payload.OutOfIndexLinks)
+		normalized.UnverifiableLinks = nonNilSlice(payload.UnverifiableLinks)
 		normalized.OrphanNotes = nonNilSlice(payload.OrphanNotes)
 		normalized.SelfLoops = nonNilSlice(payload.SelfLoops)
 		normalized.DesyncedChunks = nonNilSlice(payload.DesyncedChunks)

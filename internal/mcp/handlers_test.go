@@ -948,7 +948,15 @@ func TestServer_ToolsCall_MemoryDoctor_VazioNaoEmiteHealthScore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("falha ao serializar o payload: %v", err)
 	}
-	if strings.Contains(string(payload), "health_score") {
+	// A chave é conferida pelo **nome**, não por substring: o payload também
+	// carrega `health_score_provisional` (ADR-063), e uma busca por
+	// "health_score" casaria com ela e acusaria uma chave que está presente de
+	// propósito.
+	var chaves map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &chaves); err != nil {
+		t.Fatalf("falha ao desserializar o payload: %v", err)
+	}
+	if _, presente := chaves["health_score"]; presente {
 		t.Errorf("health_score deveria viajar ausente num vault sem documentos:\n%s", payload)
 	}
 	if strings.Contains(string(payload), ":null") {

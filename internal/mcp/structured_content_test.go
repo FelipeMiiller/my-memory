@@ -75,6 +75,8 @@ func TestMemoryDoctorTool_StructuredContentJSONIsStable(t *testing.T) {
 		HealthScore:       healthScorePtr(88),
 		MissingMTimeCount: 1,
 		DeadLinks:         []DeadLink{{SourceID: "a.md", TargetID: "b.md", Relation: "relates_to"}},
+		OutOfIndexLinks:   []OutOfIndexLink{{SourceID: "e.md", TargetID: "f.md", Relation: "links_to", ResolvedPath: "catalog-skills/skills/f.md", Match: "basename"}},
+		UnverifiableLinks: []DeadLink{{SourceID: "g.md", TargetID: "h.md", Relation: "links_to"}},
 		OrphanNotes:       []OrphanNote{{ID: "c.md", Title: "C"}},
 		SelfLoops:         []SelfLoop{{NodeID: "d.md", Relation: "self"}},
 		DesyncedChunks:    []DesyncedChunk{{ChunkID: "ch1", DocumentID: "doc1", Issue: "sem vetor"}},
@@ -101,6 +103,8 @@ func TestMemoryDoctorTool_StructuredContentJSONIsStable(t *testing.T) {
 
 	expected := `{"total_documents":10,"total_chunks":42,"total_edges":7,"total_nodes":9,"health_score":88,` +
 		`"missing_mtime_count":1,"dead_links":[{"source_id":"a.md","target_id":"b.md","relation":"relates_to"}],` +
+		`"out_of_index_links":[{"source_id":"e.md","target_id":"f.md","relation":"links_to","resolved_path":"catalog-skills/skills/f.md","match":"basename"}],` +
+		`"unverifiable_links":[{"source_id":"g.md","target_id":"h.md","relation":"links_to"}],"health_score_provisional":false,` +
 		`"orphan_notes":[{"id":"c.md","title":"C"}],"self_loops":[{"node_id":"d.md","relation":"self"}],` +
 		`"desynced_chunks":[{"chunk_id":"ch1","document_id":"doc1","issue":"sem vetor"}]}`
 
@@ -241,7 +245,7 @@ func TestStructuredContentNeverEmitsNullArrays(t *testing.T) {
 		arrays  []string
 	}{
 		{"drift", &drift.DriftReport{RangeStr: "HEAD~5..HEAD"}, []string{`"drifted_notes":[]`, `"uncovered_code":[]`}},
-		{"doctor", &DoctorReport{}, []string{`"dead_links":[]`, `"orphan_notes":[]`, `"self_loops":[]`, `"desynced_chunks":[]`}},
+		{"doctor", &DoctorReport{}, []string{`"dead_links":[]`, `"out_of_index_links":[]`, `"unverifiable_links":[]`, `"orphan_notes":[]`, `"self_loops":[]`, `"desynced_chunks":[]`}},
 		{"list_files", []store.VaultDocument(nil), []string{`[]`}},
 		{"note_outline", []OutlineHeading(nil), []string{`[]`}},
 		{"hubs_degree", []GodNode(nil), []string{`[]`}},

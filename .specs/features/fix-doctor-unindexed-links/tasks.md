@@ -71,6 +71,12 @@ T2 -> T3 -> T4 -> T5
 T5 -> T6 -> T7
 ```
 
+### Phase 4: A rodada de correção do Verifier
+
+```
+T7 -> T8 -> T9
+```
+
 ---
 
 ## Task Breakdown
@@ -327,21 +333,70 @@ as três aparecem com a contagem certa.
 
 ---
 
+### T8: O contrato do wire do `memory_doctor`
+
+**What**: a fronteira do `structuredContent` normaliza as **duas** listas novas
+(`out_of_index_links` e `unverifiable_links`) como normaliza as outras quatro, e
+o teste que fixa o JSON do doctor passa a cobrir as chaves novas — com conteúdo,
+não só vazio.
+
+**Where**: `internal/mcp/structured_content.go` ·
+`internal/mcp/structured_content_test.go`
+**Depends on**: T7
+**Reuses**: `normalizeStructuredContent` (a fronteira do wire) · `nonNilSlice`
+**Requirement**: DUL-08
+
+**Tools**:
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+- [x] `out_of_index_links` e `unverifiable_links` viajam como `[]`, nunca `null`
+- [x] O JSON estável do doctor fixa as duas chaves novas (com conteúdo)
+- [x] O guarda-cláusula do `health_score` ausente confere a **chave**, não uma
+      substring (o payload também carrega `health_score_provisional`)
+- [x] O gate completo volta a ficar verde
+
+**Status**: Verified (2026-11-14) — **achado do Verifier independente**: o T7
+acrescentou as duas listas ao payload do MCP, mas a fronteira do wire
+(`normalizeStructuredContent`) continuou normalizando só as quatro antigas — e o
+gate completo passou a **falhar** com 3 testes de contrato do MCP
+(`TestServer_ToolsCall_MemoryDoctor_VazioNaoEmiteHealthScore`,
+`TestMemoryDoctorTool_StructuredContentJSONIsStable` e
+`TestStructuredContentNeverEmitsNullArrays/doctor`). A base `b8350fd` passa e o
+HEAD falhava: **regressão introduzida pela feature**, não pré-existente. O
+guarda-cláusula já existia (`handlers_test.go`); o que faltava era a
+normalização. A correção também endureceu o guarda-cláusula do `health_score`
+ausente: ele procurava a **substring** `health_score`, que passou a casar com a
+chave nova `health_score_provisional` — agora ele confere a chave pelo nome.
+
+**Tests**: unit
+**Gate**: full
+
+**Commit**: `fix(mcp): o doctor mantem o contrato do wire nas listas novas`
+
+---
+
 ## Phase Execution Map
 
 ```
-Phase 1 → Phase 2 → Phase 3
+Phase 1 → Phase 2 → Phase 3 → Phase 4
 
 Phase 1:  T1 -> T2
 Phase 2:  T2 -> T3 -> T4 -> T5
 Phase 3:  T5 -> T6 -> T7
+Phase 4:  T7 -> T8
 ```
+
+A fase 4 é a **rodada de correção** que o Verifier independente opened: os gaps
+que ele encontrou viraram tarefas de fix com commit próprio.
 
 Execution is strictly sequential - there is no intra-phase parallelism. A single
 agent (or batch worker) works one task at a time, in order.
 
-**Contagem de tarefas**: 7 — cabem em um único lote (≤ ~8 por worker), então a
-execução é **inline**, sem sub-agente.
+**Contagem de tarefas**: 8 — cabem em um único lote (≤ ~8 por worker), então a
+execução é **inline**, sem sub-agente. A fase 4 entrou depois, com 1 tarefa
+de correção do Verifier.
 
 ---
 
@@ -356,6 +411,7 @@ execução é **inline**, sem sub-agente.
 | T5 | T4 | T4 -> T5 | ✅ Match |
 | T6 | T5 | T5 -> T6 | ✅ Match |
 | T7 | T6 | T6 -> T7 | ✅ Match |
+| T8 | T7 | T7 -> T8 | ✅ Match |
 
 Nenhuma dependência aponta para uma fase posterior.
 
@@ -372,6 +428,7 @@ Nenhuma dependência aponta para uma fase posterior.
 | T5 | Classificação no Postgres | integration | integration | ✅ OK |
 | T6 | Superfície CLI e MCP | integration | integration | ✅ OK |
 | T7 | Superfície CLI e MCP | integration | integration | ✅ OK |
+| T8 | Superfície CLI e MCP | integration | unit | ✅ OK (o wire é o contrato; o teste é unitário) |
 
 ---
 
@@ -386,3 +443,4 @@ Nenhuma dependência aponta para uma fase posterior.
 | T5: classificação Postgres | 1 arquivo (2 funções) | ✅ Granular |
 | T6: flag + relatório | 1 arquivo | ✅ Granular |
 | T7: espelho MCP | 1 arquivo | ✅ Granular |
+| T8: contrato do wire | 2 arquivos (código + teste) | ✅ Granular |
