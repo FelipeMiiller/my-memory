@@ -1955,3 +1955,26 @@ existe**: o stub sem tag responde *"este binário foi compilado sem a tag
 **Referência:** ADR-035 (o provider atras da tag) · ADR-062 §B-4 (o cofre com
 vetor) · ISSUE-037 (binario oficial sem provider) · ISSUE-040 (chunk sem vetor
 real) · ADR-063 (as tres categorias de link).
+
+### Resolução (2026-11-14)
+
+**O que foi corrigido** (spec `fix-test-binary-clobber`, 3 tarefas, 2 fases, 3 commits):
+
+| O que | Onde | Como |
+| :--- | :--- | :--- |
+| A suite nao compila para dentro de `bin/` | `cmd/mem/events_test.go` (`memBinary`) · `cmd/mem/doctor_test.go` (`runMemDoctor`) | helper **unico** que compila em `t.TempDir()`; o `doctor_test.go` passou a consumi-lo (nao ha mais um segundo `go build`) |
+| A regressao nao volta | `cmd/mem/test_binary_untouched_test.go` | 3 testes: o helper fora de `bin/`, o SHA-256 de `bin/mem.exe` intacto antes e depois da suite, e um **guard estatico** que aponta qualquer fonte de teste que volte a compilar para dentro de `bin/` |
+
+**Medido**: a suite `cmd/mem` **inteira** rodou (exit 0, 123,8 s) e o
+`bin/mem.exe` do dono ficou **byte a byte** igual — hash
+`2336f7e84273ceaa9ee3285ad9d77cd9701f01693bbcb871c70cbb751df30e60`,
+37.191.134 bytes, antes e depois. Antes da correcao, a mesma suite deixava o
+binario em 26.481.664 bytes (build sem a tag).
+
+**O contrato do aviso consolidado (ISSUE-037) nao regrediu**: o `mem index` sem
+provider continua imprimindo o aviso uma vez por execucao
+(`cmd/mem/main.go:1503`), coberto por
+`cmd/mem/embed_provider_degradation_test.go`, e o gate taggeado prova que com
+o provider presente o aviso nao aparece.
+
+**Referência da spec:** `.specs/features/fix-test-binary-clobber/`.

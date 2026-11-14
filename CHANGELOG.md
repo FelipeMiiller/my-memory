@@ -32,6 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A suíte de testes não sobrescreve mais o binário do usuário (ISSUE-041)**: dois
+  helpers de `cmd/mem` compilavam por cima de `bin/mem.exe` com um build **sem** a
+  tag `onnx`. Medido no Cofre Central: rodar a suíte derrubava o binário taggeado
+  (37.191.134 → 26.481.664 bytes) e o `mem index` seguinte gravava chunk sem vetor
+  — o Health Score caía de **100 para 96**, e o `mem embed doctor` passava a dizer
+  que o binário foi compilado sem a tag. Agora o helper de teste é **único** e
+  compila em `t.TempDir()`: a suíte não cria nem sobrescreve nada no repositório,
+  e três testes novos provam isso — o helper fora de `bin/`, o SHA-256 do binário
+  do usuário intacto antes e depois, e um guard estático que aponta qualquer fonte
+  de teste que volte a compilar para dentro de `bin/`.
 - **O doctor parou de chamar de link morto o link que funciona no Obsidian
   (ISSUE-039)**: o `mem doctor` tratava toda aresta que não resolve no índice
   como dead link, e no Cofre Central isso significava **138** links "mortos" —
