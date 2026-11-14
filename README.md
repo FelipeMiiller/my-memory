@@ -98,6 +98,9 @@ curl -fsSL https://raw.githubusercontent.com/FelipeMiiller/my-memory/main/script
 > go install github.com/FelipeMiiller/my-memory/cmd/mem@latest
 > ```
 
+> [!NOTE]
+> O instalador também busca os **artefatos do provider semântico** (modelo MiniLM + tokenizer + biblioteca do ONNX Runtime, ~134 MB) com `mem embed download`. O binário oficial já vem compilado com a tag `onnx`; se você compila à mão, use `-tags "sqlite_fts5 onnx"` (precisa de toolchain C/CGO) — sem a tag, a busca vetorial não funciona.
+
 ---
 
 ## 🚀 Início Rápido (Quickstart)
@@ -129,6 +132,20 @@ mem index
 # Busca híbrida federada (Local + Central via RRF)
 mem search "como funciona o cache incremental?"
 ```
+
+### 4.1. Provider de Embedding
+
+O binário oficial já vem **compilado com o provider semântico** (MiniLM multilíngue, 384d — ADR-035). O que ele não traz é o modelo e a biblioteca do ONNX Runtime: o instalador já os baixa. Para diagnosticar ou completar:
+
+```bash
+# Diagnostica o ambiente: provider ativo, caminhos, dimensão e presença de cada artefato
+mem embed doctor
+
+# Baixa o que estiver faltando (modelo + tokenizer + ONNX Runtime)
+mem embed download
+```
+
+Sem o provider, o `mem index` continua funcionando em modo léxico — mas avisa, em **uma** linha por execução, quantos documentos ficaram sem vetor, e a busca declara que o resultado é apenas lexical.
 
 ### 5. Indexar o Code Graph e Registrar Lições
 ```bash

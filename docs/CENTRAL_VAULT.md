@@ -108,19 +108,23 @@ O fallback existe, mas **não é mais disparado por um servidor externo ficar of
 1. O binário foi compilado **sem a tag `onnx`**, então `newBuiltinEmbedder` não existe (`cmd/mem/builtin_embedder_disabled.go`);
 2. O modelo embutido falha ao gerar um vetor (artefatos ausentes, erro de inferência).
 
+> [!IMPORTANT]
+> O binário oficial **já vem com a tag `onnx`**: o release compila com `-tags "sqlite_fts5 onnx"` e a CI tem um job que compila e testa o provider sob essa tag. Se o seu binário avisa que a tag falta, ele foi compilado à mão — recompile com a tag (precisa de toolchain C/CGO) ou baixe o artefato do release.
+
 ```go
-// cmd/mem/main.go — resolveEmbedder()
-dim := embedder.EmbeddingDim          // 384, sempre
+// cmd/mem/main.go — resolveEmbedderStatus()
 emb, err := newBuiltinEmbedder(cfg)
 if err != nil {
-    fmt.Fprintf(os.Stderr, "Aviso: %v; indexando em modo léxico FTS\n", err)
-    emb = nil
+    emb = nil // quem decide o que avisar é o comando: o index imprime UM
+              // aviso consolidado e a busca declara o fallback léxico
 }
 ```
 
 Comportamento:
-- ⚠️ Aviso emitido: `sem provider de embedding; <docID> indexado em modo léxico FTS`
-- ✅ Indexação **continua normalmente** no FTS5 + grafo + TurboQuant
+- ⚠️ **Um** aviso por execução de `mem index` (não uma linha por documento):
+  `Provider vetorial indisponível: N documento(s) indexado(s) SEM VETOR — a busca semântica não funciona para eles.`
+  A mensagem nomeia a **tag ausente** (`onnx`) e a consequência.
+- ✅ Indexação **continua normalmente** no FTS5 + grafo + TurboQuant, e o `mem index` sai com **código 0** — o modo léxico é um modo válido.
 - ✅ Compressão TurboQuant funciona com vetor zero (perfeita, todos os coeficientes = 0)
 - ❌ Busca semântica fica degradada — `mem search --mode hybrid` cai em FTS-only
 - ✅ `--mode fts` continua 100%
@@ -129,11 +133,12 @@ Comportamento:
 ```bash
 mem search --mode hybrid "qualquer coisa"
 # Saída esperada:
-# Aviso: sem provider de embedding; ... indexado em modo léxico FTS
+# ⚠️  Resultado apenas LEXICAL — sem provider de embedding. Esta busca NÃO usou similaridade vetorial; o resultado vem só do FTS textual.
+# 📊 Fontes RRF: [fts:1]
 ```
 
-> [!NOTE]
-> O texto do aviso não cita mais nenhum provider: o que dispara é a falha do provider **embutido** (`falha ao gerar embedding`), e a mensagem em si é agnostica.
+> [!TIP]
+> `mem embed doctor` diagnostica o ambiente (provider ativo, caminhos, dimensão e a presença de cada artefato) e `mem embed download` busca o que falta. Ver [`docs/CLI_GUIDE.md` — `mem embed`](CLI_GUIDE.md).
 
 ---
 
@@ -293,7 +298,7 @@ mem clusters --min-size 2
 | Sintoma | Causa provável | Solução |
 | --- | --- | --- |
 | `unable to open database file (14)` ao indexar | Path com caracteres especiais / falta de permissão | Verifique aspas, encoding e permissões de escrita |
-| Aviso `sem provider de embedding` em cada documento | Binário compilado sem a tag `onnx`, ou artefatos do modelo embutido ausentes | Recompile com `-tags onnx` (veja [ADR-035](adr/035-embedder-embutido-com-fallback-onnx-minilm.md)); sem ele o `mem index` segue em modo léxico FTS |
+| Aviso `Provider vetorial indisponível` (uma linha por execução) | Binário compilado sem a tag `onnx`, ou artefatos do modelo embutido ausentes | `mem embed doctor` mostra o diagnóstico; `mem embed download` busca o que falta. O binário do release já vem com a tag `onnx` — se o aviso aparece, recompile com `-tags "sqlite_fts5 onnx"` (ver [ADR-035](adr/035-embedder-embutido-com-fallback-onnx-minilm.md)) |
 | `mem open memory://...` não acha o nó | Repo satélite não registrado no catálogo global | Rode `mem init` no diretório do repo |
 | Drift mostra ADRs órfãos | ADRs ficaram desatualizados vs código novo | Atualize ADR, commite, reindexe |
 | `--db` mostra help em vez de erro | Argumento mal posicionado | `mem index --db <arq> <pasta>` (DB antes do path) |

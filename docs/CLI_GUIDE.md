@@ -1243,6 +1243,63 @@ echo "A lição learned" | ./bin/mem.exe lesson "Lição aprendida"
 
 ---
 
+### 36. `mem embed <download|doctor>` — os artefatos do provider semântico
+
+O provider de embedding embutido (ADR-035) precisa de **três arquivos no disco**, e nenhum comando os trazia antes desta versão:
+
+| Artefato | Caminho padrão | Tamanho |
+| :--- | :--- | ---: |
+| Modelo (ONNX int8) | `~/.memory/models/paraphrase-multilingual-MiniLM-L12-v2/model_int8.onnx` | 118.054.609 B |
+| Tokenizer (SentencePiece) | `~/.memory/models/paraphrase-multilingual-MiniLM-L12-v2/sentencepiece.bpe.model` | 5.069.051 B |
+| Biblioteca do ONNX Runtime 1.29.0 | `~/.memory/models/onnxruntime/onnxruntime.dll` (`.so` no Linux, `.dylib` no macOS) | ~16 MB |
+
+Sem eles, o `mem index` **continua funcionando**, mas indexa sem vetor e a busca semântica não tem o que comparar.
+
+**`mem embed download`** baixa os três artefatos para o diretório de modelos:
+
+```bash
+mem embed download
+# 📥 Baixando os artefatos do provider builtin...
+#    ⬇ /home/usuario/.memory/models/paraphrase-multilingual-MiniLM-L12-v2/model_int8.onnx
+#    ⬇ /home/usuario/.memory/models/paraphrase-multilingual-MiniLM-L12-v2/sentencepiece.bpe.model
+#    ⬇ /home/usuario/.memory/models/onnxruntime/onnxruntime.dll
+# ✅ Provider pronto.
+```
+
+* **Integridade**: o tamanho de cada arquivo é conferido contra o valor publicado pelo upstream **antes** do rename final, e o pacote do ONNX Runtime tem o sha256 verificado. O download vai para um temporário no mesmo diretório e só então entra no lugar — uma falha **não deixa arquivo parcial**.
+* **Falha explícita**: o erro nomeia a **URL tentada** e o **destino**, e o comando sai com código diferente de zero.
+* **Reentrante**: um artefato já válido no destino **não** é baixado de novo — o instalador pode rodar o comando numa máquina que já tem o provider.
+* **Origem**: o modelo vem do repositório ONNX da Xenova e o tokenizer do repositório original da sentence-transformers; a biblioteca vem da release oficial do ONNX Runtime. As revisões são fixadas por **commit**, não por `main` — o vetor gravado no índice depende do arquivo exato, e o Epoch cobre o nome e a dimensão, não o conteúdo.
+* **Override de caminho**: `MY_MEMORY_MINILM_MODEL_DIR` muda o diretório do modelo e `MY_MEMORY_ORT_LIB` o da biblioteca. O instalador imprime o diretório que o download **realmente usou**, não um caminho fixo.
+
+**`mem embed doctor`** diagnostica o ambiente — provider ativo, caminhos, dimensão e a presença de cada artefato:
+
+```bash
+mem embed doctor
+# 🔍 Provider de embedding
+#
+#    Provider:         builtin (ONNX MiniLM)
+#    Dimensão:         384
+#    Modelo:           /home/usuario/.memory/models/paraphrase-multilingual-MiniLM-L12-v2/model_int8.onnx
+#    Tokenizer:        /home/usuario/.memory/models/paraphrase-multilingual-MiniLM-L12-v2/sentencepiece.bpe.model
+#    Biblioteca ORT:   /home/usuario/.memory/models/onnxruntime/onnxruntime.dll
+#
+#    Artefatos:
+#      ✔ .../model_int8.onnx — presente (118054609 bytes)
+#      ✔ .../sentencepiece.bpe.model — presente (5069051 bytes)
+#      ✔ .../onnxruntime.dll — presente (16149344 bytes)
+#
+#    Status: ATIVO
+```
+
+* **Não quebra quando falta provider**: sem provider o comando **relata** `Status: INDISPONÍVEL — <motivo>` e sai com **código 0** — quem chama (o instalador, um script) decide o que fazer com um provider ausente. Já `mem search --mode vector` sem provider continua sendo erro de uso (código ≠ 0).
+* **Diagnóstico de ambiente**: não toca no vault e não precisa de notas indexadas.
+
+> [!NOTE]
+> O instalador (`install.ps1` / `install.sh`) já chama `mem embed download` depois de instalar o binário. Se o download falhar (sem rede), a instalação **não** é abortada — o aviso diz qual comando rodar depois.
+
+---
+
 ## 🗄️ Seleção de Storage (ADR-040)
 
 O `mem` decide automaticamente onde armazenar e consultar dados, seguindo uma matriz de detecção em cascata. SQLite local é o **default**; Postgres+pgvector (central vault) é **opt-in** via config ou flag.
@@ -1639,20 +1696,22 @@ Parâmetros suportados:
 * `--dry-run`: Simula a abertura e exibe comando de SO e URI gerada sem iniciar o editor.
 * `--json`: Retorna objeto JSON com campos `uri`, `vault`, `file`, `path`, `deep_link` e `is_federated: true`.
 
-### 4. Modo de Embedding: Vetorial vs Fallback FTS
+### 6. Modo de Embedding: Vetorial vs Fallback FTS
 
 O `mem index` e o `mem search --mode hybrid` usam o provider **embutido** `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensões, ADR-035). Não há endpoint remoto configurável. O fallback léxico dispara apenas quando esse provider não está disponível — binário compilado sem a tag `onnx`, ou artefatos do modelo ausentes:
 
 * **Indexação continua funcionando** — cada chunk é armazenado com vetor zero (`make([]float32, embedder.EmbeddingDim)`); FTS5 indexa normalmente e TurboQuant comprime perfeitamente (vetor zero comprime sem perda).
-* **Aviso emitido**: `sem provider de embedding; <docID> indexado em modo léxico FTS`.
-* **Search híbrido cai automaticamente em FTS-only** — você verá `fallback para busca textual FTS` na saída.
+* **Um aviso por execução** — o `mem index` imprime **uma** linha consolidada, não uma por documento:
+  `Provider vetorial indisponível: N documento(s) indexado(s) SEM VETOR — a busca semântica não funciona para eles.`
+  A linha nomeia a **tag ausente** (`onnx`) e a consequência, e o código de saída continua **0**.
+* **Search híbrido declara o fallback** — a saída diz `Resultado apenas LEXICAL — ... Esta busca NÃO usou similaridade vetorial`, e as fontes RRF mostram `[fts:1]` sem a fonte `vector`.
 * **Resultados ainda funcionam**: FTS5 + RRF + expansão de grafo retornam resultados relevantes, só perdem o ranqueamento semântico.
-* Para voltar ao modo semântico completo: recompile com `-tags onnx` (ou aponte `MY_MEMORY_MINILM_MODEL_DIR`/`MY_MEMORY_ORT_LIB` para os artefatos locais) e reindexe o vault.
+* Para voltar ao modo semântico completo: baixe os artefatos com `mem embed download`, confirme com `mem embed doctor` e reindexe o vault.
 
-> [!NOTE]
-> O texto do aviso não cita mais nenhum provider: desde a migração para o embedder embutido (ADR-035) ele apenas descreve a falha (`falha ao gerar embedding`).
+> [!IMPORTANT]
+> O binário oficial **já vem com a tag `onnx`** — o release compila com `-tags "sqlite_fts5 onnx"` e a CI tem um job que compila e testa o provider sob essa tag. Se o seu binário avisa que a tag falta, ele foi compilado à mão: recompile com `-tags "sqlite_fts5 onnx"` (precisa de toolchain C/CGO) ou baixe o artefato do release.
 
-Comportamento garantido pelo commit [`33feb1d`](../../commit/33feb1d) (`fix(index): fallback to FTS chunk indexing when embedding generation is offline`). Documentação completa em [`docs/CENTRAL_VAULT.md` — Seção 4](CENTRAL_VAULT.md#4-modos-de-embedding-online-vs-fallback).
+Comportamento garantido pelos commits [`33feb1d`](../../commit/33feb1d) (`fix(index): fallback to FTS chunk indexing when embedding generation is offline`) e [`a6147e1`](../../commit/a6147e1) (`fix(index): aviso consolidado quando o provider semântico está ausente`). Documentação completa em [`docs/CENTRAL_VAULT.md` — Seção 4](CENTRAL_VAULT.md#4-modos-de-embedding-vetorial-vs-fallback).
 
 
 

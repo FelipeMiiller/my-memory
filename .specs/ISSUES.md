@@ -1590,7 +1590,7 @@ o "fix" do doctor, se rodar, leva o code graph junto.
 ## ISSUE-037 — O binário distribuído nunca carrega o provider semântico: a busca vetorial do cofre decai em silêncio
 
 - **Severidade:** 🟠 alta (a ADR-035 fica sem efeito prático no artefato que o dono usa)
-- **Status:** 🔵 **open** — decisão de política **já tomada** (2026-11-13): o release compila com a tag `onnx` e o instalador baixa a DLL do ONNX Runtime. **Spec escrita:** `.specs/features/fix-release-onnx-provider/` (9 ACs, 9 tarefas, 3 fases)
+- **Status:** 🟢 **corrigida** (2026-11-13, `.specs/features/fix-release-onnx-provider/`) — o release e a CI compilam com a tag `onnx`, `mem embed download` traz o modelo e a DLL, o instalador invoca o comando e a degradação é explícita e consolidada. Spec com **11 ACs, 15 tarefas, 4 fases**
 - **Achado em:** 2026-11-13, ao diagnosticar por que o dono "não consegue documentar aprendizados no cofre central"
 
 **O defeito.** O provider de embedding embutido (ONNX MiniLM, ADR-035) mora atrás
@@ -1625,19 +1625,38 @@ O modelo (`~/.memory/models/paraphrase-multilingual-MiniLM-L12-v2/model_int8.onn
 118 MB) e a DLL do ONNX Runtime
 (`~/.memory/models/onnxruntime/onnxruntime.dll`, 16 MB) **já estão no disco**.
 
-**Correção proposta.** (a) o release passa a compilar com a tag `onnx` **quando
-houver toolchain C**, e **sem** ela quando não houver — com **aviso explícito**
-no boot; (b) a CI ganha um job com a tag `onnx` (copiando o padrão do
-`codeast-cgo-on`); (c) o instalador (ADR-032) documenta o pré-requisito de
-toolchain (mingw/MSYS2) quando o build com a tag for possível.
+**Correção entregue (2026-11-13, `.specs/features/fix-release-onnx-provider/`).**
 
-**Pendência de decisão (dono).** Onde o binário oficial é construído? Hmm: o
-release do GitHub roda em Linux (toolchain C disponível) — então **o binário
-oficial pode e deve ter a tag**. Hmm, a questão real é se o **build local** do
-dono (Windows, sem gcc no PATH) também deve tê-la: a resposta é sim, com o
-`C:\msys64\ucrt64\bin` no PATH do build.
+(a) O release passa a compilar com a tag `onnx` **sempre** — no Linux
+(`release.yml:123`) e no Windows (`release.yml:170`), com `CGO_ENABLED=1`. No
+Windows o job tem um passo **"Verify C Toolchain"** que **falha com mensagem
+explícita** (`::error::Toolchain C ausente: ...`) quando o runner não tem
+toolchain C: nunca se publica binário mudo. (b) A CI ganhou o job
+`embedder-onnx` (`ci.yml:385-413`), que compila `cmd/mem` com a tag e roda a
+suíte do provider sob ela — **gate duro**, sem `continue-on-error`: um job que
+não pode falhar não protege nada. (c) O instalador (ADR-032) invoca
+`mem embed download` e imprime o diretório que o download **realmente usou**.
 
-**Referência:** ADR-062 §C.
+**Os artefatos que faltavam.** `internal/embedder/model_downloader.go` baixa o
+modelo, o tokenizer e a biblioteca do ONNX Runtime **1.29.0** para
+`~/.memory/models/`, conferindo o **tamanho** de cada arquivo antes do rename
+atômico (uma falha não deixa parcial, e o erro nomeia a URL tentada e o
+destino). As revisões dos artefatos são fixadas por **commit**, não por `main`:
+o vetor gravado no índice depende do arquivo exato, e o Epoch cobre nome e
+dimensão, não conteúdo. `mem embed doctor` diagnostica o ambiente.
+
+**A degradação ficou explícita.** O aviso por documento
+(`sem provider de embedding; <docID> indexado em modo léxico FTS`) foi
+substituído por **um** aviso por execução, que nomeia a tag ausente e diz
+quantos documentos ficaram sem vetor; o `mem index` sai com código **0**. A
+busca híbrida declara o fallback léxico (`Resultado apenas LEXICAL — ... NÃO
+usou similaridade vetorial`) e o `mem search --mode vector` sem provider
+continua sendo erro de uso.
+
+**Medido depois da correção.** O binário com a tag responde `[vector:1]` na
+fonte RRF (antes: `[fts:1]`), e `mem embed doctor` reporta `Status: ATIVO`.
+
+**Referência:** ADR-062 §C · ADR-035 (provider embutido) · ADR-032 (instalador).
 
 ---
 

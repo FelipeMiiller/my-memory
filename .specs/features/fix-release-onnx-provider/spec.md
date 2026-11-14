@@ -32,9 +32,9 @@ máquina nova, o provider não funciona nem com o binário certo.
 - [x] O artefato publicado (Linux e Windows) compila com a tag `onnx`.
 - [x] A CI compila e testa o provider com a tag `onnx` — o provider deixa de ser
       código que "ninguém nunca compilou".
-- [ ] Existe um comando que baixa o modelo e a DLL do ONNX Runtime para
+- [x] Existe um comando que baixa o modelo e a DLL do ONNX Runtime para
       `~/.memory/models/`, e o instalador o invoca.
-- [ ] Quando o provider não está disponível, a degradação é **explícita e
+- [x] Quando o provider não está disponível, a degradação é **explícita e
       consolidada** — um aviso por execução, não uma linha por documento.
 
 ## Out of Scope
@@ -136,10 +136,12 @@ linha por documento e passa batido — a busca funciona, então ninguém procura
 
 9. WHEN `mem index` runs without an available embedding provider THEN the
    command SHALL print a single consolidated warning naming the missing build
-   tag and the consequence (chunks indexed without a vector), instead of one
+   tag and the consequence (documents indexed without a vector), instead of one
    warning line per document.
 10. IF the provider is unavailable THEN `mem search --mode hybrid` SHALL state
-    in its output that the result came from the lexical fallback only.
+    in its output that the result came from the lexical fallback only — the
+    output SHALL contain the marker `LEXICAL` and SHALL state that the vector
+    similarity was not used (`NÃO usou similaridade vetorial`).
 11. IF the provider is unavailable THEN `mem index` SHALL exit with code 0
     (o FTS lexical é um modo válido) and SHALL report how many documents were
     indexed without a vector.
@@ -163,28 +165,28 @@ linhas de aviso: uma, não uma por documento.
 
 ## Requirement Traceability
 
-| Requirement ID | Acceptance Criterion | Where |
-| :--- | :--- | :--- |
-| ROP-01 | AC1 — release Linux com a tag `onnx` | `.github/workflows/release.yml` |
-| ROP-02 | AC2 — release Windows com a tag e toolchain verificada | `.github/workflows/release.yml` |
-| ROP-03 | AC3 — job de CI com a tag `onnx` | `.github/workflows/ci.yml` |
-| ROP-04 | AC4 — o artefato publicado traz o provider | `.github/workflows/release.yml` · `cmd/mem/builtin_embedder.go` |
-| ROP-05 | AC5 — download verificado do modelo e da DLL | `internal/embedder/model_downloader.go` |
-| ROP-06 | AC6 — falha de download explícita e sem arquivo parcial | `internal/embedder/model_downloader.go` |
-| ROP-07 | AC7 — o instalador invoca o download | `scripts/install.ps1` · `scripts/install.sh` |
-| ROP-08 | AC8 — `mem embed doctor` diagnostica o provider | `cmd/mem/embed.go` |
-| ROP-09 | AC9 — aviso consolidado no `mem index` | `cmd/mem/main.go` |
-| ROP-10 | AC10 — a busca declara o fallback léxico | `cmd/mem/main.go` |
-| ROP-11 | AC11 — contagem de documentos indexados sem vetor | `cmd/mem/main.go` |
+| Requirement ID | Acceptance Criterion | Where | Status |
+| :--- | :--- | :--- | :--- |
+| ROP-01 | AC1 — release Linux com a tag `onnx` | `.github/workflows/release.yml` | Verified |
+| ROP-02 | AC2 — release Windows com a tag e toolchain verificada | `.github/workflows/release.yml` | Verified |
+| ROP-03 | AC3 — job de CI com a tag `onnx` | `.github/workflows/ci.yml` | Verified |
+| ROP-04 | AC4 — o artefato publicado traz o provider | `.github/workflows/release.yml` · `cmd/mem/builtin_embedder.go` | Verified |
+| ROP-05 | AC5 — download verificado do modelo e da DLL | `internal/embedder/model_downloader.go` | Verified |
+| ROP-06 | AC6 — falha de download explícita e sem arquivo parcial | `internal/embedder/model_downloader.go` | Verified |
+| ROP-07 | AC7 — o instalador invoca o download | `scripts/install.ps1` · `scripts/install.sh` | Verified |
+| ROP-08 | AC8 — `mem embed doctor` diagnostica o provider | `cmd/mem/embed.go` | Verified |
+| ROP-09 | AC9 — aviso consolidado no `mem index` | `cmd/mem/main.go` | Verified |
+| ROP-10 | AC10 — a busca declara o fallback léxico | `cmd/mem/main.go` | Verified |
+| ROP-11 | AC11 — contagem de documentos indexados sem vetor | `cmd/mem/main.go` | Verified |
 
 **Coverage**: 11 total, 11 mapeados, 0 unmapped.
 
 ## Success Criteria
 
-- [ ] O release publica artefatos com a tag `onnx` e o `mem search` de um vault
+- [x] O release publica artefatos com a tag `onnx` e o `mem search` de um vault
       vetorizado responde `[vector:1]`.
-- [ ] A CI tem um job que compila e testa com a tag `onnx`.
-- [ ] Numa máquina limpa, `mem embed download` + `mem embed doctor` + `mem
+- [x] A CI tem um job que compila e testa com a tag `onnx`.
+- [x] Numa máquina limpa, `mem embed download` + `mem embed doctor` + `mem
       index` + `mem search` devolvem resultado vetorial.
-- [ ] Sem provider, `mem index` imprime **um** aviso e diz quantos documentos
+- [x] Sem provider, `mem index` imprime **um** aviso e diz quantos documentos
       ficaram sem vetor.

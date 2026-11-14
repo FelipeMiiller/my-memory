@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "promote_threshold": 2,
+  "window_days": 45,
+  "quarantine_threshold": 2,
+  "next_id": 7,
+  "lessons": [
+    {
+      "id": "L-001",
+      "key": "surviving_mutant::a test that wraps the call under test in a closure returning a hardcoded nil asserts nothing capture the real return value so the exit code contract is discriminated",
+      "text": "A test that wraps the call under test in a closure returning a hardcoded nil asserts nothing: capture the real return value so the exit-code contract is discriminated.",
+      "signal": "surviving_mutant",
+      "scope": "cmd/mem",
+      "status": "candidate",
+      "features": [
+        "fix-release-onnx-provider"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "mutant F (cmd/mem/main.go:1711) (cmd/mem)"
+      ],
+      "created": "2026-11-13T23:08:16Z",
+      "last_seen": "2026-11-13T23:08:16Z"
+    },
+    {
+      "id": "L-002",
+      "key": "ac_gap::assert the pinned version and the final install path of a downloaded artifact not only that the bytes arrived",
+      "text": "Assert the pinned version and the final install path of a downloaded artifact, not only that the bytes arrived.",
+      "signal": "ac_gap",
+      "scope": "internal/embedder",
+      "status": "candidate",
+      "features": [
+        "fix-release-onnx-provider"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "AC5 (internal/embedder/model_downloader.go:23) (internal/embedder)"
+      ],
+      "created": "2026-11-13T23:08:17Z",
+      "last_seen": "2026-11-13T23:08:17Z"
+    },
+    {
+      "id": "L-003",
+      "key": "ac_gap::when the product advertises a label in the command output assert that label at the command layer not only at the internal library layer",
+      "text": "When the product advertises a label in the command output, assert that label at the command layer, not only at the internal library layer.",
+      "signal": "ac_gap",
+      "scope": "cmd/mem",
+      "status": "candidate",
+      "features": [
+        "fix-release-onnx-provider"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "AC4 (.github/workflows/release.yml:123) (cmd/mem)"
+      ],
+      "created": "2026-11-13T23:08:17Z",
+      "last_seen": "2026-11-13T23:08:17Z"
+    },
+    {
+      "id": "L-004",
+      "key": "spec_precision_gap::when two acceptance criteria of the same feature count the same thing name the unit once and reuse it in both",
+      "text": "When two acceptance criteria of the same feature count the same thing, name the unit once and reuse it in both.",
+      "signal": "spec_precision_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "fix-release-onnx-provider"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "AC9 (cmd/mem/main.go:1505) (spec)"
+      ],
+      "created": "2026-11-13T23:08:17Z",
+      "last_seen": "2026-11-13T23:08:17Z"
+    },
+    {
+      "id": "L-005",
+      "key": "spec_precision_gap::when a criterion only requires a message to declare a state pin the wording in the spec otherwise the test freezes an invented string",
+      "text": "When a criterion only requires a message to declare a state, pin the wording in the spec; otherwise the test freezes an invented string.",
+      "signal": "spec_precision_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "fix-release-onnx-provider"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "AC10 (cmd/mem/main.go:1515) (spec)"
+      ],
+      "created": "2026-11-13T23:08:18Z",
+      "last_seen": "2026-11-13T23:08:18Z"
+    },
+    {
+      "id": "L-006",
+      "key": "surviving_mutant::a vector search that reads turboquant rows is not killed by zeroing the raw vector column assert the path the search actually reads or the sensor reports a false green",
+      "text": "A vector search that reads TurboQuant rows is not killed by zeroing the raw vector column: assert the path the search actually reads, or the sensor reports a false green.",
+      "signal": "surviving_mutant",
+      "scope": "cmd/mem",
+      "status": "candidate",
+      "features": [
+        "fix-release-onnx-provider"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "cmd/mem/main.go:2222 (cmd/mem)"
+      ],
+      "created": "2026-11-14T11:14:09Z",
+      "last_seen": "2026-11-14T11:14:09Z"
+    }
+  ]
+}

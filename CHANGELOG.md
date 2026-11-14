@@ -7,7 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`mem embed download` e `mem embed doctor` (ISSUE-037)**: o provider de embedding
+  embutido (ONNX MiniLM, ADR-035) precisa de três artefatos no disco — modelo, tokenizer e
+  a biblioteca do ONNX Runtime 1.29.0 — e nenhum comando os trazia. `mem embed download`
+  baixa os três para `~/.memory/models/` conferindo o **tamanho** de cada arquivo antes do
+  rename atômico (uma falha não deixa parcial, e o erro nomeia a URL tentada e o destino);
+  `mem embed doctor` diagnostica o ambiente (provider ativo, caminhos, dimensão e a presença
+  de cada artefato) e sai com código **0** mesmo sem provider — quem chama decide o que
+  fazer. Os instaladores (`install.ps1` / `install.sh`) já invocam o download e imprimem o
+  diretório que ele usou.
+
 ### Fixed
+
+- **O binário oficial voltou a ter o provider semântico (ISSUE-037)**: o release compilava
+  com `-tags "sqlite_fts5"` — **sem** a tag `onnx` — e a CI não tinha job que compilasse o
+  provider. Resultado: todo binário oficial rodava em FTS lexical e, ao reindexar, gravava
+  **vetor zero** no lugar do vetor, sem erro em lugar nenhum. Agora o release (Linux e
+  Windows) compila com `-tags "sqlite_fts5 onnx"` e `CGO_ENABLED=1`, o job do Windows
+  **falha com mensagem explícita** quando falta o toolchain C (nunca publica binário mudo),
+  e a CI tem um job que compila e roda a suíte do provider sob a tag. Medido: a busca
+  passou de `[fts:1]` para `[vector:1]`.
+- **A degradação sem provider ficou explícita e consolidada (ISSUE-037)**: o `mem index`
+  emitia uma linha de aviso **por documento** (que passava batido, porque a busca funcionava)
+  e a busca híbrida não dizia que o resultado era só textual. Agora o `mem index` imprime
+  **um** aviso por execução, nomeando a tag ausente e quantos documentos ficaram sem
+  vetor (e sai com código **0** — indexar em modo léxico é um modo válido), e o
+  `mem search --mode hybrid` declara `Resultado apenas LEXICAL — ... NÃO usou similaridade
+  vetorial`.
 
 - **`mem index` não morre mais no primeiro documento que falha (ISSUE-032, opção C)**: a
   falha de gravação de um documento não aborta mais a varredura — o documento falho é

@@ -528,17 +528,17 @@ Criteria; registrar o traceability real.
 
 **Done when**:
 
-- [ ] Nenhuma documentação descreve o aviso por documento removido
-- [ ] O README lista `mem embed download` e `mem embed doctor`
-- [ ] A AC9 diz **documentos** (a unidade que o contrato da T8 usa) e a AC10
+- [x] Nenhuma documentação descreve o aviso por documento removido
+- [x] O README lista `mem embed download` e `mem embed doctor`
+- [x] A AC9 diz **documentos** (a unidade que o contrato da T8 usa) e a AC10
       fixa os marcadores que o teste asseverar (`LEXICAL` e a declaração de que
       a similaridade vetorial não foi usada)
-- [ ] Os 4 Goals e os 4 Success Criteria da spec estão marcados
-- [ ] O traceability da spec reflete o estado real (`Verified`)
-- [ ] A ISSUE-037 deixa de estar `open`
-- [ ] O CHANGELOG e o STATE.md registram a entrega
+- [x] Os 4 Goals e os 4 Success Criteria da spec estão marcados
+- [x] O traceability da spec reflete o estado real (`Verified`)
+- [x] A ISSUE-037 deixa de estar `open`
+- [x] O CHANGELOG e o STATE.md registram a entrega
 
-**Status**: Pending
+**Status**: Verified (2026-11-13)
 
 **Tests**: none
 **Gate**: spec
