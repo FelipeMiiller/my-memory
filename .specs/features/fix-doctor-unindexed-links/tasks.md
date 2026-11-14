@@ -78,11 +78,13 @@ T5 -> T6 -> T7
 ### T1: Resolver a raiz do vault
 
 **What**: novo pacote `internal/vaultfs` com a função que decide a raiz do
-vault: flag explícita > `central_vault.path` do config global > diretório de
-trabalho atual; e que diz se essa raiz é **acessível**.
+vault: flag explícita > entrada do catálogo de repositórios (do repo auditado) >
+`central_vault.path` do config global (cofre central) > diretório de trabalho
+atual; e que diz se essa raiz é **acessível**.
 **Where**: `internal/vaultfs/root.go`
 **Depends on**: None
-**Reuses**: `internal/config/config.go` (`CentralVault.Path`, já lida no cascade)
+**Reuses**: `internal/config/config.go` (`CentralVault.Path` e `Repositories`,
+já lidos no cascade) · `config.ExpandPath`
 **Requirement**: DUL-05, DUL-09
 
 **Tools**:
@@ -91,9 +93,14 @@ trabalho atual; e que diz se essa raiz é **acessível**.
 
 **Done when**:
 
-- [ ] A precedência flag > config global > cwd está implementada e testada
-- [ ] Uma raiz inexistente ou sem permissão é reportada como **não acessível**
-- [ ] Nenhum acesso de escrita: a função é read-only
+- [x] A precedência flag > catálogo do repo > cofre central > cwd está
+      implementada e testada
+- [x] Uma raiz inexistente ou ilegível é reportada como **não acessível**, com
+      o motivo
+- [x] Nenhum acesso de escrita: a função é read-only
+
+**Status**: Verified (2026-11-14) — 8 testes, gate `go build ./...` + `go vet`
+verdes
 
 **Tests**: unit
 **Gate**: quick
