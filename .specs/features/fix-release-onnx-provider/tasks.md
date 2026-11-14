@@ -461,11 +461,11 @@ Pula com motivo explícito quando os artefatos não estão no disco (caso da CI)
 
 **Done when**:
 
-- [ ] O arquivo tem `//go:build onnx` e só compila na build com a tag
-- [ ] Com os artefatos presentes, a busca devolve `vector:` na fonte RRF
-- [ ] Sem os artefatos, o teste **pula** com motivo explícito (não falha)
+- [x] O arquivo tem `//go:build onnx` e só compila na build com a tag
+- [x] Com os artefatos presentes, a busca devolve `vector:` na fonte RRF
+- [x] Sem os artefatos, o teste **pula** com motivo explícito (não falha)
 
-**Status**: Pending
+**Status**: Verified (2026-11-13)
 
 **Tests**: integration (ONNX real)
 **Gate**: tagged
