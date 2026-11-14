@@ -13,7 +13,12 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Design**: inline nesta spec (um pacote novo de resolução em disco + a classificação nos dois engines; sem mudança de schema — ADR-013 continua válida)
-**Status**: Draft
+**Status**: Emended (2026-11-14) — a spec foi emendada **antes** de executar, porque a
+medição real no Postgres do cofre central mostrou que a premissa original ("138 links,
+todos existem em disco", "60/100") era falsa: são **125** que existem em disco (112 por
+basename, **13 por `title:` do frontmatter**) e **13** que não existem (conceitos sem
+nota); o Health Score real é **45/100**. O contrato (ACs DUL-01..DUL-09) **não** mudou —
+mudou a semântica de resolução do alvo (T2) e os números esperados.
 
 ---
 
@@ -24,7 +29,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 | Code Layer | Required Test Type | Coverage Expectation | Location Pattern | Run Command |
 | ---------- | ------------------ | -------------------- | ---------------- | ----------- |
 | Resolução da raiz do vault | unit | 1:1 com o AC9: flag > config global > cwd; path inexistente é "não verificável" | `internal/vaultfs/root_test.go` | `go test -count=1 -run TestVaultRoot ./internal/vaultfs/...` |
-| Resolução do alvo em disco | unit | 1:1 com os ACs 1 e 2: basename em qualquer profundidade, caminho relativo, com/sem `.md`, alvo inexistente, ambiguidade, tag viva | `internal/vaultfs/target_test.go` | `go test -count=1 -run TestVaultTarget ./internal/vaultfs/...` |
+| Resolução do alvo em disco | unit | 1:1 com os ACs 1 e 2: basename em qualquer profundidade, caminho relativo, com/sem `.md`, **`title:` e `alias:` do frontmatter**, match exato (não fuzzy), alvo inexistente, ambiguidade, tag viva | `internal/vaultfs/target_test.go` | `go test -count=1 -run TestVaultTarget ./internal/vaultfs/...` |
 | Classificação no SQLite | unit | 1:1 com os ACs 1, 2, 4 e 6: em disco → categoria nova; ausente → dead link; `--fix` apaga só o morto | `internal/db/doctor_unindexed_test.go` | `go test -count=1 -run TestDoctorUnindexed ./internal/db/...` |
 | Classificação no Postgres | integration (PostgreSQL real) | o mesmo contrato no engine de produção (ACs 1, 2, 4, 5, 6, 7) | `internal/store/doctor_unindexed_test.go` | `MY_MEMORY_PG_TEST=1 go test -count=1 -run TestPostgresDoctorUnindexed ./internal/store/...` |
 | Relatório e Health Score | unit | AC3, AC4 e AC5: a categoria nova não penaliza; não verificável penaliza e marca o score como provisório | `internal/store/doctor_score_test.go` | `go test -count=1 -run TestHealthScore ./internal/store/...` |
@@ -100,13 +105,17 @@ trabalho atual; e que diz se essa raiz é **acessível**.
 ### T2: Resolver o alvo de wikilink em disco
 
 **What**: no mesmo pacote, a função que resolve o `target_id` de uma aresta
-para um arquivo real dentro da raiz do vault — basename em qualquer
-profundidade, caminho relativo com e sem `.md` — e devolve o path encontrado
+para um arquivo real dentro da raiz do vault — **basename** em qualquer
+profundidade, **caminho relativo** com e sem `.md`, **`title:` do frontmatter**
+e **`alias:` do frontmatter** — e devolve o path encontrado (e como ele casou)
 ou "não encontrado".
 **Where**: `internal/vaultfs/target.go`
 **Depends on**: T1
-**Reuses**: a semântica de basename que o `mem files`/`FindVaultDocumentsByPath`
-já usa
+**Reuses**: a identidade de link do próprio produto — `documents.title` é
+`COALESCE(frontmatter.title, basename)` (ISSUE-010) e o indexador reescreve
+wikilink/tag contra os **títulos** indexados (`parser.ResolveTagConnections`).
+O `title:` entra porque 13 das 138 arestas do cofre central resolvem **só**
+por ele.
 **Requirement**: DUL-01, DUL-02
 
 **Tools**:
@@ -117,9 +126,15 @@ já usa
 
 - [ ] `[[review-standards]]` casa com `catalog-skills/skills/x/review-standards.md`
 - [ ] `[[pasta/nota]]` casa pelo caminho relativo e cai no basename se falhar
+- [ ] `[[React 19 API Changes]]` casa com o arquivo cujo `title:` é esse
+- [ ] `[[Alias]]` casa com o arquivo que declara esse `alias:`
+- [ ] O match é **exato** (case-insensitive), nunca fuzzy: `[[Kubernetes]]` não
+      casa por token com um arquivo qualquer
 - [ ] Um alvo inexistente devolve "não encontrado" (e **não** erro)
 - [ ] A ambiguidade (dois arquivos com o mesmo basename) devolve o path encontrado,
       para o relatório mostrar qual foi
+- [ ] A resolução devolve **como** casou (basename / caminho relativo / title /
+      alias), para o relatório nomear o caminho resolvido
 
 **Tests**: unit
 **Gate**: quick

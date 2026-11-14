@@ -1713,10 +1713,10 @@ disco, e o `doctor` precisa do caminho do vault.
 
 ---
 
-## ISSUE-039 — 68 wikilinks do cofre central apontam para o material bruto que está fora do índice
+## ISSUE-039 — 125 dos 138 links do cofre central apontam para material que existe em disco mas está fora do índice
 
 - **Severidade:** 🟡 média (o vault parece quebrado no Obsidian e no grafo ao mesmo tempo)
-- **Status:** 🔵 **open** — **decisão do dono (2026-11-13): distinguir "fora do índice por decisão" de "link rompido"** (o `doctor` passa a checar o disco do vault). **Spec escrita:** `.specs/features/fix-doctor-unindexed-links/` (9 ACs, 7 tarefas, 3 fases)
+- **Status:** 🔵 **open** — **decisão do dono (2026-11-13): distinguir "fora do índice por decisão" de "link rompido"** (o `doctor` passa a checar o disco do vault). **Spec escrita e emendada:** `.specs/features/fix-doctor-unindexed-links/` (9 ACs, 7 tarefas, 3 fases). **Medição real (2026-11-14):** a premissa original ("os 138 existem em disco") era falsa — ver a correção abaixo.
 - **Achado em:** 2026-11-13, ao decompor os 148 "dead links" do cofre central
 
 **O fato.** O `config.yaml` do cofre exclui do índice o material bruto
@@ -1730,11 +1730,51 @@ Mas as notas do catálogo **linkam** esse material (`[[SKILL]]`,
 arquivos existem no disco); no **índice** eles não (os alvos não são
 documentos indexados) → o doctor os conta como links mortos.
 
-**Prova medida.** Os **138** dead links restantes do `repo_central` (depois da
-correção da ISSUE-038) apontam para caminhos que **existem em disco** mas
-**não** estão em `documents`: **68** `links_to` + **70** `tagged_as` (o alvo de
-uma aresta de tag também pode ser uma referência a uma nota — e a nota pode estar
-fora do índice).
+**Prova medida (corrigida em 2026-11-14 — a medição original estava errada).**
+A hipótese original era "os 138 dead links restantes apontam para caminhos que
+existem em disco". **Não é verdade.** Medido no Postgres real (`repo_central`,
+dados de 2026-11-14), os **138** se dividem em:
+
+| Classe | Arestas | Como o alvo resolve | Onde vive o alvo |
+| :--- | ---: | :--- | :--- |
+| Existe em disco, fora do índice por decisão | **125** | 112 por basename · **13 por `title:` do frontmatter** | **todas** em `catalog-skills/skills/**` (a área excluída) |
+| **Não existe em disco** | **13** | — | 2 notas de origem, todas `links_to` |
+
+Por relação: **63** `links_to` + **75** `tagged_as` no total; dos 125 que
+existem em disco, 50 são `links_to` e 75 são `tagged_as`.
+
+Os **13 que não existem** são **conceitos sem nota** (`Docker`, `Kubernetes`,
+`Rollback`, `Observabilidade`, `Banco de Dados`, `Busca Vetorial e RAG`,
+`SRE e SLOs`, `Transações e Concorrência`, `Índices SQL`,
+`Backup e Recuperação`, `Filas e Processamento Assíncrono`,
+`Observabilidade de Banco de Dados`, `Expand and Contract`), todos linkados
+por apenas 2 notas: `cloud/blue-green-deployment-obsidian.md` e
+`database/PostgreSQL — Visão Geral de Recursos e Ferramentas.md`. São
+**links rompidos de verdade** e continuam penalizando o Health Score.
+
+**Duas consequências que a medição mudou:**
+
+1. **O Health Score real é 45/100**, não 60/100 — os 138 dead links já
+   saturavam a penalidade (teto de 40) e os 101 chunks sem vetor saturavam a
+   outra (teto de 15): `100 - 40 - 15 = 45`.
+2. **O `--fix` de hoje apagaria 138 arestas, das quais 125 apontam para
+   material que existe em disco** — ele apagaria links vivos. Esse é o defeito
+   que a spec corrige: a rotina passa a apagar só o que o relatório provou
+   rompido (13).
+
+**Semântica de resolução (medida).** 13 dos 125 resolvem **só** pelo `title:`
+do frontmatter — a identidade de um documento no índice é
+`documents.title` (`COALESCE(frontmatter.title, basename)`, ISSUE-010), e o
+indexador reescreve wikilink/tag contra os **títulos** indexados
+(`parser.ResolveTagConnections`). Sem o `title:` na checagem em disco, esses
+13 seriam classificados como rompidos e o `--fix` os apagaria.
+
+**O que falta (o escopo desta issue).** Implementar a checagem em disco no
+`doctor`: distinguir "rompido" / "fora do índice por decisão" / "não
+verificável". A correção de **conteúdo** dos 13 conceitos sem nota (criar nota
+stub ou remover o wikilink) é decisão do dono e **não** é escopo da spec — sem
+ela, o critério "≥ 90/100" da ADR-062 §B-2 não fecha (o score honesto do
+cofre é **60/100** depois do reindex com provider).
 
 **As três saídas possíveis (decisão do dono).**
 

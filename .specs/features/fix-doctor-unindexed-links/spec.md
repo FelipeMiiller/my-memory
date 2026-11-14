@@ -2,6 +2,7 @@
 
 - **Spec ID**: `fix-doctor-unindexed-links`
 - **Created**: 2026-11-13
+- **Emended**: 2026-11-14 (medição real no Postgres do cofre central — números e premissas corrigidos)
 - **Owner**: Felipe Miiller
 - **Source**: ISSUE-039 — `.specs/ISSUES.md` (seção ISSUE-039) · fecha o resto da ISSUE-038
 - **Related**: ADR-013 (Health Score e suas penalidades) · ADR-041/ADR-055 (tags) · ADR-062 §D-2 e §D-3 · ISSUE-036 (nó de código como alvo vivo)
@@ -9,17 +10,39 @@
 ## Problem Statement
 
 O `mem doctor` conta **138** links do cofre central (`repo_central`) como
-"mortos". Nenhum deles está quebrado: são referências a material que **existe no
-disco** e que está **fora do índice por decisão** — o `config.yaml` do cofre
-exclui `catalog-skills/skills/**` (704 arquivos) do escopo de indexação, e as
-notas destiladas linkam esse material (`[[review-standards]]`,
-`[[mcp-guide]]`…). No Obsidian esses links resolvem; no índice não.
+"mortos". A maior parte **não** está quebrada: são referências a material que
+**existe no disco** e que está **fora do índice por decisão** — o `config.yaml`
+do cofre exclui `catalog-skills/skills/**` do escopo de indexação, e as notas
+destiladas linkam esse material (`[[review-standards]]`, `[[mcp-guide]]`…). No
+Obsidian esses links resolvem; no índice não.
 
-Resultado: o Health Score do cofre central é **60/100** (a penalidade de dead
-link tem teto de 40 pontos) e o dono lê "meu vault está quebrado" onde o vault
-está saudável. A correção da ISSUE-038 (a aresta de tag deixou de ser dead
-link) levou 148 → 138; o que resta depende de uma **checagem em disco**, que o
-doctor não faz hoje porque não conhece o caminho do vault.
+**Medido no Postgres real (2026-11-14, `repo_central`, dados de 2026-11-14):**
+
+| Classe | Arestas | Como resolve | Onde vive o alvo |
+| :--- | ---: | :--- | :--- |
+| Existe em disco, fora do índice por decisão | **125** | 112 por basename · 13 por `title:` do frontmatter | **todas** em `catalog-skills/skills/**` (área excluída) |
+| Não existe em disco | **13** | — | 2 notas de origem, `links_to` |
+
+Os 13 que não existem são **conceitos sem nota** (`Docker`, `Kubernetes`,
+`Rollback`, `Observabilidade`, `Banco de Dados`, `Busca Vetorial e RAG`,
+`SRE e SLOs`, `Transações e Concorrência`, `Índices SQL`,
+`Backup e Recuperação`, `Filas e Processamento Assíncrono`,
+`Observabilidade de Banco de Dados`, `Expand and Contract`). São links
+**rompidos de verdade** — a nota que os referencia é que não tem destino.
+
+Consequências no estado atual:
+
+- O Health Score real do cofre é **45/100** (penalidade de dead link no teto
+  de 40 + penalidade de chunk sem vetor no teto de 15), não 60/100.
+- O `mem doctor --fix` de hoje, que decide só por SQL, apagaria **138**
+  arestas — das quais **125** apontam para material que existe em disco. Ele
+  apagaria links vivos no Obsidian.
+- O critério "doctor ≥ 90/100" da ADR-062 §B-2 é inatingível sem uma decisão
+  de **conteúdo** sobre os 13 conceitos sem nota (ver Out of Scope).
+
+A correção da ISSUE-038 (a aresta de tag deixou de ser dead link) levou
+148 → 138; o que resta depende de uma **checagem em disco**, que o doctor não
+faz hoje porque não conhece o caminho do vault.
 
 A decisão do dono (2026-11-13) é explícita: **"fora do índice por decisão" ≠
 "link rompido"**. Esta spec implementa essa distinção.
@@ -43,13 +66,16 @@ A decisão do dono (2026-11-13) é explícita: **"fora do índice por decisão" 
 | Gravar o alvo da tag com `#` | Mudaria o **dado** gravado e exigiria reindexar os dois vaults. |
 | Mudar a fórmula de penalidades além do necessário | A ADR-013 fixa as penalidades; aqui só muda **o que entra na lista**. |
 | O Health Score do vault de repositório | Ele já está em 90/100 com 2 dead links reais (`[[ADR-035]]`), que continuam reais. |
+| **Criar nota stub para os 13 conceitos sem nota (ou remover os wikilinks)** | Decisão de **conteúdo do cofre** — é o dono que sabe se quer 13 notas novas ou 13 links removidos. A spec entrega a distinção (rompido / fora-do-índice / não-verificável) e a medição; a escolha é dele. Sem essa escolha, o critério ≥ 90 da ADR-062 §B-2 **não fecha** — e o score honesto do cofre é **60/100** depois do reindex com provider. |
 
 ## Assumptions & Open Questions
 
 | Assumption | Chosen default | Rationale | Confirmed? |
 | :--- | :--- | :--- | :--- |
 | Como o doctor descobre a raiz do vault | flag `--vault` > `central_vault.path` do config global > diretório de trabalho atual | o config global já declara `central_vault.path: G:\My Drive\central-memory`; a flag resolve o caso do Postgres sem cópia local | y |
-| Semântica de resolução do alvo | basename em qualquer profundidade + caminho relativo com/sem `.md` | é a semântica do Obsidian, e é como o dono lê o vault; o alvo `[[review-standards]]` casa com `catalog-skills/skills/x/review-standards.md` | y |
+| Semântica de resolução do alvo | **basename** em qualquer profundidade · **caminho relativo** com/sem `.md` · **`title:` do frontmatter** · **`aliases:` do frontmatter** | é a semântica do Obsidian *e* a do próprio indexador: a identidade de um documento no índice é `documents.title` (= `COALESCE(frontmatter.title, basename)`, ISSUE-010) e o resolver reescreve wikilink e tag contra os **títulos** indexados (`parser.ResolveTagConnections`). Medido: 112 resolvem por basename e **13 só por `title:`** — sem o título, esses 13 seriam classificados como rompidos e o `--fix` os apagaria. | y |
+| A resolução é **exata**, não fuzzy | match exato (case-insensitive) contra cada uma das 4 chaves | a checagem em disco decide se algo é *rompido*; fuzzy resolveria "aproximadamente" e poderia declarar vivo um link quebrado — o "verde-mentira" que a ISSUE-033 verificou. Medido: **0** dos 125 resolvedores dependem de match case-insensitive, e o match por token do indexador (≥ 4 chars) traria falsos positivos. | y |
+| O que fazer com os 13 alvos que não existem em disco | continuam **rompidos** | o doctor não tem evidência de que o link "deveria" resolver; a correção de conteúdo (nota stub ou remoção do wikilink) é decisão do dono | y |
 | O que fazer quando a raiz não é acessível | classificar como **não verificável**: entra na contagem de dead link (penalidade) e o relatório diz que o score é provisório | o doctor não tem evidência para limpar a suspeita; limpar a suspeita sem prova é o "verde-mentira" que a ISSUE-033 verificou | y |
 | A categoria nova entra no Health Score | não | o score mede a saúde do vault; um link que funciona no Obsidian não é doença | y |
 | O `target_id` gravado é o texto do wikilink | sim — a classificação reusa o `target_id` que a query de dead link já devolve | não há dado novo para gravar; o doctor já tem o alvo | y |
@@ -65,9 +91,9 @@ Open questions: none
 quais links estão realmente quebrados e quais apenas apontam para material que
 eu escolhi não indexar, para que o Health Score signifique alguma coisa.
 
-**Why P1**: os 138 "dead links" do cofre central são, todos, links que
-funcionam no Obsidian. O score de 60/100 é a medida de um vault saudável
-penalizando uma decisão de configuração.
+**Why P1**: 125 dos 138 "dead links" do cofre central são links que funcionam
+no Obsidian; o score de 45/100 é a medida de um vault saudável penalizando uma
+decisão de configuração.
 
 **Acceptance Criteria**:
 
@@ -120,7 +146,7 @@ do índice → a aresta continua lá depois do `--fix`.
 categorias que a CLI, para não decidir por um relatório simplificado.
 
 **Why P2**: `internal/mcp/handlers.go` mantém um espelho do `DoctorReport`; sem
-a nova categoria, o agente veria o vault central como 60/100.
+a nova categoria, o agente veria o vault central como 45/100.
 
 **Acceptance Criteria**:
 
@@ -139,9 +165,14 @@ mesmos números para o mesmo vault.
 - IF the vault root does not exist THEN the links are unverifiable (not broken).
 - IF two files in the vault share the basename of the target THEN the first
   match is reported, and the report names the resolved path so the ambiguity is
-  visible.
+  visible. (Medido: **17** das 138 arestas do cofre central têm basename
+  ambíguo.)
 - IF the target contains a folder prefix THEN the resolution tries the exact
   relative path first, and only then falls back to the basename search.
+- IF the target matches the `title:` of a file in the vault THEN it is
+  resolved — a identidade de um documento no índice é o `title`, não o nome do
+  arquivo. (Medido: **13** das 138 arestas do cofre central resolvem só assim.)
+- IF the target matches an `alias:` of a file in the vault THEN it is resolved.
 - IF the target is a tag (relation `tagged_as`) that exists in `document_tags`
   THEN it is alive (regra da ISSUE-038) and is never reclassified by the disk
   check.
@@ -166,8 +197,15 @@ mesmos números para o mesmo vault.
 
 ## Success Criteria
 
-- [ ] O cofre central sai de 60/100 para **100/100**, com os 138 links listados
-      na categoria "fora do índice por decisão" e 0 dead links.
+- [ ] O cofre central passa de 45/100 para **60/100**: as **125** arestas cujo
+      alvo existe em disco vão para a categoria "fora do índice por decisão" e
+      as **13** restantes continuam listadas como **rompidas** (conceitos sem
+      nota). O `--fix` apaga **13** arestas, não 138.
 - [ ] Os 2 dead links reais do vault do repositório (`[[ADR-035]]`) continuam
       dead links.
-- [ ] O `mem doctor --fix` do cofre central apaga **0** arestas.
+- [ ] O `mem doctor --fix` do cofre central **preserva** as 125 arestas cujo
+      alvo existe em disco.
+- [ ] **O critério "≥ 90/100" da ADR-062 §B-2 NÃO fecha com esta spec** — ele
+      depende da decisão de conteúdo sobre os 13 conceitos sem nota (ver Out
+      of Scope). A spec entrega a distinção e a medição; o score honesto do
+      cofre, depois do reindex com provider, é **60/100**.
