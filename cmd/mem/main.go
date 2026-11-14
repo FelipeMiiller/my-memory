@@ -598,6 +598,7 @@ func main() {
 		pgURL := docCmd.String("postgres", "", "URL de conexão PostgreSQL (com pgvector)")
 		storage := docCmd.String("storage", "", "Força engine: 'sqlite' ou 'postgres'. Default = auto-detect (ADR-040)")
 		targetRepo := docCmd.String("repo", "", "Identificador/slug do repositório para filtrar")
+		vaultFlag := docCmd.String("vault", "", "Raiz do vault para a checagem em disco dos links (default: config global ou diretório atual)")
 		docCmd.Parse(os.Args[2:])
 
 		cfg := resolveConfig()
@@ -616,7 +617,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer pgStore.Close()
-			runDoctorPostgres(ctx, pgStore, resolvedRepo, *fix, vaultRootForDoctor(resolvedRepo))
+			runDoctorPostgres(ctx, pgStore, resolvedRepo, *fix, vaultRootForDoctor(*vaultFlag, resolvedRepo))
 			if *showEvents {
 				// Postgres event_log integration is out of scope for T12.
 				fmt.Fprintln(os.Stderr, "mem doctor --events: Postgres backend não suportado nesta versão")
@@ -628,7 +629,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runDoctorSQLite(ctx, database, *fix, vaultRootForDoctor(resolvedRepo))
+			runDoctorSQLite(ctx, database, *fix, vaultRootForDoctor(*vaultFlag, resolvedRepo))
 			if *showEvents {
 				if err := runDoctorEventsSection(ctx, database); err != nil {
 					fmt.Fprintf(os.Stderr, "mem doctor --events: %v\n", err)
@@ -3147,7 +3148,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				if repo == "" {
 					repo = defaultRepo
 				}
-				rep, err := pgStore.DiagnoseHealth(ctx, repo, vaultRootForDoctor(repo))
+				rep, err := pgStore.DiagnoseHealth(ctx, repo, vaultRootForDoctor("", repo))
 				if err != nil {
 					return nil, err
 				}
@@ -3157,7 +3158,7 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 				if repo == "" {
 					repo = defaultRepo
 				}
-				return pgStore.FixHealthIssues(ctx, repo, vaultRootForDoctor(repo))
+				return pgStore.FixHealthIssues(ctx, repo, vaultRootForDoctor("", repo))
 			},
 		)
 
@@ -3383,14 +3384,14 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 
 		srv.SetDoctorHandler(
 			func(ctx context.Context, repo string) (*mcp.DoctorReport, error) {
-				rep, err := db.DiagnoseHealth(ctx, database, vaultRootForDoctor(repo))
+				rep, err := db.DiagnoseHealth(ctx, database, vaultRootForDoctor("", repo))
 				if err != nil {
 					return nil, err
 				}
 				return convertStoreDoctorReportToMCP(rep), nil
 			},
 			func(ctx context.Context, repo string) (int, error) {
-				return db.FixHealthIssues(ctx, database, vaultRootForDoctor(repo))
+				return db.FixHealthIssues(ctx, database, vaultRootForDoctor("", repo))
 			},
 		)
 
@@ -3717,11 +3718,12 @@ func runDoctorPostgres(ctx context.Context, s *store.PostgresStore, targetRepo s
 }
 
 // vaultRootForDoctor resolve a raiz do vault usada na checagem em disco do
-// doctor. Sem flag, vale o config global (catalogo do repo auditado ou
-// central_vault.path do cofre central); na falta dele, o diretorio de
-// trabalho atual.
-func vaultRootForDoctor(repo string) string {
-	return vaultfs.ResolveRoot("", repo).Path
+// doctor.
+//
+// Precedencia: flag --vault > catalogo do repo auditado > central_vault.path
+// do cofre central > diretorio de trabalho atual.
+func vaultRootForDoctor(flagPath, repo string) string {
+	return vaultfs.ResolveRoot(flagPath, repo).Path
 }
 
 func runDoctorSQLite(ctx context.Context, database *sql.DB, fix bool, vaultRoot string) {
@@ -3774,6 +3776,12 @@ func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
 		fmt.Println(" ⚠ Vault sem documentos indexados — o Health Score não se aplica (a métrica exige ao menos um documento indexado).")
 		fmt.Println("   Rode 'mem index' para popular o vault e medir a saúde do grafo.")
 	}
+	// Score provisório: há link que o doctor não conseguiu verificar, então o
+	// número é um piso — a suspeita mantém a penalidade até a prova.
+	if report.HealthScoreProvisional {
+		fmt.Println(" ⚠ Score provisório: há link que não pôde ser verificado (a raiz do vault não está acessível).")
+		fmt.Println("   A suspeita mantém a penalidade até a raiz do vault ser alcançável — use --vault para apontar para ela.")
+	}
 	// ADR-057: documentos sem mtime não são stales — são documentos cujos
 	// metadados de arquivo nunca foram capturados (índice anterior à coluna).
 	if report.MissingMTimeCount > 0 {
@@ -3797,6 +3805,41 @@ func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
 		for i, dl := range report.DeadLinks {
 			if i >= 15 {
 				fmt.Printf("  ... e mais %d links quebrados ocultados\n", len(report.DeadLinks)-15)
+				break
+			}
+			fmt.Printf("  - [[%s]] -> [[%s]] (relação: %s)\n", dl.SourceID, dl.TargetID, dl.Relation)
+		}
+	}
+	fmt.Println(strings.Repeat("-", 90))
+
+	// Links fora do índice por decisão (ISSUE-039): o alvo existe no disco,
+	// mas não está no escopo indexado. No Obsidian o link resolve, então não
+	// é link rompido e não penaliza o Health Score.
+	fmt.Printf(" [📦 Links Fora do Índice por Decisão] (%d)\n", len(report.OutOfIndexLinks))
+	if len(report.OutOfIndexLinks) == 0 {
+		fmt.Println("  ✔ Nenhum link para material fora do índice.")
+	} else {
+		fmt.Println("  · O alvo existe no disco mas está fora do escopo indexado — no Obsidian o link resolve.")
+		for i, ol := range report.OutOfIndexLinks {
+			if i >= 15 {
+				fmt.Printf("  ... e mais %d links ocultados\n", len(report.OutOfIndexLinks)-15)
+				break
+			}
+			fmt.Printf("  - [[%s]] -> [[%s]] (casou por %s) → %s\n", ol.SourceID, ol.TargetID, ol.Match, ol.ResolvedPath)
+		}
+	}
+	fmt.Println(strings.Repeat("-", 90))
+
+	// Links não verificáveis: a raiz do vault não estava acessível, então o
+	// doctor não tem prova para dizer que estão rompidos.
+	fmt.Printf(" [❓ Links Não Verificáveis] (%d)\n", len(report.UnverifiableLinks))
+	if len(report.UnverifiableLinks) == 0 {
+		fmt.Println("  ✔ Nenhum link pendente de verificação.")
+	} else {
+		fmt.Println("  · A raiz do vault não está acessível — sem prova, o doctor não declara o link rompido.")
+		for i, dl := range report.UnverifiableLinks {
+			if i >= 15 {
+				fmt.Printf("  ... e mais %d links ocultados\n", len(report.UnverifiableLinks)-15)
 				break
 			}
 			fmt.Printf("  - [[%s]] -> [[%s]] (relação: %s)\n", dl.SourceID, dl.TargetID, dl.Relation)
@@ -3882,19 +3925,34 @@ func convertStoreDoctorReportToMCP(rep *store.DoctorReport) *mcp.DoctorReport {
 		return nil
 	}
 	mcpReport := &mcp.DoctorReport{
-		TotalDocuments:    rep.TotalDocuments,
-		TotalChunks:       rep.TotalChunks,
-		TotalEdges:        rep.TotalEdges,
-		TotalNodes:        rep.TotalNodes,
-		HealthScore:       healthScoreForMCP(rep),
-		MissingMTimeCount: rep.MissingMTimeCount,
-		DeadLinks:         make([]mcp.DeadLink, len(rep.DeadLinks)),
-		OrphanNotes:       make([]mcp.OrphanNote, len(rep.OrphanNotes)),
-		SelfLoops:         make([]mcp.SelfLoop, len(rep.SelfLoops)),
-		DesyncedChunks:    make([]mcp.DesyncedChunk, len(rep.DesyncedChunks)),
+		TotalDocuments:         rep.TotalDocuments,
+		TotalChunks:            rep.TotalChunks,
+		TotalEdges:             rep.TotalEdges,
+		TotalNodes:             rep.TotalNodes,
+		HealthScore:            healthScoreForMCP(rep),
+		MissingMTimeCount:      rep.MissingMTimeCount,
+		DeadLinks:              make([]mcp.DeadLink, len(rep.DeadLinks)),
+		OutOfIndexLinks:        make([]mcp.OutOfIndexLink, len(rep.OutOfIndexLinks)),
+		UnverifiableLinks:      make([]mcp.DeadLink, len(rep.UnverifiableLinks)),
+		HealthScoreProvisional: rep.HealthScoreProvisional,
+		OrphanNotes:            make([]mcp.OrphanNote, len(rep.OrphanNotes)),
+		SelfLoops:              make([]mcp.SelfLoop, len(rep.SelfLoops)),
+		DesyncedChunks:         make([]mcp.DesyncedChunk, len(rep.DesyncedChunks)),
 	}
 	for i, dl := range rep.DeadLinks {
 		mcpReport.DeadLinks[i] = mcp.DeadLink{SourceID: dl.SourceID, TargetID: dl.TargetID, Relation: dl.Relation}
+	}
+	for i, ol := range rep.OutOfIndexLinks {
+		mcpReport.OutOfIndexLinks[i] = mcp.OutOfIndexLink{
+			SourceID:     ol.SourceID,
+			TargetID:     ol.TargetID,
+			Relation:     ol.Relation,
+			ResolvedPath: ol.ResolvedPath,
+			Match:        ol.Match,
+		}
+	}
+	for i, dl := range rep.UnverifiableLinks {
+		mcpReport.UnverifiableLinks[i] = mcp.DeadLink{SourceID: dl.SourceID, TargetID: dl.TargetID, Relation: dl.Relation}
 	}
 	for i, on := range rep.OrphanNotes {
 		mcpReport.OrphanNotes[i] = mcp.OrphanNote{ID: on.ID, Title: on.Title}

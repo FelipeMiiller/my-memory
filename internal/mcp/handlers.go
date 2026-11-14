@@ -140,6 +140,17 @@ type DesyncedChunk struct {
 	Issue      string `json:"issue"`
 }
 
+// OutOfIndexLink representa um link cujo alvo existe em disco mas que está
+// fora do índice por decisão (ISSUE-039): o material bruto do cofre, por
+// exemplo. No Obsidian o link resolve, então não é link rompido.
+type OutOfIndexLink struct {
+	SourceID     string `json:"source_id"`
+	TargetID     string `json:"target_id"`
+	Relation     string `json:"relation"`
+	ResolvedPath string `json:"resolved_path"`
+	Match        string `json:"match"`
+}
+
 // DoctorReport agrega as métricas estruturais e anomalias de saúde do grafo
 //
 // Espelho parcial de store.DoctorReport: espelha o que o agente precisa para
@@ -162,11 +173,20 @@ type DoctorReport struct {
 	// ADR-057: documentos com mtime = 0 foram indexados antes de a coluna
 	// existir. Sem esta contagem o agente não tem como saber que o índice
 	// conhece a nota mas não sabe quando ela foi editada.
-	MissingMTimeCount int             `json:"missing_mtime_count"`
-	DeadLinks         []DeadLink      `json:"dead_links"`
-	OrphanNotes       []OrphanNote    `json:"orphan_notes"`
-	SelfLoops         []SelfLoop      `json:"self_loops"`
-	DesyncedChunks    []DesyncedChunk `json:"desynced_chunks"`
+	MissingMTimeCount int        `json:"missing_mtime_count"`
+	DeadLinks         []DeadLink `json:"dead_links"`
+	// OutOfIndexLinks são links cujo alvo existe em disco mas está fora do
+	// índice por decisão. Não são link rompido e não penalizam o score.
+	OutOfIndexLinks []OutOfIndexLink `json:"out_of_index_links"`
+	// UnverifiableLinks são links que o doctor não conseguiu verificar porque
+	// a raiz do vault não estava acessível: a suspeita mantém a penalidade.
+	UnverifiableLinks []DeadLink `json:"unverifiable_links"`
+	// HealthScoreProvisional marca o score como provisório: há link que não
+	// pôde ser verificado, então o número é um piso, não um veredito.
+	HealthScoreProvisional bool            `json:"health_score_provisional"`
+	OrphanNotes            []OrphanNote    `json:"orphan_notes"`
+	SelfLoops              []SelfLoop      `json:"self_loops"`
+	DesyncedChunks         []DesyncedChunk `json:"desynced_chunks"`
 }
 
 // DoctorDiagnoseFunc assinatura da função que diagnostica a saúde do grafo
