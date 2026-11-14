@@ -1315,3 +1315,42 @@ func TestIncludeCodeAusenteNaoMudaNada(t *testing.T) {
 		t.Errorf("a resposta nao pode trazer aviso de placeholder, obteve: %s", text)
 	}
 }
+
+// TestFormatDoctorReport_TresCategoriasDeLink prova que o texto do relatorio
+// MCP conta a mesma historia que a CLI: o link rompido, o link fora do indice
+// por decisao e o link nao verificavel sao tres categorias distintas.
+func TestFormatDoctorReport_TresCategoriasDeLink(t *testing.T) {
+	score := 95
+	report := &DoctorReport{
+		TotalDocuments: 4,
+		HealthScore:    &score,
+		DeadLinks: []DeadLink{
+			{SourceID: "nota.md", TargetID: "conceito", Relation: "links_to"},
+		},
+		OutOfIndexLinks: []OutOfIndexLink{
+			{SourceID: "nota.md", TargetID: "material", Relation: "links_to", ResolvedPath: "catalog-skills/skills/x/material.md", Match: "basename"},
+		},
+		UnverifiableLinks: []DeadLink{
+			{SourceID: "nota.md", TargetID: "outro", Relation: "links_to"},
+		},
+		HealthScoreProvisional: true,
+	}
+
+	text := FormatDoctorReport(report, 0)
+
+	if !strings.Contains(text, "Links Quebrados (Dead Links - 1)") {
+		t.Errorf("o relatorio deveria listar 1 link rompido:\n%s", text)
+	}
+	if !strings.Contains(text, "Links Fora do Índice por Decisão (1)") {
+		t.Errorf("o relatório deveria listar 1 link fora do índice:\n%s", text)
+	}
+	if !strings.Contains(text, "Links Não Verificáveis (1)") {
+		t.Errorf("o relatório deveria listar 1 link não verificável:\n%s", text)
+	}
+	if !strings.Contains(text, "catalog-skills/skills/x/material.md") {
+		t.Errorf("o relatorio deveria nomear o caminho em disco do alvo resolvido:\n%s", text)
+	}
+	if !strings.Contains(text, "provisório") {
+		t.Errorf("o relatório deveria avisar que o score é provisório:\n%s", text)
+	}
+}

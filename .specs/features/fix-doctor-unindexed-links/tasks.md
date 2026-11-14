@@ -282,9 +282,13 @@ disco) e o relatório passa a mostrar as três categorias com as contagens.
 
 **Done when**:
 
-- [ ] `--vault` aparece na ajuda do comando
-- [ ] O relatório mostra as três categorias e avisa quando o score é provisório
-- [ ] O MCP converter leva as categorias novas
+- [x] `--vault` aparece na ajuda do comando
+- [x] O relatório mostra as três categorias e avisa quando o score é provisório
+- [x] O MCP converter leva as categorias novas
+
+**Status**: Verified (2026-11-14) — 6 testes em `cmd/mem/doctor_vault_test.go`
+(flag muda a raiz, raiz inacessível fica provisória, MCP e CLI contam igual,
+payload sem `null`).
 
 **Tests**: integration
 **Gate**: quick
@@ -308,9 +312,13 @@ categorias, para que `memory_doctor` devolva os mesmos números que a CLI.
 
 **Done when**:
 
-- [ ] O payload traz as três categorias com as mesmas contagens da CLI
-- [ ] O contrato do wire continua valendo (sem `null`, arrays sempre presentes)
-- [ ] O teste compara a contagem do MCP com a do relatório da CLI
+- [x] O payload traz as três categorias com as mesmas contagens da CLI
+- [x] O contrato do wire continua valendo (sem `null`, arrays sempre presentes)
+- [x] O teste compara a contagem do MCP com a do relatório da CLI
+
+**Status**: Verified (2026-11-14) — o texto do `memory_doctor` ganhou as seções
+das três categorias, e `TestFormatDoctorReport_TresCategoriasDeLink` prova que
+as três aparecem com a contagem certa.
 
 **Tests**: integration
 **Gate**: full

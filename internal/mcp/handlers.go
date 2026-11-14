@@ -899,6 +899,33 @@ func FormatDoctorReport(report *DoctorReport, fixedCount int) string {
 		}
 	}
 
+	// Links fora do índice por decisão (ISSUE-039): o alvo existe no disco, mas
+	// não está indexado. Não é link rompido e não penaliza o score — o agente
+	// precisa dessa distinção para não reindexar um vault saudável.
+	if len(report.OutOfIndexLinks) > 0 {
+		sb.WriteString(fmt.Sprintf("## 📦 Links Fora do Índice por Decisão (%d)\n", len(report.OutOfIndexLinks)))
+		sb.WriteString("- O alvo existe no disco mas está fora do escopo indexado — no Obsidian o link resolve.\n")
+		for _, ol := range report.OutOfIndexLinks {
+			sb.WriteString(fmt.Sprintf("- `[[%s]]` -> `[[%s]]` (casou por `%s`) → `%s`\n", ol.SourceID, ol.TargetID, ol.Match, ol.ResolvedPath))
+		}
+		sb.WriteString("\n")
+	}
+
+	// Links não verificáveis: a raiz do vault não estava acessível, então o
+	// doctor não tem prova para dizer que estão rompidos.
+	if len(report.UnverifiableLinks) > 0 {
+		sb.WriteString(fmt.Sprintf("## ❓ Links Não Verificáveis (%d)\n", len(report.UnverifiableLinks)))
+		sb.WriteString("- A raiz do vault não está acessível — sem prova, o doctor não declara o link rompido.\n")
+		for _, dl := range report.UnverifiableLinks {
+			sb.WriteString(fmt.Sprintf("- `[[%s]]` -> `[[%s]]` (relação: `%s`)\n", dl.SourceID, dl.TargetID, dl.Relation))
+		}
+		sb.WriteString("\n")
+	}
+
+	if report.HealthScoreProvisional {
+		sb.WriteString("⚠️ **Score provisório** — há link que não pôde ser verificado (a raiz do vault não está acessível). A suspeita mantém a penalidade até a prova.\n\n")
+	}
+
 	if len(report.OrphanNotes) > 0 {
 		sb.WriteString(fmt.Sprintf("## 🏝️ Notas Órfãs (Sem Conexões - %d)\n", len(report.OrphanNotes)))
 		for _, on := range report.OrphanNotes {
