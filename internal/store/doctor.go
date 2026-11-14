@@ -33,7 +33,15 @@ func CalculateHealthScore(report DoctorReport) int {
 	score := 100
 
 	// Penalidade por Dead Links: até 40 pontos (5 pts cada)
-	deadPenalty := len(report.DeadLinks) * 5
+	//
+	// O link NÃO VERIFICÁVEL penaliza como link morto: o doctor não tem
+	// prova de que o alvo existe, e limpar a suspeita sem prova é o
+	// verde-mentira que a ISSUE-033 verificou.
+	//
+	// O link FORA DO ÍNDICE POR DECISÃO não penaliza: o arquivo existe no
+	// disco e o Obsidian resolve — punir uma decisão de configuração como se
+	// fosse doença é o que a ISSUE-039 veio corrigir.
+	deadPenalty := (len(report.DeadLinks) + len(report.UnverifiableLinks)) * 5
 	if deadPenalty > 40 {
 		deadPenalty = 40
 	}

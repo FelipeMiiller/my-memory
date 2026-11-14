@@ -32,7 +32,7 @@ mudou a semântica de resolução do alvo (T2) e os números esperados.
 | Resolução do alvo em disco | unit | 1:1 com os ACs 1 e 2: basename em qualquer profundidade, caminho relativo, com/sem `.md`, **`title:` e `alias:` do frontmatter**, match exato (não fuzzy), alvo inexistente, ambiguidade, tag viva | `internal/vaultfs/target_test.go` | `go test -count=1 -run TestVaultTarget ./internal/vaultfs/...` |
 | Classificação no SQLite | unit | 1:1 com os ACs 1, 2, 4 e 6: em disco → categoria nova; ausente → dead link; `--fix` apaga só o morto | `internal/db/doctor_unindexed_test.go` | `go test -count=1 -run TestDoctorUnindexed ./internal/db/...` |
 | Classificação no Postgres | integration (PostgreSQL real) | o mesmo contrato no engine de produção (ACs 1, 2, 4, 5, 6, 7) | `internal/store/doctor_unindexed_test.go` | `MY_MEMORY_PG_TEST=1 go test -count=1 -run TestPostgresDoctorUnindexed ./internal/store/...` |
-| Relatório e Health Score | unit | AC3, AC4 e AC5: a categoria nova não penaliza; não verificável penaliza e marca o score como provisório | `internal/store/doctor_score_test.go` | `go test -count=1 -run TestHealthScore ./internal/store/...` |
+| Relatório e Health Score | unit | AC3, AC4 e AC5: a categoria nova não penaliza; não verificável penaliza e marca o score como provisório | `internal/store/doctor_score_test.go` | `go test -count=1 -run 'TestHealthScore\|TestClassifyLinks' ./internal/store/...` |
 | Superfície CLI e MCP | integration | AC8 e AC9: `--vault` muda a raiz; o payload do MCP traz as três categorias | `cmd/mem/doctor_vault_test.go` | `go test -count=1 -run TestDoctorVault ./cmd/mem/...` |
 
 ## Gate Check Commands
@@ -160,8 +160,11 @@ mesmos 13 conceitos sem nota da medição.
 **What**: acrescentar ao `DoctorReport` a categoria "fora do índice por decisão"
 (alvo, origem, relação, path em disco) e a categoria "não verificável", e
 ajustar a fórmula do score: a categoria nova não penaliza; a não verificável
-penaliza como dead link e marca o score como provisório.
-**Where**: `internal/store/store.go`
+penaliza como dead link e marca o score como provisório. O **classificador
+compartilhado** (rompido / fora do índice / não verificável) mora no `store`
+para que os dois engines classifiquem igual.
+**Where**: `internal/store/store.go` · `internal/store/doctor.go` (a
+matemática) · `internal/store/doctor_links.go` (o classificador compartilhado)
 **Depends on**: T2
 **Reuses**: `CalculateHealthScore` (a matemática única dos dois engines)
 **Requirement**: DUL-03, DUL-04, DUL-05
@@ -172,12 +175,17 @@ penaliza como dead link e marca o score como provisório.
 
 **Done when**:
 
-- [ ] As duas listas novas existem no `DoctorReport` e são inicializadas vazias
-- [ ] A categoria nova não altera o score
-- [ ] A não verificável penaliza 5 pontos cada (teto de 40, como a ADR-013)
-- [ ] O relatório expõe um sinalizador de score provisório
-- [ ] O teste de fórmula cobre os quatro casos (0 / só nova / não verificável /
+- [x] As duas listas novas existem no `DoctorReport` e são inicializadas vazias
+- [x] A categoria nova não altera o score
+- [x] A não verificável penaliza 5 pontos cada (teto de 40, como a ADR-013)
+- [x] O relatório expõe um sinalizador de score provisório
+- [x] O teste de fórmula cobre os quatro casos (0 / só nova / não verificável /
       dead link real)
+- [x] O classificador compartilhado é o **único** que decide a lista de dead
+      links do relatório — a correção vai ler a mesma lista (lição da ISSUE-038)
+
+**Status**: Verified (2026-11-14) — 4 testes (5 sub-casos), gate `go build ./...`
++ `go vet` + suíte do `store` verdes
 
 **Tests**: unit
 **Gate**: quick

@@ -113,6 +113,22 @@ type DeadLink struct {
 	Relation string `json:"relation"`
 }
 
+// OutOfIndexLink representa um link cujo alvo existe em disco mas que está
+// fora do índice por decisão — o material bruto do cofre central, por exemplo.
+//
+// Não é link rompido: o arquivo existe e o Obsidian resolve. Por isso não
+// penaliza o Health Score. A distinção é a decisão do dono (ISSUE-039):
+// "fora do índice por decisão" ≠ "link rompido".
+type OutOfIndexLink struct {
+	SourceID string `json:"source_id"`
+	TargetID string `json:"target_id"`
+	Relation string `json:"relation"`
+	// ResolvedPath é o caminho do arquivo encontrado, relativo à raiz do vault.
+	ResolvedPath string `json:"resolved_path"`
+	// Match diz como o alvo casou: basename, relpath, title ou alias.
+	Match string `json:"match"`
+}
+
 // OrphanNote representa uma nota isolada com zero conexões de entrada e saída
 type OrphanNote struct {
 	ID    string `json:"id"`
@@ -144,9 +160,19 @@ type DoctorReport struct {
 	// fora do HealthScore e vira contagem explícita no relatório.
 	MissingMTimeCount int             `json:"missing_mtime_count"`
 	DeadLinks         []DeadLink      `json:"dead_links"`
-	OrphanNotes       []OrphanNote    `json:"orphan_notes"`
-	SelfLoops         []SelfLoop      `json:"self_loops"`
-	DesyncedChunks    []DesyncedChunk `json:"desynced_chunks"`
+	// OutOfIndexLinks são links cujo alvo existe em disco mas está fora do
+	// índice por decisão. Não são link rompido e não penalizam o score.
+	OutOfIndexLinks []OutOfIndexLink `json:"out_of_index_links"`
+	// UnverifiableLinks são links que o doctor não conseguiu verificar porque
+	// a raiz do vault não estava acessível. Mantêm a penalidade do link morto
+	// e tornam o score provisório.
+	UnverifiableLinks []DeadLink `json:"unverifiable_links"`
+	// HealthScoreProvisional marca o score como provisório: há link que não
+	// pôde ser verificado, então o número é um piso, não um veredito.
+	HealthScoreProvisional bool             `json:"health_score_provisional"`
+	OrphanNotes            []OrphanNote     `json:"orphan_notes"`
+	SelfLoops              []SelfLoop       `json:"self_loops"`
+	DesyncedChunks         []DesyncedChunk  `json:"desynced_chunks"`
 	// Ortografia é um AVISO (ISSUE-017): termos sem acento que quebram a
 	// tokenização da busca. Não entra no cálculo do HealthScore — perda de
 	// acento não é corrupção de dado, é decisão de produto.
