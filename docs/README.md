@@ -88,6 +88,8 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-061`](adr/061-dois-conceitos-de-memoria-vault-central-e-code-graph.md)** — Dois conceitos de memória — Vault Central (aprendizagem) e Vault de Repositório (code graph) — *Aceito — Implementado* (code graph com backend Go puro, arestas estruturais com provenance, escopo `code:` no config, rota `/code` na viewer e `mem lesson` no cofre central)
 * **[`ADR-062`](adr/062-contrato-dos-dois-cofres-e-o-que-o-ai-memory-ensina.md)** — Contrato dos dois cofres, critério de prontidão por lado e o que o `ai-memory` ensina — *Aceito*
 * **[`ADR-063`](adr/063-o-doctor-distingue-link-rompido-de-link-fora-do-indice.md)** — O doctor distingue link rompido de link fora do índice por decisão — *Aceito — Implementado* (três categorias de link, flag `--vault`, e o `--fix` consumindo a mesma lista do relatório)
+* **[`ADR-064`](adr/064-todo-conceito-linkado-no-cofre-central-tem-nota.md)** — Todo conceito linkado no cofre central tem nota — *Aceito — Implementado* (13 notas de conceito no padrão Obsidian; o critério "doctor ≥ 90" da ADR-062 fecha)
+* **[`ADR-065`](adr/065-o-caminho-de-limpeza-do-repo-e-inventario-podar-simplificar.md)** — O caminho de limpeza do repo é inventário → podar → simplificar — *Aceito* (o bucket GAP-6..10 é decidido item a item, com medição antes de cada corte)
 
 ### Higiene do índice (PostgreSQL)
 

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`scripts/verify_vault_notes.py` (ADR-064)**: o verificador da regra *"todo
+  conceito linkado no cofre central tem nota"*. Confere, nas 13 notas de
+  conceito do cofre: nome do arquivo igual ao texto do wikilink, `title`
+  exatamente igual ao conceito, frontmatter canônico (`title`, `category`,
+  `summary`, `tags`, `status`), `# Título` no corpo, as seções "O que é" /
+  "Onde entra aqui" / "Relacionado", o backlink para o README da pasta e para
+  a nota que a linka, e **todo** wikilink do corpo apontando para um arquivo
+  que existe no vault — além de encoding (UTF-8 sem BOM), finais de linha LF e
+  ausência de caractere CJK espúrio. Sai com código 1 se qualquer nota
+  desviar. Raiz do vault: `--vault`, `MY_MEMORY_CENTRAL_VAULT` ou o
+  `central_vault.path` do config global.
 - **`mem embed download` e `mem embed doctor` (ISSUE-037)**: o provider de embedding
   embutido (ONNX MiniLM, ADR-035) precisa de três artefatos no disco — modelo, tokenizer e
   a biblioteca do ONNX Runtime 1.29.0 — e nenhum comando os trazia. `mem embed download`

@@ -206,6 +206,15 @@ correção possível no `validate_tasks.py`/na referência `tasks.md` do skill �
 
 ## 7. Decisão em aberto que espera o dono: o peso da governança
 
+> **✅ DECIDIDO em 2026-11-14** — o dono escolheu **(a) caminho A**: *inventário →
+> podar o morto → simplificar a governança*; e **(b) opção a**: o bucket
+> GAP-6 a GAP-10 é decidido **item a item, com medição antes de cada corte**.
+> Registrado na [ADR-065](docs/adr/065-o-caminho-de-limpeza-do-repo-e-inventario-podar-simplificar.md).
+> **Próximo passo: o inventário read-only** (nenhuma escrita, nenhuma decisão,
+> nenhum corte) — ele mede o que existe e produz o inventário que a fase de
+> podar vai usar. As seções abaixo ficam como **registro da medição** que
+> sustentou a decisão.
+
 **Pergunta:** o repo tem 296 arquivos de documentação (~34.500 linhas: 62 ADRs,
 160 specs, 74 docs) contra 383 arquivos Go (78.942 linhas) — **43% do código**.
 Mais ~3.000 linhas de código morto. O dono perguntou se deveria apagar ADRs e

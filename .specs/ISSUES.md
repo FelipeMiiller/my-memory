@@ -1776,6 +1776,15 @@ stub ou remover o wikilink) é decisão do dono e **não** é escopo da spec —
 ela, o critério "≥ 90/100" da ADR-062 §B-2 não fecha (o score honesto do
 cofre é **60/100** depois do reindex com provider).
 
+> **✅ FECHADA (2026-11-14).** A checagem em disco foi entregue pela spec
+> `fix-doctor-unindexed-links` (ADR-063) e a decisão de **conteúdo** foi tomada
+> pelo dono: **criar 13 notas stub, uma por conceito**. Executado na spec
+> `central-vault-concept-notes` (ADR-064): as 13 notas existem, com o nome do
+> arquivo igual ao texto do wikilink, e o cofre central foi reindexado com o
+> provider ONNX. **Medido:** `mem doctor` → **Health Score 100/100**, **0 link
+> rompido**, 0 órfã, 0 chunk sem vetor real. **O critério "≥ 90/100" da
+> ADR-062 §B-2 fecha.**
+
 **As três saídas possíveis (decisão do dono).**
 
 1. **Resolver contra o disco** no check de dead link: o alvo existe como

@@ -64,6 +64,8 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-061](061-dois-conceitos-de-memoria-vault-central-e-code-graph.md)** | Dois conceitos de memória — Vault Central (aprendizagem) e Vault de Repositório (code graph) | Aceito — **Implementado** | 2026-10-23 | `code-graph`, `central-vault`, `obsidian`, `graphify`, `provenance`, `federation`, `cgo`, `adr-047` |
 | **[ADR-062](062-contrato-dos-dois-cofres-e-o-que-o-ai-memory-ensina.md)** | Contrato dos dois cofres, critério de prontidão por lado e o que o `ai-memory` ensina | Aceito | 2026-11-13 | `central-vault`, `code-graph`, `ai-memory`, `graphify`, `embeddings`, `onnx`, `cgo`, `gaps` |
 | **[ADR-063](063-o-doctor-distingue-link-rompido-de-link-fora-do-indice.md)** | O doctor distingue link rompido de link fora do índice por decisão | Aceito — **Implementado** | 2026-11-14 | `doctor`, `dead-links`, `health-score`, `obsidian`, `vault`, `adr-013` |
+| **[ADR-064](064-todo-conceito-linkado-no-cofre-central-tem-nota.md)** | Todo conceito linkado no cofre central tem nota | Aceito — **Implementado** | 2026-11-14 | `cofre-central`, `vault`, `wikilinks`, `moc`, `conteudo`, `adr-062` |
+| **[ADR-065](065-o-caminho-de-limpeza-do-repo-e-inventario-podar-simplificar.md)** | O caminho de limpeza do repo é inventário → podar → simplificar | Aceito — **primeiro passo pendente** | 2026-11-14 | `governanca`, `limpeza`, `backlog`, `dead-code`, `adr-036`, `adr-062` |
 > [!success]
 > **ADR-055: implementada.** A pergunta que a ADR deixou em
 > aberto — para onde `resolved_doc_id` aponta — foi respondida em 2026-10-21:
