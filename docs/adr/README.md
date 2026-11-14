@@ -63,6 +63,7 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-060](060-stack-do-frontend-da-viewer-e-fallback-spa.md)** | Stack do frontend da viewer (TanStack) e a rota de fallback SPA | Aceito | 2026-10-19 | `viewer`, `react`, `tanstack`, `router`, `query`, `zustand`, `zod`, `markdown`, `wikilinks`, `spa` |
 | **[ADR-061](061-dois-conceitos-de-memoria-vault-central-e-code-graph.md)** | Dois conceitos de memória — Vault Central (aprendizagem) e Vault de Repositório (code graph) | Aceito — **Implementado** | 2026-10-23 | `code-graph`, `central-vault`, `obsidian`, `graphify`, `provenance`, `federation`, `cgo`, `adr-047` |
 | **[ADR-062](062-contrato-dos-dois-cofres-e-o-que-o-ai-memory-ensina.md)** | Contrato dos dois cofres, critério de prontidão por lado e o que o `ai-memory` ensina | Aceito | 2026-11-13 | `central-vault`, `code-graph`, `ai-memory`, `graphify`, `embeddings`, `onnx`, `cgo`, `gaps` |
+| **[ADR-063](063-o-doctor-distingue-link-rompido-de-link-fora-do-indice.md)** | O doctor distingue link rompido de link fora do índice por decisão | Aceito — **Implementado** | 2026-11-14 | `doctor`, `dead-links`, `health-score`, `obsidian`, `vault`, `adr-013` |
 > [!success]
 > **ADR-055: implementada.** A pergunta que a ADR deixou em
 > aberto — para onde `resolved_doc_id` aponta — foi respondida em 2026-10-21:
@@ -175,6 +176,18 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > a busca passa a responder `[vector:1]`). Gaps rastreados: ISSUE-037 (binário
 > sem o provider), ISSUE-038 (o doctor conta aresta de tag como link morto) e
 > ISSUE-039 (os wikilinks para o material bruto fora do índice).
+
+> [!success]
+> **ADR-063: implementada.** O `mem doctor` distingue **três** estados de link:
+> **rompido** (não existe em disco nem no índice), **fora do índice por
+> decisão** (existe em disco, mas fora do escopo de indexação do vault — o caso
+> do material bruto do cofre central) e **não verificável** (a raiz do vault é
+> desconhecida ou ilegível). Só o rompido e o não verificável penalizam o
+> Health Score, e o `--fix` consome a **mesma** lista que o relatório mostra —
+> a lição da ISSUE-038. Medido no `repo_central`: as 138 arestas suspeitas se
+> dividem em **125** fora do índice por decisão (112 por basename, 13 só por
+> `title:`) e **13** realmente rompidas; o `--fix` passou de 138 para 13
+> arestas.
 
 > [!warning]
 > **ADR-047: decisão mantida, motor trocado — e a ADR-054:37 afirma o contrário.**

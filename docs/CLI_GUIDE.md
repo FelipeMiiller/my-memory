@@ -373,9 +373,9 @@ Exporta o grafo relacional para **JSON Canvas 1.0 (`.canvas`)** do Obsidian ou p
 
 ---
 
-### 9. `mem doctor [--fix] [--events] [--db <caminho>] [--postgres <url>] [--storage sqlite|postgres] [--repo <slug>]`
+### 9. `mem doctor [--fix] [--events] [--vault <caminho>] [--db <caminho>] [--postgres <url>] [--storage sqlite|postgres] [--repo <slug>]`
 Audita a saúde do grafo e tabelas relacionais de conhecimento:
-* Identifica **Dead Links** (wikilinks apontando para notas inexistentes).
+* Identifica **Dead Links** (wikilinks apontando para notas inexistentes) em **três categorias** (ADR-063): **rompido** (não existe em disco nem no índice), **fora do índice por decisão** (existe em disco, mas fora do escopo de indexação do vault) e **não verificável** (a raiz do vault é desconhecida ou ilegível). Só o link **rompido** e o **não verificável** penalizam o Health Score, e a rotina `--fix` **nunca** apaga uma aresta cujo alvo existe em disco.
 * Identifica **Notas Órfãs** (documentos sem conexões de entrada ou saída).
 * Identifica **Self-Loops** (notas apontando reflexivamente para si mesmas).
 * Identifica **Chunks sem vetor real** — o chunk indexado sem provider de embedding, que é gravado **sem embedding** (`embedding` NULL no Postgres; **nenhuma** linha em `chunks_vec` **nem** em `chunks_turboquant` no SQLite) ou com o **vetor zero**. O `Issue` diz qual dos dois casos é, e cada chunk custa **2 pontos** do Health Score (ADR-013, teto 15).
@@ -391,6 +391,47 @@ Audita a saúde do grafo e tabelas relacionais de conhecimento:
 ./bin/mem.exe doctor --fix
 # Auditoria do grafo + saúde do event_runtime:
 ./bin/mem.exe doctor --events
+```
+
+#### As três categorias de link (ADR-063)
+
+O doctor confere cada link suspeito **contra o disco do vault** antes de chamá-lo de
+morto. A raiz do vault é resolvida nesta precedência:
+
+| Ordem | Origem | Quando vale |
+| :---: | :--- | :--- |
+| 1 | flag `--vault <caminho>` | sempre — resolve o caso do Postgres sem cópia local |
+| 2 | **catálogo do repositório auditado** (`~/.memory/config.yaml`) | quando o `repo_id` auditado tem vault declarado |
+| 3 | `central_vault.path` do config global | **só** para o cofre central |
+| 4 | diretório de trabalho atual | último recurso |
+
+O catálogo entra **antes** do `central_vault.path` de propósito: auditar um
+`repo_xxx` contra os arquivos do cofre central mediria a coisa errada.
+
+O alvo do wikilink é resolvido por **match exato** (case-insensitive, nunca fuzzy)
+em quatro chaves: **basename** em qualquer profundidade, **caminho relativo**
+(com e sem `.md`), **`title:`** e **`alias:`** do frontmatter. É a semântica do
+Obsidian e a do próprio indexador — a identidade de um documento no índice é
+`documents.title` (`COALESCE(frontmatter.title, basename)`).
+
+> [!IMPORTANT]
+> A checagem em disco é o que separa "quebrado" de "decidido". O material bruto
+> do cofre central (`catalog-skills/skills/**`) está **fora do índice por
+> decisão** — o `config.yaml` do cofre o exclui do escopo — e as notas destiladas
+> o linkam. No Obsidian esses links resolvem; no índice não. Antes da ADR-063 o
+> doctor acusava os **138** links como mortos, o Health Score do cofre caía para
+> **45/100** e o `mem doctor --fix` apagaria **138** arestas, **125** delas com
+> alvo vivo em disco. Medido depois da ADR-063 (Postgres `repo_central`,
+> 2026-11-14): **125** fora do índice por decisão (112 por basename, 13 só por
+> `title:`) e **13** realmente rompidos (conceitos sem nota).
+
+Se a raiz do vault não for acessível, os links ficam **não verificáveis**: eles
+**mantêm** a penalidade (o doctor não tem prova para limpar a suspeita) e o
+relatório declara o score **provisório**.
+
+```bash
+# Auditoria do cofre central com a raiz explícita:
+./bin/mem.exe doctor --storage=postgres --repo repo_central --vault "G:\My Drive\central-memory"
 ```
 
 #### Seção Ortografia (aviso, ISSUE-017)

@@ -21,6 +21,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **O doctor parou de chamar de link morto o link que funciona no Obsidian
+  (ISSUE-039)**: o `mem doctor` tratava toda aresta que não resolve no índice
+  como dead link, e no Cofre Central isso significava **138** links "mortos" —
+  dos quais **125** apontam para material que **existe em disco** e foi
+  **excluído do índice por decisão** (o `config.yaml` do cofre exclui
+  `catalog-skills/skills/**`). O Health Score media uma decisão de configuração
+  como doença (45/100) e o `mem doctor --fix` apagaria **138** arestas, **125**
+  delas vivas no Obsidian. Agora o doctor confere o link **contra o disco** e
+  classifica em **três** categorias: **rompido** (não existe em disco nem no
+  índice), **fora do índice por decisão** (existe em disco, fora do escopo) e
+  **não verificável** (a raiz do vault é desconhecida ou ilegível — mantém a
+  penalidade e marca o score como **provisório**). Só o rompido e o não
+  verificável penalizam o score, e a rotina `--fix` consome a **mesma** lista
+  que o relatório mostra — é a lição da ISSUE-038 (relatório e rotina decidindo
+  por critérios diferentes). A raiz do vault vem de `--vault` › catálogo do
+  repositório auditado › `central_vault.path` (só o cofre central) › diretório
+  atual, e o alvo resolve por basename, caminho relativo, `title:` ou `alias:`,
+  com match **exato** (nunca fuzzy). Medido no Postgres do `repo_central`:
+  **125** fora do índice por decisão (112 por basename, 13 só por `title:`) e
+  **13** realmente rompidos; o `--fix` passou de 138 para 13 arestas, e os 2
+  dead links reais do vault de repositório (`[[ADR-035]]`) continuam mortos.
+  ADR-063; spec `.specs/features/fix-doctor-unindexed-links/`.
+- **O payload do `memory_doctor` voltou a respeitar o contrato do wire**: as duas
+  listas novas (`out_of_index_links` e `unverifiable_links`) serializavam como
+  `null` quando vinham vazias — o `structuredContent` proíbe `null`, e a
+  fronteira que normaliza os arrays do `DoctorReport` não conhecia as chaves
+  novas. Agora viajam como `[]`, como as outras quatro.
+
 - **O chunk indexado sem provider não grava mais vetor zero (ISSUE-040)**: sem provider de
   embedding, o indexador substituía o embedding ausente por um vetor **zero** de 384
   dimensões — e o vetor zero **existe** na coluna, então o doctor (que procurava

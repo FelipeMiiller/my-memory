@@ -2,7 +2,7 @@
 
 - **Spec ID**: `fix-doctor-unindexed-links`
 - **Created**: 2026-11-13
-- **Emended**: 2026-11-14 (medição real no Postgres do cofre central — números e premissas corrigidos)
+- **Emended**: 2026-11-14 (medição real no Postgres do cofre central — números e premissas corrigidos) · 2026-11-14, rodada 2 (achado do Verifier: o Out of Scope dizia 90/100 para o vault de repositório; o real é **75/100** desde a spec `fix-zero-vector-chunks`, que tornou visível a degradação de vetor zero)
 - **Owner**: Felipe Miiller
 - **Source**: ISSUE-039 — `.specs/ISSUES.md` (seção ISSUE-039) · fecha o resto da ISSUE-038
 - **Related**: ADR-013 (Health Score e suas penalidades) · ADR-041/ADR-055 (tags) · ADR-062 §D-2 e §D-3 · ISSUE-036 (nó de código como alvo vivo)
@@ -65,7 +65,7 @@ A decisão do dono (2026-11-13) é explícita: **"fora do índice por decisão" 
 | Mover o material bruto para dentro do índice | Mudaria o escopo do cofre e o `config.yaml` dele — decisão de conteúdo. |
 | Gravar o alvo da tag com `#` | Mudaria o **dado** gravado e exigiria reindexar os dois vaults. |
 | Mudar a fórmula de penalidades além do necessário | A ADR-013 fixa as penalidades; aqui só muda **o que entra na lista**. |
-| O Health Score do vault de repositório | Ele já está em 90/100 com 2 dead links reais (`[[ADR-035]]`), que continuam reais. |
+| O Health Score do vault de repositório | Ele está em **75/100** com 2 dead links reais (`[[ADR-035]]`), que continuam reais — os 2 links custam 10 pontos e os 101 chunks sem vetor real custam os outros 15 (a spec `fix-zero-vector-chunks` tornou essa degradação visível; antes ela estava escondida sob o vetor zero, e o score aparentava 90/100). |
 | **Criar nota stub para os 13 conceitos sem nota (ou remover os wikilinks)** | Decisão de **conteúdo do cofre** — é o dono que sabe se quer 13 notas novas ou 13 links removidos. A spec entrega a distinção (rompido / fora-do-índice / não-verificável) e a medição; a escolha é dele. Sem essa escolha, o critério ≥ 90 da ADR-062 §B-2 **não fecha** — e o score honesto do cofre é **60/100** depois do reindex com provider. |
 
 ## Assumptions & Open Questions

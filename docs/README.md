@@ -86,6 +86,8 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-059`](adr/059-spa-react-vite-em-viewer-servida-pelo-mcp.md)** — SPA React/Vite em `viewer/`, compilada para estático e servida pelo MCP — *Aceito — Emendado pela ADR-060*
 * **[`ADR-060`](adr/060-stack-do-frontend-da-viewer-e-fallback-spa.md)** — Stack do frontend da viewer (TanStack) e a rota de fallback SPA — *Aceito*
 * **[`ADR-061`](adr/061-dois-conceitos-de-memoria-vault-central-e-code-graph.md)** — Dois conceitos de memória — Vault Central (aprendizagem) e Vault de Repositório (code graph) — *Aceito — Implementado* (code graph com backend Go puro, arestas estruturais com provenance, escopo `code:` no config, rota `/code` na viewer e `mem lesson` no cofre central)
+* **[`ADR-062`](adr/062-contrato-dos-dois-cofres-e-o-que-o-ai-memory-ensina.md)** — Contrato dos dois cofres, critério de prontidão por lado e o que o `ai-memory` ensina — *Aceito*
+* **[`ADR-063`](adr/063-o-doctor-distingue-link-rompido-de-link-fora-do-indice.md)** — O doctor distingue link rompido de link fora do índice por decisão — *Aceito — Implementado* (três categorias de link, flag `--vault`, e o `--fix` consumindo a mesma lista do relatório)
 
 ### Higiene do índice (PostgreSQL)
 
