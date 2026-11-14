@@ -113,10 +113,12 @@ pelo vetor zero e passa a passar o vetor ausente ao insert.
 
 **Done when**:
 
-- [ ] O `make([]float32, embedder.EmbeddingDim)` de substituto **sai** do caminho
+- [x] O `make([]float32, embedder.EmbeddingDim)` de substituto **sai** do caminho
       Postgres
-- [ ] O aviso por documento continua (a degradação é visível)
-- [ ] O documento indexado sai com os chunks sem embedding
+- [x] O aviso por documento continua (a degradação é visível)
+- [x] O documento indexado sai com os chunks sem embedding
+
+**Status**: Verified (2026-11-14)
 
 **Tests**: integration
 **Gate**: quick

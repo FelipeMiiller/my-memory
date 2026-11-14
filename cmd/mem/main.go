@@ -1956,15 +1956,12 @@ func runIndexPostgres(ctx context.Context, s postgresIndexStore, emb embedder.Em
 					fmt.Printf("Aviso: falha ao gerar embedding (%s); indexando em modo léxico FTS\n", chunkID)
 				}
 			}
-			if vec == nil {
-				// A dimensão tem que ser a do schema (embedder.EmbeddingDim).
-				// O literal 768 aqui sobreviveu à migração 768 → 384: quando o
-				// embedding falha, o fallback gravava vetor de dimensão errada
-				// numa coluna 384 — que é justamente o caminho exercitado quando
-				// não há provider de embedding.
-				vec = make([]float32, embedder.EmbeddingDim)
-			}
 
+			// Sem vetor real, o chunk é gravado SEM embedding (NULL no
+			// Postgres). O substituto vetor zero era o defeito da ISSUE-040:
+			// ele "existe" na coluna, então o doctor — que procura
+			// `embedding IS NULL` — via um vault sem um único vetor como
+			// saudável. A ausência tem de ser visível.
 			if err := s.InsertChunk(ctx, targetRepo, chunkID, docID, c, i, vec); err != nil {
 				// Antes o erro era descartado com `_ =` e o chunk contava como
 				// indexado. Na migração para vector(384) isso escondeu a falha
