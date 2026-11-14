@@ -1663,7 +1663,7 @@ fonte RRF (antes: `[fts:1]`), e `mem embed doctor` reporta `Status: ATIVO`.
 ## ISSUE-038 — O doctor conta a aresta de tag (`tagged_as`) como link morto: o Health Score do cofre central é 60/100 sem motivo
 
 - **Severidade:** 🟡 média (medição errada que penaliza o vault mais saudável)
-- **Status:** 🟢 **parcialmente corrigida** (2026-11-13, `.specs/features/fix-doctor-tag-edges/`) — a tag que existe em `document_tags` deixou de ser dead link; **resta** a parte que depende da checagem em disco (ISSUE-039)
+- **Status:** 🟢 **corrigida** (2026-11-13, `.specs/features/fix-doctor-tag-edges/`; fechada em 2026-11-14 por `.specs/features/fix-doctor-unindexed-links/`) — a tag que existe em `document_tags` deixou de ser dead link, e a parte que dependia da checagem em disco chegou na spec do doctor: um alvo que existe em disco (mesmo sendo uma tag) é **fora do índice por decisão**, nunca link rompido.
 - **Achado em:** 2026-11-13, ao rodar o `mem doctor` do cofre central
 
 **O defeito.** O check de dead links considera "vivo" só o alvo que resolve para
@@ -1716,7 +1716,7 @@ disco, e o `doctor` precisa do caminho do vault.
 ## ISSUE-039 — 125 dos 138 links do cofre central apontam para material que existe em disco mas está fora do índice
 
 - **Severidade:** 🟡 média (o vault parece quebrado no Obsidian e no grafo ao mesmo tempo)
-- **Status:** 🔵 **open** — **decisão do dono (2026-11-13): distinguir "fora do índice por decisão" de "link rompido"** (o `doctor` passa a checar o disco do vault). **Spec escrita e emendada:** `.specs/features/fix-doctor-unindexed-links/` (9 ACs, 7 tarefas, 3 fases). **Medição real (2026-11-14):** a premissa original ("os 138 existem em disco") era falsa — ver a correção abaixo.
+- **Status:** 🟢 **corrigida** (2026-11-14, `.specs/features/fix-doctor-unindexed-links/`) — o doctor confere cada link suspeito **contra o disco do vault** e classifica em **três** categorias: **rompido** (penaliza o score e a `--fix` apaga), **fora do índice por decisão** (não penaliza e a `--fix` preserva) e **não verificável** (sem raiz legível: penaliza como link morto e marca o score como **provisório**). Medido no `repo_central`: **125** na categoria nova e **13** rompidos; o `--fix` passou de 138 para 13 arestas. Spec com **9 ACs, 9 tarefas, 4 fases**.
 - **Achado em:** 2026-11-13, ao decompor os 148 "dead links" do cofre central
 
 **O fato.** O `config.yaml` do cofre exclui do índice o material bruto
@@ -1790,6 +1790,33 @@ cofre é **60/100** depois do reindex com provider).
 **Nota.** As três opções mexem em **conteúdo** ou em **semântica de medição** —
 não é bug de código puro. Hmm: a opção 1 e a 2 sãochanges no doctor (código);
 a 3 é uma edição de conteúdo do cofre.
+
+### Resolução (2026-11-14)
+
+**O que foi corrigido** (spec `fix-doctor-unindexed-links`, 9 tarefas, 4 fases, 14 commits em `58c8c0e..22dd4fe`):
+
+| O que | Onde | Como |
+| :--- | :--- | :--- |
+| A raiz do vault | `internal/vaultfs/root.go` | flag `--vault` › **catálogo do repositório auditado** › `central_vault.path` (só o cofre central) › diretório atual; e diz se a raiz é **acessível** |
+| O alvo do wikilink | `internal/vaultfs/target.go` | basename em qualquer profundidade, caminho relativo (com/sem `.md`), `title:` e `alias:` — match **exato**, nunca fuzzy — devolvendo **como** casou |
+| A classificação | `internal/store/doctor_links.go` | classificador **compartilhado** (`ClassifyLinks` + `NewVaultResolver`): rompido / fora do índice por decisão / não verificável |
+| O Health Score | `internal/store/doctor.go` | a categoria nova **não** penaliza; a não verificável penaliza e marca o score **provisório** |
+| A rotina de correção | `internal/db/graph.go` · `internal/store/doctor.go` | apaga **só** a lista do relatório (no Postgres, um statement com `unnest`) |
+| A superfície | `cmd/mem/main.go` · `internal/mcp/handlers.go` | `mem doctor --vault` e as três categorias no payload do `memory_doctor` |
+
+**A regra que fecha a ISSUE-038**: o relatório e a rotina de correção consomem a
+**mesma** lista — o classificador é o único que decide o que é link rompido.
+
+**Verificação**: Verifier independente em duas rodadas (a 1ª achou 3 defeitos
+reais — o gate vermelho, o `gofmt` quebrado e um número stale na spec — e a 2ª
+confirmou os dois gates verdes e a medição real), sensor de 6 mutações
+**6/6 mortas**, gate full (1325 testes) e gate taggeado ONNX + Postgres (1337
+testes) verdes. Relatório: `.specs/features/fix-doctor-unindexed-links/validation.md`.
+
+**O que NÃO fecha**: os **13 conceitos sem nota** continuam rompidos — a correção
+de **conteúdo** (criar 13 notas stub ou remover os 13 wikilinks) é decisão do
+dono. O score honesto do cofre é **60/100** depois do reindex com o provider, e o
+critério **≥ 90/100** da ADR-062 §B-2 depende dessa escolha.
 
 **Referência:** ADR-062 §D-3.
 
