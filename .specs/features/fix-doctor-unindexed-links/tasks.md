@@ -131,17 +131,22 @@ por ele.
 
 **Done when**:
 
-- [ ] `[[review-standards]]` casa com `catalog-skills/skills/x/review-standards.md`
-- [ ] `[[pasta/nota]]` casa pelo caminho relativo e cai no basename se falhar
-- [ ] `[[React 19 API Changes]]` casa com o arquivo cujo `title:` é esse
-- [ ] `[[Alias]]` casa com o arquivo que declara esse `alias:`
-- [ ] O match é **exato** (case-insensitive), nunca fuzzy: `[[Kubernetes]]` não
+- [x] `[[review-standards]]` casa com `catalog-skills/skills/x/review-standards.md`
+- [x] `[[pasta/nota]]` casa pelo caminho relativo e cai no basename se falhar
+- [x] `[[React 19 API Changes]]` casa com o arquivo cujo `title:` é esse
+- [x] `[[Alias]]` casa com o arquivo que declara esse `alias:`
+- [x] O match é **exato** (case-insensitive), nunca fuzzy: `[[Kubernetes]]` não
       casa por token com um arquivo qualquer
-- [ ] Um alvo inexistente devolve "não encontrado" (e **não** erro)
-- [ ] A ambiguidade (dois arquivos com o mesmo basename) devolve o path encontrado,
+- [x] Um alvo inexistente devolve "não encontrado" (e **não** erro)
+- [x] A ambiguidade (dois arquivos com o mesmo basename) devolve o path encontrado,
       para o relatório mostrar qual foi
-- [ ] A resolução devolve **como** casou (basename / caminho relativo / title /
+- [x] A resolução devolve **como** casou (basename / caminho relativo / title /
       alias), para o relatório nomear o caminho resolvido
+
+**Status**: Verified (2026-11-14) — 9 testes, gate `go build ./...` + `go vet`
+verdes. **Provado contra o vault real**: os 138 alvos do `repo_central`
+resolvem em 112 por basename + 13 por `title:` e ficam 13 sem resolver — os
+mesmos 13 conceitos sem nota da medição.
 
 **Tests**: unit
 **Gate**: quick
