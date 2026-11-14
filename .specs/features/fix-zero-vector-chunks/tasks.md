@@ -180,13 +180,27 @@ vetor zero do schema).
 
 **Done when**:
 
-- [ ] Vetor NULL → dessincronizado
-- [ ] Vetor zero → dessincronizado
-- [ ] Vetor real → **não** dessincronizado
-- [ ] O `Issue` reportado diz qual dos dois casos é
+- [x] Vetor NULL → dessincronizado
+- [x] Vetor zero → dessincronizado
+- [x] Vetor real → **não** dessincronizado
+- [x] O `Issue` reportado diz qual dos dois casos é
 
 **Tests**: unit
 **Gate**: quick
+
+**Status**: Verified (2026-11-14)
+
+**Sensor** (3 mutações, `D:\.minimax\scratch\sensor_t4.py`):
+
+| Mutação | Efeito | Veredito |
+| :--- | :--- | :--- |
+| M-T4a — a condição volta a `c.embedding IS NULL` (o filtro antigo) | o chunk de vetor zero deixa de ser reportado (só o ausente entra) | MORTO |
+| M-T4b — o `CASE` some: todo dessincronizado vira "Missing vector embedding" | o `Issue` deixa de distinguir ausente de zero | MORTO |
+| M-T4c — a query volta a dois campos enquanto o `Scan` lê três | o relatório fica vazio sem erro visível (o `if err == nil` engole o erro do `Scan`) | MORTO |
+
+**Nota de implementação**: a comparação do vetor zero no Postgres **não** usa
+literal de 384 dimensões — o pgvector dá o produto interno negativo em `<#>`,
+e `v <#> v = -||v||²`, que vale zero só quando o vetor É o vetor zero.
 
 **Commit**: `fix(doctor): o Postgres detecta chunk com vetor zero`
 

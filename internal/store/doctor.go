@@ -169,19 +169,32 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string) (*Docto
 		}
 	}
 
-	// 5. Chunks dessincronizados (sem embedding)
+	// 5. Chunks dessincronizados (sem embedding REAL: ausente OU vetor zero)
+	//
+	// O vetor zero é o defeito da ISSUE-040: ele preenche a coluna, então o
+	// filtro antigo (`embedding IS NULL`) não o enxerga — e o vault sem um
+	// único vetor real passava como saudável.
+	//
+	// A comparação do zero não precisa de literal de 384 dimensões: o
+	// pgvector dá o produto interno negativo em `<#>`, e `v <#> v = -||v||²`,
+	// que vale zero só quando o vetor É o vetor zero (||v||² = 0 ⟺ v = 0).
+	//
+	// O Issue diz qual dos dois casos é: ausente é falta de provider; zero é
+	// provider que gravou lixo — e os dois merecem conserto diferente.
 	desyncRows, err := s.db.QueryContext(ctx, `
-		SELECT c.id, c.document_id
+		SELECT c.id, c.document_id,
+		       CASE WHEN c.embedding IS NULL THEN 'Missing vector embedding'
+		            ELSE 'Zero vector embedding' END AS issue
 		FROM chunks c
-		WHERE c.repository = $1 AND c.embedding IS NULL
+		WHERE c.repository = $1
+		  AND (c.embedding IS NULL OR (c.embedding <#> c.embedding) = 0)
 		ORDER BY c.id
 	`, repo)
 	if err == nil {
 		defer desyncRows.Close()
 		for desyncRows.Next() {
 			var dc DesyncedChunk
-			if err := desyncRows.Scan(&dc.ChunkID, &dc.DocumentID); err == nil {
-				dc.Issue = "Missing vector embedding"
+			if err := desyncRows.Scan(&dc.ChunkID, &dc.DocumentID, &dc.Issue); err == nil {
 				report.DesyncedChunks = append(report.DesyncedChunks, dc)
 			}
 		}
