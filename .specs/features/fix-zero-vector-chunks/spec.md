@@ -30,6 +30,24 @@ O SQLite **já sabe** gravar chunk sem vetor: `internal/db/store.go:357` só
 insere em `chunks_vec` quando `len(vec) > 0`. O substituto zero em
 `cmd/mem/main.go` é que estraga os dois engines.
 
+**A dimensão que faltava (medida em 2026-11-14, pelo sensor da spec
+`fix-release-onnx-provider`): o SQLite tem DOIS caminhos de armazenamento
+do vetor, e o Postgres tem UM.**
+
+| Engine | Onde o vetor é gravado | Onde a busca vetorial lê |
+| :--- | :--- | :--- |
+| PostgreSQL | `chunks.embedding` (`vector(384)`, nullable) | `chunks.embedding` (pgvector) |
+| SQLite | `chunks_vec` (float32) **e** `chunks_turboquant` (4-bit comprimido) | `chunks_vec` quando `sqlite-vec` está disponível; **`chunks_turboquant`** no Windows, onde `db.HasSqliteVec` é `false` (`internal/db/vec_cgo.go:1` restringe o binding a `darwin` e `linux`) |
+
+Ou seja: **zerar a coluna `chunks.vec` não mata a busca vetorial no
+Windows** — o sensor provou que o mutante sobrevive, porque a busca lê as
+linhas TurboQuant. E o KNN do Postgres (`internal/store/postgres.go:567-582`)
+**não filtra `embedding IS NULL`**: um chunk sem embedding entra no
+resultado com distância nula.
+
+Por isso o defeito não é "o vetor zero": é "o vetor zero **e** o
+TurboQuant zero **e** o embedding NULL que passa pelo filtro".
+
 ## Goals
 
 - [ ] Um chunk indexado sem provider fica **sem embedding**, e não com um vetor
@@ -54,7 +72,7 @@ insere em `chunks_vec` quando `len(vec) > 0`. O substituto zero em
 | Assumption | Chosen default | Rationale | Confirmed? |
 | :--- | :--- | :--- | :--- |
 | Como o chunk fica "sem vetor" no Postgres | `embedding` NULL | a coluna é `vector(384)` **sem** `NOT NULL` (`internal/store/postgres.go:53`); NULL é o valor natural de ausência e já é o que o doctor procura | y |
-| Como o chunk fica "sem vetor" no SQLite | **nenhuma linha** em `chunks_vec` | é o que `internal/db/store.go:357` já faz quando `len(vec) == 0`; nada a inventar | y |
+| Como o chunk fica "sem vetor" no SQLite | **nenhuma linha** em `chunks_vec` **nem** em `chunks_turboquant` | é o que `internal/db/store.go:357` já faz quando `len(vec) == 0`; a linha TurboQuant é a mesma decisão, porque no Windows é ela que a busca vetorial lê | y |
 | Como o doctor detecta o vetor zero | compara o vetor com o vetor zero do schema e trata igualdade como ausência | o vetor zero é indistinguível de um vetor real por "existe"; a comparação é o que torna o sintoma visível | y |
 | A busca vetorial exclui o chunk sem vetor | a query vetorial filtra o chunk sem vetor real | um chunk sem vetor não tem similaridade; devolvê-lo é devolver ruído com aparência de resultado | y |
 | O reparo dos zeros já gravados | `mem index --force` com provider presente | é o mesmo caminho que o ADR-062 já mediu; nenhum reparo novo é necessário | y |
@@ -77,9 +95,12 @@ sincronizado" e o score não se move.
 
 1. WHEN a document is indexed without an available embedding provider THEN each
    of its chunks SHALL be written without an embedding (NULL in Postgres, no
-   row in `chunks_vec` in SQLite) instead of an all-zero vector.
-2. The doctor SHALL report a chunk as desynchronized when its embedding is
-   NULL or an all-zero vector of the schema dimension.
+   row in `chunks_vec` **and** no row in `chunks_turboquant` in SQLite)
+   instead of an all-zero vector.
+2. The doctor SHALL report a chunk as desynchronized when it has no vector at
+   all (no `embedding` in Postgres, no row in `chunks_vec` and no row in
+   `chunks_turboquant` in SQLite) or an all-zero vector of the schema
+   dimension.
 3. The Health Score SHALL penalize a chunk without a real vector at 2 points,
    with the ADR-013 cap of 15.
 
@@ -100,7 +121,9 @@ indefinida; o resultado sai sem ordem confiável e com aparência de acerto.
 **Acceptance Criteria**:
 
 4. WHEN the vector search runs THEN it SHALL NOT return a chunk whose embedding
-   is absent or an all-zero vector.
+   is absent or an all-zero vector — in **every** storage path the engine
+   reads: the raw vector (`chunks_vec` / `chunks.embedding`) and the
+   compressed one (`chunks_turboquant`).
 5. WHEN the hybrid search runs THEN the chunk without a real vector SHALL be
    reachable only through its lexical source, never through the vector one.
 
@@ -138,6 +161,10 @@ confere a contagem de chunks sem vetor.
   not silent).
 - IF the text of a chunk is empty THEN the chunk is written without an
   embedding and is reported as such.
+- IF the provider is unavailable THEN no TurboQuant row SHALL be written
+  either — a linha comprimida com todos os coeficientes zerados é o mesmo
+  defeito no caminho comprimido, e é por ela que a busca vetorial continua
+  devolvendo o chunk no Windows.
 - IF a document is reindexed without provider while it already has real vectors
   THEN the real vectors SHALL be preserved (o gate de `embed_epoch` existe:
   `cmd/mem/index_cache_test.go:30`).
@@ -150,11 +177,11 @@ confere a contagem de chunks sem vetor.
 
 | Requirement ID | Acceptance Criterion | Where |
 | :--- | :--- | :--- |
-| ZVC-01 | AC1 — chunk sem provider fica sem embedding | `cmd/mem/main.go` · `internal/store/postgres.go` |
-| ZVC-02 | AC2 — o doctor detecta NULL e vetor zero | `internal/store/doctor.go` · `internal/db/graph.go` |
+| ZVC-01 | AC1 — chunk sem provider fica sem embedding | `cmd/mem/main.go` · `internal/store/postgres.go` · `internal/db/store.go` |
+| ZVC-02 | AC2 — o doctor detecta ausência e vetor zero | `internal/store/doctor.go` · `internal/db/graph.go` |
 | ZVC-03 | AC3 — o Health Score penaliza o chunk sem vetor real | `internal/store/store.go` |
 | ZVC-04 | AC4 — a busca vetorial exclui o chunk sem vetor real | `internal/store/postgres.go` · `internal/db/graph.go` |
-| ZVC-05 | AC5 — o híbrido só alcança o chunk pela fonte léxica | `internal/store/postgres.go` |
+| ZVC-05 | AC5 — o híbrido só alcança o chunk pela fonte léxica | `internal/store/postgres.go` · `internal/db/hybrid.go` |
 | ZVC-06 | AC6 — a nota volta por sentido | `cmd/mem/vault_retrieval_test.go` |
 | ZVC-07 | AC7 — reindex do zero deixa 0 chunks sem vetor | `cmd/mem/vault_retrieval_test.go` |
 

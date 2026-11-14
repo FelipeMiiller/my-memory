@@ -13,7 +13,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Design**: inline nesta spec (uma mudança de escrita, uma de leitura e uma de detecção; sem mudança de schema — a coluna `embedding` já é nullable)
-**Status**: Draft
+**Status**: In Progress
 
 ---
 
@@ -139,7 +139,8 @@ sabe gravar chunk sem linha em `chunks_vec`.
 **Done when**:
 
 - [ ] O substituto zero **sai** do caminho SQLite
-- [ ] O chunk fica sem linha em `chunks_vec` (verificado por query)
+- [ ] O chunk fica sem linha em `chunks_vec` **e** sem linha em
+      `chunks_turboquant` (verificado por query)
 - [ ] O aviso por documento continua
 
 **Tests**: integration
@@ -192,7 +193,8 @@ vetor zero do schema).
 
 **Done when**:
 
-- [ ] Chunk sem linha em `chunks_vec` → dessincronizado
+- [ ] Chunk sem linha em `chunks_vec` **e** sem linha em `chunks_turboquant`
+      → dessincronizado
 - [ ] Chunk com vetor zero → dessincronizado
 - [ ] Chunk com vetor real → **não** dessincronizado
 
@@ -207,7 +209,7 @@ vetor zero do schema).
 
 **What**: a query de KNN do Postgres e a do SQLite deixam de devolver chunk sem
 embedding real (ausente ou zero).
-**Where**: `internal/store/postgres.go`
+**Where**: `internal/store/postgres.go` · `internal/db/graph.go`
 **Depends on**: T5
 **Reuses**: `SearchKNNWithOptions` dos dois engines e a query de busca híbrida
 **Requirement**: ZVC-04, ZVC-05
@@ -220,6 +222,7 @@ embedding real (ausente ou zero).
 
 - [ ] O Postgres não devolve chunk com `embedding` NULL nem com vetor zero
 - [ ] O SQLite não devolve chunk sem linha em `chunks_vec` nem com vetor zero
+- [ ] O SQLite não devolve chunk cuja linha TurboQuant é a de um vetor zero
 - [ ] O híbrido alcança o chunk sem vetor **apenas** pela fonte léxica
 - [ ] A busca com todos os chunks sem vetor devolve lista vazia, e não erro
 
