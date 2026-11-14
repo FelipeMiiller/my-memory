@@ -32,7 +32,7 @@ func TestDoctorReportsMissingMTimeOnLegacyVault(t *testing.T) {
 		}
 	}
 
-	report, err := DiagnoseHealth(ctx, database)
+	report, err := DiagnoseHealth(ctx, database, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestDoctorReportsMissingMTimeOnLegacyVault(t *testing.T) {
 		t.Fatalf("simulação de linha legada falhou: %v", err)
 	}
 
-	report, err = DiagnoseHealth(ctx, database)
+	report, err = DiagnoseHealth(ctx, database, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestDoctorMissingMTimeDoesNotAffectHealthScore(t *testing.T) {
 		t.Fatalf("insert falhou: %v", err)
 	}
 
-	report, err := DiagnoseHealth(ctx, database)
+	report, err := DiagnoseHealth(ctx, database, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestDoctorMissingMTimeDoesNotAffectHealthScore(t *testing.T) {
 	if _, err := database.ExecContext(ctx, `UPDATE documents SET mtime = ? WHERE id = ?`, 1_700_000_000, "legado"); err != nil {
 		t.Fatalf("captura de mtime falhou: %v", err)
 	}
-	after, err := DiagnoseHealth(ctx, database)
+	after, err := DiagnoseHealth(ctx, database, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}

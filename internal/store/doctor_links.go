@@ -1,8 +1,26 @@
 package store
 
 import (
+	"strings"
+
 	"github.com/FelipeMiiller/my-memory/internal/vaultfs"
 )
+
+// NewVaultResolver monta o resolver do vault para o doctor.
+//
+// Raiz vazia ou ilegível devolve nil: sem prova de que o alvo existe, o
+// doctor classifica o link como não verificável em vez de rompido. É a
+// distinção da AC5: sem raiz acessível, o score é provisório, não verde.
+func NewVaultResolver(vaultRoot string) *vaultfs.Resolver {
+	if strings.TrimSpace(vaultRoot) == "" {
+		return nil
+	}
+	resolver, err := vaultfs.NewResolver(vaultRoot)
+	if err != nil {
+		return nil
+	}
+	return resolver
+}
 
 // LinkCandidate é um link que a query de dead link suspeitou: o alvo não
 // bate com documento indexado, título, tag conhecida nem símbolo de código.

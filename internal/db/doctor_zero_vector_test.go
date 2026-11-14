@@ -87,7 +87,7 @@ func TestDoctorZeroVectorSQLite(t *testing.T) {
 		t.Fatalf("InsertTurboQuantChunk do vetor comprimido zero falhou: %v", err)
 	}
 
-	report, err := DiagnoseHealth(ctx, database)
+	report, err := DiagnoseHealth(ctx, database, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}

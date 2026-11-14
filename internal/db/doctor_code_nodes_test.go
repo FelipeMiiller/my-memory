@@ -39,7 +39,7 @@ func TestDoctorNaoContaNoDeCodigoComoDeadLink(t *testing.T) {
 		t.Fatalf("insert da aresta references_code: %v", err)
 	}
 
-	report, err := DiagnoseHealth(ctx, database)
+	report, err := DiagnoseHealth(ctx, database, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestDoctorContinuaContandoAlvoQueNaoENotaComoDeadLink(t *testing.T) {
 		t.Fatalf("insert da aresta para conceito: %v", err)
 	}
 
-	report, err := DiagnoseHealth(ctx, database)
+	report, err := DiagnoseHealth(ctx, database, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestCorrecaoDeDeadLinksNaoApagaCodeGraph(t *testing.T) {
 		t.Fatalf("insert da aresta para conceito: %v", err)
 	}
 
-	if _, err := FixHealthIssues(ctx, database); err != nil {
+	if _, err := FixHealthIssues(ctx, database, t.TempDir()); err != nil {
 		t.Fatalf("FixHealthIssues falhou: %v", err)
 	}
 

@@ -223,7 +223,7 @@ func contagemDoVault(t *testing.T, database *sql.DB) (documentos, chunks int) {
 func chunksDesincronizados(t *testing.T, database *sql.DB) int {
 	t.Helper()
 
-	report, err := db.DiagnoseHealth(context.Background(), database)
+	report, err := db.DiagnoseHealth(context.Background(), database, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}

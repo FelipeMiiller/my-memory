@@ -37,6 +37,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/staleness"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
+	"github.com/FelipeMiiller/my-memory/internal/vaultfs"
 	"github.com/FelipeMiiller/my-memory/internal/watcher"
 )
 
@@ -627,7 +628,7 @@ func main() {
 				os.Exit(1)
 			}
 			defer database.Close()
-			runDoctorSQLite(ctx, database, *fix)
+			runDoctorSQLite(ctx, database, *fix, vaultRootForDoctor(resolvedRepo))
 			if *showEvents {
 				if err := runDoctorEventsSection(ctx, database); err != nil {
 					fmt.Fprintf(os.Stderr, "mem doctor --events: %v\n", err)
@@ -3382,14 +3383,14 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 
 		srv.SetDoctorHandler(
 			func(ctx context.Context, repo string) (*mcp.DoctorReport, error) {
-				rep, err := db.DiagnoseHealth(ctx, database)
+				rep, err := db.DiagnoseHealth(ctx, database, vaultRootForDoctor(repo))
 				if err != nil {
 					return nil, err
 				}
 				return convertStoreDoctorReportToMCP(rep), nil
 			},
 			func(ctx context.Context, repo string) (int, error) {
-				return db.FixHealthIssues(ctx, database)
+				return db.FixHealthIssues(ctx, database, vaultRootForDoctor(repo))
 			},
 		)
 
@@ -3715,11 +3716,19 @@ func runDoctorPostgres(ctx context.Context, s *store.PostgresStore, targetRepo s
 	displayDoctorReport(report, fixedCount)
 }
 
-func runDoctorSQLite(ctx context.Context, database *sql.DB, fix bool) {
+// vaultRootForDoctor resolve a raiz do vault usada na checagem em disco do
+// doctor. Sem flag, vale o config global (catalogo do repo auditado ou
+// central_vault.path do cofre central); na falta dele, o diretorio de
+// trabalho atual.
+func vaultRootForDoctor(repo string) string {
+	return vaultfs.ResolveRoot("", repo).Path
+}
+
+func runDoctorSQLite(ctx context.Context, database *sql.DB, fix bool, vaultRoot string) {
 	fmt.Printf("🩺 Auditando integridade do grafo no SQLite...\n")
 	fixedCount := 0
 	if fix {
-		n, err := db.FixHealthIssues(ctx, database)
+		n, err := db.FixHealthIssues(ctx, database, vaultRoot)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Erro ao aplicar correções: %v\n", err)
 		} else {
@@ -3727,7 +3736,7 @@ func runDoctorSQLite(ctx context.Context, database *sql.DB, fix bool) {
 		}
 	}
 
-	report, err := db.DiagnoseHealth(ctx, database)
+	report, err := db.DiagnoseHealth(ctx, database, vaultRoot)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Erro ao diagnosticar banco: %v\n", err)
 		os.Exit(1)

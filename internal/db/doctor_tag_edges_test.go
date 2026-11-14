@@ -56,7 +56,7 @@ func TestDoctorNaoContaArestaDeTagVivaComoDeadLink(t *testing.T) {
 		t.Fatalf("insert da aresta de tag viva: %v", err)
 	}
 
-	report, err := DiagnoseHealth(ctx, database)
+	report, err := DiagnoseHealth(ctx, database, t.TempDir())
 	if err != nil {
 		t.Fatalf("DiagnoseHealth falhou: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestCorrecaoDeDeadLinksPreservaArestaDeTagViva(t *testing.T) {
 		t.Fatalf("insert da aresta de tag viva: %v", err)
 	}
 
-	if _, err := FixHealthIssues(ctx, database); err != nil {
+	if _, err := FixHealthIssues(ctx, database, t.TempDir()); err != nil {
 		t.Fatalf("FixHealthIssues falhou: %v", err)
 	}
 

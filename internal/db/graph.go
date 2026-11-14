@@ -361,26 +361,21 @@ func chunksSemVetorReal(ctx context.Context, db *sql.DB) ([]store.DesyncedChunk,
 }
 
 // DiagnoseHealth audita a integridade topológica do grafo e tabelas relacionais do SQLite
-func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error) {
-	report := &store.DoctorReport{
-		DeadLinks:         []store.DeadLink{},
-		OrphanNotes:       []store.OrphanNote{},
-		SelfLoops:         []store.SelfLoop{},
-		DesyncedChunks:    []store.DesyncedChunk{},
-		OrthographyIssues: []store.PortugueseOrthographyIssue{},
-	}
+// querier e o que o doctor precisa para listar candidatos: tanto o banco
+// quanto a transacao da correcao implementam.
+type querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
 
-	// 1. Contagens gerais
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents`).Scan(&report.TotalDocuments)
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM chunks`).Scan(&report.TotalChunks)
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM graph_edges`).Scan(&report.TotalEdges)
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM graph_nodes`).Scan(&report.TotalNodes)
-	// ADR-057: documentos indexados antes de mtime existir ficam com 0. Reportar
-	// a contagem torna a lacuna visível em vez de silenciosa.
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents WHERE COALESCE(mtime, 0) = 0`).Scan(&report.MissingMTimeCount)
-
-	// 2. Dead Links (arestas que apontam para notas inexistentes, ignorando tags)
-	deadRows, err := db.QueryContext(ctx, `
+// deadLinkCandidates lista as arestas que o SQL suspeita de link morto: o
+// alvo nao bate com documento indexado, titulo, tag conhecida nem simbolo de
+// codigo.
+//
+// A suspeita nao e veredito. O candidato so e link rompido depois de a
+// checagem em disco dizer que o alvo nao existe; se existir, o link esta fora
+// do indice por decisao (ISSUE-039).
+func deadLinkCandidates(ctx context.Context, q querier) ([]store.LinkCandidate, error) {
+	rows, err := q.QueryContext(ctx, `
 		SELECT e.source_id, e.target_id, e.relation
 		FROM graph_edges e
 		WHERE e.target_id NOT LIKE '#%'
@@ -396,14 +391,49 @@ func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error
 		  )
 		ORDER BY e.source_id, e.target_id
 	`)
-	if err == nil {
-		defer deadRows.Close()
-		for deadRows.Next() {
-			var dl store.DeadLink
-			if err := deadRows.Scan(&dl.SourceID, &dl.TargetID, &dl.Relation); err == nil {
-				report.DeadLinks = append(report.DeadLinks, dl)
-			}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var candidates []store.LinkCandidate
+	for rows.Next() {
+		var c store.LinkCandidate
+		if err := rows.Scan(&c.SourceID, &c.TargetID, &c.Relation); err != nil {
+			return nil, err
 		}
+		candidates = append(candidates, c)
+	}
+	return candidates, rows.Err()
+}
+
+func DiagnoseHealth(ctx context.Context, db *sql.DB, vaultRoot string) (*store.DoctorReport, error) {
+	report := &store.DoctorReport{
+		DeadLinks:         []store.DeadLink{},
+		OutOfIndexLinks:   []store.OutOfIndexLink{},
+		UnverifiableLinks: []store.DeadLink{},
+		OrphanNotes:       []store.OrphanNote{},
+		SelfLoops:         []store.SelfLoop{},
+		DesyncedChunks:    []store.DesyncedChunk{},
+		OrthographyIssues: []store.PortugueseOrthographyIssue{},
+	}
+
+	// 1. Contagens gerais
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents`).Scan(&report.TotalDocuments)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM chunks`).Scan(&report.TotalChunks)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM graph_edges`).Scan(&report.TotalEdges)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM graph_nodes`).Scan(&report.TotalNodes)
+	// ADR-057: documentos indexados antes de mtime existir ficam com 0. Reportar
+	// a contagem torna a lacuna visível em vez de silenciosa.
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents WHERE COALESCE(mtime, 0) = 0`).Scan(&report.MissingMTimeCount)
+
+	// 2. Links: o SQL levanta a suspeita, o disco decide.
+	//
+	// O alvo que resolve para um arquivo do vault está fora do índice por
+	// decisão — não é link rompido. O alvo que não resolve é link rompido.
+	// Sem raiz legível, todos ficam não verificáveis e o score é provisório.
+	if candidates, err := deadLinkCandidates(ctx, db); err == nil {
+		report.ApplyLinkClassification(store.ClassifyLinks(candidates, store.NewVaultResolver(vaultRoot)))
 	}
 
 	// 3. Orphan Notes (documentos sem conexões de entrada ou saída).
@@ -509,7 +539,7 @@ func DiagnoseHealth(ctx context.Context, db *sql.DB) (*store.DoctorReport, error
 }
 
 // FixHealthIssues repara anomalias conhecidas do grafo (remove self-loops e links mortos)
-func FixHealthIssues(ctx context.Context, db *sql.DB) (int, error) {
+func FixHealthIssues(ctx context.Context, db *sql.DB, vaultRoot string) (int, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -523,25 +553,28 @@ func FixHealthIssues(ctx context.Context, db *sql.DB) (int, error) {
 	}
 	loopsFixed, _ := resLoops.RowsAffected()
 
-	// 2. Remove dead links
-	resDead, err := tx.ExecContext(ctx, `
-		DELETE FROM graph_edges
-		WHERE target_id NOT LIKE '#%'
-		  AND target_id NOT IN (SELECT id FROM documents)
-		  AND target_id NOT IN (SELECT title FROM documents)
-		  AND target_id NOT IN (
-		      SELECT id FROM graph_nodes WHERE type = 'code_symbol'
-		  )
-		  AND target_id NOT IN (
-		      SELECT tag FROM document_tags
-		      UNION
-		      SELECT tag_key FROM document_tags
-		  )
-	`)
+	// 2. Remove apenas os links comprovadamente rompidos.
+	//
+	// O que o SQL sozinho suspeitava era apagado inteiro, inclusive o link
+	// que aponta para material fora do indice por decisao - um link vivo no
+	// Obsidian. Agora a correcao apaga exatamente a lista que o relatorio
+	// lista como rompida, e preserva o que nao pode ser provado quebrado.
+	candidates, err := deadLinkCandidates(ctx, tx)
 	if err != nil {
 		return 0, err
 	}
-	deadFixed, _ := resDead.RowsAffected()
+	classification := store.ClassifyLinks(candidates, store.NewVaultResolver(vaultRoot))
+	var deadFixed int64
+	for _, dl := range classification.Broken {
+		res, err := tx.ExecContext(ctx,
+			`DELETE FROM graph_edges WHERE source_id = ? AND target_id = ? AND relation = ?`,
+			dl.SourceID, dl.TargetID, dl.Relation)
+		if err != nil {
+			return 0, err
+		}
+		n, _ := res.RowsAffected()
+		deadFixed += n
+	}
 
 	if err := tx.Commit(); err != nil {
 		return 0, err

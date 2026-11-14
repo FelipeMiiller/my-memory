@@ -199,10 +199,11 @@ matemática) · `internal/store/doctor_links.go` (o classificador compartilhado)
 **What**: o doctor do SQLite passa a classificar cada link suspeito consultando
 o disco do vault, e a rotina de correção passa a apagar **exatamente** a lista
 de dead links do relatório.
-**Where**: `internal/db/graph.go`
+**Where**: `internal/db/graph.go` · `internal/db/doctor_unindexed_test.go`
 **Depends on**: T3
 **Reuses**: a query de dead link existente (a que já conhece `document_tags` e
-`code_symbol` da ISSUE-038)
+`code_symbol` da ISSUE-038) · `store.ClassifyLinks` e `store.NewVaultResolver`
+(o classificador compartilhado da T3)
 **Requirement**: DUL-01, DUL-02, DUL-06, DUL-07
 
 **Tools**:
@@ -211,11 +212,15 @@ de dead links do relatório.
 
 **Done when**:
 
-- [ ] Um link cujo alvo existe em disco vai para a categoria nova
-- [ ] Um link sem alvo em disco e sem documento indexado continua dead link
-- [ ] A rotina de correção apaga só as arestas da lista de dead links
-- [ ] A rotina de correção preserva as arestas não verificáveis
-- [ ] O teste prova que o código pré-fix falha com o sintoma exato
+- [x] Um link cujo alvo existe em disco vai para a categoria nova
+- [x] Um link sem alvo em disco e sem documento indexado continua dead link
+- [x] A rotina de correção apaga só as arestas da lista de dead links
+- [x] A rotina de correção preserva as arestas não verificáveis
+- [x] O teste prova que o código pré-fix falha com o sintoma exato
+
+**Status**: Verified (2026-11-14) — 5 testes, gate `go build ./...` + `go vet` +
+suítes de `internal/db`, `internal/store` e `cmd/mem` verdes. `DiagnoseHealth` e
+`FixHealthIssues` do SQLite agora recebem a raiz do vault.
 
 **Tests**: unit
 **Gate**: quick
