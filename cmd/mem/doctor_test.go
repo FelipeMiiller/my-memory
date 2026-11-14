@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -87,32 +86,13 @@ func seedEventLogForDoctor(t *testing.T, nAcked, nUnacked int) string {
 }
 
 // runMemDoctor is a thin wrapper around exec for `mem doctor` tests.
+//
+// O binário vem do helper compartilhado `memBinary`, que compila num temp dir
+// — o `mem doctor` dos testes não pode tocar no binário do usuário
+// (ISSUE-041).
 func runMemDoctor(t *testing.T, rootDir string, args ...string) (string, string, int) {
 	t.Helper()
-	bin := "mem"
-	if runtime.GOOS == "windows" {
-		bin = "mem.exe"
-	}
-	cwd, _ := os.Getwd()
-	repoRoot := cwd
-	for {
-		if _, err := os.Stat(filepath.Join(repoRoot, "go.mod")); err == nil {
-			break
-		}
-		parent := filepath.Dir(repoRoot)
-		if parent == repoRoot {
-			t.Fatalf("go.mod não encontrado a partir de %s", cwd)
-		}
-		repoRoot = parent
-	}
-	path := filepath.Join(repoRoot, "bin", bin)
-
-	// Always rebuild.
-	buildCmd := exec.Command("go", "build", "-o", path, "./cmd/mem")
-	buildCmd.Dir = repoRoot
-	if out, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("build mem binary: %v\n%s", err, out)
-	}
+	path := memBinary(t)
 
 	cmd := exec.Command(path, args...)
 	cmd.Dir = rootDir

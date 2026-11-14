@@ -16,14 +16,16 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/event_runtime"
 )
 
-// memBinary returns the absolute path to the mem binary in the repo's
-// bin/ directory, building it first if needed (or if it's older than the
-// source). Tests rely on this so subprocess execution matches the same
-// binary the user runs.
+// memBinary compila o binário `mem` num diretório TEMPORÁRIO e devolve o
+// caminho absoluto.
 //
-// We always resolve the path relative to the repo root (where go.mod lives),
-// NOT the test's cwd — otherwise the test would resolve bin/ relative to
-// cmd/mem/ and find a stale binary.
+// O binário vai para `t.TempDir()` — NUNCA para `<repo>/bin/`. Compilar por
+// cima do binário do usuário é o defeito da ISSUE-041: a suíte substituía o
+// artefato taggeado (`-tags "sqlite_fts5 onnx"`) por um build mudo, e o
+// próximo `mem index` gravava chunk sem vetor no índice do cofre, sem erro.
+//
+// A suíte compila sem a tag `onnx` de propósito: o `go test` padrão roda sem
+// CGO e sem a toolchain C, e nenhum teste depende do provider vetorial.
 func memBinary(t *testing.T) string {
 	t.Helper()
 	bin := "mem"
@@ -34,9 +36,10 @@ func memBinary(t *testing.T) string {
 	// Find repo root by walking up from cwd until we find go.mod.
 	cwd, _ := os.Getwd()
 	repoRoot := findRepoRoot(t, cwd)
-	path := filepath.Join(repoRoot, "bin", bin)
 
-	// Always rebuild to avoid stale-binary issues (build is ~1s).
+	// O binário vive no temp dir do teste: some junto com ele.
+	path := filepath.Join(t.TempDir(), bin)
+
 	cmd := exec.Command("go", "build", "-o", path, "./cmd/mem")
 	cmd.Dir = repoRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
