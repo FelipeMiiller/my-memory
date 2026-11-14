@@ -158,8 +158,8 @@ type DoctorReport struct {
 	// ADR-057: documentos com mtime = 0 foram indexados antes de a coluna
 	// existir. Não é corrupção de dado — é uma lacuna de metadados, então fica
 	// fora do HealthScore e vira contagem explícita no relatório.
-	MissingMTimeCount int             `json:"missing_mtime_count"`
-	DeadLinks         []DeadLink      `json:"dead_links"`
+	MissingMTimeCount int        `json:"missing_mtime_count"`
+	DeadLinks         []DeadLink `json:"dead_links"`
 	// OutOfIndexLinks são links cujo alvo existe em disco mas está fora do
 	// índice por decisão. Não são link rompido e não penalizam o score.
 	OutOfIndexLinks []OutOfIndexLink `json:"out_of_index_links"`
@@ -169,10 +169,10 @@ type DoctorReport struct {
 	UnverifiableLinks []DeadLink `json:"unverifiable_links"`
 	// HealthScoreProvisional marca o score como provisório: há link que não
 	// pôde ser verificado, então o número é um piso, não um veredito.
-	HealthScoreProvisional bool             `json:"health_score_provisional"`
-	OrphanNotes            []OrphanNote     `json:"orphan_notes"`
-	SelfLoops              []SelfLoop       `json:"self_loops"`
-	DesyncedChunks         []DesyncedChunk  `json:"desynced_chunks"`
+	HealthScoreProvisional bool            `json:"health_score_provisional"`
+	OrphanNotes            []OrphanNote    `json:"orphan_notes"`
+	SelfLoops              []SelfLoop      `json:"self_loops"`
+	DesyncedChunks         []DesyncedChunk `json:"desynced_chunks"`
 	// Ortografia é um AVISO (ISSUE-017): termos sem acento que quebram a
 	// tokenização da busca. Não entra no cálculo do HealthScore — perda de
 	// acento não é corrupção de dado, é decisão de produto.

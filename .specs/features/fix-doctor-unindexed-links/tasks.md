@@ -377,6 +377,35 @@ chave nova `health_score_provisional` — agora ele confere a chave pelo nome.
 
 ---
 
+### T9: O `DoctorReport` volta a estar alinhado pelo `gofmt`
+
+**What**: o `gofmt` realinha os campos do `DoctorReport` em `internal/store` —
+os campos novos entraram com comentários no meio e deixaram o bloco com o
+alinhamento antigo.
+
+**Where**: `internal/store/store.go`
+**Depends on**: T3
+**Reuses**: —
+
+**Tools**:
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+- [x] `gofmt -l` não aponta `internal/store/store.go` (medido em cópia LF)
+- [x] Nenhuma mudança de comportamento (só alinhamento)
+
+**Status**: Verified (2026-11-14) — **achado do Verifier independente**: o item
+`gofmt` do quality gate estava vermelho desde o T3. Corrigido com o `gofmt -w`
+(arquivo em LF, sem BOM).
+
+**Tests**: none (formatação — o gate `gofmt` é a verificação)
+**Gate**: quick
+
+**Commit**: `style(store): o DoctorReport volta a estar alinhado pelo gofmt`
+
+---
+
 ## Phase Execution Map
 
 ```
@@ -385,7 +414,7 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4
 Phase 1:  T1 -> T2
 Phase 2:  T2 -> T3 -> T4 -> T5
 Phase 3:  T5 -> T6 -> T7
-Phase 4:  T7 -> T8
+Phase 4:  T7 -> T8 -> T9
 ```
 
 A fase 4 é a **rodada de correção** que o Verifier independente opened: os gaps
@@ -394,8 +423,8 @@ que ele encontrou viraram tarefas de fix com commit próprio.
 Execution is strictly sequential - there is no intra-phase parallelism. A single
 agent (or batch worker) works one task at a time, in order.
 
-**Contagem de tarefas**: 8 — cabem em um único lote (≤ ~8 por worker), então a
-execução é **inline**, sem sub-agente. A fase 4 entrou depois, com 1 tarefa
+**Contagem de tarefas**: 9 — cabem em um único lote (≤ ~8 por worker), então a
+execução é **inline**, sem sub-agente. A fase 4 entrou depois, com 2 tarefas
 de correção do Verifier.
 
 ---
@@ -412,6 +441,7 @@ de correção do Verifier.
 | T6 | T5 | T5 -> T6 | ✅ Match |
 | T7 | T6 | T6 -> T7 | ✅ Match |
 | T8 | T7 | T7 -> T8 | ✅ Match |
+| T9 | T3 | T8 -> T9 | ✅ Match |
 
 Nenhuma dependência aponta para uma fase posterior.
 
@@ -429,6 +459,7 @@ Nenhuma dependência aponta para uma fase posterior.
 | T6 | Superfície CLI e MCP | integration | integration | ✅ OK |
 | T7 | Superfície CLI e MCP | integration | integration | ✅ OK |
 | T8 | Superfície CLI e MCP | integration | unit | ✅ OK (o wire é o contrato; o teste é unitário) |
+| T9 | Relatório e Health Score | unit | none | ✅ OK (formatação — o gate `gofmt` é a verificação) |
 
 ---
 
@@ -444,3 +475,4 @@ Nenhuma dependência aponta para uma fase posterior.
 | T6: flag + relatório | 1 arquivo | ✅ Granular |
 | T7: espelho MCP | 1 arquivo | ✅ Granular |
 | T8: contrato do wire | 2 arquivos (código + teste) | ✅ Granular |
+| T9: gofmt do store | 1 arquivo (formatação) | ✅ Granular |
