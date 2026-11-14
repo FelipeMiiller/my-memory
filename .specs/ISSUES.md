@@ -1900,10 +1900,10 @@ E2E rodando com o **provider ONNX real**. Relatório:
 `.specs/features/fix-zero-vector-chunks/validation.md`.
 ---
 
-## ISSUE-041 — A suite de `cmd/mem` sobrescreve `bin/mem.exe` com um build SEM a tag `onnx`: o proximo `mem index` grava chunk sem vetor, em silencio
+## ISSUE-041 — A suite de `cmd/mem` sobrescreve `bin/mem.exe` com um build SEM a tag `onnx`: o proximo `mem index` grava chunk sem vetor
 
-- **Severidade:** 🔴 alta (degradacao **silenciosa** do indice do Cofre Central: o Health Score cai 15 pontos sem erro, aviso ou log)
-- **Status:** 🔵 **open** — achado em 2026-11-14 ao medir o comportamento incremental do `mem index`; reparo provado no cofre (rebuild taggeado + reindex), **correcao do codigo pendente de spec**
+- **Severidade:** 🟡 media (o estrago e **anunciado** — o `mem index` imprime o aviso consolidado e o doctor lista os chunks — mas a suite **derruba o artefato que o dono usa**, sem ter obrigação sobre isso)
+- **Status:** 🔵 **open — spec escrita** (2026-11-14, `.specs/features/fix-test-binary-clobber/`) — 3 ACs, 7 requisitos, 3 tarefas, 2 fases; o conserto (helper compilando num temp dir + prova de nao-regressao) ainda **nao** foi implementado. Reparo **provado** no cofre (rebuild taggeado + reindex), mas o defeito do codigo continua ate a T2 da spec.
 - **Achado em:** 2026-11-14, durante a medicao do "atualizar so o conteudo que mudou" (spec `central-vault-concept-notes`)
 
 **O defeito.** Dois helpers de teste de `cmd/mem` compilam o binario **por cima do
@@ -1927,27 +1927,30 @@ sobrescrevendo o artefato que o dono usa.
 3. O `mem index` seguinte rodou em **modo lexico**: os chunks da nota alterada
    foram gravados **sem embedding** (ISSUE-040: sem provider, o chunk e gravado
    sem vetor — nunca vetor zero).
-4. O `mem doctor` reportou **96/100** (2 chunks sem vetor real = 4 pontos) — e
-   **nenhum aviso** de que o provider tinha sumido. A causa nao aparece no
-   relatorio: o doctor ve o chunk sem vetor, nao o binario sem tag.
+4. O `mem doctor` reportou **96/100** (2 chunks sem vetor real = 4 pontos).
+   **Correcao de um registro anterior deste issue:** a degradacao **nao** e
+   silenciosa — o `mem index` imprime o aviso consolidado do ISSUE-037
+   (`cmd/mem/main.go:1503`, que nomeia a tag ausente e a causa probable) e o
+   doctor lista os chunks sem vetor real. O que faltava era o binario do
+   usuario deixar de ser efeito colateral da suite.
 
 **Por que o epoch nao salvou.** O gate do cache incremental exige hash **e**
 epoch iguais (`internal/db/store.go:151-170`). No modo lexico o epoch gravado e
 `""`; quando o provider volta, `"" != "paraphrase-multilingual-MiniLM-L12-v2:384:v1"`
 e o documento **nao** passa no gate — ou seja, o epoch **se auto-cura**: provado
 neste caso (1 documento reprocessado, 107 em cache, vetor de volta, score 100).
-O que falta e evitar o estrago: sem provider, nada deve ser gravado no indice do
-vault vetorizado sem aviso.
+O que falta e evitar o estrago: a suite nao deve trocar o binario do dono.
 
 **Correcao proposta.**
 (a) Os helpers de teste compilam num **temp dir** (`t.TempDir()`) e nunca em
-`bin/` — o binario do usuario deixa de ser efeito colateral da suite.
-(b) O `mem index` com o provider ausente **avisa por execução** que está
-gravando chunk sem vetor, com o mesmo peso do aviso consolidado do `mem index`
-(ISSUE-037) — o aviso existe para o binário oficial; falta para este caso.
-(c) O `mem embed doctor` ganha um veredito explicito quando o binario **foi**
-compilado com a tag mas o provider falhou ao carregar (distinguir "sem tag" de
-"artefato faltando").
+`bin/` — o binario do usuario deixa de ser efeito colateral da suite. **Este e o
+escopo da spec `fix-test-binary-clobber`.**
+(b) ~~O `mem index` com o provider ausente avisa por execução~~ — **ja existe**
+(ISSUE-037, `cmd/mem/main.go:1503`), com teste proprio em
+`cmd/mem/embed_provider_degradation_test.go`. Mantido como contrato a preservar.
+(c) ~~O `mem embed doctor` distingue "sem tag" de "artefato faltando"~~ — **ja
+existe**: o stub sem tag responde *"este binário foi compilado sem a tag
+`onnx`"* e o provider real responde que o modelo nao foi encontrado.
 
 **Referência:** ADR-035 (o provider atras da tag) · ADR-062 §B-4 (o cofre com
 vetor) · ISSUE-037 (binario oficial sem provider) · ISSUE-040 (chunk sem vetor
