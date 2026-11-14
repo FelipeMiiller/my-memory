@@ -327,13 +327,35 @@ híbrida
 
 **Done when**:
 
-- [ ] Sem a tag `onnx`, o teste **pula** com mensagem explícita (nunca verde
+- [x] Sem a tag `onnx`, o teste **pula** com mensagem explícita (nunca verde
       mentiroso)
-- [ ] Com a tag, a nota escrita volta na busca por paráfrase
-- [ ] A origem do hit é a fonte `vector`, não a léxica
+- [x] Com a tag, a nota escrita volta na busca por paráfrase
+- [x] A origem do hit é a fonte `vector`, não a léxica
 
 **Tests**: integration
 **Gate**: tagged
+
+**Status**: Verified (2026-11-14)
+
+**Sensor** (2 mutações, `D:\.minimax\scratch\sensor_t7.py`):
+
+| Mutação | Efeito | Veredito |
+| :--- | :--- | :--- |
+| M-T7a — `newBuiltinEmbedder` devolve um provider nulo | a nota entra sem vetor e a busca por paráfrase **não** traz a nota | MORTO |
+| M-T8a — o vetor real do provider é substituído pelo vetor zero | depois do reindex do zero, 1 chunk continua sem vetor real | MORTO |
+
+**Notas de implementação**:
+
+- O arquivo **não** tem `//go:build onnx`: ele compila nas duas builds e
+  **pula com mensagem explícita** quando o provider embutido não existe
+  (`newBuiltinEmbedder` devolve erro no binário sem a tag). Sem a tag, o
+  resultado observado é `--- SKIP` com o motivo — nunca verde-mentira.
+- A nota entra pelo caminho de verdade (`mem lesson`) num cofre
+  descartável: a configuração global é redirecionada por
+  `MY_MEMORY_GLOBAL_CONFIG_DIR`, então o teste nunca toca no cofre real.
+- A consulta é uma paráfrase **sem nenhuma palavra em comum** com a nota
+  (nem no título, nem no corpo, nem no frontmatter) — e o FTS5 do SQLite
+  casa os termos com AND, então a fonte léxica não traz a nota.
 
 **Commit**: `test(vault): a nota do cofre volta por sentido`
 
@@ -354,13 +376,21 @@ confirma que **nenhum** chunk fica sem vetor real.
 
 **Done when**:
 
-- [ ] Depois do `--force`, a contagem de chunks sem vetor real é **zero**
-- [ ] A contagem de documentos e de chunks é a mesma de antes (o reindex não
+- [x] Depois do `--force`, a contagem de chunks sem vetor real é **zero**
+- [x] A contagem de documentos e de chunks é a mesma de antes (o reindex não
       perde conteúdo)
-- [ ] O doctor reporta zero chunks dessincronizados
+- [x] O doctor reporta zero chunks dessincronizados
 
 **Tests**: integration
 **Gate**: full
+
+**Status**: Verified (2026-11-14)
+
+**Nota de implementação**: o teste faz o caminho **do reparo inteiro** —
+primeiro indexa o vault **sem** provider (que é o que deixa os chunks sem
+vetor, e o doctor reporta), depois reindexa do zero **com** o provider real
+(`mem index --force`). A contagem de chunks sem vetor real vem do próprio
+doctor (`db.DiagnoseHealth`), que é a mesma definição usada nas T4 e T5.
 
 **Commit**: `test(vault): o reindex do zero preserva os vetores`
 
