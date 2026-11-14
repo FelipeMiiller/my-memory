@@ -200,7 +200,15 @@ try {
     } catch {
         Write-Warn "Não foi possível baixar os artefatos do provider: $($_.Exception.Message). Rode 'mem embed download' manualmente."
     }
-    Write-Host "   Diretório do modelo: $env:USERPROFILE\.memory\models\paraphrase-multilingual-MiniLM-L12-v2"
+    # O diretório que o download REALMENTE usou. `mem embed download` respeita
+    # MY_MEMORY_MINILM_MODEL_DIR; imprimir um caminho fixo seria mentir sobre
+    # onde o modelo ficou (AC7 -- "SHALL print the model directory it used").
+    $ModelDir = if ($env:MY_MEMORY_MINILM_MODEL_DIR) {
+        $env:MY_MEMORY_MINILM_MODEL_DIR
+    } else {
+        Join-Path $env:USERPROFILE ".memory\models\paraphrase-multilingual-MiniLM-L12-v2"
+    }
+    Write-Host "   Diretório do modelo: $ModelDir"
 
     Write-Host ""
     Write-Host "  Instalação concluída com sucesso!" -ForegroundColor Green

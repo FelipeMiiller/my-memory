@@ -492,12 +492,12 @@ model directory it used" da AC7.
 
 **Done when**:
 
-- [ ] Com `MY_MEMORY_MINILM_MODEL_DIR` definido, o instalador imprime esse
+- [x] Com `MY_MEMORY_MINILM_MODEL_DIR` definido, o instalador imprime esse
       diretório
-- [ ] Sem a variável, imprime `~/.memory/models/paraphrase-multilingual-MiniLM-L12-v2`
-- [ ] Os scripts continuam válidos (parse do PowerShell + `bash -n`)
+- [x] Sem a variável, imprime `~/.memory/models/paraphrase-multilingual-MiniLM-L12-v2`
+- [x] Os scripts continuam válidos (parse do PowerShell + `bash -n`)
 
-**Status**: Pending
+**Status**: Verified (2026-11-13)
 
 **Tests**: none
 **Gate**: build gate only (parse dos scripts)

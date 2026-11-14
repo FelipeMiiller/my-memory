@@ -295,7 +295,11 @@ else
     warn "O download do provider falhou. Rode 'mem embed download' manualmente quando a rede estiver disponível."
     printf "%s\n" "$EMBED_OUT"
 fi
-printf "   Diretório do modelo: %s\n" "${HOME}/.memory/models/paraphrase-multilingual-MiniLM-L12-v2"
+# O diretório que o download REALMENTE usou. `mem embed download` respeita
+# MY_MEMORY_MINILM_MODEL_DIR; imprimir um caminho fixo seria mentir sobre
+# onde o modelo ficou (AC7 -- "SHALL print the model directory it used").
+MODEL_DIR="${MY_MEMORY_MINILM_MODEL_DIR:-$HOME/.memory/models/paraphrase-multilingual-MiniLM-L12-v2}"
+printf "   Diretório do modelo: %s\n" "$MODEL_DIR"
 
 printf "\n"
 printf "${GREEN}  Instalação concluída com sucesso!${NC}\n\n"
