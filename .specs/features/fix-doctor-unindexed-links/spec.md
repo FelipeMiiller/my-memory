@@ -197,15 +197,20 @@ mesmos números para o mesmo vault.
 
 ## Success Criteria
 
-- [ ] O cofre central passa de 45/100 para **60/100**: as **125** arestas cujo
-      alvo existe em disco vão para a categoria "fora do índice por decisão" e
-      as **13** restantes continuam listadas como **rompidas** (conceitos sem
-      nota). O `--fix` apaga **13** arestas, não 138.
+- [ ] O cofre central passa a **listar 125** links na categoria "fora do índice
+      por decisão" (cada um com o caminho em disco onde o alvo foi encontrado) e
+      **13** na categoria "rompida" (conceitos sem nota). O relatório deixa de
+      acusar 138 links vivos.
+- [ ] O `mem doctor --fix` do cofre central apaga **13** arestas, não 138 — e
+      preserva as 125 cujo alvo existe em disco.
 - [ ] Os 2 dead links reais do vault do repositório (`[[ADR-035]]`) continuam
       dead links.
-- [ ] O `mem doctor --fix` do cofre central **preserva** as 125 arestas cujo
-      alvo existe em disco.
-- [ ] **O critério "≥ 90/100" da ADR-062 §B-2 NÃO fecha com esta spec** — ele
-      depende da decisão de conteúdo sobre os 13 conceitos sem nota (ver Out
-      of Scope). A spec entrega a distinção e a medição; o score honesto do
-      cofre, depois do reindex com provider, é **60/100**.
+- [ ] **O Health Score do cofre central CONTINUA 45/100 com esta spec**: com
+      13 dead links a penalidade (5 pts cada) ainda satura o teto de 40 — o
+      mesmo teto que os 138 saturavam. O que muda é o relatório (13 em vez de
+      138) e o `--fix` (13 em vez de 138).
+- [ ] O score chega a **60/100** depois do reindex com o provider (que tira a
+      penalidade de 15 dos chunks sem vetor). Para chegar a **≥ 90** (critério
+      §B-2 da ADR-062) é preciso ≤ 2 dead links — o que depende da decisão de
+      **conteúdo** sobre os 13 conceitos sem nota (ver Out of Scope). A spec
+      entrega a distinção e a medição; ela **não fecha** o critério de score.
