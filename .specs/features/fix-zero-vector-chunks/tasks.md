@@ -271,14 +271,40 @@ embedding real (ausente ou zero).
 
 **Done when**:
 
-- [ ] O Postgres não devolve chunk com `embedding` NULL nem com vetor zero
-- [ ] O SQLite não devolve chunk sem linha em `chunks_vec` nem com vetor zero
-- [ ] O SQLite não devolve chunk cuja linha TurboQuant é a de um vetor zero
-- [ ] O híbrido alcança o chunk sem vetor **apenas** pela fonte léxica
-- [ ] A busca com todos os chunks sem vetor devolve lista vazia, e não erro
+- [x] O Postgres não devolve chunk com `embedding` NULL nem com vetor zero
+- [x] O SQLite não devolve chunk sem linha em `chunks_vec` nem com vetor zero
+- [x] O SQLite não devolve chunk cuja linha TurboQuant é a de um vetor zero
+- [x] O híbrido alcança o chunk sem vetor **apenas** pela fonte léxica
+- [x] A busca com todos os chunks sem vetor devolve lista vazia, e não erro
 
 **Tests**: unit + integration
 **Gate**: quick
+
+**Status**: Verified (2026-11-14)
+
+**Sensor** (4 mutações, `D:\.minimax\scratch\sensor_t6.py` — cada mutação é
+rodada nos **três** caminhos: SQLite comprimido, SQLite cru (vec0) e Postgres):
+
+| Mutação | Efeito | Veredito |
+| :--- | :--- | :--- |
+| M-T6a — os dois filtros do Postgres saem da query do KNN | a busca **erra** (`Scan error ... converting NULL to float64`): o chunk sem embedding entra com distância nula | MORTO |
+| M-T6b — o filtro do vetor zero sai do caminho comprimido | o chunk com vetor zero volta pelo TurboQuant; a busca "todos sem vetor" devolve 1 resultado; no híbrido ele aparece na fonte `vector:1` | MORTO |
+| M-T6c — o filtro do vetor zero sai do caminho cru (vec0) | o chunk com vetor zero volta pelo KNN do sqlite-vec | MORTO |
+| M-T6d — só o filtro `IS NOT NULL` sai do Postgres | o `NULL` continua de fora: `(embedding <#> embedding) <> 0` já o exclui (`NULL <> 0` não é verdadeiro) | SOBREVIVEU — **mutante equivalente**; a cláusula `IS NOT NULL` fica por explicitar o requisito |
+
+**Notas de implementação**:
+
+- O caminho cru (sqlite-vec) precisou de uma decisão: a coluna do vetor
+  **não** pode ser filtrada dentro da query do KNN. O `v.embedding` foi
+  acrescentado ao `SELECT` e o filtro roda em Go. Isso é seguro porque o
+  sqlite-vec devolve o vetor **gravado** fora do `MATCH` (e o `test.sql` do
+  próprio upstream seleciona a coluna do vetor em query KNN).
+- O caminho vec0 **não existe no Windows** (`HasSqliteVec` é false lá). Para
+  verificar localmente, o build tag foi relaxado **temporariamente** (com o
+  shim `sqlite3.h` apontando para o header do `mattn/go-sqlite3`) e revertido
+  depois: ele não pode ir para o commit, porque quebraria o build do Windows
+  sem o shim. A suíte `internal/db` inteira passou com a tag `sqlite_fts5`
+  (o mesmo que a CI roda no Ubuntu).
 
 **Commit**: `fix(search): a busca vetorial exclui chunk sem vetor real`
 

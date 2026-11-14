@@ -566,6 +566,14 @@ func (s *PostgresStore) SearchKNN(ctx context.Context, repo string, queryVec []f
 }
 
 func (s *PostgresStore) SearchKNNWithOptions(ctx context.Context, repo string, queryVec []float32, limit int, searchOpts SearchOptions) ([]SearchResult, error) {
+	// O chunk sem vetor real não sai da busca. O vetor zero (o defeito da
+	// ISSUE-040) preenche a coluna, então ele entraria no resultado como
+	// qualquer outro — e a distância de cosseno de um vetor zero é
+	// indefinida: o hit sai sem ordem confiável e com aparência de acerto.
+	//
+	// `embedding IS NOT NULL` tira o ausente; `(embedding <#> embedding) <> 0`
+	// tira o vetor zero, porque o pgvector dá o produto interno negativo e
+	// `v <#> v = -||v||²`, que vale zero só quando o vetor É o vetor zero.
 	vecStr := FormatVector(queryVec)
 	cat := strings.TrimSpace(searchOpts.Category)
 	tag := strings.TrimSpace(searchOpts.Tag)
@@ -584,6 +592,8 @@ func (s *PostgresStore) SearchKNNWithOptions(ctx context.Context, repo string, q
 		FROM chunks c
 		LEFT JOIN documents d ON d.id = c.document_id AND d.repository = c.repository
 		WHERE ($2 = '' OR c.repository = $2)
+		  AND c.embedding IS NOT NULL
+		  AND (c.embedding <#> c.embedding) <> 0
 		  AND ($3 = '' OR LOWER(d.category) = LOWER($3))
 		  AND ($4 = '' OR EXISTS (
 		      SELECT 1 FROM document_tags dt

@@ -64,7 +64,7 @@ func SearchKNNWithOptions(ctx context.Context, db *sql.DB, queryVec []float32, l
 		tagPattern = store.EscapeLikePattern(tag) + "/%"
 	}
 	query := `
-	SELECT c.id, c.document_id, c.content, v.distance, COALESCE(d.updated_at, 0),
+	SELECT c.id, c.document_id, c.content, v.embedding, v.distance, COALESCE(d.updated_at, 0),
 	       COALESCE(d.mtime, 0),
 	       COALESCE(d.abstract, ''), COALESCE(d.category, 'resource')
 	FROM chunks_vec v
@@ -89,8 +89,20 @@ func SearchKNNWithOptions(ctx context.Context, db *sql.DB, queryVec []float32, l
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &r.Distance, &r.UpdatedAt, &r.MTime, &r.Abstract, &r.Category); err != nil {
+		var vetor []byte
+		if err := rows.Scan(&r.ChunkID, &r.DocumentID, &r.Content, &vetor, &r.Distance, &r.UpdatedAt, &r.MTime, &r.Abstract, &r.Category); err != nil {
 			return nil, err
+		}
+
+		// O chunk sem vetor real não sai da busca. O vetor zero (o defeito
+		// da ISSUE-040) PREENCHE a coluna, então o KNN o devolve como
+		// qualquer outro — e devolveria ruído com cara de resultado.
+		//
+		// O `embedding` lido aqui é o vetor GRAVADO: fora do MATCH, o
+		// sqlite-vec devolve o blob armazenado, e o KNN é a única consulta
+		// que carrega o vetor da consulta.
+		if vetorCruzoEhZero(vetor) {
+			continue
 		}
 
 		neighbors, err := GetNodeNeighbors(ctx, db, r.DocumentID, 1)
@@ -162,6 +174,17 @@ func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.
 		var abstract, category string
 
 		if err := rows.Scan(&chunkID, &docID, &content, &scale, &data, &updatedAt, &mtime, &abstract, &category); err != nil {
+			continue
+		}
+
+		// O chunk sem vetor real não sai da busca. No caminho comprimido, o
+		// vetor zero tem assinatura exata (todo nibble vale 7 — todo byte
+		// vale 0x77), então ele é reconhecível sem descompactar.
+		//
+		// E é por este caminho que o chunk voltava: no Windows
+		// `db.HasSqliteVec` é false, então a busca vetorial lê
+		// `chunks_turboquant` — não `chunks_vec`.
+		if turboQuantEhZero(data, embedder.EmbeddingDim) {
 			continue
 		}
 
