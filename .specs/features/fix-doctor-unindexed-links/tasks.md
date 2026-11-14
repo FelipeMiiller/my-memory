@@ -34,6 +34,7 @@ mudou a semântica de resolução do alvo (T2) e os números esperados.
 | Classificação no Postgres | integration (PostgreSQL real) | o mesmo contrato no engine de produção (ACs 1, 2, 4, 5, 6, 7) | `internal/store/doctor_unindexed_test.go` | `MY_MEMORY_PG_TEST=1 go test -count=1 -run TestPostgresDoctorUnindexed ./internal/store/...` |
 | Relatório e Health Score | unit | AC3, AC4 e AC5: a categoria nova não penaliza; não verificável penaliza e marca o score como provisório | `internal/store/doctor_score_test.go` | `go test -count=1 -run 'TestHealthScore\|TestClassifyLinks' ./internal/store/...` |
 | Superfície CLI e MCP | integration | AC8 e AC9: `--vault` muda a raiz; o payload do MCP traz as três categorias | `cmd/mem/doctor_vault_test.go` | `go test -count=1 -run TestDoctorVault ./cmd/mem/...` |
+| Alinhamento do código | format | o `gofmt` não aponta nenhum arquivo tocado (medido em cópia LF) | `internal/store/store.go` | `gofmt -l internal/store/store.go` |
 
 ## Gate Check Commands
 
@@ -384,7 +385,7 @@ os campos novos entraram com comentários no meio e deixaram o bloco com o
 alinhamento antigo.
 
 **Where**: `internal/store/store.go`
-**Depends on**: T3
+**Depends on**: T8
 **Reuses**: —
 
 **Tools**:
@@ -396,8 +397,10 @@ alinhamento antigo.
 - [x] Nenhuma mudança de comportamento (só alinhamento)
 
 **Status**: Verified (2026-11-14) — **achado do Verifier independente**: o item
-`gofmt` do quality gate estava vermelho desde o T3. Corrigido com o `gofmt -w`
-(arquivo em LF, sem BOM).
+`gofmt` do quality gate estava vermelho **desde o T3** (que introduziu os campos
+novos). Corrigido com o `gofmt -w` (arquivo em LF, sem BOM). A dependência
+declarada é da T8 porque é a mesma rodada de correção aberta pelo Verifier — a
+origem do desalinhamento é o T3, registrado acima.
 
 **Tests**: none (formatação — o gate `gofmt` é a verificação)
 **Gate**: quick
@@ -441,7 +444,7 @@ de correção do Verifier.
 | T6 | T5 | T5 -> T6 | ✅ Match |
 | T7 | T6 | T6 -> T7 | ✅ Match |
 | T8 | T7 | T7 -> T8 | ✅ Match |
-| T9 | T3 | T8 -> T9 | ✅ Match |
+| T9 | T8 | T8 -> T9 | ✅ Match |
 
 Nenhuma dependência aponta para uma fase posterior.
 

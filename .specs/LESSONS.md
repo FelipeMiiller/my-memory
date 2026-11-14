@@ -50,6 +50,18 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: cmd/mem/main.go:2222 (cmd/mem)
 - last seen: 2026-11-14T11:14:09Z
 
+### L-007 - Toda chave array nova no payload de uma tool MCP precisa entrar na normalizacao da fronteira do structuredContent e no teste que proibe null: o contrato do wire e por chave, nao por tipo.
+- signal: `gate_fail` · recurrence: 1 feature(s) · scope: `internal/mcp` · harmful: 0
+- features: fix-doctor-unindexed-links
+- evidence: internal/mcp/structured_content.go:65 (internal/mcp)
+- last seen: 2026-11-14T18:27:21Z
+
+### L-008 - Numero de Health Score citado em Out of Scope envelhece quando outra spec mexe na mesma formula: remeça antes de reutilizar o valor medido por outra spec.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `spec` · harmful: 0
+- features: fix-doctor-unindexed-links
+- evidence: .specs/features/fix-doctor-unindexed-links/spec.md:68 (spec)
+- last seen: 2026-11-14T18:27:21Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

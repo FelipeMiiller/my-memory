@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 7,
+  "next_id": 9,
   "lessons": [
     {
       "id": "L-001",
@@ -112,6 +112,42 @@
       ],
       "created": "2026-11-14T11:14:09Z",
       "last_seen": "2026-11-14T11:14:09Z"
+    },
+    {
+      "id": "L-007",
+      "key": "gate_fail::toda chave array nova no payload de uma tool mcp precisa entrar na normalizacao da fronteira do structuredcontent e no teste que proibe null o contrato do wire e por chave nao por tipo",
+      "text": "Toda chave array nova no payload de uma tool MCP precisa entrar na normalizacao da fronteira do structuredContent e no teste que proibe null: o contrato do wire e por chave, nao por tipo.",
+      "signal": "gate_fail",
+      "scope": "internal/mcp",
+      "status": "candidate",
+      "features": [
+        "fix-doctor-unindexed-links"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/mcp/structured_content.go:65 (internal/mcp)"
+      ],
+      "created": "2026-11-14T18:27:21Z",
+      "last_seen": "2026-11-14T18:27:21Z"
+    },
+    {
+      "id": "L-008",
+      "key": "spec_precision_gap::numero de health score citado em out of scope envelhece quando outra spec mexe na mesma formula remeca antes de reutilizar o valor medido por outra spec",
+      "text": "Numero de Health Score citado em Out of Scope envelhece quando outra spec mexe na mesma formula: remeça antes de reutilizar o valor medido por outra spec.",
+      "signal": "spec_precision_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "fix-doctor-unindexed-links"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        ".specs/features/fix-doctor-unindexed-links/spec.md:68 (spec)"
+      ],
+      "created": "2026-11-14T18:27:21Z",
+      "last_seen": "2026-11-14T18:27:21Z"
     }
   ]
 }
