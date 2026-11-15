@@ -92,6 +92,84 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: internal/mcp/tools.go:54 (internal/mcp)
 - last seen: 2026-11-15T15:05:30Z
 
+### L-014 - Orcamento de tamanho tem que ser medido no artefato emitido (o Markdown final), nao em um contador interno que ignora o enquadramento que o proprio codigo renderiza.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `internal/graph` · harmful: 0
+- features: context-packager-and-subgraph-bundle
+- evidence: internal/graph/pack.go:284 (internal/graph)
+- last seen: 2026-11-15T15:17:57Z
+
+### L-015 - Filtro que muda o conjunto selecionado nao pode ser testado por contagem: afirme o conjunto exato que cada modo do filtro deve produzir.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `internal/graph` · harmful: 0
+- features: context-packager-and-subgraph-bundle
+- evidence: M3 internal/graph/pack.go:147 (internal/graph)
+- last seen: 2026-11-15T15:17:57Z
+
+### L-016 - Quando o criterio define uma ordem de prioridade, afirme a ordem dos elementos selecionados, nao apenas o conjunto deles.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `internal/graph` · harmful: 0
+- features: context-packager-and-subgraph-bundle
+- evidence: M4 internal/graph/pack.go:213 (internal/graph)
+- last seen: 2026-11-15T15:17:58Z
+
+### L-017 - Tratamento especial de um no especifico so esta coberto quando a assercao fixa o tier dele, e nao apenas as contagens agregadas do resultado.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `internal/graph` · harmful: 0
+- features: context-packager-and-subgraph-bundle
+- evidence: M2 internal/graph/pack.go:247 (internal/graph)
+- last seen: 2026-11-15T15:17:58Z
+
+### L-018 - Criterio que pede um resumo sem dizer a superficie de saida nao e testavel: fixe se o resumo vai no artefato ou so na saida do comando.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `spec` · harmful: 0
+- features: context-packager-and-subgraph-bundle
+- evidence: SP1 R3.1 (spec)
+- last seen: 2026-11-15T15:17:58Z
+
+### L-019 - Feature que promete prioridade precisa definir a ordem esperada na spec, senao nao existe valor a afirmar e o sensor nao mata mutante.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `spec` · harmful: 0
+- features: context-packager-and-subgraph-bundle
+- evidence: SP2 G1 (spec)
+- last seen: 2026-11-15T15:17:59Z
+
+### L-020 - Um branch dedicado so esta coberto quando a assercao fixa o que ele produz de diferente do caminho generico: se o algoritmo geral devolve o mesmo resultado, a mutacao do branch sobrevive.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `internal/graph` · harmful: 0
+- features: graph-path-discovery
+- evidence: internal/graph/path.go:166 (mutant M7) (internal/graph)
+- last seen: 2026-11-15T15:24:51Z
+
+### L-021 - Cobertura de um metodo que filtra por repositorio exige dois repositorios no teste: um caminho para o proprio no nao exercita o filtro.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `internal/store` · harmful: 0
+- features: graph-path-discovery
+- evidence: internal/store/postgres_test.go:272 (AC G2) (internal/store)
+- last seen: 2026-11-15T15:24:51Z
+
+### L-022 - Pino no criterio o campo de saida que o usuario precisa (status epistematico, peso da aresta), nao apenas que a aresta existe: sem o valor nao existe valor a afirmar.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `spec` · harmful: 0
+- features: graph-path-discovery
+- evidence: internal/graph/path_test.go:103 (AC P1.1) (spec)
+- last seen: 2026-11-15T15:24:52Z
+
+### L-023 - Resolucao de nome ambiguo precisa de desambiguacao explicita: um LIMIT 1 sem ORDER BY escolhe uma nota qualquer entre as homonimas e aponta o usuario para o arquivo errado.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `internal/store` · harmful: 0
+- features: graph-path-discovery
+- evidence: internal/store/postgres.go:1030 (AC P1.1) (internal/store)
+- last seen: 2026-11-15T15:24:52Z
+
+### L-024 - Quando a feature expoe uma flag e a sua inversa, a spec precisa dizer qual vence quando as duas aparecem.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `spec` · harmful: 0
+- features: graph-path-discovery
+- evidence: spec.md:30 (S3) (spec)
+- last seen: 2026-11-15T15:24:52Z
+
+### L-025 - Helper de default chamado so por teste esta morto em producao: quando os defaults sao re-declarados como literais em outro lugar, helper e chamadores divergem.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `internal/graph` · harmful: 0
+- features: graph-path-discovery
+- evidence: internal/graph/path.go:26 (AC G1) (internal/graph)
+- last seen: 2026-11-15T15:24:53Z
+
+### L-026 - Resolva o no do grafo para a identidade que as arestas usam: indexar com um id e percorrer com outro transforma toda rota em nao encontrado.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `internal/graph` · harmful: 0
+- features: graph-path-discovery
+- evidence: internal/store/postgres.go:1018 (AC P1.1) (internal/graph)
+- last seen: 2026-11-15T15:25:02Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

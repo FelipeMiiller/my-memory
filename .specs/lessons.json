@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 14,
+  "next_id": 27,
   "lessons": [
     {
       "id": "L-001",
@@ -238,6 +238,240 @@
       ],
       "created": "2026-11-15T15:05:30Z",
       "last_seen": "2026-11-15T15:05:30Z"
+    },
+    {
+      "id": "L-014",
+      "key": "ac_gap::orcamento de tamanho tem que ser medido no artefato emitido o markdown final nao em um contador interno que ignora o enquadramento que o proprio codigo renderiza",
+      "text": "Orcamento de tamanho tem que ser medido no artefato emitido (o Markdown final), nao em um contador interno que ignora o enquadramento que o proprio codigo renderiza.",
+      "signal": "ac_gap",
+      "scope": "internal/graph",
+      "status": "candidate",
+      "features": [
+        "context-packager-and-subgraph-bundle"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/graph/pack.go:284 (internal/graph)"
+      ],
+      "created": "2026-11-15T15:17:57Z",
+      "last_seen": "2026-11-15T15:17:57Z"
+    },
+    {
+      "id": "L-015",
+      "key": "surviving_mutant::filtro que muda o conjunto selecionado nao pode ser testado por contagem afirme o conjunto exato que cada modo do filtro deve produzir",
+      "text": "Filtro que muda o conjunto selecionado nao pode ser testado por contagem: afirme o conjunto exato que cada modo do filtro deve produzir.",
+      "signal": "surviving_mutant",
+      "scope": "internal/graph",
+      "status": "candidate",
+      "features": [
+        "context-packager-and-subgraph-bundle"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M3 internal/graph/pack.go:147 (internal/graph)"
+      ],
+      "created": "2026-11-15T15:17:57Z",
+      "last_seen": "2026-11-15T15:17:57Z"
+    },
+    {
+      "id": "L-016",
+      "key": "surviving_mutant::quando o criterio define uma ordem de prioridade afirme a ordem dos elementos selecionados nao apenas o conjunto deles",
+      "text": "Quando o criterio define uma ordem de prioridade, afirme a ordem dos elementos selecionados, nao apenas o conjunto deles.",
+      "signal": "surviving_mutant",
+      "scope": "internal/graph",
+      "status": "candidate",
+      "features": [
+        "context-packager-and-subgraph-bundle"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M4 internal/graph/pack.go:213 (internal/graph)"
+      ],
+      "created": "2026-11-15T15:17:58Z",
+      "last_seen": "2026-11-15T15:17:58Z"
+    },
+    {
+      "id": "L-017",
+      "key": "surviving_mutant::tratamento especial de um no especifico so esta coberto quando a assercao fixa o tier dele e nao apenas as contagens agregadas do resultado",
+      "text": "Tratamento especial de um no especifico so esta coberto quando a assercao fixa o tier dele, e nao apenas as contagens agregadas do resultado.",
+      "signal": "surviving_mutant",
+      "scope": "internal/graph",
+      "status": "candidate",
+      "features": [
+        "context-packager-and-subgraph-bundle"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M2 internal/graph/pack.go:247 (internal/graph)"
+      ],
+      "created": "2026-11-15T15:17:58Z",
+      "last_seen": "2026-11-15T15:17:58Z"
+    },
+    {
+      "id": "L-018",
+      "key": "spec_precision_gap::criterio que pede um resumo sem dizer a superficie de saida nao e testavel fixe se o resumo vai no artefato ou so na saida do comando",
+      "text": "Criterio que pede um resumo sem dizer a superficie de saida nao e testavel: fixe se o resumo vai no artefato ou so na saida do comando.",
+      "signal": "spec_precision_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "context-packager-and-subgraph-bundle"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "SP1 R3.1 (spec)"
+      ],
+      "created": "2026-11-15T15:17:58Z",
+      "last_seen": "2026-11-15T15:17:58Z"
+    },
+    {
+      "id": "L-019",
+      "key": "spec_precision_gap::feature que promete prioridade precisa definir a ordem esperada na spec senao nao existe valor a afirmar e o sensor nao mata mutante",
+      "text": "Feature que promete prioridade precisa definir a ordem esperada na spec, senao nao existe valor a afirmar e o sensor nao mata mutante.",
+      "signal": "spec_precision_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "context-packager-and-subgraph-bundle"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "SP2 G1 (spec)"
+      ],
+      "created": "2026-11-15T15:17:59Z",
+      "last_seen": "2026-11-15T15:17:59Z"
+    },
+    {
+      "id": "L-020",
+      "key": "surviving_mutant::um branch dedicado so esta coberto quando a assercao fixa o que ele produz de diferente do caminho generico se o algoritmo geral devolve o mesmo resultado a mutacao do branch sobrevive",
+      "text": "Um branch dedicado so esta coberto quando a assercao fixa o que ele produz de diferente do caminho generico: se o algoritmo geral devolve o mesmo resultado, a mutacao do branch sobrevive.",
+      "signal": "surviving_mutant",
+      "scope": "internal/graph",
+      "status": "candidate",
+      "features": [
+        "graph-path-discovery"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/graph/path.go:166 (mutant M7) (internal/graph)"
+      ],
+      "created": "2026-11-15T15:24:51Z",
+      "last_seen": "2026-11-15T15:24:51Z"
+    },
+    {
+      "id": "L-021",
+      "key": "ac_gap::cobertura de um metodo que filtra por repositorio exige dois repositorios no teste um caminho para o proprio no nao exercita o filtro",
+      "text": "Cobertura de um metodo que filtra por repositorio exige dois repositorios no teste: um caminho para o proprio no nao exercita o filtro.",
+      "signal": "ac_gap",
+      "scope": "internal/store",
+      "status": "candidate",
+      "features": [
+        "graph-path-discovery"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/store/postgres_test.go:272 (AC G2) (internal/store)"
+      ],
+      "created": "2026-11-15T15:24:51Z",
+      "last_seen": "2026-11-15T15:24:51Z"
+    },
+    {
+      "id": "L-022",
+      "key": "ac_gap::pino no criterio o campo de saida que o usuario precisa status epistematico peso da aresta nao apenas que a aresta existe sem o valor nao existe valor a afirmar",
+      "text": "Pino no criterio o campo de saida que o usuario precisa (status epistematico, peso da aresta), nao apenas que a aresta existe: sem o valor nao existe valor a afirmar.",
+      "signal": "ac_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "graph-path-discovery"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/graph/path_test.go:103 (AC P1.1) (spec)"
+      ],
+      "created": "2026-11-15T15:24:52Z",
+      "last_seen": "2026-11-15T15:24:52Z"
+    },
+    {
+      "id": "L-023",
+      "key": "ac_gap::resolucao de nome ambiguo precisa de desambiguacao explicita um limit 1 sem order by escolhe uma nota qualquer entre as homonimas e aponta o usuario para o arquivo errado",
+      "text": "Resolucao de nome ambiguo precisa de desambiguacao explicita: um LIMIT 1 sem ORDER BY escolhe uma nota qualquer entre as homonimas e aponta o usuario para o arquivo errado.",
+      "signal": "ac_gap",
+      "scope": "internal/store",
+      "status": "candidate",
+      "features": [
+        "graph-path-discovery"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/store/postgres.go:1030 (AC P1.1) (internal/store)"
+      ],
+      "created": "2026-11-15T15:24:52Z",
+      "last_seen": "2026-11-15T15:24:52Z"
+    },
+    {
+      "id": "L-024",
+      "key": "spec_precision_gap::quando a feature expoe uma flag e a sua inversa a spec precisa dizer qual vence quando as duas aparecem",
+      "text": "Quando a feature expoe uma flag e a sua inversa, a spec precisa dizer qual vence quando as duas aparecem.",
+      "signal": "spec_precision_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "graph-path-discovery"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md:30 (S3) (spec)"
+      ],
+      "created": "2026-11-15T15:24:52Z",
+      "last_seen": "2026-11-15T15:24:52Z"
+    },
+    {
+      "id": "L-025",
+      "key": "ac_gap::helper de default chamado so por teste esta morto em producao quando os defaults sao re declarados como literais em outro lugar helper e chamadores divergem",
+      "text": "Helper de default chamado so por teste esta morto em producao: quando os defaults sao re-declarados como literais em outro lugar, helper e chamadores divergem.",
+      "signal": "ac_gap",
+      "scope": "internal/graph",
+      "status": "candidate",
+      "features": [
+        "graph-path-discovery"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/graph/path.go:26 (AC G1) (internal/graph)"
+      ],
+      "created": "2026-11-15T15:24:53Z",
+      "last_seen": "2026-11-15T15:24:53Z"
+    },
+    {
+      "id": "L-026",
+      "key": "ac_gap::resolva o no do grafo para a identidade que as arestas usam indexar com um id e percorrer com outro transforma toda rota em nao encontrado",
+      "text": "Resolva o no do grafo para a identidade que as arestas usam: indexar com um id e percorrer com outro transforma toda rota em nao encontrado.",
+      "signal": "ac_gap",
+      "scope": "internal/graph",
+      "status": "candidate",
+      "features": [
+        "graph-path-discovery"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/store/postgres.go:1018 (AC P1.1) (internal/graph)"
+      ],
+      "created": "2026-11-15T15:25:02Z",
+      "last_seen": "2026-11-15T15:25:02Z"
     }
   ]
 }
