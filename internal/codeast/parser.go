@@ -37,14 +37,6 @@ const (
 	KindVariable  Kind = "variable"
 )
 
-// ValidKinds lista todos os Kinds reconhecidos pela tabela code_symbols.
-func ValidKinds() []Kind {
-	return []Kind{
-		KindFunction, KindMethod, KindClass, KindInterface,
-		KindStruct, KindImport, KindConstant, KindVariable,
-	}
-}
-
 // ValidKind retorna true se k é um Kind reconhecido.
 func ValidKind(k Kind) bool {
 	switch k {
@@ -267,25 +259,6 @@ func HashSymbolsStructural(symbols []Symbol) string {
 		h.Write([]byte{'\n'})
 	}
 	return hex.EncodeToString(h.Sum(nil))
-}
-
-// IsCamelOrPascalSegment retorna true se s contém letras maiúsculas/minúsculas
-// (padrão camelCase ou PascalCase). Útil para o detector de qualified_name em T5,
-// exposto aqui porque é lógica estrutural compartilhada.
-func IsCamelOrPascalSegment(s string) bool {
-	if s == "" {
-		return false
-	}
-	hasUpper, hasLower := false, false
-	for _, r := range s {
-		switch {
-		case r >= 'A' && r <= 'Z':
-			hasUpper = true
-		case r >= 'a' && r <= 'z':
-			hasLower = true
-		}
-	}
-	return hasUpper && hasLower
 }
 
 // isIdentifierSegment devolve true se s bate com `[A-Za-z_][A-Za-z0-9_]*`,

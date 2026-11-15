@@ -155,13 +155,6 @@ func (s *Server) SetCodeAccess(access CodeAccess) {
 	s.RegisterTool(ToolMemoryCodeNeighbors, NewMemoryCodeNeighborsHandler(access.Neighbors))
 }
 
-// StalenessDetector retorna o detector configurado (se houver)
-func (s *Server) StalenessDetector() *staleness.Detector {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.stalenessDetector
-}
-
 // SetBaseURL publica o endereço base do transporte HTTP (ex:
 // "http://127.0.0.1:38400"). O transporte HTTP chama este método quando
 // vincula a porta, e as tools usam o valor para devolver a URL servida do

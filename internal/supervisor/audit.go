@@ -246,23 +246,3 @@ func gzipFile(src, dst string) error {
 	}
 	return nil
 }
-
-// CurrentSize returns the bytes written to the active log file
-// since the last rotation. Used by tests to assert rotation
-// triggers exactly when expected.
-func (l *AuditLogger) CurrentSize() int64 {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.currentSize
-}
-
-// CurrentPath returns the path of the active log file. Useful
-// for tests that want to inspect the rotated archive.
-func (l *AuditLogger) CurrentPath() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.current == nil {
-		return ""
-	}
-	return l.current.Name()
-}

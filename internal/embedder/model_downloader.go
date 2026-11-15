@@ -230,22 +230,6 @@ func DefaultManifest(modelDir, ortLibPath string) (Manifest, error) {
 	}, nil
 }
 
-// DownloadProviderArtifacts baixa os três artefatos do provider: modelo,
-// tokenizer e a biblioteca do ONNX Runtime.
-//
-// Cada artefato é baixado para um arquivo temporário no diretório de destino,
-// tem o tamanho (e o digest, quando conhecido) verificado, e só então é
-// movido para o caminho final por rename. Uma falha não deixa arquivo
-// parcial no disco.
-func DownloadProviderArtifacts(ctx context.Context, m Manifest) error {
-	for _, a := range []Artifact{m.Model, m.Tokenizer} {
-		if err := DownloadArtifact(ctx, a); err != nil {
-			return err
-		}
-	}
-	return DownloadRuntimeLibrary(ctx, m.Runtime)
-}
-
 // DownloadArtifact baixa um arquivo e o instala no destino.
 //
 // O arquivo é escrito em um temporário no mesmo diretório do destino (para o

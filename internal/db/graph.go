@@ -116,11 +116,6 @@ func SearchKNNWithOptions(ctx context.Context, db *sql.DB, queryVec []float32, l
 	return results, nil
 }
 
-// SearchTurboQuant busca usando a projeção ortogonal e os vetores 4-bit comprimidos
-func SearchTurboQuant(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, queryVec []float32, limit int) ([]SearchResult, error) {
-	return SearchTurboQuantWithOptions(ctx, db, q, queryVec, limit, store.SearchOptions{Level: "l1"})
-}
-
 // SearchTurboQuantWithOptions busca usando a projeção ortogonal e os vetores 4-bit comprimidos com opções de busca
 func SearchTurboQuantWithOptions(ctx context.Context, db *sql.DB, q *turboquant.Quantizer, queryVec []float32, limit int, searchOpts store.SearchOptions) ([]SearchResult, error) {
 	rotatedQuery := q.RotateQuery(queryVec)

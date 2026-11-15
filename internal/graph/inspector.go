@@ -82,13 +82,6 @@ type InspectorOptions struct {
 	VaultName        string             `json:"vault_name,omitempty"`
 }
 
-// DefaultInspectorOptions retorna configurações padrões de inspeção
-func DefaultInspectorOptions() InspectorOptions {
-	return InspectorOptions{
-		MaxContentLength: 500,
-	}
-}
-
 // TruncateContent trunca texto preservando limites de caracteres UTF-8 de forma segura
 func TruncateContent(content string, maxLen int) string {
 	if maxLen <= 0 {

@@ -58,13 +58,6 @@ type subState struct {
 	retryCountsM sync.Mutex
 }
 
-// IsReady reports whether the dispatcher has been wired (Start called).
-func (d *Dispatcher) IsReady() bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.db != nil && d.log != nil && d.pollInterval > 0
-}
-
 // Attach wires the DB, Log, poll interval and grace period onto an existing
 // Dispatcher. Idempotent: calling Attach twice with the same args is a
 // no-op (overwrites with the same values).

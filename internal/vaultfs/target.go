@@ -124,11 +124,6 @@ func NewResolver(root string) (*Resolver, error) {
 	return r, nil
 }
 
-// Root devolve a raiz do vault que o resolver indexou.
-func (r *Resolver) Root() string {
-	return r.root
-}
-
 // Resolve procura o alvo de um wikilink dentro do vault.
 //
 // A ordem é a do Obsidian: caminho relativo primeiro (com ou sem `.md`),

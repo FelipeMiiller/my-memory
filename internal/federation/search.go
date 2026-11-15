@@ -3,7 +3,6 @@ package federation
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -284,22 +283,4 @@ func ResolveCentralSQLitePath(centralVaultPath string) string {
 		return fallback
 	}
 	return preferred
-}
-
-// ReplaceDatabaseInPostgresURL substitui o nome do banco de dados em uma URL PostgreSQL
-func ReplaceDatabaseInPostgresURL(urlStr, newDBName string) (string, error) {
-	if strings.TrimSpace(urlStr) == "" {
-		return "", fmt.Errorf("URL postgres não pode ser vazia")
-	}
-	if strings.TrimSpace(newDBName) == "" {
-		return "", fmt.Errorf("nome do banco de dados não pode ser vazio")
-	}
-
-	u, err := url.Parse(urlStr)
-	if err != nil {
-		return "", fmt.Errorf("URL postgres inválida: %w", err)
-	}
-
-	u.Path = "/" + strings.TrimPrefix(newDBName, "/")
-	return u.String(), nil
 }

@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -539,42 +538,6 @@ func NewMemoryNeighborsHandler(neighborsFn NeighborsFunc) ToolHandlerFunc {
 		}
 
 		return NewTextResult(FormatNeighbors(nodeID, neighbors)), nil
-	}
-}
-
-// NewDBNeighborsHandler cria uma função de busca de vizinhos consultando o banco SQLite via Recursive CTE
-func NewDBNeighborsHandler(database *sql.DB) NeighborsFunc {
-	return func(ctx context.Context, repo string, nodeID string, maxDepth int) ([]string, error) {
-		cteQuery := `
-		WITH RECURSIVE traversal AS (
-			SELECT target_id, 1 AS depth
-			FROM graph_edges
-			WHERE source_id = ?
-			
-			UNION
-			
-			SELECT e.target_id, t.depth + 1
-			FROM graph_edges e
-			JOIN traversal t ON e.source_id = t.target_id
-			WHERE t.depth < ?
-		)
-		SELECT DISTINCT target_id FROM traversal;
-		`
-
-		rows, err := database.QueryContext(ctx, cteQuery, nodeID, maxDepth)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-
-		var neighbors []string
-		for rows.Next() {
-			var target string
-			if err := rows.Scan(&target); err == nil {
-				neighbors = append(neighbors, target)
-			}
-		}
-		return neighbors, nil
 	}
 }
 

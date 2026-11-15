@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"time"
 )
 
 // auditLine is the JSON shape persisted to the audit log. Kept minimal so
@@ -124,12 +123,6 @@ func (a *AuditSubscriber) Close() error {
 	err := a.out.Close()
 	a.out = nil
 	return err
-}
-
-// auditLogPathForTesting is a tiny helper used by tests to build a unique
-// path under t.TempDir().
-func auditLogPathForTesting(prefix string) string {
-	return fmt.Sprintf("%s/audit-%d.log", prefix, time.Now().UnixNano())
 }
 
 // Compile-time interface conformance check.
