@@ -1978,3 +1978,61 @@ provider continua imprimindo o aviso uma vez por execucao
 o provider presente o aviso nao aparece.
 
 **Referência da spec:** `.specs/features/fix-test-binary-clobber/`.
+---
+
+## ISSUE-042 — 14 funcoes sem chamada no repo: a fase 2 da ADR-065 as remove
+
+- **Severidade:** 🟢 baixa (codigo morto: nao custa runtime, custa leitura e manutencao)
+- **Status:** 🟢 **corrigida** (2026-11-14, `.specs/features/prune-dead-code-2026-11/`) — 14 blocos removidos, **223 linhas**; `deadcode` com a tag do release passou de 17 para **3** (as do `Subscriber`, que sao chamadas via interface). Spec: 8 ACs, 8 requisitos, 2 tarefas, 2 fases.
+- **Achado em:** 2026-11-14, no inventario read-only da ADR-065 (fase 1) — relatorio em `.specs/INVENTARIO-2026-11-14.md`
+
+**A correcao do metodo (o que quase deu errado).** O `deadcode` e **indicador**,
+nao veredito, e erra nas duas pontas:
+
+| Medida | Resultado | Por que |
+| :--- | :---: | :--- |
+| `deadcode -test` **sem** a tag `onnx` | 19 | o provider so existe na build taggeada: `NewTokenizerFromDir` e `Tokenizer.Close` aparecem como mortos |
+| `deadcode -test` **com** a tag do release | 17 | some os 2 falso-positivos do provider |
+| **prova de chamada** (busca de chamada real em `.go`, fora do arquivo de definicao) | **14** | `AuditSubscriber.Name`, `.EventTypes` e `.MaxAckPending` sao chamadas **via a interface `Subscriber`** — o `deadcode` nao ve dispatch por interface |
+
+O repo **nao usa reflexao** (nenhum `reflect.ValueOf` / `MethodByName`), e uma
+chamada por interface aparece como `.Metodo(` no codigo — e por isso que a prova
+salvou as 3.
+
+**Os 14 cortes (cada um com a prova):**
+
+| # | `arquivo:linha` | Funcao removida | Prova |
+| :--: | :--- | :--- | :--- |
+| 1 | `internal/codeast/parser.go:40` | `ValidKinds` | nenhuma chamada em `.go` |
+| 2 | `internal/codeast/parser.go:272` | `IsCamelOrPascalSegment` | nenhuma chamada em `.go` |
+| 3 | `internal/db/graph.go:119` | `SearchTurboQuant` | wrapper de conveniencia; o caminho vivo e `SearchTurboQuantWithOptions` |
+| 4 | `internal/embedder/model_downloader.go:233` | `DownloadProviderArtifacts` | o `mem embed download` chama `DownloadArtifact` em loop |
+| 5 | `internal/event_runtime/audit_subscriber.go:129` | `auditLogPathForTesting` | nenhuma chamada (nem dos testes) |
+| 6 | `internal/event_runtime/dispatcher.go:61` | `Dispatcher.IsReady` | nenhuma chamada |
+| 7 | `internal/event_runtime/log.go:97` | `Log.ReadRange` | nenhuma chamada (66 linhas) |
+| 8 | `internal/federation/search.go:289` | `ReplaceDatabaseInPostgresURL` | nenhuma chamada |
+| 9 | `internal/graph/inspector.go:85` | `DefaultInspectorOptions` | nenhuma chamada |
+| 10 | `internal/mcp/handlers.go:545` | `NewDBNeighborsHandler` | a tool viva usa `NewMemoryNeighborsHandler` |
+| 11 | `internal/mcp/server.go:158` | `Server.StalenessDetector` | o setter e usado; o getter nao |
+| 12 | `internal/supervisor/audit.go:250` | `AuditLogger.CurrentSize` | nenhuma chamada |
+| 13 | `internal/supervisor/audit.go:259` | `AuditLogger.CurrentPath` | nenhuma chamada |
+| 14 | `internal/vaultfs/target.go:127` | `Resolver.Root` | nenhuma chamada (metodo criado na spec `fix-doctor-unindexed-links`, 2026-11-14) |
+
+**O que NAO foi podado (e por que):**
+
+| Item | Motivo |
+| :--- | :--- |
+| 6 ADRs obsoletas (949 linhas) | sao o **registro das decisoes revertidas** — a regra *supersede-not-delete* da ADR-062 as preserva de proposito |
+| 5 `validation.md` que sao plano | divida de **verificacao** (o codigo existe, o Verifier nunca rodou), nao de corte |
+| 6 specs planejadas | roadmap: a decisao e do dono (ADR-065 §7b) |
+| 3 funcoes do `Subscriber` | **vivas** — chamadas via interface |
+| `NewTokenizerFromDir`, `Tokenizer.Close` | **vivas** — chamadas pelo provider na build taggeada |
+
+**Verificacao:** `go build ./...` e `go vet ./...` exit 0; `deadcode -test -tags
+"sqlite_fts5 onnx" ./...` reporta **3** (as do `Subscriber`); gate completo e
+gate taggeado verdes; o Cofre Central continua em **100/100** (0 link rompido,
+0 chunk sem vetor real).
+
+**Referencia:** ADR-065 (fase 2) · ADR-050 (LLM02/auditoria) · ISSUE-036 (o
+codigo graph que o `--fix` apagava por engano — corte errado e custo alto) ·
+`.specs/INVENTARIO-2026-11-14.md`.
