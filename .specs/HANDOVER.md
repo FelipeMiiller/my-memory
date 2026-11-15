@@ -1,68 +1,85 @@
 ---
-title: "Handover — my-memory: onde a rodada do Vault Central parou (2026-11-13)"
+title: "Handover — my-memory: onde paramos (2026-11-15)"
 category: resource
-summary: "Retomada completa do my-memory em 2026-11-13: diagnóstico medido do Cofre Central, as 3 specs de execução escritas (provider ONNX, doctor de links, vetor zero), decisões já tomadas, decisões em aberto, ambiente, comandos e armadilhas."
-tags: [my-memory, handoff, vault-central, onnx, doctor, spec, issue-040, adr-062]
+summary: "Retomada completa do my-memory em 2026-11-15: as 5 specs do Vault Central executadas e o Cofre Central em 100/100, ADR-065 fases 1-2 fechadas (inventario + painel de governanca + poda das 14 funcoes mortas), e a bateria de verificacao das 5 features que nunca tiveram veredito real — 4 FAIL e 1 PARTIAL, com os gaps rastreados em ISSUE-043 a ISSUE-048."
+tags: [my-memory, handoff, vault-central, onnx, doctor, spec, governanca, adr-065, issue-043, issue-048]
 ---
 
-# Handover — `my-memory`: onde paramos (2026-11-13)
+# Handover — `my-memory`: onde paramos (2026-11-15)
 
-> **Retrato:** 2026-11-13 18:40 (BRT) · **Branch:** `develop` · **HEAD:** `e64bb28` ·
+> **Retrato:** 2026-11-15 · **Branch:** `develop` · **HEAD:** `60ed35d` ·
 > **Working tree:** limpa · **Origin:** `github.com/FelipeMiiller/my-memory` ·
-> **Push:** `988c6c4..e64bb28` feito, CI verde.
+> **Push:** **não feito** — o dono respondeu *"não publicar agora"* (2026-11-14);
+> **57 commits** à frente de `origin/develop`, só na máquina.
 >
 > **Este documento é a fonte da verdade para retomar.** O `.specs/STATE.md` tem o
 > resumo; aqui está o retrato completo (diagnóstico, specs, decisões, ambiente,
 > comandos, armadilhas).
+>
+> **O que mudou desde 2026-11-13:** o Vault Central foi **executado** (as 5 specs),
+> a ADR-065 avançou duas fases, e as **5 features que nunca tiveram veredito real**
+> foram verificadas — **4 FAIL e 1 PARTIAL**. Os gaps estão em `.specs/ISSUES.md`
+> (ISSUE-043 a ISSUE-048). A seção 1 e a seção 12 refletem esse estado.
 
 ---
 
 ## 1. TL;DR — em 8 linhas
 
-1. O dono fixou o foco: **"o foco agora total é a gente fazer o Vault Central
-   funcionar"**. O lado de repositório (multi-linguagem, `graph.json`) fica para
-   depois.
-2. O Cofre Central **não está quebrado**: 92 notas destiladas indexadas
-   (94 docs / 481 chunks), **os 481 chunks têm vetor**, e a busca semântica
-   responde — **desde que o binário tenha a tag `onnx`**.
-3. A causa raiz do "não está funcionando" é o **artefato distribuído**: o
-   release compila `-tags "sqlite_fts5"` (sem `onnx`), a CI não tem job com a
-   tag, e **todo binário oficial grava vetor zero** ao indexar.
-4. Achado **novo** nesta rodada (ISSUE-040): sem provider o indexador grava
-   **vetor zero** em vez do chunk sem embedding, e o check de dessincronizado
-   (`embedding IS NULL`) **não vê nada** — a degradação é invisível.
-5. As **3 specs de execução** do Vault Central estão **escritas e validadas**
-   (0 erro nos validadores), em `Draft`, prontas para a fase Execute:
-   `fix-release-onnx-provider`, `fix-doctor-unindexed-links`,
-   `fix-zero-vector-chunks`.
-6. O `mem doctor` do cofre marca **138 links que existem em disco** como
-   "mortos" (o material bruto excluído do índice por decisão) → 60/100 num
-   vault saudável. A spec 2 resolve isso com checagem em disco.
-7. **Nada foi implementado** nesta rodada: é só documentação (specs + tracker).
-8. **Decisão em aberto que espera o dono:** o que fazer com o peso da
-   governança do repo (62 ADRs + 160 specs = 43% das linhas). Ver §7.
+1. O pedido desta rodada foi **"faça"** sobre as **5 verificações independentes**
+   das features que nunca tinham veredito real. **Feito** — e o resultado é
+   **4 FAIL e 1 PARTIAL**: nenhum dos `validation.md` era relatório, eram planos.
+2. As **5 specs do Vault Central** foram executadas e commitadas. O Cofre Central
+   está em **100/100** — 108 documentos, 510 chunks, 710 arestas, 0 link rompido,
+   0 órfã, 0 chunk sem vetor.
+3. **ADR-065 fase 1 e 2 fechadas**: inventário read-only
+   (`.specs/INVENTARIO-2026-11-14.md`), painel de governança no índice das ADRs
+   (`docs/adr/README.md`) e a poda de **14 funções provadamente mortas** (223 linhas).
+4. **Os gaps mais graves:** (a) o banner de staleness **nunca aparece** em
+   `mem search`/`path`/`inspect`/`impact` — `FormatCLIBanner` é código morto e o
+   `tasks.md` marca a integração como feita; (b) o `mem pack` **estoura o orçamento
+   de tokens** (1370 gravados contra 1000); (c) o **`mem path` não acha caminho no
+   vault real** — o indexador dá duas identidades a cada nota e **0 de 40.243
+   arestas** do `repo_central` têm as duas pontas no mesmo lado (a causa é
+   **anterior** à feature, em `171df1e`).
+5. Cada gap ganhou **ID rastreável**: **ISSUE-043 a ISSUE-048**. Nada foi
+   corrigido em silêncio.
+6. O **painel de governança** foi recalculado com a lógica autoritativa do
+   `validate_state.py`: corrigiu **4 ADRs** que um regex próprio classificava como
+   "sem verificação" apesar de PASS (ADR-030/031/032/034) e passou **5 ADRs** para
+   "Implementado (com gaps)". O texto das ADRs não foi tocado (ISSUE-024).
+7. **Gates verdes:** `go test -count=1 ./...` **27/27 `ok`**, o mesmo com a tag do
+   release (`sqlite_fts5 onnx`), `go build` e `go vet` exit 0.
+8. **Próximo passo: a spec de correção dos gaps** — ela ainda **não existe**, e o
+   **escopo é decisão do dono**. **Nada foi pushado** (decisão do dono).
 
 ---
 
-## 2. O que foi feito na rodada (2026-11-13)
+## 2. O que foi feito (rodadas de 2026-11-13 a 2026-11-15)
 
-| Commit | O quê |
-| :--- | :--- |
-| `12fbca0` | **ADR-062** — contrato dos dois cofres, critério de "pronto" por lado, matriz de padrões do `ai-memory` + `graphify`, causa raiz medida, ordem de execução. Índice em `docs/adr/README.md`. |
-| `988c6c4` | **ISSUE-038** — a aresta de tag (`tagged_as`) deixou de ser dead link (o alvo passou a ser reconhecido por `document_tags` e por símbolo de código). 4 testes (SQLite + Postgres real) + **mutante provado**. |
-| `e64bb28` | **As 3 specs do Vault Central** + ISSUE-040 aberta + tracker/STATE/ADR-062 atualizados + typo da ADR-062 corrigido. |
+| Rodada | Commits | O quê |
+| :--- | :--- | :--- |
+| **Vault Central — specs 1 a 5** | `dc39dd0`…`15ebe9c` | As 5 specs do diagnóstico foram **executadas**: `fix-release-onnx-provider` (ISSUE-037 — release e CI compilam com a tag `onnx`, `mem embed download`/`doctor`, aviso consolidado), `fix-zero-vector-chunks` (ISSUE-040 — chunk sem provider é gravado **sem embedding**, nunca vetor zero), `fix-doctor-unindexed-links` (ISSUE-039 — ADR-063, três categorias de link), `central-vault-concept-notes` (ADR-064 — 13 notas de conceito) e `fix-test-binary-clobber` (ISSUE-041 — ADR-065 fase 2, a suíte não sobrescreve mais `bin/mem.exe`). |
+| **ADR-065 fases 1 e 2** | `6dae2a6`…`9e8cd05` | Inventário read-only persistido (`.specs/INVENTARIO-2026-11-14.md`); painel de governança no índice das ADRs; poda de **14 funções mortas** (223 linhas, ISSUE-042). O `deadcode` com a tag do release caiu de 17 para **3** (as 3 do `Subscriber`, chamadas via interface). |
+| **Verificação das 5 features** | `e498a34`, `0f5bacd`, `60ed35d` | `staleness-detection-and-banners` **FAIL** (4 gaps) · `progressive-context-loading` **PARTIAL** (3 gaps) · `context-packager-and-subgraph-bundle` **FAIL** (7 gaps) · `graph-path-discovery` **FAIL** (7 gaps) · `ai-tool-auto-wiring` **FAIL** (10 gaps). Painel recalculado, ISSUE-043 a ISSUE-048 abertas, `STATE.md`/`CHANGELOG.md` atualizados. |
 
-Antes disso, na mesma sessão: `273330a` (lookups de resolução em lote),
-`2f2b55c` e `9d06e31` (correções de registro no tracker: o watcher **não**
-aborta a indexação inteira; números medidos no lugar de estimativas).
+**Antes disso, na sessão de 2026-11-13:** `273330a` (lookups de resolução em lote),
+`2f2b55c` e `9d06e31` (correções de registro no tracker), `12fbca0` (ADR-062),
+`988c6c4` (ISSUE-038) e `e64bb28` (as 3 specs iniciais do Vault Central).
 
-**Fora do repo, na máquina:** o `bin/mem.exe` local passou a ser build
-`CGO_ENABLED=1 go build -tags onnx` (35.634.166 bytes) — com ele a busca
-responde `[vector:1]`. O binário roda **sem** o MSYS2 no PATH.
+**Fora do repo, na máquina:** o `bin/mem.exe` local é build
+`CGO_ENABLED=1 go build -tags "sqlite_fts5 onnx"` — com ele a busca responde
+`[vector:1]`. O binário roda **sem** o MSYS2 no PATH.
 
 ---
 
 ## 3. O diagnóstico do Cofre Central (medido, não estimado)
+
+> **⚠️ Registro histórico (2026-11-13).** Esta seção guarda o **diagnóstico** que
+> originou as specs. **Os números aqui já foram superados**: o Cofre Central está
+> hoje em **100/100** (108 docs / 510 chunks / 710 arestas / 259 nós), com 0 link
+> rompido, 0 órfã e 0 chunk sem vetor. As três causas raiz abaixo foram
+> **corrigidas** (ISSUE-037, ISSUE-038/039 e ISSUE-040). O que sobrou de verdade
+> está nas **ISSUE-043 a ISSUE-048** (§12).
 
 ### 3.1 O ambiente real
 
@@ -112,7 +129,13 @@ suprimida, mudança de assinatura detectada e atribuída).
 
 ---
 
-## 4. As três specs prontas para Execute
+## 4. As specs do Vault Central — executadas
+
+> **✅ Executadas em 2026-11-13 e 2026-11-14.** As 3 specs abaixo viraram **5**
+> specs de execução (as duas últimas nasceram de achados durante a execução), e
+> **todas foram implementadas, commitadas e verificadas**. A tabela segue como
+> registro do que foi planejado e do que foi entregue; o **estado atual** está em
+> `.specs/STATE.md` e nas specs.
 
 Todas em `.specs/features/`, com `spec.md` + `tasks.md`, validadas pelo fluxo
 spec-driven (**0 erro** em `validate_spec.py` e `validate_tasks.py`).
@@ -185,6 +208,12 @@ correção possível no `validate_tasks.py`/na referência `tasks.md` do skill �
   segue preparada e **não** promovida; o que é novo está em `[Unreleased]`.
 - **Correções também pedem spec** (sem patch solto); **achado errado → ID
   rastreável** (issue), nunca corrigido em silêncio.
+- **Conceito linkado sem nota → cria-se a nota stub** (13 notas no cofre central,
+  ADR-064); não se remove o wikilink nem se deixa como está.
+- **Limpeza do repo = caminho A** (inventário → podar → simplificar) e bucket
+  GAP-6 a GAP-10 decidido **item a item, com medição antes de cada corte** — ver §7.
+- **Push:** o dono respondeu **"não publicar agora"** (2026-11-14). Os commits
+  ficam **só na máquina**; push exige go-ahead explícito.
 
 ---
 
@@ -210,10 +239,12 @@ correção possível no `validate_tasks.py`/na referência `tasks.md` do skill �
 > podar o morto → simplificar a governança*; e **(b) opção a**: o bucket
 > GAP-6 a GAP-10 é decidido **item a item, com medição antes de cada corte**.
 > Registrado na [ADR-065](docs/adr/065-o-caminho-de-limpeza-do-repo-e-inventario-podar-simplificar.md).
-> **Próximo passo: o inventário read-only** (nenhuma escrita, nenhuma decisão,
-> nenhum corte) — ele mede o que existe e produz o inventário que a fase de
-> podar vai usar. As seções abaixo ficam como **registro da medição** que
-> sustentou a decisão.
+> **Fases 1 e 2 CONCLUÍDAS em 2026-11-14** — fase 1 (inventário read-only, relatório
+> em `.specs/INVENTARIO-2026-11-14.md` + painel de governança no índice das ADRs) e
+> fase 2 (poda das **14 funções provadamente mortas**, ISSUE-042). **Fase 3
+> (simplificar a governança) segue pendente**, junto com o bucket GAP-6 a GAP-10,
+> item a item. As seções abaixo ficam como **registro da medição** que sustentou a
+> decisão.
 
 **Pergunta:** o repo tem 296 arquivos de documentação (~34.500 linhas: 62 ADRs,
 160 specs, 74 docs) contra 383 arquivos Go (78.942 linhas) — **43% do código**.
@@ -360,6 +391,22 @@ git -C D:\repository\my-memory commit -F 'D:\repository\my-memory\.git\COMMIT_MS
 
 ## 12. Pendências do lado de repositório (depois do cofre central)
 
+- **ISSUE-043 a ISSUE-048 — os gaps das 5 features verificadas (2026-11-15)**: são o
+  que **agora** espera spec de correção. O escopo é **decisão do dono**. Os mais
+  graves, em ordem:
+  - **ISSUE-047** — o `mem path` não funciona no vault real (identidade dupla do
+    grafo: origem da aresta = id de path, destino = id de título). **Defeito de
+    produto, causa anterior à feature** (`171df1e`) — precisa de spec própria,
+    porque a decisão "qual identidade é a canônica" é de arquitetura.
+  - **ISSUE-043** — o banner de staleness nunca sai nos comandos de consulta
+    (`FormatCLIBanner` é código morto).
+  - **ISSUE-045** — o `mem pack` estoura o orçamento de tokens.
+  - **ISSUE-048** — o `mem setup` não é alias do auto-wiring e o `mem install`
+    cria config para ferramentas ausentes.
+  - **ISSUE-046** e **ISSUE-044** — gaps de teste e de default (resolução ambígua,
+    defaults mortos, 3 caminhos do carregamento progressivo sem prova).
+- **ADR-065 fase 3** — simplificar a governança + bucket GAP-6 a GAP-10, item a
+  item, com medição antes de cada corte.
 - **GAP-4 — multi-linguagem**: hoje o backend real do code AST é **só Go**
   (`internal/codeast/go_parser.go`); TypeScript/JavaScript/Python caem no
   `MockParser` (símbolos sintéticos, sem assinatura nem aresta estrutural).
@@ -369,6 +416,9 @@ git -C D:\repository\my-memory commit -F 'D:\repository\my-memory\.git\COMMIT_MS
   por qualquer ferramenta, sem servidor. Hoje não existe.
 - **GAP-6 a GAP-10** — o bucket "prometido mas não entregue" (§7).
 - **ISSUE-030** (fallback multi-linguagem) fica como está.
+- **Ressalva herdada**: a spec `fix-zero-vector-chunks` foi verificada pelo
+  **autor** (o Verifier morreu 2×); falta um Verifier independente antes do
+  release.
 
 ---
 
@@ -377,12 +427,17 @@ git -C D:\repository\my-memory commit -F 'D:\repository\my-memory\.git\COMMIT_MS
 1. Ler este documento **e** `.specs/STATE.md` (decisões + handoff).
 2. Reconciliar com o git: `git -C D:\repository\my-memory status --short` e
    `git log --oneline -5` — **a evidência ganha do snapshot**.
-3. Se a tarefa for o Vault Central: abrir
-   `.specs/features/fix-release-onnx-provider/` e seguir o Execution Protocol do
-   `tasks.md` (ativar a skill `tlc-spec-driven` **pelo nome**).
-4. Se a tarefa for a limpeza do repo: responder a pergunta de §7 **antes** de
-   mexer — a ordem é inventário (read-only) → podar → simplificar.
-5. Regras que continuam valendo: sem patch solto (correção pede spec), achado
+3. Se a tarefa for **corrigir os gaps da verificação**: abrir
+   `.specs/ISSUES.md` nas **ISSUE-043 a ISSUE-048** e escrever a spec de correção
+   (o dono já disse: **correção pede spec**, nada de patch solto). Os relatórios
+   com a evidência `file:line` estão em
+   `.specs/features/<feature>/validation.md`.
+4. Se a tarefa for a **limpeza do repo** (ADR-065): a decisão de §7 já está
+   tomada — fases 1 e 2 feitas; falta a **fase 3 (simplificar)** e o bucket
+   GAP-6 a GAP-10, **item a item, com medição antes de cada corte**.
+5. O **push** só com go-ahead explícito (o dono respondeu *"não publicar agora"*);
+   hoje são **57 commits** só na máquina.
+6. Regras que continuam valendo: sem patch solto (correção pede spec), achado
    errado → issue com ID, "menos invenção" (implementar o que foi pedido; se
    faltar algo, **perguntar em uma frase**), commits atômicos em Conventional
    Commits, e o quality gate antes de dizer "pronto".
