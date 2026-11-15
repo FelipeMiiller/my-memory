@@ -15,7 +15,7 @@ fase é de medição; persisti-lo em `.specs/` é um passo separado, a autorizar
 | A documentação cresceu mais rápido que o código? | **Sim, muito.** Documentação/código foi de **43,7%** para **58,6%** (mesma fórmula do handover: linhas de `.md` ÷ linhas de Go). |
 | Qual é o peso da camada spec-driven? | **27.795 linhas (50,6% de toda a documentação)** em 59 features. |
 | As ADRs dizem a verdade? | **Não.** Só **5 de 65** dizem "Implementado"; 50 dizem "Accepted" — inclusive ADRs que **estão** implementadas. É dívida de **metadado**, não de entrega. |
-| O que está morto no código? | **19 funções inalcançáveis** (o handover dizia 174) — indicador, não veredito. |
+| O que está morto no código? | **14 funções sem chamada** (o handover dizia 174) — 17 pelo `deadcode` com a tag do release, menos 3 que são dispatch por interface. |
 | O handover está em dia? | **Não, em dois pontos** (ver §6). |
 | Existe conteúdo duplicado? | **Não.** Zero `.md` duplicados byte a byte no repo; **zero** grupos com `content_hash` repetido no cofre (108 documentos, todos distintos). |
 | O que está prometido e não entregue? | **5 gaps** (GAP-6 a GAP-10) + **1 ADR** aceito e não implementado (ADR-058) + **6 specs** sem execução. |
@@ -77,22 +77,32 @@ mesmos pacotes grandes (`cmd/mem`, `internal/mcp`, `internal/db`,
 
 ## 3. O que está morto (indicador, não veredito)
 
-`deadcode -test ./...` (x/tools v0.52.0): **19 funções inalcançáveis**.
+`deadcode -test ./...` (x/tools v0.52.0), **com a tag do release**
+(`-tags "sqlite_fts5 onnx"`): **17 funções inalcançáveis**. Sem a tag
+saem 19 — as 2 a mais (`NewTokenizerFromDir`, `Tokenizer.Close`) são
+chamadas pelo provider, que só existe na build taggeada.
+
+**A prova final** (procura de chamada em código Go, fora do arquivo de
+definição) derruba mais **3**: `AuditSubscriber.Name`, `.EventTypes` e
+`.MaxAckPending` são chamadas **através da interface `Subscriber`** — o
+`deadcode` não vê dispatch por interface. Sobram **14 sem chamada**.
 
 | Pacote | N | Funções |
 |:---|---:|---|
-| `internal/event_runtime` | 6 | `AuditSubscriber.Name`, `.EventTypes`, `.MaxAckPending`, `auditLogPathForTesting`, `Dispatcher.IsReady`, `Log.ReadRange` |
-| `internal/embedder` | 3 | `DownloadProviderArtifacts`, `NewTokenizerFromDir`, `Tokenizer.Close` |
+| `internal/event_runtime` | 3 | `auditLogPathForTesting`, `Dispatcher.IsReady`, `Log.ReadRange` — (`AuditSubscriber.Name`, `.EventTypes`, `.MaxAckPending` são **vivas**: dispatch por interface) |
+| `internal/embedder` | 1 | `DownloadProviderArtifacts` — (`NewTokenizerFromDir` e `Tokenizer.Close` são chamadas pelo provider na build taggeada) |
 | `internal/mcp` | 2 | `NewDBNeighborsHandler`, `Server.StalenessDetector` |
 | `internal/supervisor` | 2 | `AuditLogger.CurrentSize`, `.CurrentPath` |
 | `internal/codeast` | 2 | `ValidKinds`, `IsCamelOrPascalSegment` |
 | `internal/db` | 1 | `SearchTurboQuant` |
 | `internal/federation` | 1 | `ReplaceDatabaseInPostgresURL` |
 | `internal/graph` | 1 | `DefaultInspectorOptions` |
-| **`internal/vaultfs`** | **1** | **`Resolver.Root`** — método que eu mesmo criei na spec 3 (2026-11-14) e **nada chama**. É o meu: está aqui, measured, sem desculpa. |
+| **`internal/vaultfs`** | **1** | **`Resolver.Root`** — método que eu mesmo criei na spec 3 (2026-11-14) e **nada chama**. É o meu: está aqui, medido, sem desculpa. |
 
 Ressalva (a mesma do handover): `deadcode` não vê `init()`, reflexão nem
-chamada por interface — é **indicador, não veredito**.
+chamada por interface — é **indicador, não veredito**. As 3 que sobreviveram
+à prova (`AuditSubscriber.Name`, `.EventTypes`, `.MaxAckPending`) são
+exatamente esse caso: chamadas via a interface `Subscriber`.
 
 **Pacotes de produção sem nenhum importador de produção: 4** — e nenhum é
 "morto": `cmd/mem` e `cmd/mymemoryd` são os **entrypoints**; `internal/ci` e
@@ -162,7 +172,7 @@ A base de conhecimento não tem conteúdo repetido — nem por accidento de cóp
 
 | Afirmação do handover | Estado medido em 2026-11-14 |
 |:---|:---|
-| "174 funções inalcançáveis" | **19** (a versão da ferramenta ou o código mudaram; o número de hoje é 19) |
+| "174 funções inalcançáveis" | **17** com a tag do release (o `deadcode` sem a tag marca o provider como morto) e **14** depois da prova de chamada (3 são dispatch por interface) |
 | "`internal/supervisor` (1.627 linhas) e `internal/event_runtime` (1.327 linhas) **sem nenhum importador de produção**" | **FALSO hoje.** `internal/supervisor` é importado por `cmd/mem/up.go`, `cmd/mem/down.go`, `cmd/mem/profiles.go` e `cmd/mymemoryd/main.go`; `internal/event_runtime` por `cmd/mem/events.go` e `internal/supervisor/{lifecycle,manager}.go`. O wiring veio de `feat(supervisor)` + `feat(cli): mem up/down/logs/profiles` — a afirmação era verdadeira quando escrita e envelheceu. |
 | "296 arquivos de documentação / ~34.500 linhas / 43% do código" | **318 / 54.907 / 58,6%** — o repo cresceu 59% em documentação num dia, contra 19% em Go. |
 
@@ -172,7 +182,7 @@ A base de conhecimento não tem conteúdo repetido — nem por accidento de cóp
    **rótulos desatualizados**. Podar ADRs por esse número seria destructive e
    errado.
 2. **`deadcode` é indicador, não veredito**: não vê `init()`, reflexão nem
-   interface. As 19 funções precisam de leitura humana antes de qualquer corte.
+   interface. As 14 funções sem chamada precisam de leitura humana antes de qualquer corte.
 3. **Nenhuma medição de "o que é usado pelo dono"**: uso real exige o histórico
    de uso (o cofre tem `content_hash` e `mtime`, mas o repo não tem telemetria).
 4. **A Documentation do vault central** (108 notas, 510 chunks) está em
@@ -186,7 +196,7 @@ A base de conhecimento não tem conteúdo repetido — nem por accidento de cóp
 | Fase | O que este inventário entrega |
 |:---|:---|
 | **1 — inventário** (esta) | §1–§6: o que existe, o que está morto, o que está prometido, o que é duplicado |
-| **2 — podar o morto** | candidatos: 5 ADRs obsoletas · 19 funções inalcançáveis · 6 specs planejadas · 1 ADR (058) sem implementar · 5 relatórios-plano. **Cada corte com ID rastreável no `ISSUES.md`.** |
+| **2 — podar o morto** | candidatos: 14 funções sem chamada · 6 specs planejadas · 1 ADR (058) sem implementar · 5 relatórios-plano. **Cada corte com ID rastreável no `ISSUES.md`.** |
 | **3 — simplificar a governança** | candidatos: 50 ADRs com rótulo de status desatualizado · o peso da camada spec-driven (50,6% da documentação) · a decisão sobre os 5 GAPs (item a item, com medição) |
 
 ---

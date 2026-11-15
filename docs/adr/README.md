@@ -99,7 +99,7 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 > | Proposed / Deferred / Slot reservado | 2 / 1 / 1 |
 > | Specs com `validation.md` que e plano, nao relatorio | 5 |
 > | Specs planejadas, nunca executadas | 6 |
-> | Funcoes inalcancaveis (`deadcode -test`, indicador) | 19 |
+> | Funcoes sem chamada (17 pelo `deadcode` com a tag do release; 14 depois da prova de chamada) | **14** |
 > | `.md` duplicados byte a byte (repo / cofre) | **0 / 0** |
 >
 > **Antes do painel**, 50 ADRs diziam "Accepted" sem marcar implementado — e
