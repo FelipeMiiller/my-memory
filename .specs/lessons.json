@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 9,
+  "next_id": 14,
   "lessons": [
     {
       "id": "L-001",
@@ -148,6 +148,96 @@
       ],
       "created": "2026-11-14T18:27:21Z",
       "last_seen": "2026-11-14T18:27:21Z"
+    },
+    {
+      "id": "L-009",
+      "key": "ac_gap::a checked task box is not evidence an acceptance criterion is covered only when a production call site and a test exercise it because a formatter with no caller is an unimplemented feature",
+      "text": "A checked task box is not evidence: an acceptance criterion is covered only when a production call site and a test exercise it, because a formatter with no caller is an unimplemented feature.",
+      "signal": "ac_gap",
+      "scope": "internal/staleness",
+      "status": "candidate",
+      "features": [
+        "staleness-detection-and-banners"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "P3-1 (internal/staleness/detector.go:309) (internal/staleness)"
+      ],
+      "created": "2026-11-15T15:02:29Z",
+      "last_seen": "2026-11-15T15:02:29Z"
+    },
+    {
+      "id": "L-010",
+      "key": "ac_gap::when the spec pins a literal output string assert that exact literal and fix the code or the spec never rewrite the docs to match drifted code",
+      "text": "When the spec pins a literal output string, assert that exact literal and fix the code or the spec; never rewrite the docs to match drifted code.",
+      "signal": "ac_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "staleness-detection-and-banners"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "P1-1 (internal/staleness/detector.go:302) (spec)"
+      ],
+      "created": "2026-11-15T15:02:29Z",
+      "last_seen": "2026-11-15T15:02:29Z"
+    },
+    {
+      "id": "L-011",
+      "key": "spec_precision_gap::when a spec enumerates categories of a report define their representation in the data model before implementing or the categories silently merge into one bucket",
+      "text": "When a spec enumerates categories of a report, define their representation in the data model before implementing, or the categories silently merge into one bucket.",
+      "signal": "spec_precision_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "staleness-detection-and-banners"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "P2-2 (internal/staleness/detector.go:31) (spec)"
+      ],
+      "created": "2026-11-15T15:02:30Z",
+      "last_seen": "2026-11-15T15:02:30Z"
+    },
+    {
+      "id": "L-012",
+      "key": "surviving_mutant::teste do default de uma flag nao cobre a renderizacao a assercao tem que olhar a saida do comando nao o valor lido da flag",
+      "text": "Teste do default de uma flag nao cobre a renderizacao: a assercao tem que olhar a SAIDA do comando, nao o valor lido da flag.",
+      "signal": "surviving_mutant",
+      "scope": "cmd/mem",
+      "status": "candidate",
+      "features": [
+        "progressive-context-loading"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "cmd/mem/main.go:2368 (cmd/mem)"
+      ],
+      "created": "2026-11-15T15:05:30Z",
+      "last_seen": "2026-11-15T15:05:30Z"
+    },
+    {
+      "id": "L-013",
+      "key": "surviving_mutant::o schema de uma tool mcp precisa de assercao propria um teste comportamental passa mesmo com a chave removida do schema declarado",
+      "text": "O schema de uma tool MCP precisa de assercao propria: um teste comportamental passa mesmo com a chave removida do schema declarado.",
+      "signal": "surviving_mutant",
+      "scope": "internal/mcp",
+      "status": "candidate",
+      "features": [
+        "progressive-context-loading"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/mcp/tools.go:54 (internal/mcp)"
+      ],
+      "created": "2026-11-15T15:05:30Z",
+      "last_seen": "2026-11-15T15:05:30Z"
     }
   ]
 }

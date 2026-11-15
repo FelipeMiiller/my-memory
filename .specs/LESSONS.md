@@ -62,6 +62,36 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: .specs/features/fix-doctor-unindexed-links/spec.md:68 (spec)
 - last seen: 2026-11-14T18:27:21Z
 
+### L-009 - A checked task box is not evidence: an acceptance criterion is covered only when a production call site and a test exercise it, because a formatter with no caller is an unimplemented feature.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `internal/staleness` · harmful: 0
+- features: staleness-detection-and-banners
+- evidence: P3-1 (internal/staleness/detector.go:309) (internal/staleness)
+- last seen: 2026-11-15T15:02:29Z
+
+### L-010 - When the spec pins a literal output string, assert that exact literal and fix the code or the spec; never rewrite the docs to match drifted code.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `spec` · harmful: 0
+- features: staleness-detection-and-banners
+- evidence: P1-1 (internal/staleness/detector.go:302) (spec)
+- last seen: 2026-11-15T15:02:29Z
+
+### L-011 - When a spec enumerates categories of a report, define their representation in the data model before implementing, or the categories silently merge into one bucket.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `spec` · harmful: 0
+- features: staleness-detection-and-banners
+- evidence: P2-2 (internal/staleness/detector.go:31) (spec)
+- last seen: 2026-11-15T15:02:30Z
+
+### L-012 - Teste do default de uma flag nao cobre a renderizacao: a assercao tem que olhar a SAIDA do comando, nao o valor lido da flag.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `cmd/mem` · harmful: 0
+- features: progressive-context-loading
+- evidence: cmd/mem/main.go:2368 (cmd/mem)
+- last seen: 2026-11-15T15:05:30Z
+
+### L-013 - O schema de uma tool MCP precisa de assercao propria: um teste comportamental passa mesmo com a chave removida do schema declarado.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `internal/mcp` · harmful: 0
+- features: progressive-context-loading
+- evidence: internal/mcp/tools.go:54 (internal/mcp)
+- last seen: 2026-11-15T15:05:30Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
