@@ -2036,3 +2036,200 @@ gate taggeado verdes; o Cofre Central continua em **100/100** (0 link rompido,
 **Referencia:** ADR-065 (fase 2) · ADR-050 (LLM02/auditoria) · ISSUE-036 (o
 codigo graph que o `--fix` apagava por engano — corte errado e custo alto) ·
 `.specs/INVENTARIO-2026-11-14.md`.
+
+## ISSUE-043 — O banner de staleness nunca aparece nos comandos de consulta: `FormatCLIBanner` é código morto
+
+- **Severidade:** 🟠 high (a feature entrega o motor e deixa de fora o gancho que a torna visível — o usuário não é avisado de que o índice está desatualizado)
+- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15; `tasks.md` marca T3 como `[x]` e o checkbox mente)
+- **Achado em:** 2026-11-15, na verificação da feature `staleness-detection-and-banners` — `.specs/features/staleness-detection-and-banners/validation.md`
+
+**O defeito.** `FormatCLIBanner` (`internal/staleness/detector.go:309`) foi
+implementado e tem teste unitário, mas **nenhum comando de consulta o chama**.
+A única construção de `staleness.Detector` na CLI é a de `cmd/mem/status.go:75-90`.
+`cmd/mem/main.go:203` (`search`), `cmd/mem/path.go`, `cmd/mem/inspect.go` e
+`cmd/mem/impact.go` nunca constroem o detector — logo, o aviso de desatualização
+**não aparece** em nenhum deles.
+
+**Os 4 gaps (ranqueados pelo Verifier):**
+
+| # | ID | Sev. | Gap | Onde |
+| :--: | :--- | :--- | :--- | :--- |
+| 1 | P3-1 | 🔴 Blocker | o aviso não sai em `search`/`path`/`inspect`/`impact`; `FormatCLIBanner` é código morto | `internal/staleness/detector.go:309`, `cmd/mem/status.go:75-90` |
+| 2 | P1-1 | 🟠 Major | o literal emitido (`> ⚠️ **AVISO: Memória Desatualizada (Stale Data)**`) **não** é o do spec (`spec.md:48`) nem o da ADR-028 Accepted (`docs/adr/028-...md:45`); a documentação foi reescrita para acompanhar o código (`docs/AGENT_INTEGRATION_GUIDE.md:397`) | `internal/staleness/detector.go:302` |
+| 3 | P2-2 | 🟠 Major | a listagem de arquivos modificados/novos/deletados não tem asserção, e "novo" não é distinguível de "modificado" no modelo (`StalenessReport` só tem `StaleFiles` e `DeletedFiles`) | `internal/staleness/detector.go:25-34,227,245`, `cmd/mem/status.go:133` |
+| 4 | P2-3/P2-4 | 🟡 Minor | literais de status divergem do spec (`⚠️ DESATUALIZADO (Stale)` / `✅ ATUALIZADO (Fresh)` vs `⚠️  Desatualizado (Stale Data)` / `✅ Atualizado (In Sync)`) | `cmd/mem/status.go:124,129` |
+
+**Sensor:** 6/6 mutantes mortos — o motor de detecção é sólido. Os gaps são de
+**gancho e de literal**, não de lógica.
+
+**O que a correção precisa decidir (não é implementação, é escolha):**
+1. Um **literal canônico** do banner — alinhar o código ao ADR-028 (que cita
+   `mem watch`) ou emendar a ADR-028 com a tradução para PT-BR. O teste MCP
+   (`internal/mcp/staleness_handlers_test.go:94`) deve asseverar o literal
+   **canônico**, não o acidental.
+2. Se "novos" é categoria própria (`NewFiles` + heading próprio) ou se o
+   requisito sai do spec.
+
+**Referência:** ADR-028 · spec `staleness-detection-and-banners` ·
+`.specs/features/staleness-detection-and-banners/validation.md` (§ Fix Plans).
+
+## ISSUE-044 — 3 caminhos do carregamento progressivo não têm teste: o default da flag, o schema da tool e o indexador
+
+- **Severidade:** 🟡 medium (o comportamento existe e o gate está verde; falta a prova que liga as unidades — o padrão é "testado na unidade, encano sem prova")
+- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Achado em:** 2026-11-15, na verificação da feature `progressive-context-loading` — `.specs/features/progressive-context-loading/validation.md`
+
+**Os 3 gaps:**
+
+| ID | O que não tem teste | Onde |
+| :--- | :--- | :--- |
+| PCL-01 | a renderização **L0** pela CLI — o teste pega o default da **flag**, não a **saída** | `cmd/mem/` |
+| PCL-02 | o **schema JSON** da tool MCP — o teste pega o **comportamento**, não o **schema** | `internal/mcp/` |
+| PCL-03 | o indexador `summary` → `abstract` — o teste pega o **parser**, não o **indexador** | indexador |
+
+**Veredito:** ⚠️ **PARTIAL** — 8/9 ACs com evidência `file:line`; o comportamento
+está implementado nos dois motores (taxonomia `category`, `abstract` L0, filtro
+por categoria na busca, projeção L0 sem corpo bruto, tool serializando por nível).
+
+**Sensor:** 6 mutações, **3 mortas / 3 sobreviveram** — as 3 que sobreviveram
+são exatamente as 3 bordas sem teste acima.
+
+**Ressalva de independência:** o sensor foi executado **no pai**, porque o Verifier
+independente encerrou o turno antes dele. O gate e a análise ancorada na spec
+foram do sub-agente. A re-verificação independente da spec continua pendente.
+
+**Referência:** ADR-025 · spec `progressive-context-loading` ·
+`.specs/features/progressive-context-loading/validation.md`.
+
+## ISSUE-045 — O `mem pack` estoura o orçamento de tokens e a ordem de prioridade não tem resultado definido
+
+- **Severidade:** 🟠 high (o bundle gravado tem **1370 tokens** contra um orçamento de **1000** — a restrição que a ADR-029 e o `docs/CLI_GUIDE.md` §21 prometem é violada em uso real)
+- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Achado em:** 2026-11-15, na verificação da feature `context-packager-and-subgraph-bundle` — `.specs/features/context-packager-and-subgraph-bundle/validation.md`
+
+**Os 7 gaps (ranqueados):**
+
+| # | Gap | Detalhe |
+| :--: | :--- | :--- |
+| 1 | o bundle emitido **estoura `max_tokens`** | medido **1370** tokens contra orçamento de 1000; a contabilidade ignora o bloco Mermaid, o cabeçalho e os metadados por nó (R2, ADR-029:22, `docs/CLI_GUIDE.md` §21) |
+| 2 | o filtro de direção de R1 **não tem teste discriminante** | mutante M3 sobrevive à suíte inteira |
+| 3 | a **ordem de prioridade não tem resultado definido** no spec e não é testada | mutante M4 sobrevive (SP2) |
+| 4 | o **peso epistêmico é carregado e descartado** | T1 e a ADR-029 superestimam o que o código faz |
+| 5 | o tratamento preferencial da raiz e os headers R3.3/R3.4 **não são asseverados** | mutante M2 sobrevive |
+| 6 | **código morto e defaults duplicados** | `availableBudget` (`internal/graph/pack.go:221-224`) é calculado e nunca lido; `nodeIDs`; `graph.DefaultPackOptions()` só é usado em teste |
+| 7 | a CLI reporta os **tokens contabilizados**, não o tamanho do bundle que gravou | `mem pack` diz um número e escreve outro |
+
+**Sensor:** 3/6 mutantes mortos (M1, M5, M6). M2, M3 e M4 sobreviveram à suíte
+inteira — nenhum teste os distingue.
+
+**O que funciona:** a expansão do subgrafo, a degradação em 3 níveis
+(core / fringe / omitted), a topologia Mermaid, a CLI (`mem pack` com `--out` /
+`--json`), a tool MCP com entrada no catálogo de JSON-Schema, o banner de
+staleness no server, as duas camadas de persistência, a ADR e a documentação
+operacional. O motor é determinístico, local e sem dependência externa, como o
+spec exige.
+
+**Referência:** ADR-029 · spec `context-packager-and-subgraph-bundle` ·
+`.specs/features/context-packager-and-subgraph-bundle/validation.md`.
+
+## ISSUE-046 — 7 gaps na feature `graph-path-discovery`: resolução ambígua, defaults mortos e ausência de asserção
+
+- **Severidade:** 🟡 medium (o motor de caminho está correto; os gaps são de gancho, de default e de prova — a feature é inutilizável no vault real por causa do ISSUE-047)
+- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Achado em:** 2026-11-15, na verificação da feature `graph-path-discovery` — `.specs/features/graph-path-discovery/validation.md`
+
+**Os 7 gaps (ranqueados):**
+
+| # | ID | Gap |
+| :--: | :--- | :--- |
+| 1 | FIX-2 | **falha ponta a ponta em dado real** — ver ISSUE-047 (defeito de produto, causa fora do diff da feature) |
+| 2 | FIX-3 | a resolução de nó é **ambígua e arbitrária**: `LIMIT 1` sem `ORDER BY` sobre 7 nós de mesmo nome; `"README"` resolveu silenciosamente para o README de um skill |
+| 3 | FIX-1 | mutante M7 **sobreviveu**: o ramo de nó idêntico é redundante e sem guarda |
+| 4 | FIX-4 | `EpistemicStatus` e `Weight` das arestas devolvidas **nunca são asseverados** |
+| 5 | FIX-5 | o caminho PostgreSQL só é coberto por um self-path; o **isolamento por repositório nunca é asseverado** |
+| 6 | FIX-6 | a mensagem de não-encontrado, o bloco CLI de not-found, os headings de rota/tabela MCP e o código `InvalidParams` **não são asseverados** |
+| 7 | FIX-7 | `DefaultPathOptions()` é **morto em produção**; os defaults são duplicados em outros dois lugares |
+
+**Spec precision:** 7 gaps (S1–S7), incluindo a promessa P3 "Markdown e JSON" que
+a resposta só-texto não cumpre (já rastreada pela ISSUE-022).
+
+**O que funciona:** o motor Dijkstra está correto; o *pruning* por dominância
+consciente de profundidade é sólido (um estado só é descartado quando já existe
+um estado com `depth ≤ d` **e** `cost ≤ c`); o modo `hops` é exatamente
+equivalente a BFS; ciclos terminam; e a inversão epistêmica `c = 1/w` se
+comporta como a ADR-027 especifica (`EXTRACTED` 1.0, `INFERRED` ≈1.67, `TAG`
+≈3.33). A CLI está completa (flags, rota ASCII, tabela de segmentos, JSON,
+dois motores) e foi verificada ao vivo. A tool MCP tem JSON Schema formal
+(`required: [source, target]`), aparece em `tools/list` e está ligada nos
+transportes stdio e HTTP/SSE pelo mesmo `runMCPServer`.
+
+**Referência:** ADR-027 · spec `graph-path-discovery` ·
+`.specs/features/graph-path-discovery/validation.md`.
+
+## ISSUE-047 — `mem path` não funciona no vault real: o indexador dá duas identidades a cada nota
+
+- **Severidade:** 🔴 critical (a feature `graph-path-discovery` está entregue e verificada, e ainda assim o comando principal dela **não acha caminho nenhum** entre duas notas ligadas por wikilink)
+- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15; a causa é **anterior** à feature)
+- **Achado em:** 2026-11-15, na verificação da feature `graph-path-discovery` — `.specs/features/graph-path-discovery/validation.md` (FIX-2)
+
+**O defeito.** O indexador dá **duas identidades** a cada nota: a **origem** da
+aresta é gravada com o **id de path** do documento, e o **destino** com o **id de
+título**. Toda aresta atravessa essa fenda. `ResolveNodeCanonicalID` cai
+justamente no lado que **nenhuma** aresta conecta.
+
+**Medido no vault real (`repo_central`):** **0 de 40.243 arestas** têm as duas
+pontas em id de path. `mem path "CONTRIBUTING.md" "README"` devolve
+**"Não encontrado"**. O `README` tem grau **3** por id de path e **66** por id
+de título — o mesmo nó, dois graus.
+
+**A causa está fora do diff da feature** (commit `171df1e`, um dia antes do
+commit da feature). O motor de caminho **não precisa de mudança** — ele está
+correto (ver ISSUE-046). O que precisa consertar é a **identidade do nó** no
+grafo, o que afeta qualquer consumidor que resolva nó por id canônico.
+
+**Por que isso é uma issue separada:** não é um gap da feature — é um defeito de
+produto que precisa de **spec própria**, porque a correção toca o indexador (a
+gravação da aresta) e o resolvedor canônico, e a decisão "qual identidade é a
+canônica" é de arquitetura.
+
+**Referência:** ADR-027 · ADR-040 (identidade de repositório) ·
+spec `graph-path-discovery` (FIX-2) ·
+`.specs/features/graph-path-discovery/validation.md`.
+
+## ISSUE-048 — O auto-wiring promete comandos e detecção que o HEAD não tem: `mem setup` não é alias, e o `mem install` cria config para ferramentas ausentes
+
+- **Severidade:** 🔴 critical (o comando é **documentado** e **não faz o que a doc promete** — e falha em silêncio, com exit 0)
+- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Achado em:** 2026-11-15, na verificação da feature `ai-tool-auto-wiring` — `.specs/features/ai-tool-auto-wiring/validation.md`
+
+**Veredito:** ❌ **FAIL** — 8/8 ACs com evidência `file:line`; 1 spec-precision
+gap (P2.1); 3 goals divergentes (G1/G2/G4) e **G3 não cumprido**. Sensor: 9
+mutações, 7 mortas, **2 sobreviveram** (M7, M8). `validate_state.py` exit 1.
+
+**Os gaps (ranqueados pelo Verifier):**
+
+| # | Sev. | Gap | Onde |
+| :--: | :--- | :--- | :--- |
+| 1 | 🔴 Blocker | **`mem setup` não é alias do auto-wiring** — `cmd/mem/main.go:836` roteia `case "install":` e `cmd/mem/main.go:794` roteia `case "setup":` para o assistente interativo de cofre central (ADR-033). O alias existiu entre `db02542` e `8685ed8` e foi repurposado. A doc continua anunciando-o: `docs/CLI_GUIDE.md:625`, `:650-651` (`./bin/mem.exe setup --dry-run` → erro real `flag provided but not defined: -dry-run`), `docs/adr/026-...md:1,18,27,57` | `cmd/mem/main.go:794,836` |
+| 2 | 🟠 Major | **P3.1/P3.2 sem discriminação na camada CLI** — mutantes M7 (`cmd/mem/install.go:85` ignora `--target`) e M8 (`cmd/mem/install.go:39-45` ignora `--workspace`/`--global`) sobreviveram à suíte inteira: uma regressão que escreva em todos os clientes, ou no escopo errado, **não quebra nenhum teste**. `cmd/mem/install_test.go:38-83` só afirma o lado positivo; não há teste de `--global` | `cmd/mem/install.go:39-45,85` |
+| 3 | 🟠 Major | **o payload aponta para o SQLite enquanto a CLI declara que o Postgres venceu** — `cmd/mem/install.go:63` descarta a URL do Postgres resolvida e monta o payload só com `--db`/`--repo` (`:71-77`). Observado ao vivo: o log diz *"Postgres detectado... será ignorado nesta sessão"* e duas linhas abaixo, `Database: C:\Users\Felipe\.memory\memory.db`. Se o editor não herdar `MY_MEMORY_PG_URL`, `mem mcp --db <esse caminho>` abre um **store diferente** do vault vivo | `cmd/mem/install.go:63,71-77`, `cmd/mem/main.go:403-422` |
+| 4 | 🟠 Major | **`--target claude-desktop` documentado e não aceito** — `docs/CLI_GUIDE.md:631` lista o valor; `internal/autowire/detector.go:222` só casa `claude`. Execução real → "Nenhum cliente MCP compatível encontrado", **exit 0, sem erro** | `internal/autowire/detector.go:222` |
+| 5 | 🟠 Major | **"auto-detecta ferramentas instaladas" não é implementado** — o detector devolve **todos** os candidatos (`internal/autowire/detector.go:69-158`); `Exists`/`ParentDirOK` (`:199-217`) **nunca** são consultados por `cmd/mem/install.go:109-142`; o instalador cria o diretório e escreve o arquivo de qualquer jeito (`internal/autowire/installer.go:95-101`). Execução real em diretório vazio criou `.cursor/mcp.json` e `.vscode/mcp.json` | `internal/autowire/detector.go:199-217`, `cmd/mem/install.go:109-142` |
+| 6 | 🟡 Minor | o backup `.bak` **não é atômico** — `os.WriteFile` sem temporário + rename; a spec (G2) e a ADR-026:19 exigem atomicidade | `internal/autowire/installer.go:105-108` |
+| 7 | 🟡 Minor | indentação e ordem das chaves **não são preservadas** — `json.MarshalIndent(cfgMap, "", "  ")` sobre `map[string]interface{}` reordena em alfabético. O *conteúdo* foi preservado (a AC P1.2 **não** é violada); o que não se sustenta é o checkbox de T2 | `internal/autowire/installer.go:75` |
+| 8 | 🟡 Minor | a ADR-026 descreve uma arquitetura que **não existe** — registro declarativo `ClientSpec` (o código tem `if` fixos e constantes `ClientType`) e escopo **Workspace** do Windsurf (só existe o global). A ADR também repete o alias `mem setup` | `docs/adr/026-...md:31-35,42` |
+| 9 | 🟡 Minor | **T4 parcial** — a linha `mem install` foi adicionada ao `docs/AGENT_INTEGRATION_GUIDE.md` por `db02542` e removida por `f5646fd`; hoje o arquivo só menciona `mem hook install` | `docs/AGENT_INTEGRATION_GUIDE.md:271` |
+| 10 | 🟡 Minor | o **plano de validação anterior listava 8 testes que nunca existiram** (de 12 nomes marcados como feitos, só 4 existem hoje) e afirmava "15 pacotes" (hoje são 27) | `.specs/features/ai-tool-auto-wiring/validation.md` (plano anterior) |
+
+**O que o Verifier confirma que funciona:** o detector monta os candidatos, a
+injeção preserva servidores e chaves paralelas do arquivo existente (AC P1.2
+cumprida), o `--dry-run` mostra o que faria sem escrever, e o `mem mcp` sobe
+nos dois transportes.
+
+**Higiene:** sensor em worktree isolado (`D:\.minimax\scratch\subagents\verifier-atw\wt`,
+sem `git stash`); o Postgres do dono nunca foi contatado; baseline e final do
+`git status --porcelain` comparados.
+
+**Referência:** ADR-026 · ADR-040 (precedência de storage) · ADR-033 ·
+spec `ai-tool-auto-wiring` ·
+`.specs/features/ai-tool-auto-wiring/validation.md`.

@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 27,
+  "next_id": 30,
   "lessons": [
     {
       "id": "L-001",
@@ -472,6 +472,60 @@
       ],
       "created": "2026-11-15T15:25:02Z",
       "last_seen": "2026-11-15T15:25:02Z"
+    },
+    {
+      "id": "L-027",
+      "key": "surviving_mutant::assert the negative side of a cli filter prove the excluded target is absent no file written and client not listed not only that the selected one was written",
+      "text": "Assert the negative side of a CLI filter: prove the excluded target is absent (no file written and client not listed), not only that the selected one was written.",
+      "signal": "surviving_mutant",
+      "scope": "cli",
+      "status": "candidate",
+      "features": [
+        "ai-tool-auto-wiring"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M7,M8 / cmd/mem/install.go:85 (cli)"
+      ],
+      "created": "2026-11-15T15:45:25Z",
+      "last_seen": "2026-11-15T15:45:25Z"
+    },
+    {
+      "id": "L-028",
+      "key": "ac_gap::when a later feature repurposes a cli verb update in the same commit every spec adr and guide that advertises the old meaning of that verb",
+      "text": "When a later feature repurposes a CLI verb, update in the same commit every spec, ADR and guide that advertises the old meaning of that verb.",
+      "signal": "ac_gap",
+      "scope": "cli/docs",
+      "status": "candidate",
+      "features": [
+        "ai-tool-auto-wiring"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md:16 / cmd/mem/main.go:794 (cli/docs)"
+      ],
+      "created": "2026-11-15T15:45:25Z",
+      "last_seen": "2026-11-15T15:45:25Z"
+    },
+    {
+      "id": "L-029",
+      "key": "spec_precision_gap::state in the spec the exact observable output a command must produce which fields which values so the assertion targets that output instead of a proxy badge",
+      "text": "State in the spec the exact observable output a command must produce (which fields, which values), so the assertion targets that output instead of a proxy badge.",
+      "signal": "spec_precision_gap",
+      "scope": "autowire",
+      "status": "candidate",
+      "features": [
+        "ai-tool-auto-wiring"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "internal/autowire/installer.go:91 (autowire)"
+      ],
+      "created": "2026-11-15T15:45:25Z",
+      "last_seen": "2026-11-15T15:45:25Z"
     }
   ]
 }

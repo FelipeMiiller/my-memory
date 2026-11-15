@@ -185,6 +185,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tag `onnx`, então o provider semântico está morto em todo artefato oficial e cada nota
   reindexada perde o vetor **em silêncio**. Gaps rastreados: ISSUE-037, ISSUE-038,
   ISSUE-039.
+- **Cinco features que nunca tinham veredito real passaram por verificação independente**:
+  o `validation.md` delas era um **plano**, não um relatório — ninguém tinha rodado um
+  Verifier sobre elas. A bateria devolveu **`staleness-detection-and-banners` FAIL**
+  (4 gaps, 1 Blocker), **`context-packager-and-subgraph-bundle` FAIL** (7 gaps),
+  **`graph-path-discovery` FAIL** (7 gaps), **`ai-tool-auto-wiring` FAIL** (10 gaps,
+  1 Blocker) e **`progressive-context-loading` PARTIAL** (3 gaps de teste). Os
+  achados mais graves: o **banner de staleness nunca aparece** em
+  `mem search`/`path`/`inspect`/`impact` (`FormatCLIBanner` é código morto e o
+  `tasks.md` marca a integração como feita); o **`mem pack` estoura o orçamento de
+  tokens** (1370 tokens gravados contra 1000, porque a contabilidade ignora o bloco
+  Mermaid, o cabeçalho e os metadados por nó); o **`mem path` não acha caminho no
+  vault real** (o indexador dá duas identidades a cada nota — 0 de 40.243 arestas do
+  `repo_central` têm as duas pontas no mesmo lado, e a causa é anterior à feature); e
+  o **`mem setup` não é alias do auto-wiring**, embora a documentação ainda prometa o
+  comando. Cada gap ganhou ID rastreável em `.specs/ISSUES.md` (**ISSUE-043** a
+  **ISSUE-048**). Relatórios em `.specs/features/<feature>/validation.md`.
+- **O painel de governança (`docs/adr/README.md`) foi recalculado com a lógica
+  autoritativa do `validate_state.py`**: o status de cada ADR passa a ser derivado do
+  veredito que o próprio validador lê no `validation.md` da spec, e não de um regex
+  próprio. A correção mudou **4 ADRs** que o painel anterior classificava como "sem
+  verificação" apesar de terem PASS (ADR-030, ADR-031, ADR-032, ADR-034) e passou
+  **5 ADRs** para "Implementado (com gaps)". O **texto das ADRs não foi tocado** — o
+  status vive só no índice (ISSUE-024).
 
 ## [3.0.0] — 2026-10-28
 

@@ -170,6 +170,24 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: internal/store/postgres.go:1018 (AC P1.1) (internal/graph)
 - last seen: 2026-11-15T15:25:02Z
 
+### L-027 - Assert the negative side of a CLI filter: prove the excluded target is absent (no file written and client not listed), not only that the selected one was written.
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `cli` · harmful: 0
+- features: ai-tool-auto-wiring
+- evidence: M7,M8 / cmd/mem/install.go:85 (cli)
+- last seen: 2026-11-15T15:45:25Z
+
+### L-028 - When a later feature repurposes a CLI verb, update in the same commit every spec, ADR and guide that advertises the old meaning of that verb.
+- signal: `ac_gap` · recurrence: 1 feature(s) · scope: `cli/docs` · harmful: 0
+- features: ai-tool-auto-wiring
+- evidence: spec.md:16 / cmd/mem/main.go:794 (cli/docs)
+- last seen: 2026-11-15T15:45:25Z
+
+### L-029 - State in the spec the exact observable output a command must produce (which fields, which values), so the assertion targets that output instead of a proxy badge.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `autowire` · harmful: 0
+- features: ai-tool-auto-wiring
+- evidence: internal/autowire/installer.go:91 (autowire)
+- last seen: 2026-11-15T15:45:25Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
