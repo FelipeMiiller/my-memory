@@ -2041,6 +2041,7 @@ codigo graph que o `--fix` apagava por engano — corte errado e custo alto) ·
 
 - **Severidade:** 🟠 high (a feature entrega o motor e deixa de fora o gancho que a torna visível — o usuário não é avisado de que o índice está desatualizado)
 - **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15; `tasks.md` marca T3 como `[x]` e o checkbox mente)
+- **Spec de correcao:** `.specs/features/fix-staleness-cli-banner/` — 28 ACs em EARS, 13 tasks, 5 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `staleness-detection-and-banners` — `.specs/features/staleness-detection-and-banners/validation.md`
 
 **O defeito.** `FormatCLIBanner` (`internal/staleness/detector.go:309`) foi
@@ -2077,6 +2078,7 @@ A única construção de `staleness.Detector` na CLI é a de `cmd/mem/status.go:
 
 - **Severidade:** 🟡 medium (o comportamento existe e o gate está verde; falta a prova que liga as unidades — o padrão é "testado na unidade, encano sem prova")
 - **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Spec de correcao:** `.specs/features/fix-progressive-context-test-coverage/` — 9 ACs em EARS, 5 tasks, 2 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `progressive-context-loading` — `.specs/features/progressive-context-loading/validation.md`
 
 **Os 3 gaps:**
@@ -2105,6 +2107,7 @@ foram do sub-agente. A re-verificação independente da spec continua pendente.
 
 - **Severidade:** 🟠 high (o bundle gravado tem **1370 tokens** contra um orçamento de **1000** — a restrição que a ADR-029 e o `docs/CLI_GUIDE.md` §21 prometem é violada em uso real)
 - **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Spec de correcao:** `.specs/features/fix-packager-token-budget/` — 17 ACs em EARS, 9 tasks, 4 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `context-packager-and-subgraph-bundle` — `.specs/features/context-packager-and-subgraph-bundle/validation.md`
 
 **Os 7 gaps (ranqueados):**
@@ -2136,6 +2139,7 @@ spec exige.
 
 - **Severidade:** 🟡 medium (o motor de caminho está correto; os gaps são de gancho, de default e de prova — a feature é inutilizável no vault real por causa do ISSUE-047)
 - **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Spec de correcao:** `.specs/features/fix-graph-path-resolution/` — 47 ACs em EARS, 14 tasks, 4 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `graph-path-discovery` — `.specs/features/graph-path-discovery/validation.md`
 
 **Os 7 gaps (ranqueados):**
@@ -2170,6 +2174,7 @@ transportes stdio e HTTP/SSE pelo mesmo `runMCPServer`.
 
 - **Severidade:** 🔴 critical (a feature `graph-path-discovery` está entregue e verificada, e ainda assim o comando principal dela **não acha caminho nenhum** entre duas notas ligadas por wikilink)
 - **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15; a causa é **anterior** à feature)
+- **Spec de correcao:** `.specs/features/fix-graph-node-identity/` — 18 ACs em EARS, 12 tasks, 5 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `graph-path-discovery` — `.specs/features/graph-path-discovery/validation.md` (FIX-2)
 
 **O defeito.** O indexador dá **duas identidades** a cada nota: a **origem** da
@@ -2200,6 +2205,7 @@ spec `graph-path-discovery` (FIX-2) ·
 
 - **Severidade:** 🔴 critical (o comando é **documentado** e **não faz o que a doc promete** — e falha em silêncio, com exit 0)
 - **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Spec de correcao:** `.specs/features/fix-autowiring-cli-contract/` — 37 ACs em EARS, 18 tasks, 5 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `ai-tool-auto-wiring` — `.specs/features/ai-tool-auto-wiring/validation.md`
 
 **Veredito:** ❌ **FAIL** — 8/8 ACs com evidência `file:line`; 1 spec-precision
@@ -2238,6 +2244,7 @@ spec `ai-tool-auto-wiring` ·
 
 - **Severidade:** 🟢 low (custam **10 pontos** de Health Score ao vault do repo — o resto do score está em 100)
 - **Status:** 🔵 **open** (achado em 2026-11-15, no `mem doctor` do repo após o reindex)
+- **Spec de correcao:** `.specs/features/fix-adr-035-dead-links/` — 6 ACs em EARS, 4 tasks, 2 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15 — `mem doctor --storage=postgres --repo repo_e4c8f3b1a2d5` reportou 2 links rompidos
 
 **O defeito.** Dois arquivos do repo usam o wikilink **`[[ADR-035]]`**, que não
@@ -2274,6 +2281,7 @@ este item nesta rodada — fica registrado e à espera.
 
 - **Severidade:** 🔴 critical (o gate que valida "todo AC tem SHALL e casa com um padrão EARS" **não enxerga** a maioria dos ACs — um spec com AC malformado passa com 0 erro; é o "verde-mentira" que o repo já registrou na ISSUE-033)
 - **Status:** 🔵 **open** (achado em 2026-11-15, durante a verificação das specs do piloto)
+- **Spec de correcao:** `.specs/features/fix-ears-gate-blindness/` — 10 ACs em EARS, 5 tasks, 3 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15 — ao revisar a spec `fix-packager-token-budget` escrita pelo especialista `spec-writer`, que reportou que "os ACs não estavam sendo lidos pelo validador"
 
 **A causa — uma linha.** Em `validate_spec.py:174`:

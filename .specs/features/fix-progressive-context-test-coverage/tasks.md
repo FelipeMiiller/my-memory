@@ -82,6 +82,8 @@ declara `detail_level` (com `enum` = `l0`, `l1`, `l2`) e `category` (com `enum` 
 **Reuses**: `Server.GetTools()` (`internal/mcp/tools.go:792`) · o padrão de asserção
 de schema já existente em `TestTools_DefaultSchemas` (mesmo arquivo) ·
 `ToolMemorySearch.InputSchema` (`internal/mcp/tools.go:54` e `internal/mcp/tools.go:59`)
+**Requirement**: PCT-01, PCT-02
+**Gap**: PCL-02
 
 **Tools**:
 - MCP: NONE
@@ -116,6 +118,8 @@ fixture no nível `l1` como **controle negativo** (lá o corpo aparece).
 (`cmd/mem/main.go:2448`) · o ramo L0 de `cmd/mem/main.go:2517` · o par
 `db.InitDB` + `watcher.IndexSingleFileSQLite` (o mesmo par de
 `internal/watcher/indexer_test.go:14`)
+**Requirement**: PCT-03
+**Gap**: PCL-01
 
 **Tools**:
 - MCP: NONE
@@ -149,6 +153,8 @@ sobreviveu. Um teste só no SQLite (T2) **não** mataria M6.
 `cmd/mem/codeindex_postgres_test.go:32` e `cmd/mem/codeindex_postgres_test.go:57`)
 · `store.NewPostgresStore` · o par `store.InsertDocument` + `store.InsertChunk`
 (`internal/store/postgres_test.go:231`) · `captureStdout`
+**Requirement**: PCT-04
+**Gap**: PCL-01
 
 **Tools**:
 - MCP: NONE
@@ -182,6 +188,8 @@ em `documents.abstract` em cada um dos três ramos da cadeia de escolha de
 **Reuses**: `IndexSingleFileSQLite` e `db.InitDB` (o padrão de
 `internal/watcher/indexer_test.go:14`) · `parser.ExtractMicroAbstract` (o fallback
 de 160 caracteres)
+**Requirement**: PCT-05, PCT-06, PCT-07
+**Gap**: PCL-03
 
 **Tools**:
 - MCP: NONE
@@ -218,6 +226,8 @@ novos; (c) escreva o relatório
 **Reuses**: o sensor anterior (6 alvos, worktree isolado) · `internal/pgtest` (o
 gate do sensor precisa do Postgres para o M6) · o fallback standalone do
 `tlc-spec-driven` para a análise ancorada na spec
+**Requirement**: PCT-08, PCT-09
+**Gap**: nenhum novo — fecha a ressalva herdada da ISSUE-044 (o sensor roda no pai)
 
 **Tools**:
 - MCP: NONE
