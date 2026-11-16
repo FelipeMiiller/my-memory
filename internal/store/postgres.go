@@ -13,6 +13,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/FelipeMiiller/my-memory/internal/graph"
+	"github.com/FelipeMiiller/my-memory/internal/vaultfs"
 )
 
 // PostgresStore implementa a interface Store utilizando PostgreSQL e extensão pgvector
@@ -1027,8 +1028,27 @@ func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
 
-// ResolveNodeCanonicalID resolve um identificador informal para o ID canônico correspondente no PostgreSQL
+// ResolveNodeCanonicalID resolve um identificador informal para o ID canônico correspondente no PostgreSQL.
+//
+// ADR-066: o id canônico do nó é o `documents.id`. O path, o `title:` e o
+// `alias:` do MESMO documento são aliases do mesmo nó — e a consulta pelo
+// título devolve o `documents.id`, nunca o id de um nó de estilo título.
+//
+// A raiz do vault — necessária para o `alias:`, que só existe no disco — vem
+// da precedência padrão do `internal/vaultfs`: catálogo do repositório
+// auditado → cofre central → diretório de trabalho atual.
 func (s *PostgresStore) ResolveNodeCanonicalID(ctx context.Context, repo string, query string) (string, error) {
+	return s.ResolveNodeCanonicalIDWithRoot(ctx, repo, query, vaultfs.ResolveRoot("", repo).Path)
+}
+
+// ResolveNodeCanonicalIDWithRoot resolve o nó canônico com a raiz do vault
+// explícita.
+//
+// A raiz é o que permite resolver o `alias:` de frontmatter: o alias não é
+// persistido no índice (a ADR-056 não foi implementada), então ele só
+// resolve contra o disco. Sem raiz — ou sem o alias no disco — a resposta
+// honesta é o erro de nó não encontrado.
+func (s *PostgresStore) ResolveNodeCanonicalIDWithRoot(ctx context.Context, repo string, query string, vaultRoot string) (string, error) {
 	clean := strings.TrimSpace(query)
 	clean = strings.TrimPrefix(clean, "[[")
 	clean = strings.TrimSuffix(clean, "]]")
@@ -1037,10 +1057,28 @@ func (s *PostgresStore) ResolveNodeCanonicalID(ctx context.Context, repo string,
 		return "", fmt.Errorf("identificador de busca não pode ser vazio")
 	}
 
+	// `alias:` nomeia um alias de frontmatter: ele vive no disco, não no
+	// índice, então a resolução é contra o vault.
+	if alias, isAlias := strings.CutPrefix(clean, "alias:"); isAlias {
+		alias = strings.TrimSpace(alias)
+		if canonicalID, ok := s.resolveAliasToDocumentID(ctx, repo, alias, vaultRoot); ok {
+			return canonicalID, nil
+		}
+		return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+	}
+
+	// `title:` nomeia o rótulo do documento. O prefixo é descartado e o
+	// termo passa pelas mesmas chaves — o título resolve para o id do
+	// DOCUMENTO (ADR-066), não para um nó de estilo título.
+	clean = strings.TrimSpace(strings.TrimPrefix(clean, "title:"))
+	if clean == "" {
+		return "", fmt.Errorf("identificador de busca não pode ser vazio")
+	}
+
 	// 1. Checagem exata em documents
 	var canonicalID string
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id FROM documents 
+		SELECT id FROM documents
 		WHERE ($1 = '' OR repository = $1) AND (id = $2 OR path = $2 OR path = $3)
 		LIMIT 1
 	`, repo, clean, clean+".md").Scan(&canonicalID)
@@ -1048,20 +1086,23 @@ func (s *PostgresStore) ResolveNodeCanonicalID(ctx context.Context, repo string,
 		return canonicalID, nil
 	}
 
-	// 2. Checagem em graph_nodes
+	// 2. Checagem exata por título — o título é o RÓTULO do nó, e a resposta
+	// é o `documents.id` do documento (ADR-066). A consulta vem ANTES da
+	// busca em `graph_nodes` porque um nó de estilo título não pode
+	// sequestrar a identidade de um documento indexado.
 	err = s.db.QueryRowContext(ctx, `
-		SELECT id FROM graph_nodes 
-		WHERE ($1 = '' OR repository = $1) AND (id = $2 OR name = $2)
+		SELECT id FROM documents
+		WHERE ($1 = '' OR repository = $1) AND LOWER(title) = LOWER($2)
 		LIMIT 1
 	`, repo, clean).Scan(&canonicalID)
 	if err == nil && canonicalID != "" {
 		return canonicalID, nil
 	}
 
-	// 3. Checagem por título
+	// 3. Checagem em graph_nodes
 	err = s.db.QueryRowContext(ctx, `
-		SELECT id FROM documents 
-		WHERE ($1 = '' OR repository = $1) AND LOWER(title) = LOWER($2)
+		SELECT id FROM graph_nodes
+		WHERE ($1 = '' OR repository = $1) AND (id = $2 OR name = $2)
 		LIMIT 1
 	`, repo, clean).Scan(&canonicalID)
 	if err == nil && canonicalID != "" {
@@ -1071,10 +1112,10 @@ func (s *PostgresStore) ResolveNodeCanonicalID(ctx context.Context, repo string,
 	// 4. Checagem difusa LIKE
 	likeQuery := "%" + clean + "%"
 	err = s.db.QueryRowContext(ctx, `
-		SELECT id FROM documents 
+		SELECT id FROM documents
 		WHERE ($1 = '' OR repository = $1) AND (id LIKE $2 OR path LIKE $2 OR title LIKE $2)
-		ORDER BY 
-			CASE 
+		ORDER BY
+			CASE
 				WHEN id LIKE $3 THEN 1
 				WHEN path LIKE $3 THEN 2
 				ELSE 3
@@ -1097,6 +1138,37 @@ func (s *PostgresStore) ResolveNodeCanonicalID(ctx context.Context, repo string,
 	}
 
 	return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+}
+
+// resolveAliasToDocumentID resolve um alias de frontmatter contra o disco do
+// vault e devolve o `documents.id` do documento encontrado, no repositório
+// auditado.
+func (s *PostgresStore) resolveAliasToDocumentID(ctx context.Context, repo string, alias, vaultRoot string) (string, bool) {
+	if strings.TrimSpace(alias) == "" || strings.TrimSpace(vaultRoot) == "" {
+		return "", false
+	}
+	resolver, err := vaultfs.NewResolver(vaultRoot)
+	if err != nil {
+		return "", false
+	}
+	resolution := resolver.Resolve(alias)
+	if !resolution.Found {
+		return "", false
+	}
+	// O caminho do resolver é relativo à raiz; o id do documento é o path.
+	abs := filepath.Join(vaultRoot, filepath.FromSlash(resolution.Path))
+	slash := filepath.ToSlash(abs)
+	back := strings.ReplaceAll(slash, "/", "\\")
+	var canonicalID string
+	err = s.db.QueryRowContext(ctx, `
+		SELECT id FROM documents
+		WHERE ($1 = '' OR repository = $1) AND (id = $2 OR path = $2 OR path = $3 OR path = $4)
+		LIMIT 1
+	`, repo, abs, slash, back).Scan(&canonicalID)
+	if err != nil || canonicalID == "" {
+		return "", false
+	}
+	return canonicalID, true
 }
 
 // CalculateImpact calcula a análise de impacto (blast radius) de um nó alvo no PostgreSQL

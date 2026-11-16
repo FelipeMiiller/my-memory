@@ -315,12 +315,12 @@ o filtro por repositório dos dois engines
 
 **Done when**:
 
-- [ ] O path, o `title:` e o `alias:` do mesmo documento devolvem o mesmo
+- [x] O path, o `title:` e o `alias:` do mesmo documento devolvem o mesmo
       `documents.id`, com o filtro de repositório respeitado
-- [ ] Uma consulta pelo título devolve o `documents.id` e **não** o id de um nó de
+- [x] Uma consulta pelo título devolve o `documents.id` e **não** o id de um nó de
       estilo título
-- [ ] Sem raiz do vault, um alias devolve o erro de nó não encontrado
-- [ ] O gate rápido passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 -run TestPostgresResolveCanonical ./internal/store/...`
+- [x] Sem raiz do vault, um alias devolve o erro de nó não encontrado
+- [x] O gate rápido passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 -run TestPostgresResolveCanonical ./internal/store/...`
 
 **Tests**: integration
 **Gate**: quick

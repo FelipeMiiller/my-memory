@@ -2,6 +2,9 @@ package store
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,5 +106,98 @@ func TestPostgresNodeIdentity(t *testing.T) {
 	}
 	if name != "Titulo Novo" {
 		t.Errorf("name do nó após a reindexação = %q; want %q", name, "Titulo Novo")
+	}
+}
+
+// TestPostgresResolveCanonical prova o contrato do resolvedor canônico no
+// PostgreSQL (ADR-066 — GNI-07 a GNI-09), o mesmo do SQLite:
+//
+//  1. o path, o `title:` e o `alias:` do MESMO documento devolvem o mesmo
+//     `documents.id`, com o filtro de repositório respeitado;
+//  2. uma consulta pelo título devolve o `documents.id` — nunca o id de um
+//     nó de estilo título;
+//  3. sem raiz do vault, um alias devolve o erro de nó não encontrado.
+func TestPostgresResolveCanonical(t *testing.T) {
+	h := pgtest.New(t)
+	ctx := context.Background()
+
+	s, err := NewPostgresStore(h.DSN)
+	if err != nil {
+		t.Fatalf("NewPostgresStore(%s): %v", h.DBName, err)
+	}
+	defer s.Close()
+	database := s.DB()
+
+	const repo = "repo-resolve-canonical"
+	const outroRepo = "repo-resolve-canonical-2"
+	now := time.Now().Unix()
+
+	// Vault de teste com uma nota que declara `title:` e `alias:`.
+	vault := t.TempDir()
+	notaPath := filepath.Join(vault, "nota.md")
+	content := "---\ntitle: Minha Nota\naliases: [Meu Alias]\n---\n\nCorpo da nota.\n"
+	if err := os.WriteFile(notaPath, []byte(content), 0644); err != nil {
+		t.Fatalf("escrevendo a nota: %v", err)
+	}
+
+	if err := s.InsertDocumentWithMeta(ctx, repo, notaPath, notaPath, "Minha Nota", now, "h1", "", "resumo", "resource", 0, 0); err != nil {
+		t.Fatalf("inserindo o documento: %v", err)
+	}
+
+	// Documento homônimo em OUTRO repositório: a resolução tem que respeitar
+	// o repositório auditado.
+	outroPath := filepath.Join(vault, "outro.md")
+	if err := s.InsertDocumentWithMeta(ctx, outroRepo, outroPath, outroPath, "Minha Nota", now, "h2", "", "resumo", "resource", 0, 0); err != nil {
+		t.Fatalf("inserindo o documento homônimo: %v", err)
+	}
+
+	// Nó de estilo título (o outro lado da fenda): existe no grafo, mas
+	// NUNCA pode sequestrar a identidade de um documento.
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO graph_nodes (id, repository, type, name) VALUES ($1, $2, 'note', $3)
+	`, "Minha Nota", repo, "Minha Nota"); err != nil {
+		t.Fatalf("inserindo o nó de estilo título: %v", err)
+	}
+
+	// 1. Path, `title:` e `alias:` do mesmo documento → o mesmo id.
+	byPath, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, notaPath, vault)
+	if err != nil {
+		t.Fatalf("resolvendo pelo path: %v", err)
+	}
+	byTitle, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "title:Minha Nota", vault)
+	if err != nil {
+		t.Fatalf("resolvendo pelo title:: %v", err)
+	}
+	byAlias, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "alias:Meu Alias", vault)
+	if err != nil {
+		t.Fatalf("resolvendo pelo alias:: %v", err)
+	}
+	if byPath != notaPath {
+		t.Errorf("id pelo path = %q; want %q", byPath, notaPath)
+	}
+	if byTitle != byPath {
+		t.Errorf("id pelo title: = %q; want %q (o mesmo nó)", byTitle, byPath)
+	}
+	if byAlias != byPath {
+		t.Errorf("id pelo alias: = %q; want %q (o mesmo nó)", byAlias, byPath)
+	}
+
+	// 2. A consulta pelo título devolve o `documents.id` do repositório
+	// auditado — nunca o id do nó de estilo título nem o do outro repo.
+	byPlainTitle, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "Minha Nota", vault)
+	if err != nil {
+		t.Fatalf("resolvendo pelo título: %v", err)
+	}
+	if byPlainTitle != notaPath {
+		t.Errorf("id pelo título = %q; want %q (o documents.id do repositório auditado)", byPlainTitle, notaPath)
+	}
+
+	// 3. Sem raiz do vault, o alias devolve o erro de nó não encontrado.
+	_, err = s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "alias:Meu Alias", "")
+	if err == nil {
+		t.Fatal("sem raiz do vault, o alias devolve erro; obteve nil")
+	}
+	if !strings.Contains(err.Error(), "não encontrado no grafo") {
+		t.Errorf("erro do alias sem raiz = %q; want %q", err.Error(), "nó '...' não encontrado no grafo")
 	}
 }
