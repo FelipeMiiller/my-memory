@@ -352,17 +352,12 @@ func (s *PostgresStore) InsertEdgeWithProps(ctx context.Context, repo, sourceID,
 		weight = 1.0
 	}
 
-	// Garante que nós de origem e destino existam para satisfazer integridade referencial
-	_, _ = s.db.ExecContext(ctx, `
-		INSERT INTO graph_nodes (id, repository, type, name)
-		VALUES ($1, $2, 'note', $1)
-		ON CONFLICT (repository, id) DO NOTHING
-	`, sourceID, repo)
-	_, _ = s.db.ExecContext(ctx, `
-		INSERT INTO graph_nodes (id, repository, type, name)
-		VALUES ($1, $2, 'note', $1)
-		ON CONFLICT (repository, id) DO NOTHING
-	`, targetID, repo)
+	// Garante que nós de origem e destino existam para satisfazer integridade referencial.
+	//
+	// ADR-066: o nó de um documento carrega o título como rótulo (o id é a
+	// chave); o nó de um alvo que não é documento carrega o próprio texto.
+	upsertGraphNode(ctx, s.db, repo, sourceID)
+	upsertGraphNode(ctx, s.db, repo, targetID)
 
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO graph_edges (source_id, target_id, repository, relation, epistemic_status, weight)
@@ -372,6 +367,24 @@ func (s *PostgresStore) InsertEdgeWithProps(ctx context.Context, repo, sourceID,
 			weight = EXCLUDED.weight
 	`, sourceID, targetID, repo, relation, epistemicStatus, weight)
 	return err
+}
+
+// upsertGraphNode garante que o nó exista e carregue o rótulo certo.
+//
+// ADR-066: a identidade do nó é o `documents.id` e o `documents.title` é o
+// RÓTULO. O nó de um alvo que não é documento — o texto do wikilink que não
+// resolve — é criado com o próprio texto como nome: o `mem doctor` continua
+// enxergando o link rompido (ADR-063).
+//
+// O `ON CONFLICT` só renomeia o nó quando o id É de um documento do
+// repositório: um nó de código (`code_symbol`) preserva o nome que tem.
+func upsertGraphNode(ctx context.Context, db *sql.DB, repo, id string) {
+	_, _ = db.ExecContext(ctx, `
+		INSERT INTO graph_nodes (id, repository, type, name)
+		VALUES ($1, $2, 'note', COALESCE((SELECT title FROM documents WHERE repository = $2 AND id = $1 AND title <> ''), $1))
+		ON CONFLICT (repository, id) DO UPDATE SET name = EXCLUDED.name
+		WHERE EXISTS (SELECT 1 FROM documents WHERE repository = $2 AND id = $1 AND title <> '')
+	`, id, repo)
 }
 
 func (s *PostgresStore) InsertEdge(ctx context.Context, repo, sourceID, targetID, relation string) error {
