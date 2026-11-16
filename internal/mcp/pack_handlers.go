@@ -31,27 +31,28 @@ func NewMemoryPackContextHandler(packFn PackFunc) ToolHandlerFunc {
 			return nil, NewError(CodeInvalidParams, "Parâmetro 'root_node' é obrigatório", nil)
 		}
 
-		maxDepth := 2
+		// Defaults da fonte única: o motor publica graph.DefaultPackOptions() e
+		// os parâmetros opcionais sobrescrevem apenas o que o agente enviou.
+		opts := graph.DefaultPackOptions()
+
 		if rawDepth, ok := rawMap["max_depth"]; ok {
 			var d int
 			if err := json.Unmarshal(rawDepth, &d); err == nil && d > 0 {
-				maxDepth = d
+				opts.MaxDepth = d
 			}
 		}
 
-		maxTokens := 4000
 		if rawTokens, ok := rawMap["max_tokens"]; ok {
 			var t int
 			if err := json.Unmarshal(rawTokens, &t); err == nil && t > 0 {
-				maxTokens = t
+				opts.MaxTokens = t
 			}
 		}
 
-		direction := "both"
 		if rawDir, ok := rawMap["direction"]; ok {
 			var dir string
 			if err := json.Unmarshal(rawDir, &dir); err == nil && dir != "" {
-				direction = strings.ToLower(strings.TrimSpace(dir))
+				opts.Direction = strings.ToLower(strings.TrimSpace(dir))
 			}
 		}
 
@@ -62,13 +63,6 @@ func NewMemoryPackContextHandler(packFn PackFunc) ToolHandlerFunc {
 
 		if packFn == nil {
 			return nil, NewError(CodeInternalError, "Handler de empacotamento de subgrafo não configurado no servidor", nil)
-		}
-
-		opts := graph.PackOptions{
-			MaxDepth:               maxDepth,
-			MaxTokens:              maxTokens,
-			Direction:              direction,
-			IncludeFringeAbstracts: true,
 		}
 
 		res, err := packFn(ctx, repo, rootNode, opts)

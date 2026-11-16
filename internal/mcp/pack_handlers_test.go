@@ -95,6 +95,36 @@ func TestMemoryPackContextTool_Success(t *testing.T) {
 	}
 }
 
+// TestMemoryPackContextTool_DefaultsVemDaFonteUnica prova FPB-14: sem os parâmetros
+// opcionais, as opções passadas ao motor são iguais a graph.DefaultPackOptions()
+// campo a campo (MaxDepth 2, MaxTokens 4000, Direction "both",
+// IncludeFringeAbstracts true).
+func TestMemoryPackContextTool_DefaultsVemDaFonteUnica(t *testing.T) {
+	var captured graph.PackOptions
+	handler := NewMemoryPackContextHandler(func(ctx context.Context, repo, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
+		captured = opts
+		return &graph.PackResult{Markdown: "# 📦 Pacote de Contexto: Raiz Teste"}, nil
+	})
+
+	if _, err := handler(context.Background(), json.RawMessage(`{"root_node": "docs/root.md"}`)); err != nil {
+		t.Fatalf("handler falhou: %v", err)
+	}
+
+	defaults := graph.DefaultPackOptions()
+	if captured.MaxDepth != defaults.MaxDepth {
+		t.Errorf("MaxDepth = %d, esperado o default compartilhado %d", captured.MaxDepth, defaults.MaxDepth)
+	}
+	if captured.MaxTokens != defaults.MaxTokens {
+		t.Errorf("MaxTokens = %d, esperado o default compartilhado %d", captured.MaxTokens, defaults.MaxTokens)
+	}
+	if captured.Direction != defaults.Direction {
+		t.Errorf("Direction = %q, esperado o default compartilhado %q", captured.Direction, defaults.Direction)
+	}
+	if captured.IncludeFringeAbstracts != defaults.IncludeFringeAbstracts {
+		t.Errorf("IncludeFringeAbstracts = %v, esperado o default compartilhado %v", captured.IncludeFringeAbstracts, defaults.IncludeFringeAbstracts)
+	}
+}
+
 func TestMemoryPackContextTool_PackError(t *testing.T) {
 	mockFn := func(ctx context.Context, repo, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
 		return nil, fmt.Errorf("falha interna simulada")

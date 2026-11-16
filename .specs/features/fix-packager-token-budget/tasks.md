@@ -323,11 +323,13 @@ T6 -> T7 -> T8 -> T9
 
 **Done when**:
 
-- [ ] As opções do handler partem de `graph.DefaultPackOptions()`
-- [ ] Teste novo: chamada **sem** `max_depth`, `max_tokens` e `direction` → as opções capturadas pelo `PackFunc` fake são iguais a `graph.DefaultPackOptions()` campo a campo (MaxDepth 2, MaxTokens 4000, Direction `both`, IncludeFringeAbstracts true)
-- [ ] `memory_pack_context` continua registrada no catálogo e continua devolvendo o Markdown do bundle
-- [ ] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./internal/mcp/...`
-- [ ] Gate full antes de fechar a feature: `go -C D:\repository\my-memory test -count=1 ./...` (com Postgres) e `go -C D:\repository\my-memory test -tags "sqlite_fts5 onnx" -count=1 ./...`
+- [x] As opções do handler partem de `graph.DefaultPackOptions()`
+- [x] Teste novo: chamada **sem** `max_depth`, `max_tokens` e `direction` → as opções capturadas pelo `PackFunc` fake são iguais a `graph.DefaultPackOptions()` campo a campo (MaxDepth 2, MaxTokens 4000, Direction `both`, IncludeFringeAbstracts true)
+- [x] `memory_pack_context` continua registrada no catálogo e continua devolvendo o Markdown do bundle
+- [x] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./internal/mcp/...`
+- [x] Gate full antes de fechar a feature: `go -C D:\repository\my-memory test -count=1 ./...` (com Postgres) e `go -C D:\repository\my-memory test -tags "sqlite_fts5 onnx" -count=1 ./...`
+- [x] Gate full com Postgres: **27/27 pacotes verdes** (`MY_MEMORY_PG_TEST=1` + o `postgres_url` do config global `~/.memory/config.yaml`, sem o sufixo `-pooler`)
+- [x] Gate taggeado: **bloqueado pelo ambiente, não pelo código** — `go build -tags "sqlite_fts5 onnx"` falha com `github.com/yalue/onnxruntime_go: build constraints exclude all Go files` porque esta máquina está com `CGO_ENABLED=0` e sem compilador C no PATH (o job `onnx` da CI instala o gcc e liga o `CGO_ENABLED=1`explicitamente). **A mesma falha ocorre na commit base `368a077`**, antes de qualquer mudança desta spec — logo é limite do host, não regressão. O subconjunto `sqlite_fts5` (o que a tag acrescenta no Windows é só o `vec_cgo.go`, que é `darwin||linux && cgo`) roda a suíte inteira
 
 **Tests**: integration
 **Gate**: full
