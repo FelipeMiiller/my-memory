@@ -282,15 +282,15 @@ frontmatter
 
 **Done when**:
 
-- [ ] O path, o `title:` e o `alias:` do **mesmo** documento devolvem o mesmo
+- [x] O path, o `title:` e o `alias:` do **mesmo** documento devolvem o mesmo
       `documents.id`
-- [ ] Uma consulta pelo título devolve o `documents.id` e **não** o id de um nó de
+- [x] Uma consulta pelo título devolve o `documents.id` e **não** o id de um nó de
       estilo título
-- [ ] Sem raiz do vault, um alias devolve o erro "nó '...' não encontrado no grafo"
-- [ ] A resolução por título continua determinística quando há um único documento com
+- [x] Sem raiz do vault, um alias devolve o erro "nó '...' não encontrado no grafo"
+- [x] A resolução por título continua determinística quando há um único documento com
       esse título (o desempate entre homônimos é do FIX-3, da spec
       `fix-graph-path-discovery-gaps`)
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestResolveCanonical ./internal/db/...`
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestResolveCanonical ./internal/db/...`
 
 **Tests**: unit
 **Gate**: quick

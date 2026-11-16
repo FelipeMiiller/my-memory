@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/FelipeMiiller/my-memory/internal/graph"
 	"github.com/FelipeMiiller/my-memory/internal/store"
 	"github.com/FelipeMiiller/my-memory/internal/turboquant"
+	"github.com/FelipeMiiller/my-memory/internal/vaultfs"
 )
 
 type SearchResult struct {
@@ -578,12 +580,48 @@ func FixHealthIssues(ctx context.Context, db *sql.DB, vaultRoot string) (int, er
 	return int(loopsFixed + deadFixed), nil
 }
 
-// ResolveNodeCanonicalID resolve um identificador informal, slug, título ou caminho relativo para o ID canônico no grafo
+// ResolveNodeCanonicalID resolve um identificador informal, slug, título ou caminho relativo para o ID canônico no grafo.
+//
+// ADR-066: o id canônico do nó é o `documents.id`. O path, o `title:` e o
+// `alias:` do MESMO documento são aliases do mesmo nó — e a consulta pelo
+// título devolve o `documents.id`, nunca o id de um nó de estilo título.
+//
+// A raiz do vault — necessária para o `alias:`, que só existe no disco — vem
+// da precedência padrão do `internal/vaultfs`: diretório de trabalho atual.
 func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (string, error) {
+	return ResolveNodeCanonicalIDWithRoot(ctx, db, query, vaultfs.ResolveRoot("", "").Path)
+}
+
+// ResolveNodeCanonicalIDWithRoot resolve o nó canônico com a raiz do vault
+// explícita.
+//
+// A raiz é o que permite resolver o `alias:` de frontmatter: o alias não é
+// persistido no índice (a ADR-056 não foi implementada), então ele só
+// resolve contra o disco. Sem raiz — ou sem o alias no disco — a resposta
+// honesta é o erro de nó não encontrado.
+func ResolveNodeCanonicalIDWithRoot(ctx context.Context, db *sql.DB, query string, vaultRoot string) (string, error) {
 	clean := strings.TrimSpace(query)
 	clean = strings.TrimPrefix(clean, "[[")
 	clean = strings.TrimSuffix(clean, "]]")
 	clean = strings.TrimSpace(clean)
+	if clean == "" {
+		return "", fmt.Errorf("identificador de busca não pode ser vazio")
+	}
+
+	// `alias:` nomeia um alias de frontmatter: ele vive no disco, não no
+	// índice, então a resolução é contra o vault.
+	if alias, isAlias := strings.CutPrefix(clean, "alias:"); isAlias {
+		alias = strings.TrimSpace(alias)
+		if canonicalID, ok := resolveAliasToDocumentID(ctx, db, alias, vaultRoot); ok {
+			return canonicalID, nil
+		}
+		return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+	}
+
+	// `title:` nomeia o rótulo do documento. O prefixo é descartado e o
+	// termo passa pelas mesmas chaves — o título resolve para o id do
+	// DOCUMENTO (ADR-066), não para um nó de estilo título.
+	clean = strings.TrimSpace(strings.TrimPrefix(clean, "title:"))
 	if clean == "" {
 		return "", fmt.Errorf("identificador de busca não pode ser vazio")
 	}
@@ -594,7 +632,7 @@ func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (stri
 	// 1. Checagem exata em documents por id ou path (suportando / e \)
 	var canonicalID string
 	err := db.QueryRowContext(ctx, `
-		SELECT id FROM documents 
+		SELECT id FROM documents
 		WHERE id = ? OR path = ? OR path = ? OR path = ? OR path = ?
 		LIMIT 1
 	`, clean, cleanSlash, cleanBack, cleanSlash+".md", cleanBack+".md").Scan(&canonicalID)
@@ -602,22 +640,25 @@ func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (stri
 		return canonicalID, nil
 	}
 
-	// 2. Checagem em graph_nodes por id ou name
+	// 2. Checagem exata por título — o título é o RÓTULO do nó, e a resposta
+	// é o `documents.id` do documento (ADR-066). A consulta vem ANTES da
+	// busca em `graph_nodes` porque um nó de estilo título não pode
+	// sequestrar a identidade de um documento indexado.
 	err = db.QueryRowContext(ctx, `
-		SELECT id FROM graph_nodes 
-		WHERE id = ? OR name = ? OR id = ? OR name = ?
+		SELECT id FROM documents
+		WHERE LOWER(title) = LOWER(?)
 		LIMIT 1
-	`, clean, clean, cleanSlash, cleanBack).Scan(&canonicalID)
+	`, clean).Scan(&canonicalID)
 	if err == nil && canonicalID != "" {
 		return canonicalID, nil
 	}
 
-	// 3. Checagem exata por título
+	// 3. Checagem em graph_nodes por id ou name
 	err = db.QueryRowContext(ctx, `
-		SELECT id FROM documents 
-		WHERE LOWER(title) = LOWER(?)
+		SELECT id FROM graph_nodes
+		WHERE id = ? OR name = ? OR id = ? OR name = ?
 		LIMIT 1
-	`, clean).Scan(&canonicalID)
+	`, clean, clean, cleanSlash, cleanBack).Scan(&canonicalID)
 	if err == nil && canonicalID != "" {
 		return canonicalID, nil
 	}
@@ -626,10 +667,10 @@ func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (stri
 	likeSlash := "%" + cleanSlash + "%"
 	likeBack := "%" + cleanBack + "%"
 	err = db.QueryRowContext(ctx, `
-		SELECT id FROM documents 
+		SELECT id FROM documents
 		WHERE id LIKE ? OR path LIKE ? OR path LIKE ? OR title LIKE ?
-		ORDER BY 
-			CASE 
+		ORDER BY
+			CASE
 				WHEN id LIKE ? THEN 1
 				WHEN path LIKE ? OR path LIKE ? THEN 2
 				ELSE 3
@@ -652,6 +693,40 @@ func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (stri
 	}
 
 	return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+}
+
+// resolveAliasToDocumentID resolve um alias de frontmatter contra o disco do
+// vault e devolve o `documents.id` do documento encontrado.
+//
+// O alias não é persistido no índice (a ADR-056 não foi implementada), então
+// a resolução precisa do disco — e só acontece quando a raiz do vault é
+// conhecida.
+func resolveAliasToDocumentID(ctx context.Context, db *sql.DB, alias, vaultRoot string) (string, bool) {
+	if strings.TrimSpace(alias) == "" || strings.TrimSpace(vaultRoot) == "" {
+		return "", false
+	}
+	resolver, err := vaultfs.NewResolver(vaultRoot)
+	if err != nil {
+		return "", false
+	}
+	resolution := resolver.Resolve(alias)
+	if !resolution.Found {
+		return "", false
+	}
+	// O caminho do resolver é relativo à raiz; o id do documento é o path.
+	abs := filepath.Join(vaultRoot, filepath.FromSlash(resolution.Path))
+	slash := filepath.ToSlash(abs)
+	back := strings.ReplaceAll(slash, "/", "\\")
+	var canonicalID string
+	err = db.QueryRowContext(ctx, `
+		SELECT id FROM documents
+		WHERE id = ? OR path = ? OR path = ? OR path = ?
+		LIMIT 1
+	`, abs, abs, slash, back).Scan(&canonicalID)
+	if err != nil || canonicalID == "" {
+		return "", false
+	}
+	return canonicalID, true
 }
 
 // CalculateImpactForTarget resolve o nó alvo e calcula a análise de impacto (blast radius) completa no SQLite
