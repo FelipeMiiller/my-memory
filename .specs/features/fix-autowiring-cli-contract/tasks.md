@@ -136,12 +136,12 @@ escopo **Workspace** do Windsurf (`:42`), que não existe — só há o global.
 
 **Done when**:
 
-- [ ] A ADR diz que o auto-wiring é o `mem install` e que `mem setup` é do assistente de cofre central (ADR-033)
-- [ ] A ADR não descreve registro declarativo `ClientSpec` — ela descreve as 4 constantes `ClientType` e a resolução de caminho por cliente
-- [ ] A ADR diz que o Windsurf é suportado **só no escopo global**
-- [ ] Cada afirmação técnica da ADR aponta para um `file:linha` que existe no HEAD
-- [ ] O status da ADR em `docs/adr/README.md` reflete o estado real (com a spec de correção)
-- [ ] O gate de build passa: `go -C D:\repository\my-memory build ./...`
+- [x] A ADR diz que o auto-wiring é o `mem install` e que `mem setup` é do assistente de cofre central (ADR-033)
+- [x] A ADR não descreve registro declarativo `ClientSpec` — ela descreve as 4 constantes `ClientType` e a resolução de caminho por cliente
+- [x] A ADR diz que o Windsurf é suportado **só no escopo global**
+- [x] Cada afirmação técnica da ADR aponta para um `file:linha` que existe no HEAD
+- [ ] O status da ADR em `docs/adr/README.md` reflete o estado real (com a spec de correção) — **fora do escopo desta execução**: `docs/adr/README.md` pertence a outra spec (verOwnership) e não pode ser editado aqui
+- [x] O gate de build passa: `go -C D:\repository\my-memory build ./...`
 
 **Tests**: none (camada de contrato — o gate é o build + a leitura cruzada)
 **Gate**: quick
