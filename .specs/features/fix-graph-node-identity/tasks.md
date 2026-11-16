@@ -156,16 +156,16 @@ de path (`docID`) — só o destino estava do outro lado da fenda.
 
 **Done when**:
 
-- [ ] O indexador Postgres (`cmd/mem/main.go:1941`) grava o id do documento como destino
+- [x] O indexador Postgres (`cmd/mem/main.go:1941`) grava o id do documento como destino
       quando o wikilink resolve
-- [ ] O indexador SQLite (`cmd/mem/main.go:2184`) grava o **mesmo** destino
-- [ ] Um wikilink que não resolve para documento indexado mantém o texto do wikilink
+- [x] O indexador SQLite (`cmd/mem/main.go:2184`) grava o **mesmo** destino
+- [x] Um wikilink que não resolve para documento indexado mantém o texto do wikilink
       como destino
-- [ ] A origem gravada continua sendo o `documents.id` do documento indexado
-- [ ] A resolução respeita o **repositório** — o título procurado é o do mesmo vault
-- [ ] As arestas `references_code` (ADR-061) não são tocadas, e a `tagged_as` que casa
+- [x] A origem gravada continua sendo o `documents.id` do documento indexado
+- [x] A resolução respeita o **repositório** — o título procurado é o do mesmo vault
+- [x] As arestas `references_code` (ADR-061) não são tocadas, e a `tagged_as` que casa
       com um documento passa a apontar para o id dele
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestIndexIdentity ./cmd/mem/...`
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestIndexIdentity ./cmd/mem/...`
 
 **Tests**: integration
 **Gate**: quick

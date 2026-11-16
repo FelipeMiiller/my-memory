@@ -1785,6 +1785,8 @@ func runIndexPostgres(ctx context.Context, s postgresIndexStore, emb embedder.Em
 	failedCount := 0
 	var failedDocs []string
 	var activeDocIDs []string
+	// Arestas de grafo aguardando a resolução do alvo (ADR-066).
+	var pendingEdges []pendingGraphEdge
 
 	// Epoch corrente: quem produz os vetores desta execução. Vazio quando não há
 	// provider (modo léxico), e nesse caso o gate abaixo compara "" com "".
@@ -1937,8 +1939,19 @@ func runIndexPostgres(ctx context.Context, s postgresIndexStore, emb embedder.Em
 		_ = s.InsertDocumentTags(ctx, targetRepo, docID, buildTagBindings(connections.Tags, titleToID))
 
 		parser.ResolveTagConnections(&connections, availableTitles)
+		// ADR-066: a aresta espera a resolução do alvo. A resolução acontece
+		// na gravação, mas contra o índice COMPLETO de documentos: o destino
+		// pode ser indexado depois do documento que o referencia, e resolver
+		// durante a varredura deixaria a aresta atravessada (a fenda da
+		// ISSUE-047).
 		for _, edge := range connections.Edges {
-			_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
+			pendingEdges = append(pendingEdges, pendingGraphEdge{
+				sourceID:        docID,
+				target:          edge.Target,
+				relation:        edge.Relation,
+				epistemicStatus: edge.EpistemicStatus,
+				weight:          edge.Weight,
+			})
 		}
 
 		// 3. Divide em chunks e gera embeddings (com fallback FTS se offline)
@@ -1986,6 +1999,12 @@ func runIndexPostgres(ctx context.Context, s postgresIndexStore, emb embedder.Em
 		return
 	}
 
+	// ADR-066: as arestas são gravadas aqui, com o alvo resolvido para o
+	// `documents.id` do documento de destino. O índice de aliases é montado
+	// DEPOIS da varredura, para que aponte para o conjunto completo de
+	// documentos indexados.
+	writePendingEdgesPostgres(ctx, s, targetRepo, rootDir, pendingEdges)
+
 	prunedCount := 0
 	if prune {
 		pruned, err := s.PruneDeletedDocuments(ctx, targetRepo, rootDir, activeDocIDs)
@@ -2030,6 +2049,8 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 	failedCount := 0
 	var failedDocs []string
 	var activeDocIDs []string
+	// Arestas de grafo aguardando a resolução do alvo (ADR-066).
+	var pendingEdges []pendingGraphEdge
 
 	// Epoch corrente: quem produz os vetores desta execução. Vazio quando não há
 	// provider (modo léxico), e nesse caso o gate abaixo compara "" com "".
@@ -2180,8 +2201,16 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		_ = db.InsertDocumentTags(ctx, database, docID, buildTagBindings(connections.Tags, titleToID))
 
 		parser.ResolveTagConnections(&connections, availableTitles)
+		// ADR-066: a aresta espera a resolução do alvo (o destino pode ser
+		// indexado depois do documento que o referencia).
 		for _, edge := range connections.Edges {
-			_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
+			pendingEdges = append(pendingEdges, pendingGraphEdge{
+				sourceID:        docID,
+				target:          edge.Target,
+				relation:        edge.Relation,
+				epistemicStatus: edge.EpistemicStatus,
+				weight:          edge.Weight,
+			})
 		}
 
 		// 3. Divide em chunks e gera embeddings (com fallback FTS se offline)
@@ -2238,6 +2267,11 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 		return
 	}
 
+	// ADR-066: as arestas são gravadas aqui, com o alvo resolvido para o
+	// `documents.id` do documento de destino (o índice de aliases é montado
+	// depois da varredura, com o conjunto completo de documentos).
+	writePendingEdgesSQLite(ctx, database, rootDir, pendingEdges)
+
 	prunedCount := 0
 	if prune {
 		pruned, err := db.PruneDeletedDocuments(ctx, database, rootDir, activeDocIDs)
@@ -2261,6 +2295,63 @@ func runIndexSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedder
 
 	fmt.Printf("🎉 Concluído! %d documentos processados no SQLite (%d indexados, %d em cache, %d podados, %d falhos).\n", totalCount, indexedCount, cachedCount, prunedCount, failedCount)
 	warnProviderUnavailable(docsSemVetor)
+}
+
+// pendingGraphEdge é uma aresta de grafo que espera a resolução do alvo.
+//
+// ADR-066: a identidade canônica do nó é o `documents.id` (o id de path) e o
+// título é o rótulo. A aresta entre dois documentos indexados tem as DUAS
+// pontas no id de documento — resolver o alvo na gravação é o que fecha a
+// fenda da ISSUE-047.
+type pendingGraphEdge struct {
+	sourceID        string
+	target          string
+	relation        string
+	epistemicStatus string
+	weight          float64
+}
+
+// writePendingEdgesPostgres grava as arestas do grafo no PostgreSQL com o
+// alvo resolvido para o `documents.id` do documento de destino (ADR-066).
+//
+// O índice de aliases é montado a partir do estado ATUAL do banco, depois da
+// varredura: o documento de destino pode ser indexado depois do documento que
+// o referencia, e resolver durante a varredura deixaria a aresta
+// atravessada.
+//
+// O alvo que não resolve para um documento indexado permanece o texto do
+// wikilink: é assim que o `mem doctor` enxerga o link rompido (ADR-063).
+func writePendingEdgesPostgres(ctx context.Context, s postgresIndexStore, repo, rootDir string, pending []pendingGraphEdge) {
+	if len(pending) == 0 {
+		return
+	}
+	titleToID, err := s.ListDocumentIDTitles(ctx, repo)
+	if err != nil {
+		titleToID = map[string]string{}
+	}
+	aliasIndex := store.BuildDocumentAliasIndex(store.DocumentIdentitiesFromTitleMap(titleToID), rootDir)
+	for _, edge := range pending {
+		target := store.ResolveEdgeTarget(edge.target, aliasIndex)
+		_ = s.InsertEdgeWithProps(ctx, repo, edge.sourceID, target, edge.relation, edge.epistemicStatus, edge.weight)
+	}
+}
+
+// writePendingEdgesSQLite grava as arestas do grafo no SQLite com o mesmo
+// contrato do PostgreSQL: o mesmo destino para o mesmo documento e o mesmo
+// wikilink (ADR-066, AC4).
+func writePendingEdgesSQLite(ctx context.Context, database *sql.DB, rootDir string, pending []pendingGraphEdge) {
+	if len(pending) == 0 {
+		return
+	}
+	titleToID, err := db.ListDocumentIDTitles(ctx, database)
+	if err != nil {
+		titleToID = map[string]string{}
+	}
+	aliasIndex := store.BuildDocumentAliasIndex(store.DocumentIdentitiesFromTitleMap(titleToID), rootDir)
+	for _, edge := range pending {
+		target := store.ResolveEdgeTarget(edge.target, aliasIndex)
+		_ = db.InsertEdgeWithProps(ctx, database, edge.sourceID, target, edge.relation, edge.epistemicStatus, edge.weight)
+	}
 }
 
 // buildTagBindings monta os vínculos documento→tag a partir das tags cruas do
