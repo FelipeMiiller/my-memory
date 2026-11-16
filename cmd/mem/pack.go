@@ -24,12 +24,16 @@ func runPackCommand(ctx context.Context, defaultRepo string, args []string, out 
 	packCmd := flag.NewFlagSet("pack", flag.ContinueOnError)
 	packCmd.SetOutput(out)
 
-	depth := packCmd.Int("depth", 2, "Profundidade máxima de saltos na expansão BFS (padrão: 2)")
-	maxDepthAlias := packCmd.Int("max-depth", 2, "Alias para --depth")
-	maxTokens := packCmd.Int("max-tokens", 4000, "Orçamento máximo de tokens para o pacote de contexto (padrão: 4000)")
-	direction := packCmd.String("direction", "both", "Direção da navegação ('both', 'outbound', 'inbound')")
+	// Defaults da fonte única: o motor publica graph.DefaultPackOptions() e os
+	// flags só sobrescrevem o que o usuário passou.
+	defaults := graph.DefaultPackOptions()
+
+	depth := packCmd.Int("depth", defaults.MaxDepth, fmt.Sprintf("Profundidade máxima de saltos na expansão BFS (padrão: %d)", defaults.MaxDepth))
+	maxDepthAlias := packCmd.Int("max-depth", defaults.MaxDepth, "Alias para --depth")
+	maxTokens := packCmd.Int("max-tokens", defaults.MaxTokens, fmt.Sprintf("Orçamento máximo de tokens para o pacote de contexto (padrão: %d)", defaults.MaxTokens))
+	direction := packCmd.String("direction", defaults.Direction, fmt.Sprintf("Direção da navegação ('both', 'outbound', 'inbound') (padrão: %s)", defaults.Direction))
 	outFile := packCmd.String("out", "", "Caminho do arquivo Markdown para gravar o pacote gerado")
-	noAbstracts := packCmd.Bool("no-abstracts", false, "Desativa a inclusão de micro-abstracts L0/L1 para nós periféricos")
+	noAbstracts := packCmd.Bool("no-abstracts", !defaults.IncludeFringeAbstracts, "Desativa a inclusão de micro-abstracts L0/L1 para nós periféricos")
 	jsonOutput := packCmd.Bool("json", false, "Exibe o resultado em formato JSON estruturado")
 	dbPath := packCmd.String("db", "", "Caminho do arquivo SQLite")
 	pgURL := packCmd.String("postgres", "", "URL de conexão PostgreSQL")
@@ -47,19 +51,18 @@ func runPackCommand(ctx context.Context, defaultRepo string, args []string, out 
 	rootQuery := remaining[0]
 
 	resolvedDepth := *depth
-	if packCmd.Lookup("max-depth").Value.String() != "2" && *maxDepthAlias != 2 {
+	if *maxDepthAlias != defaults.MaxDepth {
 		resolvedDepth = *maxDepthAlias
 	}
 	if resolvedDepth <= 0 {
-		resolvedDepth = 2
+		resolvedDepth = defaults.MaxDepth
 	}
 
-	opts := graph.PackOptions{
-		MaxDepth:               resolvedDepth,
-		MaxTokens:              *maxTokens,
-		Direction:              *direction,
-		IncludeFringeAbstracts: !*noAbstracts,
-	}
+	opts := defaults
+	opts.MaxDepth = resolvedDepth
+	opts.MaxTokens = *maxTokens
+	opts.Direction = *direction
+	opts.IncludeFringeAbstracts = !*noAbstracts
 
 	// 1. Resolução de configuração e repositório
 	cfg := resolveConfig()

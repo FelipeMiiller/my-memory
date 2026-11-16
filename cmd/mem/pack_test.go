@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -113,6 +114,62 @@ func TestRunPackCommand_OrcamentoRealDoArquivo(t *testing.T) {
 	}
 	if res.TotalTokens != real {
 		t.Errorf("JSON total_tokens = %d, esperado %d (o mesmo bundle gravado em arquivo)", res.TotalTokens, real)
+	}
+}
+
+// TestRunPackCommand_DefaultsVemDaFonteUnica prova FPB-15: sem flags, a CLI aplica
+// exatamente os defaults que o motor publica em graph.DefaultPackOptions() — a saída
+// é idêntica à de um empacotamento com os defaults compartilhados sobre o mesmo grafo.
+func TestRunPackCommand_DefaultsVemDaFonteUnica(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_cli_pack_defaults.db")
+	database, err := db.InitDB(dbPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("Pulando teste: ambiente sem FTS5")
+		}
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	// Grafo com vizinho de saída, vizinho de entrada e uma nota periférica
+	// (sem conteúdo, só resumo) — cada default diverge observavelmente.
+	_ = db.InsertDocumentWithMeta(ctx, database, "doc-root", "docs/root.md", "Raiz Arquitetura", now, "h1", "test-epoch", "Resumo Raiz", "resource", 0, 0)
+	_ = db.InsertDocumentWithMeta(ctx, database, "doc-out", "docs/out.md", "Módulo de Saída", now, "h2", "test-epoch", "Resumo Saída", "resource", 0, 0)
+	_ = db.InsertDocumentWithMeta(ctx, database, "doc-in", "docs/in.md", "Módulo de Entrada", now, "h3", "test-epoch", "Resumo Entrada", "resource", 0, 0)
+	_ = db.InsertDocumentWithMeta(ctx, database, "doc-fringe", "docs/fringe.md", "Nota Periférica", now, "h4", "test-epoch", "Resumo Periférico", "resource", 0, 0)
+	_ = db.InsertChunk(ctx, database, "c1", "doc-root", strings.Repeat("Conteúdo estrutural da raiz para o pacote. ", 10), 0, nil)
+	_ = db.InsertChunk(ctx, database, "c2", "doc-out", "Conteúdo do módulo de saída do subgrafo.", 0, nil)
+	_ = db.InsertChunk(ctx, database, "c3", "doc-in", "Conteúdo do módulo de entrada do subgrafo.", 0, nil)
+	_ = db.InsertEdgeWithProps(ctx, database, "doc-root", "doc-out", "links_to", "EXTRACTED", 1.0)
+	_ = db.InsertEdgeWithProps(ctx, database, "doc-in", "doc-root", "links_to", "EXTRACTED", 1.0)
+	_ = db.InsertEdgeWithProps(ctx, database, "doc-out", "doc-fringe", "links_to", "EXTRACTED", 1.0)
+
+	var buf bytes.Buffer
+	if err := runPackCommand(ctx, "repo", []string{"docs/root.md", "--db", dbPath}, &buf); err != nil {
+		t.Fatalf("runPackCommand sem flags falhou: %v", err)
+	}
+
+	ref, err := db.PackContext(ctx, database, "docs/root.md", graph.DefaultPackOptions())
+	if err != nil {
+		t.Fatalf("empacotamento com os defaults compartilhados falhou: %v", err)
+	}
+
+	if got, want := strings.TrimSpace(buf.String()), strings.TrimSpace(ref.Markdown); got != want {
+		t.Errorf("a saída da CLI sem flags difere do empacotamento com os defaults compartilhados:\n--- CLI ---\n%s\n--- REF ---\n%s", got, want)
+	}
+
+	defaults := graph.DefaultPackOptions()
+	if defaults.MaxTokens != 4000 {
+		t.Fatalf("o default compartilhado de orçamento mudou: %d (esperado 4000)", defaults.MaxTokens)
+	}
+	if !strings.Contains(buf.String(), fmt.Sprintf("/ %d tokens", defaults.MaxTokens)) {
+		t.Errorf("a CLI não aplicou o orçamento compartilhado de %d tokens:\n%s", defaults.MaxTokens, buf.String())
+	}
+	if !strings.Contains(buf.String(), fmt.Sprintf("**Profundidade:** %d saltos", defaults.MaxDepth)) {
+		t.Errorf("a CLI não aplicou a profundidade compartilhada de %d saltos:\n%s", defaults.MaxDepth, buf.String())
 	}
 }
 

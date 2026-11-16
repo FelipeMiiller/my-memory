@@ -295,10 +295,12 @@ T6 -> T7 -> T8 -> T9
 
 **Done when**:
 
-- [ ] As opções da CLI partem de `graph.DefaultPackOptions()`
-- [ ] Sem `--max-tokens`, o bundle sai com `MaxTokens = 4000` (o default compartilhado)
-- [ ] Teste novo: a saída da CLI sem flags é idêntica à de um `graph.PackContext` com `graph.DefaultPackOptions()` sobre o mesmo grafo
-- [ ] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./cmd/mem/...`
+- [x] As opções da CLI partem de `graph.DefaultPackOptions()`
+- [x] Sem `--max-tokens`, o bundle sai com `MaxTokens = 4000` (o default compartilhado)
+- [x] Teste novo: a saída da CLI sem flags é idêntica à de um `graph.PackContext` com `graph.DefaultPackOptions()` sobre o mesmo grafo
+- [x] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./cmd/mem/...`
+- [x] Prova de discriminação: em worktree isolado, o default local da flag `--max-tokens` virado em `3000` derruba `TestRunPackCommand_DefaultsVemDaFonteUnica` (o cabeçalho passa a exibir `~490 / 3000 tokens` contra os `4000` do default compartilhado)
+- [x] A resolução do alias `--max-depth` deixou de duplicar o literal `2`: `packCmd.Lookup("max-depth").Value.String() != "2" && *maxDepthAlias != 2` era redundante (`Value.String()` é o próprio valor do flag) — ficou `*maxDepthAlias != defaults.MaxDepth`, com o mesmo comportamento
 
 **Tests**: integration
 **Gate**: quick
