@@ -295,9 +295,9 @@ func TestClientInstallMarker_PorSistemaOperacional(t *testing.T) {
 	linux := mockSystemEnv{goos: "linux", home: "/home/dev"}
 
 	cases := []struct {
-		name    string
-		env     mockSystemEnv
-		client  ClientType
+		name     string
+		env      mockSystemEnv
+		client   ClientType
 		expected string
 	}{
 		{"windows claude", win, ClientClaudeDesktop, `C:\Users\Developer\AppData\Roaming\Claude`},
