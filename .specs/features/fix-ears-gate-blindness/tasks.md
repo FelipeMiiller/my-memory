@@ -127,11 +127,11 @@ reset reintroduzido (o teste **falha**).
 
 **Done when**:
 
-- [ ] O teste cobre o bloco **com** linha em branco depois do cabeçalho e o bloco **sem** ela
-- [ ] O teste cobre o AC sem SHALL (erro), o AC com SHALL e sem keyword (warning) e o placeholder (sem erro)
-- [ ] O teste **falha** se a condição de linha em branco voltar ao coletor
-- [ ] O script roda sozinho (`python3 test_validate_spec.py`) e sai com 0
-- [ ] O script está em UTF-8 sem BOM e LF
+- [x] O teste cobre o bloco **com** linha em branco depois do cabeçalho e o bloco **sem** ela
+- [x] O teste cobre o AC sem SHALL (erro), o AC com SHALL e sem keyword (warning) e o placeholder (sem erro)
+- [x] O teste **falha** se a condição de linha em branco voltar ao coletor
+- [x] O script roda sozinho (`python3 test_validate_spec.py`) e sai com 0
+- [x] O script está em UTF-8 sem BOM e LF
 
 **Tests**: unit
 **Gate**: quick
