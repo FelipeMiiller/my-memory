@@ -103,7 +103,7 @@ func InjectMCPServer(target ClientTarget, serverName string, serverCfg ServerCon
 	// 8. Se o arquivo já existia fisicamente, criar backup (.bak)
 	if len(originalData) > 0 {
 		backupFile := target.ConfigPath + ".bak"
-		if err := os.WriteFile(backupFile, originalData, 0644); err == nil {
+		if err := writeFileAtomic(backupFile, originalData, 0644); err == nil {
 			report.BackupPath = backupFile
 		}
 	}
@@ -124,6 +124,43 @@ func InjectMCPServer(target ClientTarget, serverName string, serverCfg ServerCon
 	}
 
 	return report, nil
+}
+
+// writeFileAtomic grava o conteúdo num arquivo temporário no MESMO diretório do
+// destino e o publica com os.Rename.
+//
+// O rename é o que publica: até ele acontecer, o destino continua com o
+// conteúdo antigo. Por isso o `.bak` nunca fica truncado — que é exatamente o
+// cenário que o backup existe para cobrir — e um `.bak` anterior não é
+// apagado quando a gravação do novo falha.
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+
+	// Limpa o temporário nos caminhos de erro. No caminho de sucesso o rename
+	// já o consumiu, e o Remove vira no-op.
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpPath, perm); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpPath, path)
 }
 
 func isPayloadEqual(existing interface{}, next map[string]interface{}) bool {

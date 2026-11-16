@@ -542,10 +542,10 @@ atomicidade já prometida pela ADR-026:19 e pelo goal G2 da spec de origem
 
 **Done when**:
 
-- [ ] O `.bak` é escrito num temporário no **mesmo** diretório e publicado com `os.Rename`
-- [ ] Um `.bak` anterior **não** é apagado se a gravação do novo falhar
-- [ ] O `report.BackupPath` continua apontando para o `.bak` final
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
+- [x] O `.bak` é escrito num temporário no **mesmo** diretório e publicado com `os.Rename`
+- [x] Um `.bak` anterior **não** é apagado se a gravação do novo falhar
+- [x] O `report.BackupPath` continua apontando para o `.bak` final
+- [x] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
 
 **Tests**: integration
 **Gate**: quick
