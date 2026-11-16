@@ -91,12 +91,12 @@ de schema já existente em `TestTools_DefaultSchemas` (mesmo arquivo) ·
 
 **Done when**:
 
-- [ ] O teste lê `GetTools()` (o catálogo **servido**) e **não** a variável de pacote `ToolMemorySearch`
-- [ ] `detail_level` está em `properties` e o `enum` é exatamente `["l0","l1","l2"]`
-- [ ] `category` está em `properties` e o `enum` é exatamente `["resource","memory","skill"]`
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestTools_SearchSchema ./internal/mcp/...`
-- [ ] Test count: os testes de `internal/mcp` passam, sem nenhuma deleção silenciosa
-- [ ] Só `internal/mcp/tools_test.go` mudou — nenhum arquivo de produção foi tocado
+- [x] O teste lê `GetTools()` (o catálogo **servido**) e **não** a variável de pacote `ToolMemorySearch`
+- [x] `detail_level` está em `properties` e o `enum` é exatamente `["l0","l1","l2"]`
+- [x] `category` está em `properties` e o `enum` é exatamente `["resource","memory","skill"]`
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestTools_SearchSchema ./internal/mcp/...`
+- [x] Test count: os testes de `internal/mcp` passam, sem nenhuma deleção silenciosa
+- [x] Só `internal/mcp/tools_test.go` mudou — nenhum arquivo de produção foi tocado
 
 **Tests**: unit
 **Gate**: quick

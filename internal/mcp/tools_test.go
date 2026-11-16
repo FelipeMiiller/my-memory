@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -101,6 +102,86 @@ func TestTools_DefaultSchemas(t *testing.T) {
 	if _, ok := hubsProps["repository"]; !ok {
 		t.Errorf("esperava propriedade 'repository' no inputSchema de memory_get_hubs")
 	}
+}
+
+// TestTools_SearchSchema prova que o schema JSON DECLARADO da memory_search
+// no catálogo servido carrega as chaves detail_level e category (AC1 e AC2 da
+// spec fix-progressive-context-test-coverage).
+//
+// POR QUE ESTE TESTE EXISTE: o gap PCL-02 (ISSUE-044) é que o schema
+// declarado nunca foi asserido. O teste antigo (internal/mcp/handlers_test.go)
+// verifica o COMPORTAMENTO da tool — e o comportamento continua idêntico
+// quando uma chave sai do schema, porque a tool aceita os argumentos do
+// chamador de qualquer jeito. Por isso o mutante M5 (remover `detail_level` de
+// internal/mcp/tools.go) sobreviveu à suíte.
+//
+// A leitura é pelo catálogo SERVIDO (Server.GetTools()), não pela variável de
+// pacote ToolMemorySearch: o que o cliente MCP recebe é o que precisa estar
+// declarado.
+func TestTools_SearchSchema(t *testing.T) {
+	var out bytes.Buffer
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(""), &out, nil)
+
+	var searchTool *Tool
+	for _, tool := range srv.GetTools() {
+		if tool.Name == "memory_search" {
+			found := tool
+			searchTool = &found
+			break
+		}
+	}
+	if searchTool == nil {
+		t.Fatalf("a tool 'memory_search' não está no catálogo servido por GetTools()")
+	}
+
+	detailEnum := schemaEnum(t, *searchTool, "detail_level")
+	if !reflect.DeepEqual(detailEnum, []string{"l0", "l1", "l2"}) {
+		t.Errorf("enum de 'detail_level' = %v; esperava exatamente [l0 l1 l2]", detailEnum)
+	}
+
+	categoryEnum := schemaEnum(t, *searchTool, "category")
+	if !reflect.DeepEqual(categoryEnum, []string{"resource", "memory", "skill"}) {
+		t.Errorf("enum de 'category' = %v; esperava exatamente [resource memory skill]", categoryEnum)
+	}
+}
+
+// schemaEnum devolve o enum declarado de uma propriedade do inputSchema da
+// tool, normalizado como slice de string.
+//
+// A normalização passa pelo JSON porque o mesmo schema aparece em duas
+// formas: como []string (a variável de pacote, em memória) e como []any (o
+// catálogo já serializado, que é o que o cliente MCP recebe). Comparar
+// direto com reflect.DeepEqual em uma das formas daria falso negativo na
+// outra.
+func schemaEnum(t *testing.T, tool Tool, key string) []string {
+	t.Helper()
+
+	props, ok := tool.InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("esperava 'properties' no inputSchema de %s", tool.Name)
+	}
+
+	prop, ok := props[key].(map[string]any)
+	if !ok {
+		t.Fatalf("esperava a propriedade %q declarada no inputSchema de %s", key, tool.Name)
+	}
+
+	rawEnum, ok := prop["enum"]
+	if !ok {
+		t.Fatalf("esperava a propriedade %q com 'enum' declarado no inputSchema de %s", key, tool.Name)
+	}
+
+	encoded, err := json.Marshal(rawEnum)
+	if err != nil {
+		t.Fatalf("erro ao serializar o enum de %q: %v", key, err)
+	}
+
+	var out []string
+	if err := json.Unmarshal(encoded, &out); err != nil {
+		t.Fatalf("erro ao decodificar o enum de %q: %v", key, err)
+	}
+
+	return out
 }
 
 func TestServer_ToolsList(t *testing.T) {
