@@ -137,10 +137,29 @@ func InsertDocumentWithMeta(ctx context.Context, db *sql.DB, id, path, title str
 	}
 
 	_, err = db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO graph_nodes (id, type, name)
-		VALUES (?, 'note', ?)
-	`, id, title)
+		INSERT INTO graph_nodes (id, type, name)
+		VALUES (?, 'note', COALESCE(NULLIF(?, ''), ?))
+		ON CONFLICT(id) DO UPDATE SET name = excluded.name
+	`, id, title, id)
 	return err
+}
+
+// upsertGraphNode garante que o nó exista e carregue o rótulo certo.
+//
+// ADR-066: a identidade do nó é o `documents.id` e o `documents.title` é o
+// RÓTULO. O nó de um alvo que não é documento — o texto do wikilink que não
+// resolve — é criado com o próprio texto como nome: a FK continua satisfeita
+// e o `mem doctor` continua enxergando o link rompido (ADR-063).
+//
+// O `ON CONFLICT` só renomeia o nó quando o id É de um documento: um nó de
+// conceito (`JWT`, por exemplo) preserva o nome que tem.
+func upsertGraphNode(ctx context.Context, db *sql.DB, id string) {
+	_, _ = db.ExecContext(ctx, `
+		INSERT INTO graph_nodes (id, type, name)
+		VALUES (?, 'note', COALESCE((SELECT title FROM documents WHERE id = ? AND title <> ''), ?))
+		ON CONFLICT(id) DO UPDATE SET name = excluded.name
+		WHERE EXISTS (SELECT 1 FROM documents WHERE id = ? AND title <> '')
+	`, id, id, id, id)
 }
 
 // InsertDocument salva documento com content_hash e seus nós no grafo (compatibilidade com chamadores legados)
@@ -393,9 +412,12 @@ func InsertEdgeWithProps(ctx context.Context, db *sql.DB, sourceID, targetID, re
 		weight = 1.0
 	}
 
-	// Garante que nós de origem e destino existam para satisfazer integridade referencial
-	_, _ = db.ExecContext(ctx, `INSERT OR IGNORE INTO graph_nodes (id, type, name) VALUES (?, 'note', ?)`, sourceID, sourceID)
-	_, _ = db.ExecContext(ctx, `INSERT OR IGNORE INTO graph_nodes (id, type, name) VALUES (?, 'note', ?)`, targetID, targetID)
+	// Garante que nós de origem e destino existam para satisfazer integridade referencial.
+	//
+	// ADR-066: o nó de um documento carrega o título como rótulo (o id é a
+	// chave); o nó de um alvo que não é documento carrega o próprio texto.
+	upsertGraphNode(ctx, db, sourceID)
+	upsertGraphNode(ctx, db, targetID)
 
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO graph_edges (source_id, target_id, relation, epistemic_status, weight)

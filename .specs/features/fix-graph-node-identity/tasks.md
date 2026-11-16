@@ -222,11 +222,11 @@ motores — sem isso, o primeiro arquivo que o watcher tocar reintroduz a fenda.
 
 **Done when**:
 
-- [ ] O nó de um documento indexado tem `id` = `documents.id` e `name` = `documents.title`
-- [ ] Um documento não ocupa dois nós (nenhum nó extra com o id = título do documento)
-- [ ] O nó de destino não resolvido (texto do wikilink) continua sendo criado, com o
+- [x] O nó de um documento indexado tem `id` = `documents.id` e `name` = `documents.title`
+- [x] Um documento não ocupa dois nós (nenhum nó extra com o id = título do documento)
+- [x] O nó de destino não resolvido (texto do wikilink) continua sendo criado, com o
       texto como nome — a FK continua satisfeita e o doctor continua enxergando o link
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestNodeIdentity ./internal/db/...`
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestNodeIdentity ./internal/db/...`
 
 **Tests**: unit
 **Gate**: quick
