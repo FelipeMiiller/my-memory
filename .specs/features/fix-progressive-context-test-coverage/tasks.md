@@ -162,13 +162,13 @@ sobreviveu. Um teste só no SQLite (T2) **não** mataria M6.
 
 **Done when**:
 
-- [ ] O teste usa `pgtest.New(t)` (banco descartável) e **nunca** o Postgres configurado do dono
-- [ ] Sem `MY_MEMORY_PG_TEST=1` no ambiente o teste **pulsa** (skip) em vez de falhar
-- [ ] Com Postgres: a saída L0 contém o badge `[MEMORY]` e o `summary` como micro-abstract
-- [ ] Com Postgres: a saída L0 **não** contém o corpo bruto, e no nível `l1` **contém** (controle negativo)
-- [ ] O gate completo passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
-- [ ] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
-- [ ] Só o arquivo de teste mudou — nenhum arquivo de produção foi tocado
+- [x] O teste usa `pgtest.New(t)` (banco descartável) e **nunca** o Postgres configurado do dono
+- [x] Sem `MY_MEMORY_PG_TEST=1` no ambiente o teste **pulsa** (skip) em vez de falhar
+- [x] Com Postgres: a saída L0 contém o badge `[MEMORY]` e o `summary` como micro-abstract
+- [x] Com Postgres: a saída L0 **não** contém o corpo bruto, e no nível `l1` **contém** (controle negativo)
+- [x] O gate completo passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
+- [x] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
+- [x] Só o arquivo de teste mudou — nenhum arquivo de produção foi tocado
 
 **Tests**: integration
 **Gate**: full
