@@ -211,11 +211,13 @@ T6 -> T7 -> T8 -> T9
 
 **Done when**:
 
-- [ ] A asserção fixa o `Tier` da **raiz** (não o `CoreCount` agregado)
-- [ ] O bundle com nó central contém `## 📄 Documentos Centrais`
-- [ ] O bundle com nó periférico contém `## 📑 Resumos Periféricos (L0/L1)`
-- [ ] O teste **falha** quando o tratamento preferencial da raiz é removido (mutante M2, `internal/graph/pack.go:247`)
-- [ ] Gate check passa: `go -C D:\repository\my-memory test -count=1 -run TestPackContext ./internal/graph/...`
+- [x] A asserção fixa o `Tier` da **raiz** (não o `CoreCount` agregado)
+- [x] O bundle com nó central contém `## 📄 Documentos Centrais`
+- [x] O bundle com nó periférico contém `## 📑 Resumos Periféricos (L0/L1)`
+- [x] O teste **falha** quando o tratamento preferencial da raiz é removido (mutante M2, `internal/graph/pack.go:247`)
+- [x] Gate check passa: `go -C D:\repository\my-memory test -count=1 -run TestPackContext ./internal/graph/...`
+- [x] Prova do mutante: em worktree isolado (sem `git stash`), `if cand.depth == 0 {` virado em `if false && cand.depth == 0 {` derruba `TestPackContext_RaizPreferencialNaoEhOmitida` (o motor emite um bundle de 201 tokens em vez do erro de orçamento insuficiente) — M2 morre
+- [x] Nota de precisão (R3.4): a spec de origem nomeia o cabeçalho `## 📑 Resumos Periféricos (L0/L1)`, mas o renderizador emite `## 📑 Resumos Periféricos (L0/L1 Micro-Abstracts)` (`internal/graph/pack.go:519`). A asserção exige o cabeçalho efetivamente emitido — o texto da spec de origem não é alterado por esta task (T6 toca só a ADR e o `tasks.md` de origem)
 
 **Tests**: unit
 **Gate**: quick

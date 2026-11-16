@@ -360,6 +360,97 @@ func TestPackContext_OrdemDePrioridadePorPageRank(t *testing.T) {
 	}
 }
 
+// TestPackContext_TierDaRaizECabecalhosDoBundle prova FPB-10, FPB-11 e FPB-12: a
+// raiz é classificada como TierCore quando o seu conteúdo cabe no orçamento (o tier
+// da raiz, não a contagem agregada) e o bundle traz os cabeçalhos R3.3 e R3.4
+// sempre que há nó central e nó periférico.
+func TestPackContext_TierDaRaizECabecalhosDoBundle(t *testing.T) {
+	nodes := []PackGraphNode{
+		{ID: "root", Title: "Raiz", Content: "Conteúdo integral da raiz do pacote de contexto."},
+		{ID: "periferico", Title: "Periférico", Abstract: "Resumo curto do vizinho periférico."},
+	}
+	edges := []WeightedEdge{
+		{Source: "root", Target: "periferico", Type: "links_to", Weight: 1.0},
+	}
+
+	opts := PackOptions{
+		MaxDepth:               1,
+		MaxTokens:              2000,
+		Direction:              "outbound",
+		IncludeFringeAbstracts: true,
+	}
+
+	res, err := PackContext(nodes, edges, "root", opts)
+	if err != nil {
+		t.Fatalf("PackContext falhou: %v", err)
+	}
+
+	var root *PackedNode
+	for i := range res.Nodes {
+		if res.Nodes[i].ID == "root" {
+			root = &res.Nodes[i]
+			break
+		}
+	}
+	if root == nil {
+		t.Fatalf("a raiz não está entre os nós coletados: %+v", res.Nodes)
+	}
+	if root.Tier != TierCore {
+		t.Errorf("tier da raiz = %s, esperado %s (TierCore)", root.Tier, TierCore)
+	}
+
+	if !strings.Contains(res.Markdown, "## 📄 Documentos Centrais") {
+		t.Errorf("o bundle não traz o cabeçalho de documentos centrais:\n%s", res.Markdown)
+	}
+	// R3.4: a especificação de origem nomeia a seção como
+	// `## 📑 Resumos Periféricos (L0/L1)`; o renderizador emite o mesmo cabeçalho
+	// com o sufixo "Micro-Abstracts" — a asserção exige o cabeçalho da seção.
+	if !strings.Contains(res.Markdown, "## 📑 Resumos Periféricos (L0/L1 Micro-Abstracts)") {
+		t.Errorf("o bundle não traz o cabeçalho de resumos periféricos:\n%s", res.Markdown)
+	}
+}
+
+// TestPackContext_RaizPreferencialNaoEhOmitida prova o tratamento preferencial da
+// raiz (FPB-10): a raiz é o objeto pedido pelo chamador — quando ela não cabe nem
+// como texto integral nem como resumo, o empacotador devolve o erro de orçamento
+// insuficiente (identificando o mínimo exigido) e não emite um bundle que trocou a
+// raiz por um nó omitido.
+func TestPackContext_RaizPreferencialNaoEhOmitida(t *testing.T) {
+	nodes := []PackGraphNode{
+		{
+			ID:       "root",
+			Title:    "Raiz",
+			Content:  strings.Repeat("Conteúdo integral da raiz que não cabe no orçamento. ", 90),
+			Abstract: strings.Repeat("Resumo da raiz que também não cabe no orçamento. ", 90),
+		},
+		{ID: "vizinho", Title: "Vizinho", Content: "Conteúdo curto do vizinho."},
+	}
+	edges := []WeightedEdge{
+		{Source: "root", Target: "vizinho", Type: "links_to", Weight: 1.0},
+	}
+
+	opts := PackOptions{
+		MaxDepth:               1,
+		MaxTokens:              400,
+		Direction:              "outbound",
+		IncludeFringeAbstracts: true,
+	}
+
+	res, err := PackContext(nodes, edges, "root", opts)
+	if err == nil {
+		t.Fatalf("esperava erro de orçamento insuficiente para a raiz, mas PackContext emitiu bundle com %d tokens", res.TotalTokens)
+	}
+	if res != nil {
+		t.Errorf("nenhum bundle pode ser emitido quando a raiz não cabe: obtido %d tokens", res.TotalTokens)
+	}
+	if !strings.Contains(err.Error(), "orçamento insuficiente") {
+		t.Errorf("mensagem de erro inesperada: %v", err)
+	}
+	if !strings.Contains(err.Error(), "root") {
+		t.Errorf("o erro não identifica a raiz cujo mínimo foi excedido: %v", err)
+	}
+}
+
 func TestPackContext_MissingRoot(t *testing.T) {
 	nodes := []PackGraphNode{
 		{ID: "A", Title: "Nota A"},
