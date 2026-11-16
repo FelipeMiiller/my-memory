@@ -197,12 +197,12 @@ de 160 caracteres)
 
 **Done when**:
 
-- [ ] Documento com `summary` → `documents.abstract` é **exatamente** o `summary`, verbatim
-- [ ] Documento com `abstract` e sem `summary` → `documents.abstract` é o `abstract` do frontmatter
-- [ ] Documento sem nenhum dos dois → `documents.abstract` é o fallback do parser, com **no máximo 160** caracteres
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestIndexSingleFile_Abstract ./internal/watcher/...`
-- [ ] Test count: os testes de `internal/watcher` passam, sem nenhuma deleção silenciosa
-- [ ] Só o arquivo de teste mudou — nenhum arquivo de produção foi tocado
+- [x] Documento com `summary` → `documents.abstract` é **exatamente** o `summary`, verbatim
+- [x] Documento com `abstract` e sem `summary` → `documents.abstract` é o `abstract` do frontmatter
+- [x] Documento sem nenhum dos dois → `documents.abstract` é o fallback do parser, com **no máximo 160** caracteres
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestIndexSingleFile_Abstract ./internal/watcher/...`
+- [x] Test count: os testes de `internal/watcher` passam, sem nenhuma deleção silenciosa
+- [x] Só o arquivo de teste mudou — nenhum arquivo de produção foi tocado
 
 **Tests**: unit
 **Gate**: quick
