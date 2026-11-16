@@ -198,7 +198,7 @@ prova não fique sem prova.
 | EAG-04 | AC4 — AC com SHALL e sem keyword vira WARNING | `.agents/skills/tlc-spec-driven/scripts/test_validate_spec.py` | Verified |
 | EAG-05 | AC5 — placeholder de template não vira erro | `.agents/skills/tlc-spec-driven/scripts/test_validate_spec.py` | Verified |
 | EAG-06 | AC6 — os dois formatos de bloco são vistos | `.agents/skills/tlc-spec-driven/scripts/test_validate_spec.py` | Verified |
-| EAG-07 | AC7 — a medição reportou 0 blocos cegos e vistos = presentes | `.agents/skills/tlc-spec-driven/scripts/count_ears_visibility.py` | Pending |
+| EAG-07 | AC7 — a medição reportou 0 blocos cegos e vistos = presentes | `.agents/skills/tlc-spec-driven/scripts/count_ears_visibility.py` | Verified |
 | EAG-08 | AC8 — nenhuma spec fica falhando em silêncio | `.specs/features/` | Pending |
 | EAG-09 | AC9 — reintroduzir o reset faz o teste falhar | `.agents/skills/tlc-spec-driven/scripts/test_validate_spec.py` | Verified |
 | EAG-10 | AC10 — o Verifier é distinto do autor | `.specs/features/fix-ears-gate-blindness/validation.md` | Pending |

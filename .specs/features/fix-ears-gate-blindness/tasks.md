@@ -159,11 +159,11 @@ o formato de saída do `lessons.py` (mesma família de scripts da skill)
 
 **Done when**:
 
-- [ ] O script imprime: ACs vistos, ACs presentes, ACs cegos, specs com bloco cego e total de blocos cegos
-- [ ] Ele sai com código **!= 0** quando há bloco cego (para servir de gate)
-- [ ] Rodado no estado **antes** da correção, reproduz o baseline da ISSUE-050
-- [ ] Rodado **depois** da correção, imprime 0 blocos cegos e vistos = presentes
-- [ ] O script está em UTF-8 sem BOM e LF
+- [x] O script imprime: ACs vistos, ACs presentes, ACs cegos, specs com bloco cego e total de blocos cegos
+- [x] Ele sai com código **!= 0** quando há bloco cego (para servir de gate)
+- [x] Rodado no estado **antes** da correção, reproduz o baseline da ISSUE-050
+- [x] Rodado **depois** da correção, imprime 0 blocos cegos e vistos = presentes
+- [x] O script está em UTF-8 sem BOM e LF
 
 **Tests**: integration
 **Gate**: quick
