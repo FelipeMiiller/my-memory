@@ -265,10 +265,10 @@ origem da emenda.
 
 **Done when**:
 
-- [ ] Nenhum checkbox da feature de origem afirma que existe o alias `mem setup`
-- [ ] Nenhum checkbox da feature de origem afirma que a indentação original é preservada
-- [ ] A tasks.md da origem cita a spec `fix-autowiring-cli-contract` (ISSUE-048) como origem da emenda
-- [ ] O gate de build passa: `go -C D:\repository\my-memory build ./...`
+- [x] Nenhum checkbox da feature de origem afirma que existe o alias `mem setup`
+- [x] Nenhum checkbox da feature de origem afirma que a indentação original é preservada
+- [x] A tasks.md da origem cita a spec `fix-autowiring-cli-contract` (ISSUE-048) como origem da emenda
+- [x] O gate de build passa: `go -C D:\repository\my-memory build ./...`
 
 **Tests**: none (camada de contrato — o gate é o build + a leitura cruzada)
 **Gate**: quick
