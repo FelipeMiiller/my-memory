@@ -191,12 +191,12 @@ motores — sem isso, o primeiro arquivo que o watcher tocar reintroduz a fenda.
 
 **Done when**:
 
-- [ ] `internal/watcher/indexer.go:119` (SQLite) grava o id do documento como destino
-- [ ] `internal/watcher/indexer.go:267` (Postgres) grava o **mesmo** destino
-- [ ] Um wikilink que não resolve mantém o texto do wikilink como destino
-- [ ] A aresta `tagged_as` que casa com um documento aponta para o id dele, e a tag sem
+- [x] `internal/watcher/indexer.go:119` (SQLite) grava o id do documento como destino
+- [x] `internal/watcher/indexer.go:267` (Postgres) grava o **mesmo** destino
+- [x] Um wikilink que não resolve mantém o texto do wikilink como destino
+- [x] A aresta `tagged_as` que casa com um documento aponta para o id dele, e a tag sem
       casa continua removida (ADR-041)
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestIndexIdentity ./internal/watcher/...`
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestIndexIdentity ./internal/watcher/...`
 
 **Tests**: integration
 **Gate**: quick

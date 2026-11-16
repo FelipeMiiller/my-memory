@@ -115,8 +115,13 @@ func IndexSingleFileSQLite(
 		parser.ResolveTagConnections(&connections, titles)
 	}
 
+	// ADR-066: o alvo da aresta é o `documents.id` do documento que ela
+	// nomeia. O watcher não pode reintroduzir a fenda: o primeiro arquivo que
+	// ele toca reescreve as arestas dele.
+	aliasIndex := store.BuildDocumentAliasIndex(store.DocumentIdentitiesFromTitleMap(titleToID), "")
 	for _, edge := range connections.Edges {
-		_ = db.InsertEdgeWithProps(ctx, database, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
+		target := store.ResolveEdgeTarget(edge.Target, aliasIndex)
+		_ = db.InsertEdgeWithProps(ctx, database, docID, target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 	}
 
 	// 4. Divide em chunks e indexa no FTS e vetorial (com fallback para FTS se offline)
@@ -263,8 +268,12 @@ func IndexSingleFilePostgres(
 		parser.ResolveTagConnections(&connections, titles)
 	}
 
+	// ADR-066: o mesmo contrato do caminho SQLite — o alvo da aresta é o
+	// `documents.id` do documento que ela nomeia.
+	aliasIndex := store.BuildDocumentAliasIndex(store.DocumentIdentitiesFromTitleMap(titleToID), "")
 	for _, edge := range connections.Edges {
-		_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, edge.Target, edge.Relation, edge.EpistemicStatus, edge.Weight)
+		target := store.ResolveEdgeTarget(edge.Target, aliasIndex)
+		_ = s.InsertEdgeWithProps(ctx, targetRepo, docID, target, edge.Relation, edge.EpistemicStatus, edge.Weight)
 	}
 
 	chunks := parser.ChunkText(content, 200, 30)
