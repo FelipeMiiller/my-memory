@@ -127,12 +127,12 @@ fixture no nível `l1` como **controle negativo** (lá o corpo aparece).
 
 **Done when**:
 
-- [ ] A saída L0 contém o badge de categoria em **MAIÚSCULO** (`[MEMORY]`) e o `summary` como micro-abstract
-- [ ] A saída L0 **não** contém o corpo bruto do chunk
-- [ ] O controle negativo passa: no nível `l1` a saída **contém** o corpo bruto
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestSearch_L0 ./cmd/mem/...`
-- [ ] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
-- [ ] O teste usa `t.TempDir()` e não escreve em nenhum vault nem em `.memory/memory.db`
+- [x] A saída L0 contém o badge de categoria em **MAIÚSCULO** (`[MEMORY]`) e o `summary` como micro-abstract
+- [x] A saída L0 **não** contém o corpo bruto do chunk
+- [x] O controle negativo passa: no nível `l1` a saída **contém** o corpo bruto
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestSearch_L0 ./cmd/mem/...`
+- [x] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
+- [x] O teste usa `t.TempDir()` e não escreve em nenhum vault nem em `.memory/memory.db`
 
 **Tests**: integration
 **Gate**: quick
