@@ -22,7 +22,7 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 	installCmd := flag.NewFlagSet("install", flag.ContinueOnError)
 	installCmd.SetOutput(out)
 
-	target := installCmd.String("target", "all", "Cliente MCP alvo: 'claude', 'cursor', 'vscode', 'windsurf' ou 'all' (padrão: all)")
+	target := installCmd.String("target", "all", "Cliente MCP alvo: 'all', 'claude', 'claude-desktop', 'cursor', 'vscode' ou 'windsurf' (padrão: all)")
 	dryRun := installCmd.Bool("dry-run", false, "Simula a instalação exibindo arquivos e payloads sem modificar o disco")
 	workspaceOnly := installCmd.Bool("workspace", false, "Instala apenas configurações locais do repositório (.cursor/, .vscode/)")
 	globalOnly := installCmd.Bool("global", false, "Instala apenas configurações globais da máquina do usuário")
@@ -36,15 +36,20 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 		return err
 	}
 
-	// 1. Determinar escopo
+	// 1. Validar as flags: erro de uso sai com exit != 0, nunca em silêncio
+	if err := validateInstallFlags(*target, *workspaceOnly, *globalOnly); err != nil {
+		return err
+	}
+
+	// 2. Determinar escopo
 	scope := autowire.ScopeAll
-	if *workspaceOnly && !*globalOnly {
+	if *workspaceOnly {
 		scope = autowire.ScopeWorkspace
-	} else if *globalOnly && !*workspaceOnly {
+	} else if *globalOnly {
 		scope = autowire.ScopeGlobal
 	}
 
-	// 2. Resolver executável do my-memory
+	// 3. Resolver executável do my-memory
 	commandPath := *execOverride
 	if commandPath == "" {
 		if exe, err := os.Executable(); err == nil {
@@ -58,7 +63,7 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 		}
 	}
 
-	// 3. Resolver banco de dados e repositório com auto-scoping de vault
+	// 4. Resolver banco de dados e repositório com auto-scoping de vault
 	cfg := resolveConfig()
 	resolvedRepo, resolvedDB, _ := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, "", defaultRepo)
 
@@ -147,6 +152,25 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 		fmt.Fprintf(out, "🎉 Sucesso! Reinicie os clientes de IA para carregar o servidor MCP 'my-memory'.\n")
 	}
 
+	return nil
+}
+
+// validateInstallFlags rejeita as flags inválidas do `mem install`.
+//
+// Um `--target` fora do conjunto aceito é **erro de uso**: o comando devolve
+// erro (a CLI traduz em exit != 0) e a mensagem lista os valores aceitos.
+// Antes ele caía no "Nenhum cliente MCP compatível encontrado" e saía com 0 —
+// o usuário lia um erro de digitação como "a máquina está vazia".
+//
+// `--workspace` com `--global` juntas também é erro: as flags são mutuamente
+// exclusivas e a combinação não pode instalar em todos os escopos.
+func validateInstallFlags(target string, workspaceOnly, globalOnly bool) error {
+	if !autowire.IsAcceptedTarget(target) {
+		return fmt.Errorf("--target inválido: %q (valores aceitos: %s)", target, strings.Join(autowire.AcceptedTargets(), ", "))
+	}
+	if workspaceOnly && globalOnly {
+		return fmt.Errorf("--workspace e --global são mutuamente exclusivas: escolha um único escopo")
+	}
 	return nil
 }
 

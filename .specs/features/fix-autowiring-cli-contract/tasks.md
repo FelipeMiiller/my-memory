@@ -436,12 +436,12 @@ decisão A11 da spec
 
 **Done when**:
 
-- [ ] Um `--target` fora do conjunto aceito devolve erro e a CLI sai com código **≠ 0**
-- [ ] A mensagem de erro lista os 6 valores aceitos
-- [ ] A mensagem "Nenhum cliente MCP compatível encontrado" **não** é mais a resposta para um valor inválido
-- [ ] `--workspace` com `--global` devolve erro e a CLI sai com código **≠ 0**, dizendo que as duas flags são mutuamente exclusivas
-- [ ] `--target all` e `--target claude` continuam funcionando (o caso "nenhum instalado" é tratado em T12)
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
+- [x] Um `--target` fora do conjunto aceito devolve erro e a CLI sai com código **≠ 0**
+- [x] A mensagem de erro lista os 6 valores aceitos
+- [x] A mensagem "Nenhum cliente MCP compatível encontrado" **não** é mais a resposta para um valor inválido
+- [x] `--workspace` com `--global` devolve erro e a CLI sai com código **≠ 0**, dizendo que as duas flags são mutuamente exclusivas
+- [x] `--target all` e `--target claude` continuam funcionando (o caso "nenhum instalado" é tratado em T12)
+- [x] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
 
 **Tests**: integration
 **Gate**: quick
