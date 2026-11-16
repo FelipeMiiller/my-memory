@@ -93,10 +93,7 @@ sincronizado" e o score não se move.
 
 **Acceptance Criteria**:
 
-1. WHEN a document is indexed without an available embedding provider THEN each
-   of its chunks SHALL be written without an embedding (NULL in Postgres, no
-   row in `chunks_vec` **and** no row in `chunks_turboquant` in SQLite)
-   instead of an all-zero vector.
+1. WHEN a document is indexed without an available embedding provider THEN each of its chunks SHALL be written without an embedding (NULL in Postgres, no row in `chunks_vec` **and** no row in `chunks_turboquant` in SQLite) instead of an all-zero vector.
 2. The doctor SHALL report a chunk as desynchronized when it has no vector at
    all (no `embedding` in Postgres, no row in `chunks_vec` and no row in
    `chunks_turboquant` in SQLite) or an all-zero vector of the schema
@@ -144,11 +141,8 @@ dos dois tem prova hoje.
 
 **Acceptance Criteria**:
 
-6. WHEN a note written through the lesson path is indexed with a working
-   provider THEN a query that shares no keyword with the note SHALL retrieve it
-   through the vector source.
-7. WHEN the central vault is reindexed from scratch with a working provider THEN
-   the count of chunks without a real vector SHALL be zero.
+6. WHEN a note written through the lesson path is indexed with a working provider THEN a query that shares no keyword with the note SHALL retrieve it through the vector source.
+7. WHEN the central vault is reindexed from scratch with a working provider THEN the count of chunks without a real vector SHALL be zero.
 
 **Independent Test**: o teste E2E (tag `onnx`) escreve uma nota, indexa, busca
 por uma paráfrase e confere a origem do hit; depois força a reindexação e

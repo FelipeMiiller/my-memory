@@ -62,3 +62,18 @@ Inspirado na arquitetura de sincronização do **CodeGraph** ([docs/REFERENCES.m
 **User Story**: Como usuário executando `mem search` ou `mem path`, quero ver um aviso sutil caso a base consultada não contenha as alterações mais recentes dos meus arquivos.
 **Critérios de Aceite**:
 1. Se houver desatualização, emite aviso claro no cabeçalho do stdout antes da exibição dos resultados.
+
+---
+
+## Requirement Traceability
+
+| Requirement ID | Acceptance Criterion | Where | Status |
+| :--- | :--- | :--- | :--- |
+| SDB-01 | P1 AC1-3 — banner de desatualização injetado nas ferramentas MCP | `internal/staleness/` · `internal/mcp/handlers.go` | Pending |
+| SDB-02 | P2 AC1-3 — `mem status` mostra arquivos modificados, novos e deletados, com saída `--json` | `cmd/mem/status.go` | Pending |
+| SDB-03 | P3 AC1 — aviso no cabeçalho do stdout antes dos resultados | `cmd/mem/main.go` | Pending |
+| SDB-04 | G1 — motor de detecção comparando `mtime` com `updated_at`/`content_hash` | `internal/staleness/` | Pending |
+| SDB-05 | G2 — cache em memória com TTL de 3s | `internal/staleness/` | Pending |
+| SDB-06 | G5 — ADR-028 e guias operacionais da CLI e de Agentes | `docs/adr/028-staleness-banners-e-deteccao-de-desatualizacao.md` | Pending |
+
+**Coverage**: 6 total, 6 mapeados, 0 unmapped.

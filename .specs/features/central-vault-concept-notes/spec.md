@@ -80,8 +80,7 @@ navegar de uma nota a outra no Obsidian.
 
 **Acceptance Criteria**:
 
-1. WHEN o cofre for reindexado THEN os 13 wikilinks das 2 notas de origem
-   SHALL resolver para um documento indexado (match exato de `title`).
+1. WHEN o cofre for reindexado THEN os 13 wikilinks das 2 notas de origem SHALL resolver para um documento indexado (match exato de `title`).
 2. WHEN o doctor auditar o `repo_central` THEN ele SHALL reportar **0 link
    rompido**.
 3. EACH nota criada SHALL ter o nome do arquivo **igual** ao texto do wikilink

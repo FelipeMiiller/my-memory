@@ -72,3 +72,18 @@ Inspirado nas necessidades de navegação cirúrgica de grafos para agentes aut�
 **Critérios de Aceite**:
 1. Ferramenta registrada e listada no catálogo `tools/list`.
 2. Saída em Markdown formatada com representação visual em linha (ex: `A --[implements]--> B --[depends_on]--> C`) e tabela de detalhes.
+
+---
+
+## Requirement Traceability
+
+| Requirement ID | Acceptance Criterion | Where | Status |
+| :--- | :--- | :--- | :--- |
+| GPD-01 | P1 AC1-3 — rota de menor custo entre origem e destino, com `found: true/false` e caminho de 0 saltos | `internal/graph/path.go` | Pending |
+| GPD-02 | P2 AC1-3 — travessia não-direcionada, orientação da aresta (`forward`/`reverse`) e modo `hops` | `internal/graph/path.go` | Pending |
+| GPD-03 | P3 AC1-2 — `memory_find_path` registrada no catálogo MCP, com saída Markdown e tabela de detalhes | `internal/mcp/path_handlers.go` | Pending |
+| GPD-04 | G2 — resolução e carregamento da rota nas camadas de persistência | `internal/db/graph.go` · `internal/store/postgres.go` · `internal/store/store.go` | Pending |
+| GPD-05 | G3 — subcomando CLI `mem path` com `--directed`, `--max-depth`, `--mode` e `--json` | `cmd/mem/path.go` | Pending |
+| GPD-06 | G5 — ADR-027 e atualização dos índices e manuais operacionais | `docs/adr/027-descoberta-de-rotas-e-caminho-minimo-no-grafo.md` | Pending |
+
+**Coverage**: 6 total, 6 mapeados, 0 unmapped.

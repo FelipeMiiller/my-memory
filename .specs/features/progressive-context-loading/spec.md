@@ -68,3 +68,18 @@ Além disso, introduz-se a **Taxonomia de Contexto Tripartida** (`category: reso
 **Critérios de Aceite**:
 1. Schema JSON da tool `memory_search` atualizado com `detail_level` e `category`.
 2. Handler MCP serializa Markdown proporcional ao nível solicitado.
+
+---
+
+## Requirement Traceability
+
+| Requirement ID | Acceptance Criterion | Where | Status |
+| :--- | :--- | :--- | :--- |
+| PCL-01 | P1 AC1-2 — colunas `abstract` (L0) e `category` no esquema de `documents` | `internal/db/` · `internal/store/` | Pending |
+| PCL-02 | P1 AC3-4 — extração do micro-abstract a partir do frontmatter ou do primeiro parágrafo | `internal/parser/` | Pending |
+| PCL-03 | P2 AC1-3 — `db.SearchResult` e os motores de busca híbrida com nível de detalhe e filtro por categoria | `internal/db/hybrid.go` · `internal/store/rrf.go` | Pending |
+| PCL-04 | P3 AC1-2 — `mem search` com `--level` e `--category` e badges visuais | `cmd/mem/main.go` | Pending |
+| PCL-05 | P4 AC1-2 — `memory_search` com `detail_level` e `category` no schema e no handler | `internal/mcp/tools.go` · `internal/mcp/handlers.go` | Pending |
+| PCL-06 | G6 — ADR-025 com a taxonomia de memória e os níveis de contexto | `docs/adr/025-progressive-context-loading-e-taxonomia-de-memoria.md` | Pending |
+
+**Coverage**: 6 total, 6 mapeados, 0 unmapped.

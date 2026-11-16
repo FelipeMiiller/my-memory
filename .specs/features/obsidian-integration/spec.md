@@ -1,7 +1,37 @@
 # Feature: obsidian-integration
 
+## Problem Statement
+
+O My-Memory precisa interoperar com o padrão Obsidian Flavored Markdown e com a
+especificação aberta JSON Canvas 1.0 (baseados em `kepano/obsidian-skills`): ler e
+escrever notas que o Obsidian abre sem perda, e exportar o grafo para o formato
+JSON Canvas.
+
 ## Visão Geral
 Esta feature provê interoperabilidade completa com o padrão Obsidian Flavored Markdown e a especificação aberta JSON Canvas 1.0 (baseados em `kepano/obsidian-skills`).
+
+## Out of Scope
+
+Tudo o que não está enumerado em [Requisitos Funcionais](#requisitos-funcionais) fica
+fora do escopo desta spec.
+
+## Assumptions & Open Questions
+
+| Assumption | Chosen default | Rationale |
+| :--- | :--- | :--- |
+| Padrão de interoperabilidade | Obsidian Flavored Markdown + JSON Canvas 1.0 | É o que os requisitos funcionais enumeram: parser, canvas, integração MCP, CLI e Agent Skills |
+
+Open questions: none
+
+## User Stories
+
+### P1: Notas no padrão Obsidian e grafo exportável em JSON Canvas
+
+**User Story**: Como usuário do Obsidian, quero que as notas do vault sejam lidas e
+escritas no padrão Obsidian Flavored Markdown, e que eu possa exportar o grafo em
+JSON Canvas 1.0.
+
+Os critérios de aceite são os requisitos funcionais listados abaixo.
 
 ## Requisitos Funcionais
 1. **Parser de Markdown (`internal/parser`)**:
@@ -33,3 +63,17 @@ Esta feature provê interoperabilidade completa com o padrão Obsidian Flavored 
 
 5. **Agent Skills**:
    - Documentação da skill unificada em `.agents/skills/my-memory-format` (absorve as antigas `memory-md` + `json-canvas`).
+
+---
+
+## Requirement Traceability
+
+| Requirement ID | Acceptance Criterion | Where | Status |
+| :--- | :--- | :--- | :--- |
+| OBS-01 | Requisito 1 — extração de frontmatter, normalização de wikilinks, embeds e unificação de tags | `internal/parser` | Verified |
+| OBS-02 | Requisito 2 — gerador JSON Canvas 1.0 com nós, arestas, layout automático e `FromNeighbors` | `internal/canvas` | Verified |
+| OBS-03 | Requisito 3 — integração MCP com a ferramenta `memory_export_canvas` | `internal/mcp` | Verified |
+| OBS-04 | Requisito 4 — subcomando `mem export --canvas <node_id>` | `cmd/mem` | Verified |
+| OBS-05 | Requisito 5 — Agent Skills com o formato unificado | `.agents/skills/my-memory-format` | Verified |
+
+**Coverage**: 5 total, 5 mapeados, 0 unmapped.

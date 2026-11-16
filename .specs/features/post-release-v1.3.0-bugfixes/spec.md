@@ -49,6 +49,17 @@ Itens fora de escopo desta spec:
 
 **Open questions**: nenhuma (todas resolvidas ou logadas acima).
 
+---
+
+## User Stories
+
+### P1: Release v1.3.0 sem bugs críticos ⭐ MVP
+**User Story**: Como usuário do `mem graph` e do visualizador v2, quero que a release v1.3.0 entregue os bugs críticos corrigidos, para que o HTML gerado e o viewer funcionem sem gambiarras.
+
+Os critérios de aceite são os requisitos da [Trilha A](#trilha-a--bugs-críticos) e da [Trilha B](#trilha-b--viewer-gaps-parcial), consolidados em [Acceptance Criteria](#acceptance-criteria-consolidado).
+
+---
+
 ## Requirements
 
 ### Trilha A — Bugs críticos
@@ -162,3 +173,20 @@ Itens fora de escopo desta spec:
 - [ADR-035: Embedder Embutido com Fallback ONNX MiniLM](../../docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md) — C1 deferred
 - [PR #4 — v1.3.0 release](https://github.com/FelipeMiiller/my-memory/pull/4) — baseline
 - [docs/CENTRAL_VAULT.md](../../docs/CENTRAL_VAULT.md) — cofre central doc
+
+---
+
+## Requirement Traceability
+
+| Requirement ID | Acceptance Criterion | Where | Status |
+| :--- | :--- | :--- | :--- |
+| PRB-01 | A1 — HTML do `mem graph` com `<meta charset="UTF-8">` e bytes UTF-8 sem BOM | `internal/graphview/template.go` · `internal/graphview/template_test.go` | Verified |
+| PRB-02 | A2 — slug do repo derivado do path absoluto de `--db` | `cmd/mem/main.go` · `cmd/mem/graph_test.go` | Verified |
+| PRB-03 | A3 — overlays `.cluster-label` removidos do viewer | commit `a7fe4dd` (o `graph-v2.html` saiu na migração para Vite) | Verified |
+| PRB-04 | B1 — chips de filtro por tipo no header do viewer | commit `dda9d1b` | Verified |
+| PRB-05 | B2 — seção "Repositórios Registrados" no ConfigModal (read-only) | commit `dda9d1b` | Verified |
+| PRB-06 | Q1 — regra do quality gate completo antes de declarar tarefa pronta | `.agents/rules/always-quality-gate.md` · `AGENTS.md` | Verified |
+| PRB-07 | Q2 — benchmarks cobrindo o caminho quente de graphview e embedder | `internal/graphview/builder_bench_test.go` · `internal/embedder/ollama_bench_test.go` | Verified |
+| PRB-08 | Q3 — cleanup do `.memory/config.yaml` com `**/*.md` no include | `.memory/config.yaml` · `.memory/.env.example` | Verified |
+
+**Coverage**: 8 total, 8 mapeados, 0 unmapped.

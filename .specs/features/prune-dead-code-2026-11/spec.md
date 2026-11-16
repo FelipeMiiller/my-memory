@@ -67,16 +67,13 @@ funcionalidade que ninguém exercise.
 
 **Acceptance Criteria**:
 
-1. WHEN o podar é executado THEN as **14** funções listadas na ISSUE-042
-   SHALL ter sumido do código.
+1. WHEN o podar é executado THEN as **14** funções listadas na ISSUE-042 SHALL ter sumido do código.
 2. WHEN o gate completo roda THEN ele SHALL passar **sem alteração de
    comportamento** (mesma contagem de testes verde, nenhum teste removido).
 3. WHEN o gate taggeado (`-tags "sqlite_fts5 onnx"`) roda THEN ele SHALL
    passar — é a build do release, e é ela que revela os falso-positivos da
    tag.
-4. WHEN o `deadcode -test -tags "sqlite_fts5 onnx"` roda depois do podar
-   THEN ele SHALL reportar **3** funções (as do `Subscriber`, que só o
-   `deadcode` não vê) e nenhuma outra.
+4. WHEN o `deadcode -test -tags "sqlite_fts5 onnx"` roda depois do podar THEN ele SHALL reportar **3** funções (as do `Subscriber`, que só o `deadcode` não vê) e nenhuma outra.
 5. EACH corte SHALL estar registrado na ISSUE-042 com `arquivo:linha`, o nome
    da função e a prova que a deixou morta.
 6. WHEN o cofre central é medido depois do podar THEN o `mem doctor` SHALL

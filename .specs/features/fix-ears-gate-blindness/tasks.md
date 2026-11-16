@@ -190,11 +190,11 @@ trabalho · a convenção de dispensa registrada dentro da spec
 
 **Done when**:
 
-- [ ] O gate corrigido roda em **todas** as specs do repo e a lista de falhas está na medição
-- [ ] Toda spec reprovada tem os ACs **corrigidos** (SHALL + padrão EARS) — nenhum gate foi afrouxado
-- [ ] Toda spec dispensada tem a dispensa **escrita dentro dela**, com o motivo
-- [ ] Nenhuma spec continua passando por cegueira: a contagem de ACs vistos é igual à de ACs presentes
-- [ ] O gate completo do repo continua verde: `go -C D:\repository\my-memory test -count=1 ./...`
+- [x] O gate corrigido roda em **todas** as specs do repo e a lista de falhas está na medição
+- [x] Toda spec reprovada tem os ACs **corrigidos** (SHALL + padrão EARS) — nenhum gate foi afrouxado
+- [x] Toda spec dispensada tem a dispensa **escrita dentro dela**, com o motivo
+- [x] Nenhuma spec continua passando por cegueira: a contagem de ACs vistos é igual à de ACs presentes
+- [x] O gate completo do repo continua verde: `go -C D:\repository\my-memory test -count=1 ./...`
 
 **Tests**: integration
 **Gate**: full

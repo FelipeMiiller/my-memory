@@ -134,10 +134,7 @@ linha por documento e passa batido — a busca funciona, então ninguém procura
 
 **Acceptance Criteria**:
 
-9. WHEN `mem index` runs without an available embedding provider THEN the
-   command SHALL print a single consolidated warning naming the missing build
-   tag and the consequence (documents indexed without a vector), instead of one
-   warning line per document.
+9. WHEN `mem index` runs without an available embedding provider THEN the command SHALL print a single consolidated warning naming the missing build tag and the consequence (documents indexed without a vector), instead of one warning line per document.
 10. IF the provider is unavailable THEN `mem search --mode hybrid` SHALL state
     in its output that the result came from the lexical fallback only — the
     output SHALL contain the marker `LEXICAL` and SHALL state that the vector

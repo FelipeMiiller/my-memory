@@ -97,11 +97,8 @@ decisão de configuração.
 
 **Acceptance Criteria**:
 
-1. WHEN the doctor audits a vault whose root path is known and a link target
-   resolves to a file inside it THEN the link SHALL NOT be reported as a dead
-   link.
-2. IF the link target resolves to no file in the vault and to no indexed
-   document THEN the link SHALL continue to be reported as a dead link.
+1. WHEN the doctor audits a vault whose root path is known and a link target resolves to a file inside it THEN the link SHALL NOT be reported as a dead link.
+2. IF the link target resolves to no file in the vault and to no indexed document THEN the link SHALL continue to be reported as a dead link.
 3. The report SHALL expose the new category with the target, the source
    document, the relation, and the path on disk where the target was found.
 4. The Health Score SHALL NOT be penalized by links classified as "out of index
@@ -132,8 +129,7 @@ vivas da ponte do code graph).
 6. WHEN the correction routine runs THEN it SHALL delete exactly the edges the
    report lists as dead links, and SHALL preserve every edge whose target
    exists on disk.
-7. WHEN the correction routine runs on a vault with unverifiable links THEN it
-   SHALL preserve those edges as well, because it cannot prove them broken.
+7. WHEN the correction routine runs on a vault with unverifiable links THEN it SHALL preserve those edges as well, because it cannot prove them broken.
 
 **Independent Test**: `--fix` num vault com a nota apontando para material fora
 do índice → a aresta continua lá depois do `--fix`.

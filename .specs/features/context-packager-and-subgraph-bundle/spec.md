@@ -27,7 +27,7 @@ O **Context Packager & Subgraph Bundle** resolve esse problema ao extrair um sub
 
 ---
 
-## Assumptions & Decisions
+## Assumptions & Open Questions
 
 | Decisão / Premissa | Valor Escolhido | Justificativa |
 | :--- | :--- | :--- |
@@ -36,6 +36,17 @@ O **Context Packager & Subgraph Bundle** resolve esse problema ao extrair um sub
 | Orçamento de tokens padrão | `MaxTokens = 4000` | Equivale a ~16.000 caracteres, cabendo confortavelmente em qualquer janela de contexto moderna. |
 | Direção padrão | `both` | Captura tanto os documentos que a nota referencia quanto os chamadores que dependem dela. |
 | Degradação de nós periféricos | L0/L1 micro-abstract | Preserva a presença e contexto conceitual da nota sem gastar o orçamento com o texto bruto completo. |
+
+Open questions: none
+
+---
+
+## User Stories
+
+### P1: Contexto empacotado de um nó raiz ⭐ MVP
+**User Story**: Como agente de IA, quero o contexto completo e estruturado de uma nota raiz em um único bundle Markdown, para não disparar chamadas repetitivas nem estourar a janela de tokens.
+
+Os critérios de aceite são os requisitos [R1](#r1-expansão-de-subgrafo-conexo) a [R5](#r5-integração-com-protocolo-mcp).
 
 ---
 
@@ -62,3 +73,19 @@ O **Context Packager & Subgraph Bundle** resolve esse problema ao extrair um sub
 
 ### R5: Integração com Protocolo MCP
 - **WHEN**: Quando um agente de IA invocar a ferramenta `memory_pack_context`, **THEN** o servidor MCP deve retornar o Markdown do bundle pronto para assimilação no prompt, acompanhado de avisos de desatualização (*staleness banner*), se aplicável.
+
+---
+
+## Requirement Traceability
+
+| Requirement ID | Acceptance Criterion | Where | Status |
+| :--- | :--- | :--- | :--- |
+| CPB-01 | R1 — expansão do subgrafo conexo a partir do nó raiz canônico, até `max_depth` e conforme `direction` | `internal/graph/pack.go` | Pending |
+| CPB-02 | R2 — orçamento estrito: micro-abstract L0/L1 na peripheral e `omitted` quando não couber | `internal/graph/pack.go` | Pending |
+| CPB-03 | R3 — estrutura do bundle Markdown com metadados, Mermaid, centrais, periféricos e omitidos | `internal/graph/pack.go` | Pending |
+| CPB-04 | R4 — CLI `mem pack <raiz>` com `--out`, `--json` e métricas no terminal | `cmd/mem/pack.go` | Pending |
+| CPB-05 | R5 — ferramenta MCP `memory_pack_context` com o Markdown do bundle e o banner de desatualização | `internal/mcp/pack_handlers.go` | Pending |
+| CPB-06 | G2 — `PackContext` nas camadas de persistência SQLite e PostgreSQL | `internal/db/graph.go` · `internal/store/postgres.go` | Pending |
+| CPB-07 | G5 — ADR-029, guias operacionais e `.specs/STATE.md` | `docs/adr/029-context-packager-e-subgraph-bundle.md` | Pending |
+
+**Coverage**: 7 total, 7 mapeados, 0 unmapped.

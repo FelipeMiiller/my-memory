@@ -130,7 +130,7 @@ Sem este spec, Foundation não pode começar — todo write de voz/agente vai re
 
 1. WHERE `.memory/policy/strict.yaml` is active THEN every external actor (`actor != "user:<owner>"`) SHALL require approval before write. (optional-feature)
 2. WHERE `.memory/policy/balanced.yaml` is active THEN writes within vault scope (`path matches vault.glob`) SHALL proceed; writes outside scope SHALL require approval. (optional-feature)
-3. WHERE `.memory/policy/permissive-dev.yaml` is active THEN all writes proceed without approval (development mode). (optional-feature)
+3. WHERE `.memory/policy/permissive-dev.yaml` is active THEN all writes SHALL proceed without approval (development mode). (optional-feature)
 4. WHEN policy requires approval THEN the system SHALL emit `approval.requested` event and block the write until `approval.granted` or `30 minutes` timeout. (event-driven)
 5. IF policy decision fails to load THEN the system SHALL fail-closed with `ErrPolicyUnavailable` (ADR-050 fail-closed posture). (unwanted-behavior)
 6. The system SHALL record `policy.decision_id` in every `memory.committed` envelope for audit traceability. (ubiquitous)
