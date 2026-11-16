@@ -302,6 +302,64 @@ func TestPackContext_ConjuntoExatoPorDirecao(t *testing.T) {
 	}
 }
 
+// TestPackContext_OrdemDePrioridadePorPageRank prova FPB-08 e FPB-09: a ordem de
+// priorização do motor é profundidade ascendente, depois PageRank descendente, depois
+// ID ascendente (FPB-08). Dois nós de mesma profundidade com PageRanks invertidos
+// fixam a posição esperada: o de maior PageRank vem primeiro (FPB-09).
+func TestPackContext_OrdemDePrioridadePorPageRank(t *testing.T) {
+	nodes := []PackGraphNode{
+		{ID: "root", Title: "Raiz", Content: "Conteúdo da raiz."},
+		{ID: "n1", Title: "Nó 1", Content: "Conteúdo do nó 1."},
+		{ID: "n2", Title: "Nó 2", Content: "Conteúdo do nó 2."},
+		{ID: "n3", Title: "Nó 3", Content: "Conteúdo do nó 3."},
+		{ID: "n4", Title: "Nó 4", Content: "Conteúdo do nó 4."},
+	}
+	edges := []WeightedEdge{
+		{Source: "root", Target: "n1", Type: "links_to", Weight: 1.0},
+		{Source: "root", Target: "n2", Type: "links_to", Weight: 1.0},
+		{Source: "root", Target: "n3", Type: "links_to", Weight: 1.0},
+		{Source: "root", Target: "n4", Type: "links_to", Weight: 1.0},
+	}
+
+	opts := PackOptions{
+		MaxDepth:               1,
+		MaxTokens:              2000,
+		Direction:              "outbound",
+		IncludeFringeAbstracts: true,
+		PageRanks: map[string]float64{
+			"n1": 0.10,
+			"n2": 0.90,
+			"n3": 0.50,
+			"n4": 0.50,
+		},
+	}
+
+	res, err := PackContext(nodes, edges, "root", opts)
+	if err != nil {
+		t.Fatalf("PackContext falhou: %v", err)
+	}
+
+	got := make([]string, 0, len(res.Nodes))
+	position := make(map[string]int, len(res.Nodes))
+	for i, n := range res.Nodes {
+		got = append(got, n.ID)
+		position[n.ID] = i
+	}
+
+	// FPB-08: profundidade ↑, PageRank ↓, ID ↑ — a raiz (profundidade 0) primeiro,
+	// depois n2 (0.90), n3 e n4 (0.50, desempate pelo ID) e por fim n1 (0.10).
+	expected := []string{"root", "n2", "n3", "n4", "n1"}
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("ordem dos nós = %v, esperado %v (profundidade ↑, PageRank ↓, ID ↑)", got, expected)
+	}
+
+	// FPB-09: o nó de maior PageRank ocupa a posição anterior ao de menor PageRank.
+	if position["n2"] > position["n1"] {
+		t.Errorf("nó de maior PageRank (n2, 0.90) ficou na posição %d, depois do de menor PageRank (n1, 0.10) na posição %d",
+			position["n2"], position["n1"])
+	}
+}
+
 func TestPackContext_MissingRoot(t *testing.T) {
 	nodes := []PackGraphNode{
 		{ID: "A", Title: "Nota A"},

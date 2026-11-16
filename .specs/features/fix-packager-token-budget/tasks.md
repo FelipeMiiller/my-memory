@@ -183,11 +183,12 @@ T6 -> T7 -> T8 -> T9
 
 **Done when**:
 
-- [ ] O teste monta dois nós de mesma profundidade com `PageRanks` invertidos
-- [ ] A asserção é sobre a **posição** dos nós em `res.Nodes`, não sobre o conjunto
-- [ ] O teste **falha** quando a comparação de PageRank é invertida (mutante M4, `internal/graph/pack.go:213`)
-- [ ] A ordem asserted bate com a ordem escrita em FPB-08
-- [ ] Gate check passa: `go -C D:\repository\my-memory test -count=1 -run TestPackContext ./internal/graph/...`
+- [x] O teste monta dois nós de mesma profundidade com `PageRanks` invertidos
+- [x] A asserção é sobre a **posição** dos nós em `res.Nodes`, não sobre o conjunto
+- [x] O teste **falha** quando a comparação de PageRank é invertida (mutante M4, `internal/graph/pack.go:213`)
+- [x] A ordem asserted bate com a ordem escrita em FPB-08
+- [x] Gate check passa: `go -C D:\repository\my-memory test -count=1 -run TestPackContext ./internal/graph/...`
+- [x] Prova do mutante: em worktree isolado (sem `git stash`), `pageRank > pageRank` virado em `<` produz a ordem `[root n1 n3 n4 n2]` e derruba `TestPackContext_OrdemDePrioridadePorPageRank` — M4 morre
 
 **Tests**: unit
 **Gate**: quick
