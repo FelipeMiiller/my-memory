@@ -126,6 +126,13 @@ func InjectMCPServer(target ClientTarget, serverName string, serverCfg ServerCon
 	return report, nil
 }
 
+// renameFile publica o .bak pronto no destino.
+//
+// É uma var (e não uma chamada direta a os.Rename) para que o teste possa
+// simular a falha da publicação — que é exatamente a falha que o backup
+// anterior precisa sobreviver.
+var renameFile = os.Rename
+
 // writeFileAtomic grava o conteúdo num arquivo temporário no MESMO diretório do
 // destino e o publica com os.Rename.
 //
@@ -160,7 +167,7 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 		return err
 	}
 
-	return os.Rename(tmpPath, path)
+	return renameFile(tmpPath, path)
 }
 
 func isPayloadEqual(existing interface{}, next map[string]interface{}) bool {

@@ -684,12 +684,12 @@ JSON com 4 espaços e chaves fora de ordem · a serialização real
 
 **Done when**:
 
-- [ ] O `.bak` final é **byte-idêntico** ao arquivo de configuração substituído
-- [ ] Um mutante que substitui o rename por `os.WriteFile` direto **derruba** o teste
-- [ ] O config escrito usa **2 espaços** e as chaves de topo em **ordem alfabética**
-- [ ] As chaves de topo e os servidores pré-existentes continuam no arquivo (conteúdo preservado)
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestInstaller ./internal/autowire/...`
-- [ ] Test count: os testes de `internal/autowire` passam (9 no baseline + os novos), sem nenhuma deleção silenciosa
+- [x] O `.bak` final é **byte-idêntico** ao arquivo de configuração substituído
+- [x] Um mutante que substitui o rename por `os.WriteFile` direto **derruba** o teste
+- [x] O config escrito usa **2 espaços** e as chaves de topo em **ordem alfabética**
+- [x] As chaves de topo e os servidores pré-existentes continuam no arquivo (conteúdo preservado)
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestInstaller ./internal/autowire/...`
+- [x] Test count: os testes de `internal/autowire` passam (9 no baseline + os novos), sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: quick
