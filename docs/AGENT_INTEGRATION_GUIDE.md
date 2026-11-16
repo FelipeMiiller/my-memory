@@ -281,6 +281,7 @@ Mais detalhes em `docs/CLI_GUIDE.md` seção "Seleção de Storage".
 | `mem tag <nome>` | Quantas notas carregam a tag — casa a tag **e as descendentes**, como o `tag:` do Obsidian (ADR-055). | `mem tag projeto --verbose` |
 | `mem search --tag <tag>` | Filtra a busca por tag do Obsidian (push-down na consulta, combinável com `--category`/`--decay`/`--mode`) (ADR-055). | `mem search --tag projeto "arquitetura"` |
 | `mem mcp` | Inicia o servidor MCP via stdio (para IDEs) ou HTTP/SSE com federação RRF. | `mem mcp --port 38400` |
+| `mem install` | Auto-wiring zero-touch: injeta o servidor `my-memory` na configuração MCP dos clientes de IA **instalados** (Claude Desktop, Cursor, VS Code, Windsurf) e **pula** os ausentes, sem criar arquivo nem diretório para eles (ADR-026). | `mem install --dry-run` *(flags em `docs/CLI_GUIDE.md`, seção 19)* |
 
 ---
 

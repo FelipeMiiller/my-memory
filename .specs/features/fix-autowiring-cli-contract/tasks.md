@@ -202,9 +202,9 @@ que ele faz e um remate ao CLI guide para as flags.
 
 **Done when**:
 
-- [ ] O guia tem uma linha `mem install` com o que ele faz
-- [ ] A linha remete ao CLI guide para o detalhe das flags
-- [ ] O gate de build passa: `go -C D:\repository\my-memory build ./...`
+- [x] O guia tem uma linha `mem install` com o que ele faz
+- [x] A linha remete ao CLI guide para o detalhe das flags
+- [x] O gate de build passa: `go -C D:\repository\my-memory build ./...`
 
 **Tests**: none (camada de contrato — o gate é o build + a leitura cruzada)
 **Gate**: quick
