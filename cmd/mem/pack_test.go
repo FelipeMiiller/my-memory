@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -37,6 +39,80 @@ func TestRunPackCommand_MissingRoot(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "nó raiz obrigatório") {
 		t.Errorf("erro inesperado: %v", err)
+	}
+}
+
+// TestRunPackCommand_OrcamentoRealDoArquivo prova FPB-03/FPB-17: o número que
+// a CLI imprime é o tamanho real do arquivo que ela gravou — não um contador
+// interno que diverge do artefato.
+func TestRunPackCommand_OrcamentoRealDoArquivo(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_cli_pack_budget.db")
+	database, err := db.InitDB(dbPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("Pulando teste: ambiente sem FTS5")
+		}
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	_ = db.InsertDocumentWithMeta(ctx, database, "doc-root", "docs/root.md", "Raiz Arquitetura", now, "h1", "test-epoch", "Resumo Raiz", "resource", 0, 0)
+	_ = db.InsertDocumentWithMeta(ctx, database, "doc-sub", "docs/sub.md", "Subsistema", now, "h2", "test-epoch", "Resumo Sub", "resource", 0, 0)
+	_ = db.InsertChunk(ctx, database, "c1", "doc-root", strings.Repeat("Conteúdo estrutural da raiz para o pacote. ", 40), 0, nil)
+	_ = db.InsertChunk(ctx, database, "c2", "doc-sub", strings.Repeat("Conteúdo do subsistema conectado para o pacote. ", 40), 0, nil)
+	_ = db.InsertEdgeWithProps(ctx, database, "doc-root", "doc-sub", "depends_on", "EXTRACTED", 1.0)
+
+	outFile := filepath.Join(t.TempDir(), "bundle.md")
+	var outBuf bytes.Buffer
+	args := []string{"docs/root.md", "--db", dbPath, "--out", outFile}
+	if err := runPackCommand(ctx, "repo", args, &outBuf); err != nil {
+		t.Fatalf("runPackCommand --out falhou: %v", err)
+	}
+
+	content, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("falha ao ler arquivo gerado: %v", err)
+	}
+	real := graph.EstimateTokens(string(content))
+
+	match := regexp.MustCompile(`Orçamento:\s+~(\d+) / (\d+) tokens`).FindStringSubmatch(outBuf.String())
+	if match == nil {
+		t.Fatalf("stdout não reportou a linha de orçamento: %s", outBuf.String())
+	}
+	reported, err := strconv.Atoi(match[1])
+	if err != nil {
+		t.Fatalf("orçamento reportado não é numérico: %v", err)
+	}
+	maxTokens, err := strconv.Atoi(match[2])
+	if err != nil {
+		t.Fatalf("limite de orçamento não é numérico: %v", err)
+	}
+
+	if reported != real {
+		t.Errorf("a CLI reportou %d tokens, mas o arquivo gravado mede %d", reported, real)
+	}
+	if reported > maxTokens {
+		t.Errorf("a CLI reportou %d tokens acima do orçamento de %d", reported, maxTokens)
+	}
+
+	// O --json carrega o mesmo número do artefato
+	var jsonBuf bytes.Buffer
+	jsonArgs := []string{"docs/root.md", "--db", dbPath, "--json"}
+	if err := runPackCommand(ctx, "repo", jsonArgs, &jsonBuf); err != nil {
+		t.Fatalf("runPackCommand --json falhou: %v", err)
+	}
+	var res graph.PackResult
+	if err := json.Unmarshal(jsonBuf.Bytes(), &res); err != nil {
+		t.Fatalf("falha ao deserializar JSON gerado: %v", err)
+	}
+	if res.TotalTokens != graph.EstimateTokens(res.Markdown) {
+		t.Errorf("JSON total_tokens = %d, esperado o tamanho real do Markdown (%d)", res.TotalTokens, graph.EstimateTokens(res.Markdown))
+	}
+	if res.TotalTokens != real {
+		t.Errorf("JSON total_tokens = %d, esperado %d (o mesmo bundle gravado em arquivo)", res.TotalTokens, real)
 	}
 }
 

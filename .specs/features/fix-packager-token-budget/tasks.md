@@ -125,12 +125,12 @@ T6 -> T7 -> T8 -> T9
 
 **Done when**:
 
-- [ ] A linha `Orçamento:` do stdout mostra o tamanho real do bundle emitido, não o contador interno
-- [ ] O número impresso nunca ultrapassa `max_tokens`
-- [ ] O `--json` emite `total_tokens` igual ao tamanho real do Markdown
-- [ ] Teste novo `TestRunPackCommand_OrcamentoRealDoArquivo`: roda `mem pack --out`, **lê o arquivo gravado**, compara `EstimateTokens(arquivo)` com o número impresso no stdout
-- [ ] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./cmd/mem/...`
-- [ ] Nenhum teste existente foi removido ou afrouxado
+- [x] A linha `Orçamento:` do stdout mostra o tamanho real do bundle emitido, não o contador interno
+- [x] O número impresso nunca ultrapassa `max_tokens`
+- [x] O `--json` emite `total_tokens` igual ao tamanho real do Markdown
+- [x] Teste novo `TestRunPackCommand_OrcamentoRealDoArquivo`: roda `mem pack --out`, **lê o arquivo gravado**, compara `EstimateTokens(arquivo)` com o número impresso no stdout
+- [x] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./cmd/mem/...`
+- [x] Nenhum teste existente foi removido ou afrouxado
 
 **Tests**: integration
 **Gate**: quick

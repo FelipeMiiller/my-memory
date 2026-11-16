@@ -106,14 +106,15 @@ func runPackCommand(ctx context.Context, defaultRepo string, args []string, out 
 
 	// 3. Gravação em arquivo (se fornecido --out)
 	if *outFile != "" {
-		if writeErr := os.WriteFile(*outFile, []byte(res.Markdown), 0644); writeErr != nil {
+		written := res.Markdown
+		if writeErr := os.WriteFile(*outFile, []byte(written), 0644); writeErr != nil {
 			return fmt.Errorf("falha ao salvar arquivo '%s': %w", *outFile, writeErr)
 		}
 		fmt.Fprintf(out, "\n=== 📦 Pacote de Subgrafo Gerado com Sucesso ===\n")
 		fmt.Fprintf(out, "Nó Raiz:         %s\n", res.RootTitle)
 		fmt.Fprintf(out, "ID Canônico:     %s\n", res.RootID)
 		fmt.Fprintf(out, "Profundidade:    %d saltos\n", opts.MaxDepth)
-		fmt.Fprintf(out, "Orçamento:       ~%d / %d tokens\n", res.TotalTokens, res.MaxTokens)
+		fmt.Fprintf(out, "Orçamento:       ~%d / %d tokens\n", graph.EstimateTokens(written), res.MaxTokens)
 		fmt.Fprintf(out, "Nós Centrais:    %d\n", res.CoreCount)
 		fmt.Fprintf(out, "Nós Resumidos:   %d\n", res.FringeCount)
 		fmt.Fprintf(out, "Nós Omitidos:    %d\n", res.OmittedCount)
