@@ -220,9 +220,37 @@ func makeClientTarget(cType ClientType, name string, scope ConfigScope, configPa
 }
 
 func matchTarget(filter string, targetName string) bool {
-	return filter == "all" || filter == targetName
+	return filter == "all" || targetAlias(filter) == targetName
 }
 
 func matchScope(filter ConfigScope, targetScope ConfigScope) bool {
 	return filter == ScopeAll || filter == targetScope
+}
+
+// AcceptedTargets devolve os valores aceitos pela flag --target do auto-wiring.
+//
+// O conjunto é a fonte única: a CLI valida o valor da flag contra ele e o
+// detector resolve os alvos por ele. `claude-desktop` é sinônimo de `claude`
+// (o ID canônico do Claude Desktop) — resolve o mesmo alvo, e nada mais.
+func AcceptedTargets() []string {
+	return []string{"all", "claude", "claude-desktop", "cursor", "vscode", "windsurf"}
+}
+
+// IsAcceptedTarget diz se o valor informado é aceito pela flag --target.
+func IsAcceptedTarget(value string) bool {
+	norm := strings.ToLower(strings.TrimSpace(value))
+	for _, accepted := range AcceptedTargets() {
+		if norm == accepted {
+			return true
+		}
+	}
+	return false
+}
+
+// targetAlias normaliza o valor aceito de --target para o nome canônico do cliente.
+func targetAlias(value string) string {
+	if value == "claude-desktop" {
+		return "claude"
+	}
+	return value
 }

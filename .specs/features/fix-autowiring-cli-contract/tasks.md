@@ -296,12 +296,12 @@ sinônimo de `claude` — resolvendo o Claude Desktop e **nada** mais.
 
 **Done when**:
 
-- [ ] O conjunto aceito de `--target` é exposto pelo domínio (fonte única) e vale `all`, `claude`, `claude-desktop`, `cursor`, `vscode`, `windsurf`
-- [ ] `claude-desktop` resolve o alvo do Claude Desktop
-- [ ] `claude-desktop` **não** resolve Cursor, VS Code nem Windsurf
-- [ ] `claude` continua resolvendo o Claude Desktop (nenhuma regressão)
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestDetect ./internal/autowire/...`
-- [ ] Test count: os testes de `internal/autowire` passam (9 no baseline + os novos), sem nenhuma deleção silenciosa
+- [x] O conjunto aceito de `--target` é exposto pelo domínio (fonte única) e vale `all`, `claude`, `claude-desktop`, `cursor`, `vscode`, `windsurf`
+- [x] `claude-desktop` resolve o alvo do Claude Desktop
+- [x] `claude-desktop` **não** resolve Cursor, VS Code nem Windsurf
+- [x] `claude` continua resolvendo o Claude Desktop (nenhuma regressão)
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestDetect ./internal/autowire/...`
+- [x] Test count: os testes de `internal/autowire` passam (9 no baseline + os novos), sem nenhuma deleção silenciosa
 
 **Tests**: unit
 **Gate**: quick
