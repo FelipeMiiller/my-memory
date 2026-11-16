@@ -34,6 +34,7 @@ type ClientTarget struct {
 	ConfigPath  string      `json:"config_path"`
 	Exists      bool        `json:"exists"`        // true se o arquivo de configuração já existe fisicamente
 	ParentDirOK bool        `json:"parent_dir_ok"` // true se o diretório pai da ferramenta existe
+	Installed   bool        `json:"installed"`     // true se o cliente está instalado na máquina (marcador de instalação por tipo de cliente)
 }
 
 // InstallStatus descreve o resultado da injeção

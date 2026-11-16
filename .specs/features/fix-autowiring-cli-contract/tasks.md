@@ -329,9 +329,9 @@ consumidos. O `StatusSkipped` (`:47`) passa a ter **produtor**.
 
 **Done when**:
 
-- [ ] `ClientTarget` expõe o campo de presença de instalação, com nome e tipo documentados
-- [ ] O campo é consumido pelo detector (T8) e pela CLI (T12) — nenhum campo morto
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
+- [x] `ClientTarget` expõe o campo de presença de instalação, com nome e tipo documentados
+- [x] O campo é consumido pelo detector (T8) e pela CLI (T12) — nenhum campo morto
+- [x] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
 
 **Tests**: none (camada de entidade — o campo é asserido pelo detector, em T9)
 **Gate**: quick
