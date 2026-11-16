@@ -509,12 +509,12 @@ A7 e A9 da spec
 
 **Done when**:
 
-- [ ] Um alvo cujo cliente está ausente **não** tem arquivo nem diretório criados
-- [ ] O cliente pulado aparece na saída com o status de pulo, o nome dele e o motivo
-- [ ] Em `--dry-run`, um cliente ausente **não** é listado como alvo a instalar
-- [ ] Um alvo cujo cliente está presente é configurado (controle positivo no mesmo caminho de código)
-- [ ] Se **nenhum** cliente estiver instalado, o comando sai com **exit 0** e a saída diz que nada foi configurado
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
+- [x] Um alvo cujo cliente está ausente **não** tem arquivo nem diretório criados
+- [x] O cliente pulado aparece na saída com o status de pulo, o nome dele e o motivo
+- [x] Em `--dry-run`, um cliente ausente **não** é listado como alvo a instalar
+- [x] Um alvo cujo cliente está presente é configurado (controle positivo no mesmo caminho de código)
+- [x] Se **nenhum** cliente estiver instalado, o comando sai com **exit 0** e a saída diz que nada foi configurado
+- [x] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
 
 **Tests**: integration
 **Gate**: quick

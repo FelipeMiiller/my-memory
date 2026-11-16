@@ -19,6 +19,15 @@ func runInstallCLI(ctx context.Context, defaultRepo string, args []string) error
 
 // runInstallCommand executa o auto-wiring de clientes MCP permitindo injeção de io.Writer para testes
 func runInstallCommand(ctx context.Context, defaultRepo string, args []string, out io.Writer) error {
+	return runInstallCommandWithEnv(ctx, defaultRepo, args, out, nil)
+}
+
+// runInstallCommandWithEnv permite injetar o probe de presença de instalação
+// dos clientes (nil = ambiente real da máquina).
+//
+// É a costura que deixa a suíte hermética: o resultado do comando não depende
+// das ferramentas de IA instaladas na máquina que roda o teste.
+func runInstallCommandWithEnv(ctx context.Context, defaultRepo string, args []string, out io.Writer, env autowire.SystemEnv) error {
 	installCmd := flag.NewFlagSet("install", flag.ContinueOnError)
 	installCmd.SetOutput(out)
 
@@ -108,14 +117,31 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 	}
 
 	// 6. Detectar ferramentas alvo
-	targets, err := autowire.DetectClients(*rootDir, *target, scope)
+	var targets []autowire.ClientTarget
+	var err error
+	if env != nil {
+		targets, err = autowire.DetectClientsWithEnv(*rootDir, *target, scope, env)
+	} else {
+		targets, err = autowire.DetectClients(*rootDir, *target, scope)
+	}
 	if err != nil {
 		return fmt.Errorf("falha ao detectar clientes MCP: %w", err)
 	}
 
 	if len(targets) == 0 {
 		fmt.Fprintf(out, "Nenhum cliente MCP compatível encontrado para o filtro '--target %s' e escopo '%s'.\n", *target, scope)
+		fmt.Fprintf(out, "ℹ  Nenhuma configuração foi aplicada.\n")
 		return nil
+	}
+
+	// Só o cliente INSTALADO na máquina é configurado: o auto-wiring escreve a
+	// config do editor, e config de ferramenta que o usuário não tem é lixo
+	// (no workspace, ainda suja o repositório versionado).
+	configurable := 0
+	for _, tgt := range targets {
+		if tgt.Installed {
+			configurable++
+		}
 	}
 
 	// 7. Executar injeção
@@ -132,10 +158,18 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 	if resolvedRepo != "" {
 		fmt.Fprintf(out, "Repository:  %s\n", resolvedRepo)
 	}
-	fmt.Fprintf(out, "Alvos:       %d ferramenta(s) identificada(s)\n\n", len(targets))
+	fmt.Fprintf(out, "Alvos:       %d ferramenta(s) a configurar\n\n", configurable)
 
 	hasErrors := false
+	configured := 0
 	for _, tgt := range targets {
+		if !tgt.Installed {
+			fmt.Fprintf(out, "⏭ [PULADO] %s\n", tgt.Name)
+			fmt.Fprintf(out, "   Motivo:    cliente não instalado nesta máquina\n\n")
+			continue
+		}
+
+		configured++
 		report, injectErr := autowire.InjectMCPServer(tgt, "my-memory", serverCfg, *dryRun, *force)
 		if injectErr != nil {
 			hasErrors = true
@@ -170,9 +204,12 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 		fmt.Fprintln(out)
 	}
 
-	if *dryRun {
+	switch {
+	case configured == 0:
+		fmt.Fprintf(out, "ℹ  Nenhuma configuração foi aplicada: nenhum cliente detectado está instalado nesta máquina.\n")
+	case *dryRun:
 		fmt.Fprintf(out, "💡 Para aplicar as alterações de fato, execute novamente sem a flag '--dry-run'.\n")
-	} else if !hasErrors {
+	case !hasErrors:
 		fmt.Fprintf(out, "🎉 Sucesso! Reinicie os clientes de IA para carregar o servidor MCP 'my-memory'.\n")
 	}
 
