@@ -396,13 +396,18 @@ git -C D:\repository\my-memory commit -F 'D:\repository\my-memory\.git\COMMIT_MS
 
 ## 12. Pendências do lado de repositório (depois do cofre central)
 
-- **ISSUE-043 a ISSUE-048 — os gaps das 5 features verificadas (2026-11-15)**: são o
-  que **agora** espera spec de correção. O escopo é **decisão do dono**. Os mais
-  graves, em ordem:
+- **ISSUE-043 a ISSUE-050 — as specs de correção dos gaps JÁ EXISTEM (2026-11-16)**:
+  **8 specs escritas e validadas** (`validate_spec.py` e `validate_tasks.py` com **0
+  erros** nas 8), uma por issue, em `.specs/features/`:
+  `fix-staleness-cli-banner` (043, 28 ACs) · `fix-progressive-context-test-coverage`
+  (044, 9) · `fix-packager-token-budget` (045, 17) · `fix-graph-path-resolution`
+  (046, 47) · `fix-graph-node-identity` (047, 18) · `fix-autowiring-cli-contract`
+  (048, 37) · `fix-adr-035-dead-links` (049, 6) · `fix-ears-gate-blindness` (050, 10).
+  **O que falta agora é o Execute** — nenhuma foi implementada. Os gaps mais graves:
   - **ISSUE-047** — o `mem path` não funciona no vault real (identidade dupla do
     grafo: origem da aresta = id de path, destino = id de título). **Defeito de
-    produto, causa anterior à feature** (`171df1e`) — precisa de spec própria,
-    porque a decisão "qual identidade é a canônica" é de arquitetura.
+    produto, causa anterior à feature** (`171df1e`) — a spec é própria porque a
+    decisão "qual identidade é a canônica" é de arquitetura.
   - **ISSUE-043** — o banner de staleness nunca sai nos comandos de consulta
     (`FormatCLIBanner` é código morto).
   - **ISSUE-045** — o `mem pack` estoura o orçamento de tokens.
@@ -410,6 +415,17 @@ git -C D:\repository\my-memory commit -F 'D:\repository\my-memory\.git\COMMIT_MS
     cria config para ferramentas ausentes.
   - **ISSUE-046** e **ISSUE-044** — gaps de teste e de default (resolução ambígua,
     defaults mortos, 3 caminhos do carregamento progressivo sem prova).
+  - **ISSUE-050** — o gate de EARS está **cego para 441 dos 752 ACs** do repo (59%,
+    em 42 specs): `validate_spec.py:174` zera a coleta numa linha em branco depois
+    de `**Acceptance Criteria**:`. A spec `fix-ears-gate-blindness` existe; a
+    correção do **script da skill** (1 linha) ainda **não** foi feita — ela pode
+    deixar **42 specs vermelhas** no gate, então é decisão do dono.
+- **A camada de lições está inerte**: as **29 lições** estão `candidate`, com
+  `recurrence: 1` cada — nenhuma foi vista em 2 features distintas, que é o
+  threshold de promoção. Resultado: o `lessons.py list --status confirmed` devolve
+  vazio e **todo spec começa sem guidance**. A promoção é automática quando a
+  mesma lição reincidir numa 2ª feature — o que deve acontecer ao re-verificar
+  as correções.
 - **ADR-065 fase 3** — simplificar a governança + bucket GAP-6 a GAP-10, item a
   item, com medição antes de cada corte.
 - **GAP-4 — multi-linguagem**: hoje o backend real do code AST é **só Go**
