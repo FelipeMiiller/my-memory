@@ -612,13 +612,13 @@ variável de ambiente · o `--dry-run` (que não escreve em disco)
 
 **Done when**:
 
-- [ ] Com Postgres resolvido, o payload do dry-run declara `--storage postgres` e **não** contém `--db`
-- [ ] Com Postgres resolvido, o payload **não** contém a URL e a saída **não** nomeia um `.db`
-- [ ] Com Postgres resolvido, a saída contém `Engine: postgres`
-- [ ] Com SQLite, o payload contém `--db <caminho>` e a saída contém `Engine: sqlite`
-- [ ] O teste **não** abre conexão com nenhum banco (a porta do Postgres pode estar fechada)
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestInstall ./cmd/mem/...`
-- [ ] Test count: os testes de `cmd/mem` passam (261 no baseline + os novos), sem nenhuma deleção silenciosa
+- [x] Com Postgres resolvido, o payload do dry-run declara `--storage postgres` e **não** contém `--db`
+- [x] Com Postgres resolvido, o payload **não** contém a URL e a saída **não** nomeia um `.db`
+- [x] Com Postgres resolvido, a saída contém `Engine: postgres`
+- [x] Com SQLite, o payload contém `--db <caminho>` e a saída contém `Engine: sqlite`
+- [x] O teste **não** abre conexão com nenhum banco (a porta do Postgres pode estar fechada)
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestInstall ./cmd/mem/...`
+- [x] Test count: os testes de `cmd/mem` passam (261 no baseline + os novos), sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: quick

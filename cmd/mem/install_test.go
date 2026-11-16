@@ -266,6 +266,188 @@ func TestInstallCLI_EscopoContraditorioFalha(t *testing.T) {
 	}
 }
 
+// TestInstallCLI_PayloadPostgresDeclaraStoragePostgres prova o lado Postgres
+// da precedência de storage (ADR-040): quando o Postgres vence, o payload
+// declara `--storage postgres`, não leva `--db` e não carrega a URL.
+//
+// A URL aponta para uma porta FECHADA: o comando não abre conexão com banco
+// nenhum — a resolução do storage é só de string.
+func TestInstallCLI_PayloadPostgresDeclaraStoragePostgres(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	workspaceDir := t.TempDir()
+	env := newInstallFakeEnv(t)
+	env.markInstalled(t, autowire.ClientCursor)
+
+	const pgURL = "postgres://usuario:senha@127.0.0.1:1/memory?sslmode=disable"
+	t.Setenv("MY_MEMORY_PG_URL", pgURL)
+
+	err := runInstallCommandWithEnv(ctx, "test-repo", []string{
+		"--dry-run",
+		"--workspace",
+		"--target", "cursor",
+		"--dir", workspaceDir,
+	}, &buf, env)
+	if err != nil {
+		t.Fatalf("falha ao executar mem install --dry-run com Postgres: %v", err)
+	}
+
+	out := buf.String()
+
+	// a saída declara o engine vencedor
+	if !strings.Contains(out, "Engine: postgres") {
+		t.Errorf("esperava 'Engine: postgres' na saída:\n%s", out)
+	}
+	// e não nomeia um .db de SQLite
+	if strings.Contains(out, "Database:") {
+		t.Errorf("com o Postgres vencedor a saída não deveria ter linha 'Database:':\n%s", out)
+	}
+
+	args := dryRunArgs(t, out)
+	if !argsHaveFlagValue(args, "--storage", "postgres") {
+		t.Errorf("o payload deveria declarar '--storage postgres': %v", args)
+	}
+	if argsHaveFlag(args, "--db") {
+		t.Errorf("o payload não deveria levar '--db' quando o Postgres venceu: %v", args)
+	}
+	if strings.Contains(out, pgURL) {
+		t.Errorf("a URL do Postgres não pode aparecer no payload nem na saída:\n%s", out)
+	}
+}
+
+// TestInstallCLI_PayloadSQLiteCarregaDB prova o lado SQLite: sem Postgres
+// resolvido, o payload leva o `--db` com o caminho resolvido e a saída diz
+// `Engine: sqlite`.
+func TestInstallCLI_PayloadSQLiteCarregaDB(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	workspaceDir := t.TempDir()
+	env := newInstallFakeEnv(t)
+	env.markInstalled(t, autowire.ClientCursor)
+
+	err := runInstallCommandWithEnv(ctx, "test-repo", []string{
+		"--dry-run",
+		"--workspace",
+		"--target", "cursor",
+		"--dir", workspaceDir,
+	}, &buf, env)
+	if err != nil {
+		t.Fatalf("falha ao executar mem install --dry-run com SQLite: %v", err)
+	}
+
+	out := buf.String()
+
+	if !strings.Contains(out, "Engine: sqlite") {
+		t.Errorf("esperava 'Engine: sqlite' na saída:\n%s", out)
+	}
+
+	args := dryRunArgs(t, out)
+	dbPath := argsFlagValue(args, "--db")
+	if dbPath == "" {
+		t.Fatalf("o payload deveria levar '--db' com o caminho resolvido: %v", args)
+	}
+	if !filepath.IsAbs(dbPath) {
+		t.Errorf("o '--db' do payload deveria ser absoluto: %q", dbPath)
+	}
+	if filepath.Base(dbPath) != "memory.db" {
+		t.Errorf("o '--db' do payload deveria apontar para o vault resolvido (memory.db): %q", dbPath)
+	}
+	if argsHaveFlagValue(args, "--storage", "postgres") {
+		t.Errorf("com o SQLite vencendo o payload não deveria levar '--storage postgres': %v", args)
+	}
+
+	// a linha 'Database:' da saída diz o MESMO caminho do payload
+	if !strings.Contains(out, "Database:    "+dbPath) {
+		t.Errorf("a linha 'Database:' da saída deveria dizer o mesmo caminho do payload:\n%s", out)
+	}
+}
+
+// dryRunArgs devolve os args do servidor MCP injetado no payload do dry-run.
+func dryRunArgs(t *testing.T, out string) []interface{} {
+	t.Helper()
+
+	parsed := extractDryRunJSON(t, out)
+	servers, ok := parsed["mcpServers"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("mcpServers ausente no payload do dry-run:\n%s", out)
+	}
+	memSrv, ok := servers["my-memory"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("servidor 'my-memory' ausente no payload do dry-run:\n%s", out)
+	}
+	args, ok := memSrv["args"].([]interface{})
+	if !ok {
+		t.Fatalf("payload do dry-run sem args: %v", memSrv)
+	}
+	return args
+}
+
+// extractDryRunJSON extrai o bloco JSON do dry-run ("Conteúdo JSON:") e
+// devolve o objeto decodificado.
+func extractDryRunJSON(t *testing.T, out string) map[string]interface{} {
+	t.Helper()
+
+	const marker = "Conteúdo JSON:"
+	idx := strings.Index(out, marker)
+	if idx < 0 {
+		t.Fatalf("a saída não contém o payload JSON do dry-run:\n%s", out)
+	}
+
+	var buf strings.Builder
+	for _, line := range strings.Split(out[idx+len(marker):], "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		buf.WriteString(trimmed)
+		buf.WriteString("\n")
+
+		var parsed map[string]interface{}
+		if err := json.Unmarshal([]byte(buf.String()), &parsed); err == nil {
+			return parsed
+		}
+	}
+
+	t.Fatalf("não encontrou um JSON válido no payload do dry-run:\n%s", out)
+	return nil
+}
+
+// argsHaveFlag diz se os args carregam a flag.
+func argsHaveFlag(args []interface{}, flag string) bool {
+	for _, arg := range args {
+		if s, ok := arg.(string); ok && s == flag {
+			return true
+		}
+	}
+	return false
+}
+
+// argsHaveFlagValue diz se os args carregam a flag com o valor esperado.
+func argsHaveFlagValue(args []interface{}, flag, value string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		s, ok := args[i].(string)
+		if !ok || s != flag {
+			continue
+		}
+		if v, ok := args[i+1].(string); ok && v == value {
+			return true
+		}
+	}
+	return false
+}
+
+// argsFlagValue devolve o valor que segue a flag ("" se a flag não está).
+func argsFlagValue(args []interface{}, flag string) string {
+	for i := 0; i+1 < len(args); i++ {
+		if s, ok := args[i].(string); ok && s == flag {
+			if v, ok := args[i+1].(string); ok {
+				return v
+			}
+		}
+	}
+	return ""
+}
+
 func TestRearrangeInstallArgs(t *testing.T) {
 	tests := []struct {
 		name     string

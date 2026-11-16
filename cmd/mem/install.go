@@ -151,7 +151,10 @@ func runInstallCommandWithEnv(ctx context.Context, defaultRepo string, args []st
 	}
 	fmt.Fprintf(out, "=== %s do My-Memory em Clientes MCP ===\n", modeStr)
 	fmt.Fprintf(out, "Binário:     %s\n", commandPath)
-	fmt.Fprintf(out, "Engine:      %s\n", engine)
+	// A linha do engine usa um espaço só (sem o alinhamento das outras): o
+	// contrato publicado fala "Engine: postgres" / "Engine: sqlite", e é esse
+	// literal que o editor e a verificação esperam encontrar.
+	fmt.Fprintf(out, "Engine: %s\n", engine)
 	if engine == "sqlite" && resolvedDB != "" {
 		fmt.Fprintf(out, "Database:    %s\n", resolvedDB)
 	}
