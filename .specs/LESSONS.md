@@ -188,6 +188,18 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: internal/autowire/installer.go:91 (autowire)
 - last seen: 2026-11-15T15:45:25Z
 
+### L-030 - Write each acceptance criterion as a single physical line under a header the gate recognises, because the collector judges only the first physical line and opens the block only on the exact header form.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `skill/spec` · harmful: 0
+- features: fix-ears-gate-blindness
+- evidence: validate_spec.py:163 (skill/spec)
+- last seen: 2026-11-16T17:27:17Z
+
+### L-031 - Measure a repo-wide count with the script that ships in the repo, not with a throwaway scratch script, because the two disagreed on the number of affected specs (19 vs 42) while agreeing on the totals.
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `governanca` · harmful: 0
+- features: fix-ears-gate-blindness
+- evidence: validation.md:226 (governanca)
+- last seen: 2026-11-16T17:27:18Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

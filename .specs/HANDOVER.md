@@ -415,11 +415,15 @@ git -C D:\repository\my-memory commit -F 'D:\repository\my-memory\.git\COMMIT_MS
     cria config para ferramentas ausentes.
   - **ISSUE-046** e **ISSUE-044** — gaps de teste e de default (resolução ambígua,
     defaults mortos, 3 caminhos do carregamento progressivo sem prova).
-  - **ISSUE-050** — o gate de EARS está **cego para 441 dos 752 ACs** do repo (59%,
-    em 42 specs): `validate_spec.py:174` zera a coleta numa linha em branco depois
-    de `**Acceptance Criteria**:`. A spec `fix-ears-gate-blindness` existe; a
-    correção do **script da skill** (1 linha) ainda **não** foi feita — ela pode
-    deixar **42 specs vermelhas** no gate, então é decisão do dono.
+  - **ISSUE-050** — o gate de EARS estava **cego para 441 dos 752 ACs** do repo (59%,
+    em 19 specs): `validate_spec.py:174` zera a coleta numa linha em branco depois
+    de `**Acceptance Criteria**:`. **CORRIGIDO em 2026-11-16** (spec
+    `fix-ears-gate-blindness`, commits `f76c268`..`368a077`, **Verifier PASS**):
+    o gate agora lê **898 de 898** ACs, **0 cegos**, e as 14 specs que ele passou
+    a apontar foram corrigidas (36 erros, nenhuma dispensada). **Residual fora de
+    escopo, reportado pelo Verifier:** 48 ACs em 6 specs seguem invisíveis porque
+    os cabeçalhos `## Acceptance Criteria` / `**Acceptance Criteria:**` não casam
+    com o regex do validador.
 - **A camada de lições está inerte**: as **29 lições** estão `candidate`, com
   `recurrence: 1` cada — nenhuma foi vista em 2 features distintas, que é o
   threshold de promoção. Resultado: o `lessons.py list --status confirmed` devolve

@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 30,
+  "next_id": 32,
   "lessons": [
     {
       "id": "L-001",
@@ -526,6 +526,42 @@
       ],
       "created": "2026-11-15T15:45:25Z",
       "last_seen": "2026-11-15T15:45:25Z"
+    },
+    {
+      "id": "L-030",
+      "key": "spec_precision_gap::write each acceptance criterion as a single physical line under a header the gate recognises because the collector judges only the first physical line and opens the block only on the exact header form",
+      "text": "Write each acceptance criterion as a single physical line under a header the gate recognises, because the collector judges only the first physical line and opens the block only on the exact header form.",
+      "signal": "spec_precision_gap",
+      "scope": "skill/spec",
+      "status": "candidate",
+      "features": [
+        "fix-ears-gate-blindness"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validate_spec.py:163 (skill/spec)"
+      ],
+      "created": "2026-11-16T17:27:17Z",
+      "last_seen": "2026-11-16T17:27:17Z"
+    },
+    {
+      "id": "L-031",
+      "key": "spec_precision_gap::measure a repo wide count with the script that ships in the repo not with a throwaway scratch script because the two disagreed on the number of affected specs 19 vs 42 while agreeing on the totals",
+      "text": "Measure a repo-wide count with the script that ships in the repo, not with a throwaway scratch script, because the two disagreed on the number of affected specs (19 vs 42) while agreeing on the totals.",
+      "signal": "spec_precision_gap",
+      "scope": "governanca",
+      "status": "candidate",
+      "features": [
+        "fix-ears-gate-blindness"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "validation.md:226 (governanca)"
+      ],
+      "created": "2026-11-16T17:27:18Z",
+      "last_seen": "2026-11-16T17:27:18Z"
     }
   ]
 }

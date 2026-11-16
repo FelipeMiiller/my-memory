@@ -225,12 +225,12 @@ AC sem SHALL) · o worktree isolado (sem `git stash`)
 
 **Done when**:
 
-- [ ] O Verifier é um agente **distinto** do autor de T1..T4 (autor ≠ verificador)
-- [ ] A prova empírica da ISSUE-050 se inverte: a spec de fixture com AC sem SHALL faz o gate sair com código **!= 0**
-- [ ] O sensor reintroduz o reset e o `test_validate_spec.py` **falha**
-- [ ] A medição final reporta 0 blocos cegos e vistos = presentes
-- [ ] O veredito do relatório é **PASS** e `validate_state.py fix-ears-gate-blindness` sai **exit 0**
-- [ ] A árvore real está intacta no fim (baseline e final idênticos, `git status --porcelain` limpo) — **sem `git stash`**
+- [x] O Verifier é um agente **distinto** do autor de T1..T4 (autor ≠ verificador)
+- [x] A prova empírica da ISSUE-050 se inverte: a spec de fixture com AC sem SHALL faz o gate sair com código **!= 0**
+- [x] O sensor reintroduz o reset e o `test_validate_spec.py` **falha**
+- [x] A medição final reporta 0 blocos cegos e vistos = presentes
+- [x] O veredito do relatório é **PASS** e `validate_state.py fix-ears-gate-blindness` sai **exit 0**
+- [x] A árvore real está intacta no fim (baseline e final idênticos, `git status --porcelain` limpo) — **sem `git stash`**
 
 **Tests**: integration
 **Gate**: full

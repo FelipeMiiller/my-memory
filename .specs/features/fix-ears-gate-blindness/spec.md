@@ -39,8 +39,8 @@ validate_spec: 0 error(s), 0 warning(s)   <- exit 0
 | ACs que o gate **vê** hoje | **311** |
 | ACs que o gate **deveria** ver | **752** |
 | **ACs cegos pelo gate** | **441** (59%) |
-| specs com pelo menos 1 bloco cego | **42** de 62 |
-| blocos `**Acceptance Criteria**:` afetados | **75**, em 27 specs |
+| specs com pelo menos 1 bloco cego | **19** de 62 |
+| blocos `**Acceptance Criteria**:` afetados | **75**, em 19 specs |
 
 **Por que ninguém viu antes.** O padrão (linha em branco depois do cabeçalho) é
 o que a **template da skill** produz: o próprio `references/specify.md` mostra
@@ -72,8 +72,8 @@ deles podem estar realmente malformados.
 
 | Item | Reason |
 | :--- | :--- |
-| Mudar o **template** `references/specify.md` para tirar a linha em branco | o formato do template é **legítimo** (o Obsidian e o GitHub renderizam assim). O defeito é do coletor. Se o coletor passar a ver os dois formatos, nem o template nem as 42 specs precisam mudar. |
-| Reescrever as **42 specs** cegas | o conserto do gate é de uma linha; as specs só precisam mudar se o gate, já cego-corrompido, apontar erro real nelas (e aí o AC exige a correção). |
+| Mudar o **template** `references/specify.md` para tirar a linha em branco | o formato do template é **legítimo** (o Obsidian e o GitHub renderizam assim). O defeito é do coletor. Se o coletor passar a ver os dois formatos, nem o template nem as 19 specs precisam mudar. |
+| Reescrever as **19 specs** cegas | o conserto do gate é de uma linha; as specs só precisam mudar se o gate, já cego-corrompido, apontar erro real nelas (e aí o AC exige a correção). |
 | Transformar o **WARNING** de "sem keyword EARS" em ERROR | isso criaria uma classe nova de falhas além do defeito. O warning continua warning — mas passa a ser **medido**. |
 | Tocar no `validate_tasks.py` ou no `validate_state.py` | a cegueira medida é do `validate_spec.py`. O `validate_state.py` tem a lição da ISSUE-033 já endereçada. |
 | Mexer no `lessons.py` | é outro script, sem cegueira medida. |
@@ -82,7 +82,7 @@ deles podem estar realmente malformados.
 
 | Assumption | Chosen default | Rationale | Confirmed? |
 | :--- | :--- | :--- | :--- |
-| **Onde** a cegueira é corrigida | no **coletor** do `validate_spec.py` (a condição da linha 174) | corrigir o formato exigiria mudar 42 specs + o template da skill — e qualquer spec escrita à mão por outro agente voltaria a cegar o gate. O coletor é o ponto único de falha. | y — **decidido** |
+| **Onde** a cegueira é corrigida | no **coletor** do `validate_spec.py` (a condição da linha 174) | corrigir o formato exigiria mudar 19 specs + o template da skill — e qualquer spec escrita à mão por outro agente voltaria a cegar o gate. O coletor é o ponto único de falha. | y — **decidido** |
 | O fim do bloco de AC | **heading** (`#{1,3}`) ou linha iniciada por `**` | são os dois marcos que realmente encerram um bloco. A linha vazia é **espaçamento**, não estrutura. | y — **decidido** |
 | O warning de "SHALL sem keyword EARS" | continua **WARNING** | o defeito é a cegueira, não a severidade. Transformar o warning em error passaria a reprovar 62 specs por estilo — e o `--strict` já existe para quem quiser. | y — **decidido** |
 | Como as specs que o gate passar a reprovar são tratadas | os ACs são **corrigidos** (SHALL + padrão EARS); **nunca** se afrouxa o gate | a ISSUE-033 já registrou o padrão do repo: "verde-mentira" é proibido. Se um AC é malformado, ele se conserta. | y — **decidido** |

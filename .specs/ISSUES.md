@@ -2314,8 +2314,15 @@ O gate reportou **0 erro** numa spec com AC quebrado. A cópia estava em
 | ACs que o gate **vê** hoje | **311** |
 | ACs que o gate **deveria** ver | **752** |
 | **ACs cegos pelo gate** | **441** (59%) |
-| specs com pelo menos 1 bloco cego | **42** de 62 |
-| blocos `**Acceptance Criteria**:` afetados | **75**, em 27 specs |
+| specs com pelo menos 1 bloco cego | **19** de 62 |
+| blocos `**Acceptance Criteria**:` afetados | **75**, em 19 specs |
+
+> **Correção (2026-11-16, pela verificação independente da spec
+> `fix-ears-gate-blindness`):** a contagem de specs estava errada — são **19**
+> specs com bloco cego, não 42 (e não 27). Os números **441 ACs cegos** e **75
+> blocos cegos** reproduzem exatos; a contagem de specs não. O script
+> versionado (`count_ears_visibility.py`) é o que reproduz o baseline, e ele
+> mede 19.
 
 **Por que ninguém viu antes.** O padrão (linha em branco depois do cabeçalho)
 é o que a **template da skill** produz: o próprio `references/specify.md` da
@@ -2339,3 +2346,50 @@ registrado e à espera da decisão.
 `.agents/skills/tlc-spec-driven/scripts/validate_spec.py:156-176` ·
 `references/specify.md` (template) ·
 `.specs/features/fix-doctor-unindexed-links/spec.md:98` (exemplar).
+
+## ISSUE-051 — O gate de EARS ainda não lê 48 ACs em 6 specs: os cabeçalhos `## Acceptance Criteria` e `**Acceptance Criteria:**` não casam com o regex
+
+- **Severidade:** 🟡 medium (o gate já vê 898 de 898 ACs — estes 48 são os que o **remediador** da ISSUE-050 não alcança porque o bloco **nunca é aberto**)
+- **Status:** 🔵 **open** (achado pela verificação independente da spec `fix-ears-gate-blindness`, 2026-11-16)
+- **Achado em:** 2026-11-16 — Verifier da spec `fix-ears-gate-blindness`, em `.specs/features/fix-ears-gate-blindness/validation.md` (Achado 3)
+
+**O defeito.** O coletor do `validate_spec.py` abre o bloco de Acceptance Criteria
+só quando a linha **cabeça** com `**Acceptance Criteria**:` (a forma do
+`references/specify.md` e das specs desta rodada). Duas outras formas usadas no
+repo **não casam** com esse regex, e por isso o bloco **nunca abre**: os ACs
+dessas specs ficam **fora** de qualquer leitura do gate — invisíveis para o
+erro de "sem SHALL", invisíveis para o aviso de "sem padrão EARS".
+
+| Forma do cabeçalho | Spec | ACs | Linhas |
+| :--- | :--- | ---: | :--- |
+| `## Acceptance Criteria` (heading) | `post-release-v1.3.0-bugfixes` | 1 | `:116` |
+| `**Acceptance Criteria:**` (dois-pontos dentro do bold) | `batch-edge-resolution-lookups` | 5 | `:55` |
+| idem | `embedder-builtin-onnx-minilm` | 4+5+4+4 | `:78`, `:94`, `:108`, `:121` |
+| idem | `fix-doctor-dead-links-code-nodes` | 6 | `:50` |
+| idem | `fix-doctor-tag-edges` | 4 | `:51` |
+| idem | `fix-drift-repo-context` | 5 | `:45` |
+| idem | `spike-onnxruntime-binding` | 3+3+3 | `:92`, `:106`, `:118` |
+
+**Total: 48 ACs em 6 specs** (o `post-release` entra pela forma de heading).
+
+**Por que isso importa.** A ISSUE-050 corrigiu o **reset** do coletor (a linha em
+branco zerava `in_ac`), e a remediacao re-embalou os ACs das 14 specs que o gate
+passou a apontar. Estas **6 specs** não entram nessa lista porque o gate
+**nunca abre o bloco delas** — elas ficaram fora do alcance da remediacao por
+conta própria, e o número "0 cegos" da medição se refere só ao **reset**, não à
+**forma do cabeçalho**.
+
+**O conserto (1 linha, mesma natureza do da ISSUE-050).** O regex que abre o
+bloco precisa aceitar as três formas:
+`^\*{0,2}Acceptance Criteria\*{0,2}\s*:?\s*:?\s*$` **ou** `^#{1,3}\s*Acceptance Criteria\s*$`
+— e o **fechamento** do bloco precisa tratar `## Acceptance Criteria` como
+heading (o que ele já faz, via `^#{1,3}\s`).
+
+**Ressalva honesto:** o Verifier **não** corrigiu (é verificador, não autor) e
+**não** amplia o escopo. O número de specs do bloco cego da ISSUE-050 (que eu
+escrevi como 42) saiu **19** pela medicao do script versionado — corrigido na
+ISSUE-050 com a nota da correcao.
+
+**Referência:** ISSUE-050 (o reset) · spec `fix-ears-gate-blindness` ·
+`.agents/skills/tlc-spec-driven/scripts/validate_spec.py:156-176` ·
+`references/specify.md` (o template que produz a forma que o gate le).
