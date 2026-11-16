@@ -150,6 +150,122 @@ func TestInstallCLI_WorkspaceExecution(t *testing.T) {
 	}
 }
 
+// TestInstallCLI_TargetRestringeAoClientePedido é a guarda que mata o mutante
+// M7 ("a CLI ignora a flag --target").
+//
+// O lado POSITIVO do filtro — "o config do Cursor foi criado" — já era
+// asserido. O que faltava era o lado NEGATIVO: com `--target cursor`, o VS
+// Code não pode ser tocado nem aparecer na saída. Um mutante que detecta
+// todo mundo passa no teste positivo e quebra neste.
+func TestInstallCLI_TargetRestringeAoClientePedido(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	workspaceDir := t.TempDir()
+	env := newInstallFakeEnv(t)
+	env.markInstalled(t, autowire.ClientCursor)
+	env.markInstalled(t, autowire.ClientVSCode)
+
+	err := runInstallCommandWithEnv(ctx, "test-repo", []string{
+		"--workspace",
+		"--target", "cursor",
+		"--dir", workspaceDir,
+	}, &buf, env)
+	if err != nil {
+		t.Fatalf("falha ao executar mem install --target cursor --workspace: %v", err)
+	}
+
+	out := buf.String()
+
+	// lado negativo do filtro de alvo
+	vscodeFile := filepath.Join(workspaceDir, ".vscode", "mcp.json")
+	if _, statErr := os.Stat(vscodeFile); !os.IsNotExist(statErr) {
+		t.Errorf("--target cursor não deveria ter criado o config do VS Code: %s", vscodeFile)
+	}
+	if strings.Contains(out, "VS Code") {
+		t.Errorf("a saída não deveria mencionar VS Code com --target cursor:\n%s", out)
+	}
+
+	// controle positivo: o cliente pedido foi configurado (o teste não é verde no vácuo)
+	cursorFile := filepath.Join(workspaceDir, ".cursor", "mcp.json")
+	if _, statErr := os.Stat(cursorFile); statErr != nil {
+		t.Errorf("--target cursor deveria ter criado o config do Cursor: %v", statErr)
+	}
+}
+
+// TestInstallCLI_GlobalNaoEscreveNoDirDoWorkspace é a guarda que mata o
+// mutante M8 ("a CLI ignora --workspace/--global").
+//
+// Com o escopo global, o config vai para o home do usuário — nunca para dentro
+// do `--dir` do repositório. Um mutante que resolve o escopo como "all"
+// escreveria o `.cursor/mcp.json` e o `.vscode/mcp.json` dentro do `--dir`.
+func TestInstallCLI_GlobalNaoEscreveNoDirDoWorkspace(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	workspaceDir := t.TempDir()
+	env := newInstallFakeEnv(t)
+	// todos os clientes instalados: só o filtro de escopo segura a escrita
+	env.markInstalled(t, autowire.ClientClaudeDesktop)
+	env.markInstalled(t, autowire.ClientCursor)
+	env.markInstalled(t, autowire.ClientVSCode)
+	env.markInstalled(t, autowire.ClientWindsurf)
+
+	err := runInstallCommandWithEnv(ctx, "test-repo", []string{
+		"--global",
+		"--dir", workspaceDir,
+	}, &buf, env)
+	if err != nil {
+		t.Fatalf("falha ao executar mem install --global: %v", err)
+	}
+
+	for _, rel := range []string{
+		filepath.Join(".cursor", "mcp.json"),
+		filepath.Join(".vscode", "mcp.json"),
+	} {
+		path := filepath.Join(workspaceDir, rel)
+		if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+			t.Errorf("--global não deveria ter criado config de workspace dentro do --dir: %s", path)
+		}
+	}
+
+	// controle positivo: o config global do Cursor foi criado no home do probe
+	globalCursor := filepath.Join(env.home, ".cursor", "mcp.json")
+	if _, statErr := os.Stat(globalCursor); statErr != nil {
+		t.Errorf("--global deveria ter criado o config global do Cursor: %v", statErr)
+	}
+}
+
+// TestInstallCLI_EscopoContraditorioFalha cobre o AC7: `--workspace` com
+// `--global` juntas é erro de uso — a CLI devolve erro, e o `main` traduz em
+// exit != 0. As flags são mutuamente exclusivas: a combinação não pode
+// instalar em todos os escopos.
+func TestInstallCLI_EscopoContraditorioFalha(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	workspaceDir := t.TempDir()
+	env := newInstallFakeEnv(t)
+	env.markInstalled(t, autowire.ClientCursor)
+
+	err := runInstallCommandWithEnv(ctx, "test-repo", []string{
+		"--workspace",
+		"--global",
+		"--dir", workspaceDir,
+	}, &buf, env)
+	if err == nil {
+		t.Fatalf("--workspace com --global deveria falhar (exit != 0), obteve nil")
+	}
+	if !strings.Contains(err.Error(), "mutuamente exclusivas") {
+		t.Errorf("a mensagem deveria dizer que as flags são mutuamente exclusivas: %v", err)
+	}
+
+	entries, readErr := os.ReadDir(workspaceDir)
+	if readErr != nil {
+		t.Fatalf("falha ao ler o --dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("nada deveria ter sido escrito no --dir, encontrou %d entrada(s)", len(entries))
+	}
+}
+
 func TestRearrangeInstallArgs(t *testing.T) {
 	tests := []struct {
 		name     string

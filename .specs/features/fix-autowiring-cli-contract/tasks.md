@@ -575,13 +575,13 @@ lado positivo) · o `t.TempDir()` como `--dir` · o buffer de saída capturado
 
 **Done when**:
 
-- [ ] Com `--target cursor --workspace`, o `.vscode/mcp.json` **não** existe e a saída **não** menciona VS Code
-- [ ] Com `--global`, nenhum `.cursor/mcp.json` nem `.vscode/mcp.json` é criado dentro do `--dir`
-- [ ] Com `--workspace` e `--global` juntas, o comando falha com código **≠ 0**
-- [ ] O teste **falha** se o filtro de alvo ou o de escopo for ignorado (é o que mata M7 e M8)
-- [ ] O teste usa `t.TempDir()` e não escreve em nenhum config real do usuário
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestInstall ./cmd/mem/...`
-- [ ] Test count: os testes de `cmd/mem` passam (261 no baseline + os novos), sem nenhuma deleção silenciosa
+- [x] Com `--target cursor --workspace`, o `.vscode/mcp.json` **não** existe e a saída **não** menciona VS Code
+- [x] Com `--global`, nenhum `.cursor/mcp.json` nem `.vscode/mcp.json` é criado dentro do `--dir`
+- [x] Com `--workspace` e `--global` juntas, o comando falha com código **≠ 0**
+- [x] O teste **falha** se o filtro de alvo ou o de escopo for ignorado (é o que mata M7 e M8)
+- [x] O teste usa `t.TempDir()` e não escreve em nenhum config real do usuário
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestInstall ./cmd/mem/...`
+- [x] Test count: os testes de `cmd/mem` passam (261 no baseline + os novos), sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: quick
