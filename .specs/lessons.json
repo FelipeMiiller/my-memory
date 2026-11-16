@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 32,
+  "next_id": 33,
   "lessons": [
     {
       "id": "L-001",
@@ -562,6 +562,26 @@
       ],
       "created": "2026-11-16T17:27:18Z",
       "last_seen": "2026-11-16T17:27:18Z"
+    },
+    {
+      "id": "L-032",
+      "key": "spec_precision_gap::ref cruzada entre docs deve usar wikilink path style com alias o link plain so resolve por basename e vira dead link",
+      "text": "Ref cruzada entre docs deve usar wikilink path-style com alias: o link plain so resolve por basename e vira dead link.",
+      "signal": "spec_precision_gap",
+      "scope": "wikilinks",
+      "status": "confirmed",
+      "features": [
+        "042-stubs-editoriais",
+        "fix-adr-035-dead-links"
+      ],
+      "recurrence": 2,
+      "harmful": 0,
+      "evidence": [
+        ".specs/042-stubs-editoriais/validation.md:90 (wikilinks)",
+        "internal/parser/parser_test.go:13 (wikilinks)"
+      ],
+      "created": "2026-11-16T17:31:44Z",
+      "last_seen": "2026-11-16T17:31:45Z"
     }
   ]
 }

@@ -8,7 +8,11 @@
 
 Corroborated across multiple features. Safe to apply as guidance.
 
-_none_
+### L-032 - Ref cruzada entre docs deve usar wikilink path-style com alias: o link plain so resolve por basename e vira dead link.
+- signal: `spec_precision_gap` · recurrence: 2 feature(s) · scope: `wikilinks` · harmful: 0
+- features: 042-stubs-editoriais, fix-adr-035-dead-links
+- evidence: .specs/042-stubs-editoriais/validation.md:90 (wikilinks) (+1 more)
+- last seen: 2026-11-16T17:31:45Z
 
 ## Candidates (under observation - do NOT load as guidance yet)
 

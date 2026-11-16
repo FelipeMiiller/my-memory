@@ -140,9 +140,9 @@ renderizado, não editado à mão)
 
 **Done when**:
 
-- [ ] A lição entra no store pelo `lessons.py` (não por edição manual)
-- [ ] `lessons.py list --status confirmed` mostra a regra de path-style
-- [ ] A lição cita a evidência (`internal/parser/parser_test.go:13` — o parser trata a forma com alias) e a regra de origem (`.specs/042-stubs-editoriais/validation.md:90`)
+- [x] A lição entra no store pelo `lessons.py` (não por edição manual)
+- [x] `lessons.py list --status confirmed` mostra a regra de path-style
+- [x] A lição cita a evidência (`internal/parser/parser_test.go:13` — o parser trata a forma com alias) e a regra de origem (`.specs/042-stubs-editoriais/validation.md:90`)
 
 **Tests**: none (store de lições — o gate é a listagem do `lessons.py`)
 **Gate**: quick
