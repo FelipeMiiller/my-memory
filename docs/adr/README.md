@@ -66,6 +66,7 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-063](063-o-doctor-distingue-link-rompido-de-link-fora-do-indice.md)** | O doctor distingue link rompido de link fora do índice por decisão | Implementado | spec `fix-doctor-unindexed-links` (PASS) | 2026-11-14 | `doctor`, `dead-links`, `health-score`, `obsidian`, `vault`, `adr-013` |
 | **[ADR-064](064-todo-conceito-linkado-no-cofre-central-tem-nota.md)** | Todo conceito linkado no cofre central tem nota | Implementado | spec `central-vault-concept-notes` (PASS) | 2026-11-14 | `cofre-central`, `vault`, `wikilinks`, `moc`, `conteudo`, `adr-062` |
 | **[ADR-065](065-o-caminho-de-limpeza-do-repo-e-inventario-podar-simplificar.md)** | O caminho de limpeza do repo é inventário → podar → simplificar | Implementado (fases 1-2 concluidas) | spec `central-vault-concept-notes` (PASS) + spec `prune-dead-code-2026-11` (PASS) | 2026-11-14 | `governanca`, `limpeza`, `backlog`, `dead-code`, `adr-036`, `adr-062` |
+| **[ADR-066](066-a-identidade-canonica-do-no-no-grafo.md)** | A identidade canônica do nó no grafo é o id do documento | Proposed | spec `fix-graph-node-identity` (T1: decisão registrada) | 2026-11-16 | `graph`, `node-identity`, `documents-id`, `wikilinks`, `indexer`, `doctor` |
 > **Como ler o status desta coluna.** O status aqui e o **real**, medido em
 > 2026-11-14 (ADR-065, fase 1 — inventario read-only) e **recalculado em
 > 2026-11-15** com a logica autoritativa do `validate_state.py`. O **texto da ADR

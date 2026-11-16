@@ -118,16 +118,16 @@ rótulo) · a ADR-063 (o doctor) · a ADR-013 (higiene de grafo)
 
 **Done when**:
 
-- [ ] A ADR decide que o `documents.id` é a identidade canônica do nó no grafo
-- [ ] A ADR diz que o `title:` é o rótulo e que path e `alias:` são aliases do mesmo nó
-- [ ] A ADR diz que a resolução acontece **na gravação** da aresta, não na leitura
-- [ ] A ADR diz que o alvo **não resolvido** permanece o texto do wikilink (o doctor
+- [x] A ADR decide que o `documents.id` é a identidade canônica do nó no grafo
+- [x] A ADR diz que o `title:` é o rótulo e que path e `alias:` são aliases do mesmo nó
+- [x] A ADR diz que a resolução acontece **na gravação** da aresta, não na leitura
+- [x] A ADR diz que o alvo **não resolvido** permanece o texto do wikilink (o doctor
       continua enxergando o link rompido)
-- [ ] A ADR registra que a correção exige **reindex** do vault para valer no dado já
+- [x] A ADR registra que a correção exige **reindex** do vault para valer no dado já
       gravado
-- [ ] A ADR cita a ISSUE-047, o FIX-2 da validação da `graph-path-discovery` e a ADR-055
-- [ ] A ADR está listada em `docs/adr/README.md` com o status real
-- [ ] O gate de build passa: `go -C D:\repository\my-memory build ./...`
+- [x] A ADR cita a ISSUE-047, o FIX-2 da validação da `graph-path-discovery` e a ADR-055
+- [x] A ADR está listada em `docs/adr/README.md` com o status real
+- [x] O gate de build passa: `go -C D:\repository\my-memory build ./...`
 
 **Tests**: none (camada de contrato — o gate é o build + a leitura cruzada)
 **Gate**: quick
