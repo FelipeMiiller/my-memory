@@ -448,6 +448,129 @@ func argsFlagValue(args []interface{}, flag string) string {
 	return ""
 }
 
+// TestInstallCLI_ClienteAusenteNaoEConfigurado prova o AC21/AC22: um cliente
+// que não está instalado na máquina não recebe config — nem diretório — e a
+// saída o nomeia como pulado, com o motivo.
+func TestInstallCLI_ClienteAusenteNaoEConfigurado(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	workspaceDir := t.TempDir()
+	env := newInstallFakeEnv(t)
+	// só o VS Code está instalado na máquina do probe: o Cursor está ausente
+	env.markInstalled(t, autowire.ClientVSCode)
+
+	err := runInstallCommandWithEnv(ctx, "test-repo", []string{
+		"--workspace",
+		"--dir", workspaceDir,
+	}, &buf, env)
+	if err != nil {
+		t.Fatalf("falha ao executar mem install --workspace: %v", err)
+	}
+
+	out := buf.String()
+
+	// o cliente ausente não recebe config nem diretório
+	cursorFile := filepath.Join(workspaceDir, ".cursor", "mcp.json")
+	if _, statErr := os.Stat(cursorFile); !os.IsNotExist(statErr) {
+		t.Errorf("o cliente ausente não deveria receber config: %s", cursorFile)
+	}
+	if _, statErr := os.Stat(filepath.Dir(cursorFile)); !os.IsNotExist(statErr) {
+		t.Errorf("o cliente ausente não deveria ter diretório criado: %s", filepath.Dir(cursorFile))
+	}
+
+	// e a saída o nomeia como pulado, com o motivo
+	if !strings.Contains(out, "[PULADO]") {
+		t.Errorf("esperava o status de pulo na saída:\n%s", out)
+	}
+	if !strings.Contains(out, "Cursor IDE (Workspace)") {
+		t.Errorf("a saída deveria nomear o cliente pulado:\n%s", out)
+	}
+	if !strings.Contains(out, "Motivo:") {
+		t.Errorf("a saída deveria dizer o motivo do pulo:\n%s", out)
+	}
+
+	// controle positivo: o cliente presente foi configurado
+	vscodeFile := filepath.Join(workspaceDir, ".vscode", "mcp.json")
+	if _, statErr := os.Stat(vscodeFile); statErr != nil {
+		t.Errorf("o cliente presente deveria ter recebido config: %v", statErr)
+	}
+}
+
+// TestInstallCLI_DryRunNaoListaClienteInexistente prova que o dry-run não
+// lista como alvo a instalar o cliente que não existe na máquina.
+func TestInstallCLI_DryRunNaoListaClienteInexistente(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	workspaceDir := t.TempDir()
+	env := newInstallFakeEnv(t)
+	env.markInstalled(t, autowire.ClientVSCode)
+
+	err := runInstallCommandWithEnv(ctx, "test-repo", []string{
+		"--dry-run",
+		"--workspace",
+		"--dir", workspaceDir,
+	}, &buf, env)
+	if err != nil {
+		t.Fatalf("falha ao executar mem install --dry-run: %v", err)
+	}
+
+	out := buf.String()
+
+	if strings.Contains(out, "[SIMULAÇÃO] Cursor IDE (Workspace)") {
+		t.Errorf("o dry-run não deveria listar o cliente inexistente como alvo a instalar:\n%s", out)
+	}
+	if !strings.Contains(out, "[PULADO] Cursor IDE (Workspace)") {
+		t.Errorf("o dry-run deveria reportar o cliente inexistente como pulado:\n%s", out)
+	}
+	// controle positivo: o cliente presente é listado para instalar
+	if !strings.Contains(out, "[SIMULAÇÃO] VS Code / GitHub Copilot (Workspace)") {
+		t.Errorf("o dry-run deveria listar o cliente presente:\n%s", out)
+	}
+}
+
+// TestInstallCLI_TargetInvalidoFalhaComExitNaoZero prova o AC19/AC20: um
+// `--target` fora do conjunto aceito é erro de uso — a CLI devolve erro, e o
+// `main` traduz em exit != 0 — e a mensagem lista os valores aceitos.
+func TestInstallCLI_TargetInvalidoFalhaComExitNaoZero(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	workspaceDir := t.TempDir()
+	env := newInstallFakeEnv(t)
+
+	err := runInstallCommandWithEnv(ctx, "test-repo", []string{
+		"--target", "xxxx",
+		"--dir", workspaceDir,
+	}, &buf, env)
+	if err == nil {
+		t.Fatalf("--target inválido deveria falhar (exit != 0), obteve nil")
+	}
+
+	msg := err.Error()
+	accepted := autowire.AcceptedTargets()
+	if !strings.Contains(msg, strings.Join(accepted, ", ")) {
+		t.Errorf("a mensagem de erro deveria listar os valores aceitos (%s): %s", strings.Join(accepted, ", "), msg)
+	}
+	for _, value := range accepted {
+		if !strings.Contains(msg, value) {
+			t.Errorf("a mensagem de erro deveria listar o valor aceito %q: %s", value, msg)
+		}
+	}
+
+	// e não é a resposta "nenhum cliente encontrado"
+	if strings.Contains(buf.String(), "Nenhum cliente MCP compatível encontrado") {
+		t.Errorf("um valor inválido não pode responder 'nenhum cliente encontrado':\n%s", buf.String())
+	}
+
+	// nada foi escrito
+	entries, readErr := os.ReadDir(workspaceDir)
+	if readErr != nil {
+		t.Fatalf("falha ao ler o --dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("nada deveria ter sido escrito no --dir, encontrou %d entrada(s)", len(entries))
+	}
+}
+
 func TestRearrangeInstallArgs(t *testing.T) {
 	tests := []struct {
 		name     string

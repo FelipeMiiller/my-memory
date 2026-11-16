@@ -647,13 +647,13 @@ conjunto falha com código **≠ 0** e mensagem que lista os valores aceitos.
 
 **Done when**:
 
-- [ ] O teste fixa a presença de cada cliente por probe injetado — o resultado **não** depende das ferramentas instaladas na máquina que roda o teste
-- [ ] Com o cliente ausente, nenhum arquivo dele é criado e a saída o nomeia como pulado
-- [ ] Em `--dry-run` num diretório vazio, a saída **não** lista cliente inexistente como alvo a instalar
-- [ ] Com o cliente presente, o arquivo dele é criado (controle positivo — o teste não é vacuamente verde)
-- [ ] Com `--target` inválido, o comando falha com código **≠ 0** e a mensagem lista os valores aceitos
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestInstall ./cmd/mem/...`
-- [ ] Test count: os testes de `cmd/mem` passam (261 no baseline + os novos), sem nenhuma deleção silenciosa
+- [x] O teste fixa a presença de cada cliente por probe injetado — o resultado **não** depende das ferramentas instaladas na máquina que roda o teste
+- [x] Com o cliente ausente, nenhum arquivo dele é criado e a saída o nomeia como pulado
+- [x] Em `--dry-run` num diretório vazio, a saída **não** lista cliente inexistente como alvo a instalar
+- [x] Com o cliente presente, o arquivo dele é criado (controle positivo — o teste não é vacuamente verde)
+- [x] Com `--target` inválido, o comando falha com código **≠ 0** e a mensagem lista os valores aceitos
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestInstall ./cmd/mem/...`
+- [x] Test count: os testes de `cmd/mem` passam (261 no baseline + os novos), sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: quick
