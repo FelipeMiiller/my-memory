@@ -5,7 +5,7 @@
   - [x] Implementar `EstimateTokens(text string) int` com heurística determinística de contagem.
   - [x] Implementar `PackContext(nodes []PackGraphNode, edges []WeightedEdge, rootID string, opts PackOptions) (*PackResult, error)`.
   - [x] Implementar expansão BFS respeitando `MaxDepth` e `Direction` (`both`, `outbound`, `inbound`).
-  - [x] Implementar ordenação prioritária por distância, PageRank e pesos epistêmicos de arestas.
+  - [x] Implementar ordenação prioritária por distância (profundidade ascendente), PageRank descendente e ID do nó ascendente como desempate. *(O peso epistêmico das arestas não participa da seleção — corrigido pela spec `fix-packager-token-budget`, ver ADR-029.)*
   - [x] Implementar alocação gananciosa com orçamento: `TierCore` (L2) $\to$ `TierFringe` (L0/L1) $\to$ `TierOmitted`.
   - [x] Implementar gerador de Mermaid topológico e renderizador do Markdown consolidado.
   - [x] Escrever testes unitários exaustivos em `internal/graph/pack_test.go`.

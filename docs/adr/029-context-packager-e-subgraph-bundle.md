@@ -21,7 +21,7 @@ Sem um empacotador de contexto nativo, o agente recorria a múltiplas chamadas c
 - **Auto-Contenção e Pronto para Injeção**: O resultado deve ser um documento Markdown único, estruturado e legível, contendo metadados, diagrama de topologia e notas agregadas.
 - **Controle Rígido de Orçamento de Tokens (`max_tokens`)**: O empacotador deve garantir matematicamente que o bundle final não exceda o limite estipulado pelo chamador.
 - **Degradação Graciosa com Carregamento Progressivo (L0/L1/L2)**: Nós que não couberem em texto integral (TierCore) devem ser incluídos como micro-abstracts L0/L1 (TierFringe), e nós totalmente descartados devem ser listados explicitamente (TierOmitted).
-- **Priorização Ponderada Estrutural**: A seleção gananciosa de conteúdo deve priorizar distância do nó raiz, autoridade estrutural (PageRank ponderado) e pesos epistêmicos das arestas.
+- **Priorização Estrutural Determinística**: A seleção gananciosa de conteúdo ordena os candidatos por distância do nó raiz (profundidade ascendente), depois por autoridade estrutural (PageRank descendente) e, em caso de empate, pelo ID do nó. O peso epistêmico das arestas **não** participa da seleção.
 - **Visualização Topológica Mermaid**: Inclusão de bloco `mermaid` nativo detalhando os nós centrais, periféricos e arestas que compõem o subgrafo.
 - **Disponibilidade Multimodal**: Exposição via subcomando CLI `mem pack` e ferramenta MCP `memory_pack_context`.
 
@@ -64,8 +64,12 @@ Permite aos agentes solicitar um subgrafo em uma única chamada:
 }
 ```
 
-## Consequences
+### 5. Ordem de Priorização dos Candidatos
+A seleção gananciosa ordena os candidatos por **profundidade ascendente** (a raiz, em profundidade 0, sempre primeiro), depois por **PageRank descendente** e, por fim, pelo **ID do nó ascendente** como desempate determinístico. O peso epistêmico das arestas é carregado pela camada de persistência, mas **não** participa da ordem — nenhuma fórmula o combina e nenhuma promessa deste ADR depende dele.
 
+A ordem está fixada em `internal/graph/pack.go` e é provada por `TestPackContext_OrdemDePrioridadePorPageRank` (`internal/graph/pack_test.go`), que monta nós de mesma profundidade com PageRanks invertidos e afirma a posição de cada um.
+
+## Consequences
 ### Positive
 - Redução de até 80% nos turnos de diálogo entre agentes e o servidor MCP para assimilação de contexto temático.
 - Garantia de que a janela de contexto de prompts não sofrerá overflow não planejado.

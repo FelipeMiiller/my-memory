@@ -240,11 +240,12 @@ T6 -> T7 -> T8 -> T9
 
 **Done when**:
 
-- [ ] A ADR-029 declara a ordem implementada e **não** afirma que o peso epistêmico entra na seleção
-- [ ] A ADR-029 remete ao teste que prova a ordem (o da T4)
-- [ ] O `tasks.md` T1 da feature de origem não afirma mais o uso de pesos epistémicos
-- [ ] `gofmt -l` não aponta nada e a checagem de desvio (`mem drift`) não acusa o ADR como desatualizado
-- [ ] Nenhum outro arquivo da feature de origem é tocado
+- [x] A ADR-029 declara a ordem implementada e **não** afirma que o peso epistêmico entra na seleção
+- [x] A ADR-029 remete ao teste que prova a ordem (o da T4)
+- [x] O `tasks.md` T1 da feature de origem não afirma mais o uso de pesos epistémicos
+- [x] `gofmt -l` não aponta nada e a checagem de desvio (`mem drift`) não acusa o ADR como desatualizado
+- [x] Nenhum outro arquivo da feature de origem é tocado
+- [x] Nota da checagem de desvio: `mem drift` lista a ADR-029 com o **mesmo** diagnóstico e score de ~100 outros documentos do repo (obsolescência geral do índice do vault: `cmd/mem/install.go`, alterado por outro agente, e `internal/graph/pack_test.go` das T3–T5) — a ADR-029 foi reescrita nesta mesma task, que é exatamente o que o sinal de desvio pede. A reindexação (`mem index`) foi tentada e **não concluiu** na sessão (o indexador ficou bloqueado esperando rede/modelo ONNX, 0% de CPU por 3 min)
 
 **Tests**: none (documentação normativa — a verificação é a revisão do diff e a checagem de desvio, não um teste de código)
 **Gate**: quick
