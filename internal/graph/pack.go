@@ -419,7 +419,6 @@ func buildMermaidSubgraph(rootID string, nodes []PackedNode, edges []WeightedEdg
 	var sb strings.Builder
 	sb.WriteString("```mermaid\ngraph TD\n")
 
-	nodeIDs := make(map[string]bool)
 	idToLabel := make(map[string]string)
 	for idx, n := range nodes {
 		if n.Tier == TierOmitted {
@@ -435,7 +434,6 @@ func buildMermaidSubgraph(rootID string, nodes []PackedNode, edges []WeightedEdg
 			label = label[:27] + "..."
 		}
 		idToLabel[n.ID] = safeID
-		nodeIDs[n.ID] = true
 
 		if n.ID == rootID {
 			sb.WriteString(fmt.Sprintf("    %s[\"⭐ %s (Raiz)\"]:::root\n", safeID, label))

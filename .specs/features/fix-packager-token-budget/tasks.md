@@ -268,10 +268,11 @@ T6 -> T7 -> T8 -> T9
 
 **Done when**:
 
-- [ ] `nodeIDs` (`internal/graph/pack.go:371,387`) saiu do construtor do diagrama
-- [ ] Nenhuma variável do caminho de emissão é calculada e nunca lida
-- [ ] O diagrama Mermaid gerado é **idêntico** ao de antes da remoção
-- [ ] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./internal/graph/...`
+- [x] `nodeIDs` (`internal/graph/pack.go:371,387`) saiu do construtor do diagrama
+- [x] Nenhuma variável do caminho de emissão é calculada e nunca lida
+- [x] O diagrama Mermaid gerado é **idêntico** ao de antes da remoção
+- [x] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./internal/graph/...`
+- [x] Prova da identidade: em worktree isolado, o `MermaidGraph` e o `Markdown` de um grafo fixo (raiz + 3 vizinhos, `direction=both`) foram capturados antes e depois da remoção — **SHA-256 idêntico** (`ECB1A9DD…B61` nos dois dumps). O `availableBudget` já era lido pela alocação desde a T1 (linhas 277 e 284 de `internal/graph/pack.go`); com o `nodeIDs` removido, não resta estado escrito-e-nunca-lido no caminho de emissão
 
 **Tests**: none (higiene de código — a verificação é a revisão do diff mais `go build` e `go vet`)
 **Gate**: quick
