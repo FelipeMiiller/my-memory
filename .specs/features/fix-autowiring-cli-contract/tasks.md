@@ -398,11 +398,11 @@ marcado como ausente.
 
 **Done when**:
 
-- [ ] Há um teste para cada valor do conjunto aceito e um para valor fora dele
-- [ ] `claude-desktop` resolve **exatamente** o alvo do Claude Desktop (conjunto exato, não contagem)
-- [ ] Com o cliente marcado como ausente, o alvo sai marcado como ausente; com o cliente presente, sai presente (controle positivo e negativo no mesmo teste)
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestDetect ./internal/autowire/...`
-- [ ] Test count: os testes de `internal/autowire` passam (9 no baseline + os novos), sem nenhuma deleção silenciosa
+- [x] Há um teste para cada valor do conjunto aceito e um para valor fora dele
+- [x] `claude-desktop` resolve **exatamente** o alvo do Claude Desktop (conjunto exato, não contagem)
+- [x] Com o cliente marcado como ausente, o alvo sai marcado como ausente; com o cliente presente, sai presente (controle positivo e negativo no mesmo teste)
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestDetect ./internal/autowire/...`
+- [x] Test count: os testes de `internal/autowire` passam (9 no baseline + os novos), sem nenhuma deleção silenciosa
 
 **Tests**: unit
 **Gate**: quick

@@ -178,7 +178,28 @@ func joinTargetOSPath(goos string, elem ...string) string {
 		}
 		return strings.Join(parts, `\`)
 	}
-	return filepath.Join(elem...)
+	return joinPosixPath(elem...)
+}
+
+// joinPosixPath junta com o separador "/" do SO alvo, e NAO com o do host.
+//
+// filepath.Join usaria o separador da maquina que roda o teste (no Windows,
+// "\"), mas o marcador e um caminho **de outra maquina**: o detector pergunta
+// "o Claude Desktop esta instalado no path de um mac?" e a resposta tem que
+// ser um path de mac, com "/" — regardless de onde o detector roda.
+func joinPosixPath(elem ...string) string {
+	parts := make([]string, 0, len(elem))
+	for _, el := range elem {
+		if el == "" {
+			continue
+		}
+		parts = append(parts, strings.Trim(el, "/"))
+	}
+	joined := strings.Join(parts, "/")
+	if len(elem) > 0 && strings.HasPrefix(elem[0], "/") {
+		joined = "/" + joined
+	}
+	return joined
 }
 
 func makeClientTarget(cType ClientType, name string, scope ConfigScope, configPath string, env SystemEnv) ClientTarget {
