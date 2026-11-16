@@ -1,6 +1,6 @@
 # Tasks — embedder-builtin-onnx-minilm
 
-**Spec:** [`spec.md`](spec.md) · **ADR:** [[ADR-035]] · **Branch:** `develop`
+**Spec:** [`spec.md`](spec.md) · **ADR:** [[docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md|ADR-035]] · **Branch:** `develop`
 
 ## Execution Protocol (MANDATORY — do not skip)
 

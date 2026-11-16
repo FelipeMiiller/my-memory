@@ -111,9 +111,9 @@ o alias preserva o display curto `ADR-035`
 
 **Done when**:
 
-- [ ] A linha 3 usa a forma path-style com alias, com o display `ADR-035`
-- [ ] `grep -rn "\[\[ADR-035\]\]" .specs/` não devolve ocorrência **neste** arquivo
-- [ ] O arquivo continua em UTF-8 sem BOM e LF
+- [x] A linha 3 usa a forma path-style com alias, com o display `ADR-035`
+- [x] `grep -rn "\[\[ADR-035\]\]" .specs/` não devolve ocorrência **neste** arquivo
+- [x] O arquivo continua em UTF-8 sem BOM e LF
 
 **Tests**: integration
 **Gate**: quick
