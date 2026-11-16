@@ -153,13 +153,14 @@ T6 -> T7 -> T8 -> T9
 
 **Done when**:
 
-- [ ] O grafo de teste tem um vizinho de entrada e um de saída, alcançáveis só pelo caminho indicado
-- [ ] `direction=both` → conjunto exato {raiz, vizinho de entrada, vizinho de saída}
-- [ ] `direction=outbound` → conjunto exato {raiz, vizinho de saída}
-- [ ] `direction=inbound` → conjunto exato {raiz, vizinho de entrada}
-- [ ] A asserção é sobre o **conjunto**, nunca sobre a contagem
-- [ ] O teste **falha** quando o filtro de direção é removido (mutante M3, `internal/graph/pack.go:147,150`)
-- [ ] Gate check passa: `go -C D:\repository\my-memory test -count=1 -run TestPackContext ./internal/graph/...`
+- [x] O grafo de teste tem um vizinho de entrada e um de saída, alcançáveis só pelo caminho indicado
+- [x] `direction=both` → conjunto exato {raiz, vizinho de entrada, vizinho de saída}
+- [x] `direction=outbound` → conjunto exato {raiz, vizinho de saída}
+- [x] `direction=inbound` → conjunto exato {raiz, vizinho de entrada}
+- [x] A asserção é sobre o **conjunto**, nunca sobre a contagem
+- [x] O teste **falha** quando o filtro de direção é removido (mutante M3, `internal/graph/pack.go:147,150`)
+- [x] Gate check passa: `go -C D:\repository\my-memory test -count=1 -run TestPackContext ./internal/graph/...`
+- [x] Prova do mutante: em worktree isolado (`D:\.minimax\scratch\subagents\fix-packager-token-budget\wt`, sem `git stash`), as duas condições de direção viradas em `if true {` derrubam `TestPackContext_ConjuntoExatoPorDirecao` (`outbound` e `inbound` coletam os três nós) — M3 morre
 
 **Tests**: unit
 **Gate**: quick

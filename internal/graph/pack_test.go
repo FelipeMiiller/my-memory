@@ -2,6 +2,8 @@ package graph
 
 import (
 	"fmt"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -243,6 +245,60 @@ func TestPackContext_DirectionAndCycles(t *testing.T) {
 
 	if len(res.Nodes) != 3 {
 		t.Errorf("Esperado 3 nós únicos no resultado, obtido %d", len(res.Nodes))
+	}
+}
+
+// TestPackContext_ConjuntoExatoPorDirecao prova FPB-05, FPB-06 e FPB-07: o filtro
+// de direção de R1 produz conjuntos distintos, afirmados sobre o conjunto exato de
+// nós coletados — nunca sobre a contagem. O vizinho de entrada é alcançável só
+// por aresta de entrada e o de saída só por aresta de saída, sem ciclo.
+func TestPackContext_ConjuntoExatoPorDirecao(t *testing.T) {
+	nodes := []PackGraphNode{
+		{ID: "root", Title: "Raiz", Content: "Conteúdo da raiz do subgrafo empacotado."},
+		{ID: "vizinho-saida", Title: "Vizinho de Saída", Content: "Conteúdo do vizinho alcançado só por aresta de saída."},
+		{ID: "vizinho-entrada", Title: "Vizinho de Entrada", Content: "Conteúdo do vizinho alcançado só por aresta de entrada."},
+	}
+	edges := []WeightedEdge{
+		{Source: "root", Target: "vizinho-saida", Type: "links_to", Weight: 1.0},
+		{Source: "vizinho-entrada", Target: "root", Type: "links_to", Weight: 1.0},
+	}
+
+	cases := []struct {
+		direction string
+		expected  []string
+	}{
+		{direction: "both", expected: []string{"root", "vizinho-entrada", "vizinho-saida"}},
+		{direction: "outbound", expected: []string{"root", "vizinho-saida"}},
+		{direction: "inbound", expected: []string{"root", "vizinho-entrada"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.direction, func(t *testing.T) {
+			opts := PackOptions{
+				MaxDepth:               2,
+				MaxTokens:              2000,
+				Direction:              tc.direction,
+				IncludeFringeAbstracts: true,
+			}
+
+			res, err := PackContext(nodes, edges, "root", opts)
+			if err != nil {
+				t.Fatalf("PackContext falhou: %v", err)
+			}
+
+			got := make([]string, 0, len(res.Nodes))
+			for _, n := range res.Nodes {
+				got = append(got, n.ID)
+			}
+			sort.Strings(got)
+
+			expected := append([]string(nil), tc.expected...)
+			sort.Strings(expected)
+
+			if !reflect.DeepEqual(got, expected) {
+				t.Errorf("direction=%s coletou o conjunto %v, esperado exatamente %v", tc.direction, got, expected)
+			}
+		})
 	}
 }
 
