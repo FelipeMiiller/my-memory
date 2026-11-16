@@ -155,7 +155,7 @@ func DetectClientsWithEnv(rootDir string, targetFilter string, scopeFilter Confi
 		}
 	}
 
-	return candidates, nil
+	return markClientPresence(candidates, env), nil
 }
 
 func joinTargetOSPath(goos string, elem ...string) string {
@@ -253,4 +253,77 @@ func targetAlias(value string) string {
 		return "claude"
 	}
 	return value
+}
+
+// ClientInstallMarker devolve o caminho do marcador de instalação de um cliente:
+// o diretório de MÁQUINA que diz se a ferramenta está instalada.
+//
+// Não é o diretório de workspace — esse é criado pelo próprio instalador, e
+// usá-lo como sinal tornaria o auto-wiring um no-op em todo repositório virgem.
+// Um env nil significa o ambiente real.
+func ClientInstallMarker(cType ClientType, env SystemEnv) string {
+	if env == nil {
+		env = realSystemEnv{}
+	}
+
+	goos := env.GOOS()
+	home := env.HomeDir()
+
+	switch cType {
+	case ClientClaudeDesktop:
+		switch goos {
+		case "windows":
+			if appData := env.AppData(); appData != "" {
+				return joinTargetOSPath(goos, appData, "Claude")
+			}
+		case "darwin":
+			if home != "" {
+				return joinTargetOSPath(goos, home, "Library", "Application Support", "Claude")
+			}
+		default:
+			if home != "" {
+				return joinTargetOSPath(goos, home, ".config", "Claude")
+			}
+		}
+	case ClientCursor:
+		if home != "" {
+			return joinTargetOSPath(goos, home, ".cursor")
+		}
+	case ClientVSCode:
+		switch goos {
+		case "windows":
+			if appData := env.AppData(); appData != "" {
+				return joinTargetOSPath(goos, appData, "Code")
+			}
+		case "darwin":
+			if home != "" {
+				return joinTargetOSPath(goos, home, "Library", "Application Support", "Code")
+			}
+		default:
+			if home != "" {
+				return joinTargetOSPath(goos, home, ".config", "Code")
+			}
+		}
+	case ClientWindsurf:
+		if home != "" {
+			return joinTargetOSPath(goos, home, ".codeium", "windsurf")
+		}
+	}
+
+	return ""
+}
+
+// markClientPresence marca cada alvo com a presença de instalação do cliente
+// na máquina, derivada do marcador de instalação do tipo do cliente.
+func markClientPresence(targets []ClientTarget, env SystemEnv) []ClientTarget {
+	for i := range targets {
+		marker := ClientInstallMarker(targets[i].Type, env)
+		if marker == "" {
+			continue
+		}
+		if stat, err := env.Stat(marker); err == nil && stat.IsDir() {
+			targets[i].Installed = true
+		}
+	}
+	return targets
 }

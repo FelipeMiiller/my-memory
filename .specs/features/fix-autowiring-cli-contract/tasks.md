@@ -362,12 +362,12 @@ resolvidos pelo detector (`:79`, `:120`, `:147`) · a decisão A7 da spec
 
 **Done when**:
 
-- [ ] A presença de cada cliente é derivada de um marcador **de máquina** (não do diretório de workspace), resolvido por sistema operacional
-- [ ] A presença é consultada pelo `SystemEnv` injetável — o detector de teste consegue fixar presença e ausência sem tocar na máquina
-- [ ] O marcador do Claude Desktop é o diretório de dados do Claude; o do Cursor, o diretório global do Cursor; o do VS Code, o diretório de dados do VS Code; o do Windsurf, o diretório global do Windsurf
-- [ ] Um alvo whose client is absent sai marcado como ausente, e um whose client is present sai marcado como presente
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestDetect ./internal/autowire/...`
-- [ ] Test count: os testes de `internal/autowire` passam (9 no baseline + os novos), sem nenhuma deleção silenciosa
+- [x] A presença de cada cliente é derivada de um marcador **de máquina** (não do diretório de workspace), resolvido por sistema operacional
+- [x] A presença é consultada pelo `SystemEnv` injetável — o detector de teste consegue fixar presença e ausência sem tocar na máquina
+- [x] O marcador do Claude Desktop é o diretório de dados do Claude; o do Cursor, o diretório global do Cursor; o do VS Code, o diretório de dados do VS Code; o do Windsurf, o diretório global do Windsurf
+- [x] Um alvo whose client is absent sai marcado como ausente, e um whose client is present sai marcado como presente
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestDetect ./internal/autowire/...`
+- [x] Test count: os testes de `internal/autowire` passam (9 no baseline + os novos), sem nenhuma deleção silenciosa
 
 **Tests**: unit
 **Gate**: quick
