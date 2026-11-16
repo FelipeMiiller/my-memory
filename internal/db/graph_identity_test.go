@@ -95,6 +95,113 @@ func TestResolveCanonical(t *testing.T) {
 	}
 }
 
+// TestDoctorLegacyNodes prova o contrato de higiene do grafo para os nós
+// legados de identidade (ADR-066 — GNI-13, GNI-14 e GNI-16):
+//
+//  1. o relatório expõe a contagem de nós que não são `documents.id` nem
+//     `code_symbol`;
+//  2. o `--fix` remove exatamente esses nós SEM GRAU, e nenhum outro;
+//  3. um nó de código (`code_symbol`) nunca é removido;
+//  4. uma aresta cujo destino é um documento indexado não é dead link.
+func TestDoctorLegacyNodes(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_doctor_legacy.db")
+	database, err := InitDB(dbPath)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("Pulando teste: ambiente sem FTS5")
+		}
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	// Documentos indexados (o nó deles tem id = documents.id).
+	if err := InsertDocumentWithMeta(ctx, database, "nota.md", "nota.md", "Minha Nota", now, "h1", "", "resumo", "resource", 0, 0); err != nil {
+		t.Fatalf("inserindo o documento: %v", err)
+	}
+	if err := InsertDocumentWithMeta(ctx, database, "outra.md", "outra.md", "Outra Nota", now, "h2", "", "resumo", "resource", 0, 0); err != nil {
+		t.Fatalf("inserindo o segundo documento: %v", err)
+	}
+
+	// Nó de estilo título SEM GRAU: o resto do fenda — o `--fix` remove.
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO graph_nodes (id, type, name) VALUES (?, 'note', ?)`, "Minha Nota", "Minha Nota"); err != nil {
+		t.Fatalf("inserindo o nó legado sem grau: %v", err)
+	}
+
+	// Nó de estilo título COM GRAU: é a representação viva de um link que
+	// existe em disco mas está fora do índice — o `--fix` preserva.
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO graph_nodes (id, type, name) VALUES (?, 'note', ?)`, "Alvo Vivo", "Alvo Vivo"); err != nil {
+		t.Fatalf("inserindo o nó legado com grau: %v", err)
+	}
+	if err := InsertEdgeWithProps(ctx, database, "nota.md", "Alvo Vivo", "links_to", "EXTRACTED", 1.0); err != nil {
+		t.Fatalf("inserindo a aresta viva: %v", err)
+	}
+
+	// Nó de código: nunca é removido (ADR-061).
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO graph_nodes (id, type, name) VALUES (?, 'code_symbol', ?)`, "code:repo:pkg.Alpha", "Alpha"); err != nil {
+		t.Fatalf("inserindo o nó de código: %v", err)
+	}
+
+	// Aresta entre dois documentos indexados: as duas pontas em id de
+	// documento — o doctor NÃO pode acusar isso como link rompido.
+	if err := InsertEdgeWithProps(ctx, database, "nota.md", "outra.md", "links_to", "EXTRACTED", 1.0); err != nil {
+		t.Fatalf("inserindo a aresta entre documentos: %v", err)
+	}
+
+	// O alvo "Alvo Vivo" existe em disco (fora do índice por decisão).
+	vaultRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(vaultRoot, "Alvo Vivo.md"), []byte("# Alvo Vivo\n"), 0644); err != nil {
+		t.Fatalf("escrevendo o alvo em disco: %v", err)
+	}
+
+	// 1. O relatório expõe a contagem de nós legados.
+	report, err := DiagnoseHealth(ctx, database, vaultRoot)
+	if err != nil {
+		t.Fatalf("DiagnoseHealth falhou: %v", err)
+	}
+	if report.LegacyNodeCount != 2 {
+		t.Errorf("nós legados = %d; want 2 (o de estilo título sem grau e o com grau)", report.LegacyNodeCount)
+	}
+	if report.OrphanLegacyNodeCount != 1 {
+		t.Errorf("nós legados sem grau = %d; want 1", report.OrphanLegacyNodeCount)
+	}
+
+	// 4. A aresta entre documentos indexados não é dead link.
+	for _, dl := range report.DeadLinks {
+		if dl.TargetID == "outra.md" {
+			t.Errorf("a aresta para o documento indexado %q foi accusationada como dead link: %+v", dl.TargetID, dl)
+		}
+	}
+
+	// 2 e 3. O `--fix` remove só o nó legado sem grau.
+	if _, err := FixHealthIssues(ctx, database, vaultRoot); err != nil {
+		t.Fatalf("FixHealthIssues falhou: %v", err)
+	}
+
+	var restantes int
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM graph_nodes WHERE id IN ('Minha Nota', 'Alvo Vivo', 'code:repo:pkg.Alpha', 'nota.md')`).Scan(&restantes); err != nil {
+		t.Fatalf("contando os nós restantes: %v", err)
+	}
+	if restantes != 3 {
+		t.Errorf("nós que sobraram = %d; want 3 (o nó de código, o nó com grau e o nó do documento)", restantes)
+	}
+
+	var semGrau int
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM graph_nodes WHERE id = ?`, "Minha Nota").Scan(&semGrau); err != nil {
+		t.Fatalf("contando o nó legado sem grau: %v", err)
+	}
+	if semGrau != 0 {
+		t.Errorf("nó legado sem grau = %d; want 0 (o --fix remove)", semGrau)
+	}
+}
+
 // TestNodeIdentity prova o contrato do nó canônico no SQLite (ADR-066 —
 // GNI-05 e GNI-06):
 //

@@ -3879,6 +3879,12 @@ func displayDoctorReport(report *store.DoctorReport, fixedCount int) {
 		fmt.Printf(" ⏳ Documentos sem mtime (indexados antes do metadado existir): %d — rode 'mem index --force' paracapturar\n",
 			report.MissingMTimeCount)
 	}
+	// ADR-066: nós que não são a identidade canônica de um documento nem um
+	// nó de código. Os que estão sem grau são os que o `--fix` remove.
+	if report.LegacyNodeCount > 0 {
+		fmt.Printf(" 🧩 Nós legados de identidade (não são documents.id nem code_symbol): %d (%d sem grau — removidos pelo --fix)\n",
+			report.LegacyNodeCount, report.OrphanLegacyNodeCount)
+	}
 	if fixedCount > 0 {
 		fmt.Printf(" 🛠  Reparos aplicados (--fix): %d arestas problemáticas removidas\n", fixedCount)
 	}

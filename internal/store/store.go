@@ -158,8 +158,17 @@ type DoctorReport struct {
 	// ADR-057: documentos com mtime = 0 foram indexados antes de a coluna
 	// existir. Não é corrupção de dado — é uma lacuna de metadados, então fica
 	// fora do HealthScore e vira contagem explícita no relatório.
-	MissingMTimeCount int        `json:"missing_mtime_count"`
-	DeadLinks         []DeadLink `json:"dead_links"`
+	MissingMTimeCount int `json:"missing_mtime_count"`
+	// ADR-066: nós do grafo que não são a identidade canônica de um
+	// documento (`documents.id`) nem um nó de código (`code_symbol`) — o
+	// outro lado da fenda da identidade do nó.
+	//
+	// `OrphanLegacyNodeCount` é a parte SEM GRAU: é exatamente o que o
+	// `--fix` remove. O nó com grau é a representação viva de um link
+	// rompido e continua no grafo (ADR-063).
+	LegacyNodeCount       int        `json:"legacy_node_count"`
+	OrphanLegacyNodeCount int        `json:"orphan_legacy_node_count"`
+	DeadLinks             []DeadLink `json:"dead_links"`
 	// OutOfIndexLinks são links cujo alvo existe em disco mas está fora do
 	// índice por decisão. Não são link rompido e não penalizam o score.
 	OutOfIndexLinks []OutOfIndexLink `json:"out_of_index_links"`

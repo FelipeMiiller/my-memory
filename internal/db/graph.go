@@ -362,6 +362,7 @@ func chunksSemVetorReal(ctx context.Context, db *sql.DB) ([]store.DesyncedChunk,
 // quanto a transacao da correcao implementam.
 type querier interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
 // deadLinkCandidates lista as arestas que o SQL suspeita de link morto: o
@@ -404,6 +405,33 @@ func deadLinkCandidates(ctx context.Context, q querier) ([]store.LinkCandidate, 
 	return candidates, rows.Err()
 }
 
+// legacyNodeCounts conta os nós do grafo que não são a identidade canônica
+// de um documento (`documents.id`) nem um nó de código (`code_symbol`).
+//
+// ADR-066: são os nós do OUTRO lado da fenda — os que o indexador antigo
+// gravava com o id de título. O primeiro número conta todos; o segundo
+// conta só os que estão SEM GRAU, que é exatamente o que a correção remove.
+//
+// O nó de um alvo não resolvido (o texto do wikilink) tem grau: ele é a
+// representação viva de um link rompido, e o `mem doctor` precisa dele
+// visível (ADR-063).
+func legacyNodeCounts(ctx context.Context, q querier) (total int, orphans int, err error) {
+	err = q.QueryRowContext(ctx, `
+		SELECT COUNT(*),
+		       SUM(CASE WHEN NOT EXISTS (
+		           SELECT 1 FROM graph_edges e
+		           WHERE e.source_id = n.id OR e.target_id = n.id
+		       ) THEN 1 ELSE 0 END)
+		FROM graph_nodes n
+		WHERE n.type <> 'code_symbol'
+		  AND n.id NOT IN (SELECT id FROM documents)
+	`).Scan(&total, &orphans)
+	if err != nil {
+		return 0, 0, err
+	}
+	return total, orphans, nil
+}
+
 func DiagnoseHealth(ctx context.Context, db *sql.DB, vaultRoot string) (*store.DoctorReport, error) {
 	report := &store.DoctorReport{
 		DeadLinks:         []store.DeadLink{},
@@ -423,6 +451,12 @@ func DiagnoseHealth(ctx context.Context, db *sql.DB, vaultRoot string) (*store.D
 	// ADR-057: documentos indexados antes de mtime existir ficam com 0. Reportar
 	// a contagem torna a lacuna visível em vez de silenciosa.
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents WHERE COALESCE(mtime, 0) = 0`).Scan(&report.MissingMTimeCount)
+	// ADR-066: nós que não são `documents.id` nem `code_symbol` — o outro
+	// lado da fenda da identidade do nó.
+	if total, orphans, err := legacyNodeCounts(ctx, db); err == nil {
+		report.LegacyNodeCount = total
+		report.OrphanLegacyNodeCount = orphans
+	}
 
 	// 2. Links: o SQL levanta a suspeita, o disco decide.
 	//
@@ -573,11 +607,35 @@ func FixHealthIssues(ctx context.Context, db *sql.DB, vaultRoot string) (int, er
 		deadFixed += n
 	}
 
+	// 3. Remove os nós legados de identidade (ADR-066).
+	//
+	// São os nós que o indexador antigo gravava com o id de TÍTULO — o
+	// outro lado da fenda. A correção remove os que estão SEM GRAU: eles
+	// não são mais o alvo de nenhuma aresta (as arestas passam a apontar
+	// para o `documents.id` do documento).
+	//
+	// O nó com GRAU fica: ele é a representação viva de um link rompido —
+	// apagar ele apagaria a aresta junto (FK ON DELETE CASCADE) e o
+	// `mem doctor` perderia a detecção de link morto (ADR-063).
+	res, err := tx.ExecContext(ctx, `
+		DELETE FROM graph_nodes
+		WHERE type <> 'code_symbol'
+		  AND id NOT IN (SELECT id FROM documents)
+		  AND NOT EXISTS (
+		      SELECT 1 FROM graph_edges e
+		      WHERE e.source_id = graph_nodes.id OR e.target_id = graph_nodes.id
+		  )
+	`)
+	if err != nil {
+		return 0, err
+	}
+	legacyFixed, _ := res.RowsAffected()
+
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
 
-	return int(loopsFixed + deadFixed), nil
+	return int(loopsFixed + deadFixed + legacyFixed), nil
 }
 
 // ResolveNodeCanonicalID resolve um identificador informal, slug, título ou caminho relativo para o ID canônico no grafo.
