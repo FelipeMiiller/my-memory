@@ -473,12 +473,12 @@ precedência da ADR-040 (`cmd/mem/storage_source.go:34-51`) · o `--storage` do
 
 **Done when**:
 
-- [ ] Com o Postgres resolvido, o payload declara `--storage postgres` e **não** leva `--db`
-- [ ] Com o SQLite resolvido, o payload leva `--db <caminho>` e **não** leva `--storage postgres`
-- [ ] A URL do Postgres **não** aparece no payload nem no arquivo escrito no editor
-- [ ] A saída imprime `Engine: postgres` ou `Engine: sqlite`, e a linha `Database:` só sai no caso SQLite
-- [ ] O log de storage e o payload dizem o **mesmo** engine (nenhuma linha afirma uma coisa e entrega outra)
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
+- [x] Com o Postgres resolvido, o payload declara `--storage postgres` e **não** leva `--db`
+- [x] Com o SQLite resolvido, o payload leva `--db <caminho>` e **não** leva `--storage postgres`
+- [x] A URL do Postgres **não** aparece no payload nem no arquivo escrito no editor
+- [x] A saída imprime `Engine: postgres` ou `Engine: sqlite`, e a linha `Database:` só sai no caso SQLite
+- [x] O log de storage e o payload dizem o **mesmo** engine (nenhuma linha afirma uma coisa e entrega outra)
+- [x] O gate rápido passa: `go -C D:\repository\my-memory build ./...` e `go -C D:\repository\my-memory vet ./...`
 
 **Tests**: integration
 **Gate**: quick

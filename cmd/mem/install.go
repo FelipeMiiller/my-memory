@@ -65,16 +65,37 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 
 	// 4. Resolver banco de dados e repositório com auto-scoping de vault
 	cfg := resolveConfig()
-	resolvedRepo, resolvedDB, _ := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, "", defaultRepo)
+	resolvedRepo, resolvedDB, resolvedPG := resolveStorageAndRepo(cfg, *targetRepo, *dbPath, "", defaultRepo)
 
-	absDB, err := filepath.Abs(resolvedDB)
-	if err == nil {
-		resolvedDB = absDB
+	// ADR-040: a flag --db explícita vence o Postgres resolvido por env/config.
+	// O override é o mesmo do resto da CLI (applyStorageOverride), para que a
+	// precedência e o log de decisão sejam os mesmos em todo comando.
+	if *dbPath != "" && resolvedPG != "" {
+		var overrideErr error
+		resolvedDB, resolvedPG, overrideErr = applyStorageOverride("sqlite", resolvedDB, resolvedPG)
+		if overrideErr != nil {
+			return overrideErr
+		}
 	}
 
-	// 4. Preparar ServerConfig
-	serverArgs := []string{"mcp"}
 	if resolvedDB != "" {
+		absDB, absErr := filepath.Abs(resolvedDB)
+		if absErr == nil {
+			resolvedDB = absDB
+		}
+	}
+
+	// 5. Preparar ServerConfig — o payload declara o ENGINE VENCEDOR (ADR-040)
+	engine := "sqlite"
+	serverArgs := []string{"mcp"}
+	if resolvedPG != "" {
+		engine = "postgres"
+		// A URL do Postgres NÃO vai para o payload: o config do editor vive
+		// dentro do repositório versionado e a URL pode carregar senha. O
+		// processo filho resolve a URL pela mesma precedência (flag > env >
+		// config) e falha alto se não resolver.
+		serverArgs = append(serverArgs, "--storage", "postgres")
+	} else if resolvedDB != "" {
 		serverArgs = append(serverArgs, "--db", resolvedDB)
 	}
 	if resolvedRepo != "" {
@@ -86,7 +107,7 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 		Args:    serverArgs,
 	}
 
-	// 5. Detectar ferramentas alvo
+	// 6. Detectar ferramentas alvo
 	targets, err := autowire.DetectClients(*rootDir, *target, scope)
 	if err != nil {
 		return fmt.Errorf("falha ao detectar clientes MCP: %w", err)
@@ -97,14 +118,17 @@ func runInstallCommand(ctx context.Context, defaultRepo string, args []string, o
 		return nil
 	}
 
-	// 6. Executar injeção
+	// 7. Executar injeção
 	modeStr := "Executando instalação"
 	if *dryRun {
 		modeStr = "🔍 [DRY-RUN] Simulando instalação (nenhum arquivo será alterado)"
 	}
 	fmt.Fprintf(out, "=== %s do My-Memory em Clientes MCP ===\n", modeStr)
 	fmt.Fprintf(out, "Binário:     %s\n", commandPath)
-	fmt.Fprintf(out, "Database:    %s\n", resolvedDB)
+	fmt.Fprintf(out, "Engine:      %s\n", engine)
+	if engine == "sqlite" && resolvedDB != "" {
+		fmt.Fprintf(out, "Database:    %s\n", resolvedDB)
+	}
 	if resolvedRepo != "" {
 		fmt.Fprintf(out, "Repository:  %s\n", resolvedRepo)
 	}
