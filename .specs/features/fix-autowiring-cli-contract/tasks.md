@@ -171,11 +171,11 @@ ADR-040 · as decisões A3, A4 e A6 da spec
 
 **Done when**:
 
-- [ ] `grep -n "setup" docs/CLI_GUIDE.md` não devolve nenhuma promessa de alias do auto-wiring (o exemplo `./bin/mem.exe setup --dry-run` sai)
-- [ ] O guia documenta `mem install` como o comando do auto-wiring e não menciona `mem setup` como sinônimo
-- [ ] O guia lista os 6 valores aceitos de `--target`, incluindo `claude-desktop`
-- [ ] O guia diz que o payload declara o engine vencedor (`Engine: postgres` ou `Engine: sqlite`) e que a URL do Postgres **não** vai para o arquivo do editor
-- [ ] O gate de build passa: `go -C D:\repository\my-memory build ./...`
+- [x] `grep -n "setup" docs/CLI_GUIDE.md` não devolve nenhuma promessa de alias do auto-wiring (o exemplo `./bin/mem.exe setup --dry-run` saiu)
+- [x] O guia documenta `mem install` como o comando do auto-wiring e não menciona `mem setup` como sinônimo
+- [x] O guia lista os 6 valores aceitos de `--target`, incluindo `claude-desktop`
+- [x] O guia diz que o payload declara o engine vencedor (`Engine: postgres` ou `Engine: sqlite`) e que a URL do Postgres **não** vai para o arquivo do editor
+- [x] O gate de build passa: `go -C D:\repository\my-memory build ./...`
 
 **Tests**: none (camada de contrato — o gate é o build + a leitura cruzada)
 **Gate**: quick

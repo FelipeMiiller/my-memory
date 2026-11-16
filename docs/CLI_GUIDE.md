@@ -622,20 +622,25 @@ Inspeciona cirurgicamente qualquer nó da base de conhecimento e do grafo no pad
 
 ---
 
-### 19. `mem install` ou `mem setup` `[--target <cliente>] [--dry-run] [--workspace] [--global] [--force] [--db <caminho>] [--repo <slug>]`
+### 19. `mem install` `[--target <cliente>] [--dry-run] [--workspace] [--global] [--force] [--db <caminho>] [--repo <slug>]`
 Configuração e **Auto-Wiring Zero-Touch** das ferramentas de IA e clientes MCP suportados (**Claude Desktop**, **Cursor IDE**, **VS Code / GitHub Copilot**, **Windsurf**):
-* **Detecção Automática:** Escaneia o sistema operacional (Windows, macOS, Linux) e o diretório de trabalho atual identificando clientes instalados e arquivos de configuração existentes.
-* **Injeção Não-Destrutiva:** Preserva integralmente outros servidores MCP já configurados sob a chave `mcpServers` e gera backups automáticos com extensão `.bak` antes de qualquer alteração.
+
+> **Atenção:** `mem setup` é **outro comando** — o assistente interativo de cofre central (ADR-033). O auto-wiring é `mem install`.
+
+* **Detecção Automática:** Escaneia o sistema operacional (Windows, macOS, Linux) e o diretório de trabalho atual identificando clientes **instalados** e arquivos de configuração existentes. Cliente **não instalado** é **pulado**: nenhum arquivo e nenhum diretório são criados, e a saída nomeia o cliente pulado e o motivo.
+* **Injeção Não-Destrutiva:** Preserva integralmente outros servidores MCP já configurados sob a chave `mcpServers` e gera backups **atômicos** com extensão `.bak` antes de qualquer alteração. O arquivo escrito usa **2 espaços** de indentação e as chaves de topo em **ordem alfabética**.
+* **Precedência de Storage (ADR-040):** o payload injetado declara o **engine vencedor** — a saída imprime `Engine: postgres` ou `Engine: sqlite`. Com Postgres, o payload leva `--storage postgres` e **não** leva `--db`; com SQLite, leva `--db <caminho>`. A **URL do Postgres não vai para o arquivo do editor** (o config do workspace é versionado dentro do repositório e a URL pode carregar senha).
 * **Auto-Scoping de Vault:** Detecta `.memory/config.yaml` no diretório atual e auto-injeta os argumentos `--db` e `--repo` correspondentes.
 * `--dry-run`: Simula a detecção e exibe os fragmentos JSON de payload sem modificar arquivos em disco.
-* `--target <cliente>`: Restringe a instalação a um cliente específico (`claude-desktop`, `cursor`, `vscode`, `windsurf` ou `all`).
+* `--target <cliente>`: Restringe a instalação a um cliente específico. Valores aceitos: `all`, `claude`, `claude-desktop` (sinônimo de `claude`), `cursor`, `vscode` e `windsurf`. Um valor **fora** desse conjunto faz o comando **falhar** (exit ≠ 0), com a lista dos valores aceitos na mensagem.
 * `--workspace`: Limita a configuração exclusivamente ao escopo de workspace local (`.cursor/mcp.json`, `.vscode/mcp.json`, etc.).
 * `--global`: Limita a configuração aos diretórios globais do usuário/sistema.
+* **Mutuamente exclusivos:** `--workspace` e `--global` não podem ser usados juntos — a combinação faz o comando **falhar** (exit ≠ 0), em vez de instalar em todos os escopos.
 * `--force`: Permite sobrescrever configurações existentes sem confirmação interativa.
 
 **Exemplos:**
 ```bash
-# Auto-detectar todas as ferramentas instaladas e configurar automaticamente:
+# Auto-detectar as ferramentas instaladas e configurar automaticamente:
 ./bin/mem.exe install
 
 # Simular a configuração sem modificar o disco:
@@ -644,11 +649,11 @@ Configuração e **Auto-Wiring Zero-Touch** das ferramentas de IA e clientes MCP
 # Configurar exclusivamente o Cursor IDE:
 ./bin/mem.exe install --target cursor
 
+# O sinônimo documentado do Claude Desktop também funciona:
+./bin/mem.exe install --target claude-desktop
+
 # Configurar apenas o workspace atual:
 ./bin/mem.exe install --workspace
-
-# Alias idêntico de setup:
-./bin/mem.exe setup --dry-run
 ```
 
 ---
