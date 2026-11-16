@@ -2269,3 +2269,65 @@ este item nesta rodada — fica registrado e à espera.
 
 **Referência:** ADR-035 · ADR-013 (saúde do grafo) ·
 `.specs/042-stubs-editoriais/validation.md` (lição do path-style).
+
+## ISSUE-050 — O gate de EARS está cego para 59% dos ACs do repo: uma linha em branco zera a coleta
+
+- **Severidade:** 🔴 critical (o gate que valida "todo AC tem SHALL e casa com um padrão EARS" **não enxerga** a maioria dos ACs — um spec com AC malformado passa com 0 erro; é o "verde-mentira" que o repo já registrou na ISSUE-033)
+- **Status:** 🔵 **open** (achado em 2026-11-15, durante a verificação das specs do piloto)
+- **Achado em:** 2026-11-15 — ao revisar a spec `fix-packager-token-budget` escrita pelo especialista `spec-writer`, que reportou que "os ACs não estavam sendo lidos pelo validador"
+
+**A causa — uma linha.** Em `validate_spec.py:174`:
+
+```python
+elif stripped == "" or re.match(r"^#{1,3}\s", ln) or stripped.startswith("**"):
+    in_ac = False
+```
+
+A condição que encerra o bloco de Acceptance Criteria inclui `stripped == ""`.
+Ou seja: **uma linha em branco logo depois de `**Acceptance Criteria**:` zera o
+flag `in_ac`** e **todos** os ACs daquele bloco ficam invisíveis ao gate. O
+regex de coleta (`^\s*\d+\.\s+(.*)$`) não é o problema — o problema é o reset.
+
+**A prova (empírica, fora do repo).** Cópia do `spec.md` do exemplar validado
+(`fix-doctor-unindexed-links`) com **um AC deliberadamente sem SHALL** inserido
+antes de `## Success Criteria`:
+
+```
+validate_spec: 0 error(s), 0 warning(s)   <- exit 0
+```
+
+O gate reportou **0 erro** numa spec com AC quebrado. A cópia estava em
+`D:\.minimax\scratch\validator_probe\` (fora do repo, descartada depois).
+
+**O raio de explosão (medido em 2026-11-15).**
+
+| Medida | Valor |
+| :--- | :---: |
+| ACs que o gate **vê** hoje | **311** |
+| ACs que o gate **deveria** ver | **752** |
+| **ACs cegos pelo gate** | **441** (59%) |
+| specs com pelo menos 1 bloco cego | **42** de 62 |
+| blocos `**Acceptance Criteria**:` afetados | **75**, em 27 specs |
+
+**Por que ninguém viu antes.** O padrão (linha em branco depois do cabeçalho)
+é o que a **template da skill** produz: o próprio `references/specify.md` da
+`tlc-spec-driven` mostra `**Acceptance Criteria** (each line is one EARS
+pattern):` seguido de lista, e o exemplar mais validado do repo
+(`fix-doctor-unindexed-links`, `spec.md:98-99`) repete o padrão em 3 blocos.
+Ou seja: **o formato que a skill ensina é exatamente o formato que cega o
+gate dela**.
+
+**O conserto é uma linha:** `elif stripped == "" or ...` → não zerar `in_ac` em
+linha vazia (só em heading `#{1,3}` ou linha iniciada por `**`). As 2 specs do
+piloto (`fix-progressive-context-test-coverage` e `fix-packager-token-budget`)
+já nascem **sem** a linha em branco e passam com os ACs realmente lidos.
+
+**Por que não foi corrigido em silêncio:** o arquivo é o script **da skill**
+(`.agents/skills/tlc-spec-driven/scripts/validate_spec.py`), dentro do repo —
+mudança de código pede spec, e o dono não pediu este item nesta rodada. Fica
+registrado e à espera da decisão.
+
+**Referência:** ISSUE-033 (o gate que não distingue relatório de plano) ·
+`.agents/skills/tlc-spec-driven/scripts/validate_spec.py:156-176` ·
+`references/specify.md` (template) ·
+`.specs/features/fix-doctor-unindexed-links/spec.md:98` (exemplar).
