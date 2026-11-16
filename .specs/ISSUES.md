@@ -2233,3 +2233,39 @@ sem `git stash`); o Postgres do dono nunca foi contatado; baseline e final do
 **Referência:** ADR-026 · ADR-040 (precedência de storage) · ADR-033 ·
 spec `ai-tool-auto-wiring` ·
 `.specs/features/ai-tool-auto-wiring/validation.md`.
+
+## ISSUE-049 — 2 dead links reais no vault do repositório: `[[ADR-035]]` não casa com o basename do arquivo da ADR
+
+- **Severidade:** 🟢 low (custam **10 pontos** de Health Score ao vault do repo — o resto do score está em 100)
+- **Status:** 🔵 **open** (achado em 2026-11-15, no `mem doctor` do repo após o reindex)
+- **Achado em:** 2026-11-15 — `mem doctor --storage=postgres --repo repo_e4c8f3b1a2d5` reportou 2 links rompidos
+
+**O defeito.** Dois arquivos do repo usam o wikilink **`[[ADR-035]]`**, que não
+resolve: o arquivo da ADR se chama
+`docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md` e **não tem frontmatter
+`title`** — o `ADR-035` do H1 não é o título indexado. Sem `title` nem alias, o
+match é por basename, e `ADR-035` ≠ `035-embedder-embutido-com-fallback-onnx-minilm`.
+
+| Onde | Ocorrência |
+| :--- | :--- |
+| `.specs/features/embedder-builtin-onnx-minilm/spec.md` | linha 11 (`> **Tipo:** Feature. Executa o plano de implementação do [[ADR-035]]…`) e linha 188 (`- [[ADR-035]] — a decisão que esta spec executa`) |
+| `.specs/features/embedder-builtin-onnx-minilm/tasks.md` | linha 3 (`**ADR:** [[ADR-035]]`) |
+
+**O conserto já está escrito — é a lição registrada do próprio repo**
+(`.specs/042-stubs-editoriais/validation.md:90`): *"Plain `[[ADR-001]]` é frágil
+(depende de basename match). Path-style `[[docs/adr/001-…|ADR-001]]` é robusto
+(casa exato). Alias preserva display curto no render. **Regra: pra refs cruzadas
+entre docs, sempre usar path-style com alias.**"*
+
+Ou seja: trocar por `[[docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md|ADR-035]]`.
+
+**Medido:** o vault do repositório está em **90/100** — a penalidade de dead link
+tem teto de 40 pontos, e estes 2 links consomem **10**. Os **101 chunks sem vetor
+real** (que a ISSUE-040 tornou visíveis) consomem os outros 15; depois da correção
+da ISSUE-040 o score do repo sobe para **100/100**.
+
+**Por que não foi corrigido em silêncio:** correção pede spec, e o dono não pediu
+este item nesta rodada — fica registrado e à espera.
+
+**Referência:** ADR-035 · ADR-013 (saúde do grafo) ·
+`.specs/042-stubs-editoriais/validation.md` (lição do path-style).
