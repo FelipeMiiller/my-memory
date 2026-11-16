@@ -91,6 +91,7 @@ tags: [my-memory, handoff, vault-central, onnx, doctor, spec, governanca, adr-06
 | Índice (Postgres) | **94 docs / 481 chunks / 238 nós / 596 arestas** — os 481 chunks **têm** vetor |
 | Dead links (depois da ISSUE-038) | **138** (68 `links_to` + 70 `tagged_as`) — **todos existem em disco** |
 | Health Score | **60/100** (penalidade de dead link tem teto de 40) → **100/100** esperado após a spec 2 |
+| **Hoje (2026-11-15)** | **108 docs / 510 chunks / 710 arestas / 259 nós** · **Health Score 100/100** · **0** link rompido · **0** órfã · **0** chunk sem vetor · 108 documentos (94 + 13 notas de conceito + 1 README novo) |
 
 ### 3.2 As três causas raiz
 
@@ -224,12 +225,16 @@ correção possível no `validate_tasks.py`/na referência `tasks.md` do skill �
 > é recuperável **por sentido**, não só por palavra; (4) as notas destiladas
 > são **reindexáveis do zero sem perder o vetor**.
 
-| Critério | Hoje | Quem fecha |
+| Critério | Estado | Quem fecha |
 | :--- | :--- | :--- |
-| (1) fonte `vector` | ✅ **localmente** (binário com a tag), ❌ **no oficial** | spec 1 |
-| (2) doctor ≥ 90 | ❌ 60/100 | spec 2 |
-| (3) recuperável por sentido | sem prova | spec 3 (E2E) |
-| (4) reindex sem perder vetor | sem prova | spec 3 (E2E) |
+| (1) fonte `vector` | ✅ **local** e ✅ **no oficial** — o release e a CI compilam com a tag `onnx`; falta só **publicar** | spec 1 — `fix-release-onnx-provider` (ISSUE-037) |
+| (2) doctor ≥ 90 | ✅ **100/100** (108 docs / 510 chunks / 710 arestas; 0 rompido, 0 órfã, 0 chunk sem vetor) | spec 2 + spec 3 — `fix-doctor-unindexed-links` (ISSUE-039) e `central-vault-concept-notes` (ADR-064) |
+| (3) recuperável por sentido | ✅ **provado** — a nota escrita pelo `mem lesson` volta por uma paráfrase sem nenhuma palavra em comum, pela fonte `vector` | spec 3 — `fix-zero-vector-chunks` (ISSUE-040) |
+| (4) reindex sem perder vetor | ✅ **provado** — o reindex do zero deixa **0** chunks sem vetor real | spec 3 — `fix-zero-vector-chunks` (ISSUE-040) |
+
+> **Os 4 critérios do §B da ADR-062 estão fechados.** O que ainda depende de
+> operação humana é **publicar** o release (o `release.yml` já compila com a tag
+> `onnx`) e promover `develop` → `main` pelo "alertar versão estável".
 
 ---
 

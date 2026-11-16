@@ -612,7 +612,7 @@ Os negativos importam mais que os positivos — um detector que "corrige" palavr
 ## ISSUE-019 — `mem doctor` dá Health Score 100/100 num grafo vazio
 
 - **Severidade:** 🟡 medium
-- **Status:** ✅ **resolved** (2026-10-28) — o **Defeito 1** (grafo vazio pontua perfeito) foi **corrigido** pelo fluxo spec-driven; o **Defeito 2** (o vault deste repositório não está indexado) é **operação**, não código, e segue **pendente com o dono**
+- **Status:** ✅ **resolved** (2026-10-28) — o **Defeito 1** (grafo vazio pontua perfeito) foi **corrigido** pelo fluxo spec-driven; o **Defeito 2** (o vault deste repositório não está indexado) era **operação**, não código — **fechado em 2026-11-15**: o `mem index` do repo rodou com o binário taggeado e o vault `repo_e4c8f3b1a2d5` ficou com **322 documentos / 3.127 chunks / 47.982 arestas / 3.583 nós** e Health Score **90/100** (os 10 pontos restantes são 2 dead links **reais** e pré-existentes, `[[ADR-035]]`).
 - **Achado em:** sessão 2026-10-18 — tool MCP `memory_doctor` no vault `FelipeMiiller/my-memory`
 - **Relacionada:** `ISSUE-006` (Health Score persistentemente baixo), já aberta. Esta issue **não** a substitui e não a duplica — cross-referência. · ADR-013 (`docs/adr/013-higiene-de-grafo-pruning-e-doctor.md`) · spec `.specs/features/doctor-empty-vault-score/`
 
@@ -1371,7 +1371,7 @@ que faz muito mais queries por documento do que o teste de integração.
 ## ISSUE-033 — `validate_state.py` reprova 11 das 41 features por desenho, não por conteúdo
 
 - **Severidade:** 🟡 média (dívida de documentação + gate que não distingue relatório de plano)
-- **Status:** 🟢 **A + B entregues** (2026-10-29, `.specs/features/fix-validate-state-verdict/`); **C adiada** pelo dono — as 5 features de plano continuam **vermelhas de propósito**
+- **Status:** 🟢 **A + B entregues** (2026-10-29, `.specs/features/fix-validate-state-verdict/`); **C adiada** pelo dono — e **deixou de se aplicar em 2026-11-15**: as 5 features cujo `validation.md` era plano receberam veredito real (4 FAIL + 1 PARTIAL), e hoje **nenhuma** feature do repo tem `validation.md` sem veredito
 - **Achado em:** verificação do gate do fluxo spec-driven após a indexação do vault
 - **Impacto no CI:** **nenhum** — `validate_state.py` **não roda no CI** (o workflow roda `go test`, build e front-end). É um gate **manual**.
 
@@ -1903,7 +1903,7 @@ E2E rodando com o **provider ONNX real**. Relatório:
 ## ISSUE-041 — A suite de `cmd/mem` sobrescreve `bin/mem.exe` com um build SEM a tag `onnx`: o proximo `mem index` grava chunk sem vetor
 
 - **Severidade:** 🟡 media (o estrago e **anunciado** — o `mem index` imprime o aviso consolidado e o doctor lista os chunks — mas a suite **derruba o artefato que o dono usa**, sem ter obrigação sobre isso)
-- **Status:** 🔵 **open — spec escrita** (2026-11-14, `.specs/features/fix-test-binary-clobber/`) — 3 ACs, 7 requisitos, 3 tarefas, 2 fases; o conserto (helper compilando num temp dir + prova de nao-regressao) ainda **nao** foi implementado. Reparo **provado** no cofre (rebuild taggeado + reindex), mas o defeito do codigo continua ate a T2 da spec.
+- **Status:** 🟢 **corrigida** (2026-11-14, `.specs/features/fix-test-binary-clobber/`) — 3 ACs, 7 requisitos, 3 tarefas, 2 fases, 3 commits (`e0c4ab3`, `2b697f8`, `0c7792a`, `82f6a9f`). O helper de teste e **unico** e compila em `t.TempDir()`; 3 testes novos provam que a suite nao volta a compilar para dentro de `bin/` e que o SHA-256 do binario do dono fica intacto. Medido: a suite `cmd/mem` inteira rodou (exit 0, 123,8 s) e o `bin/mem.exe` ficou byte a byte igual (hash `2336f7e8…`, 37.191.134 bytes, antes e depois). Ver a **Resolução (2026-11-14)** no fim desta entrada.
 - **Achado em:** 2026-11-14, durante a medicao do "atualizar so o conteudo que mudou" (spec `central-vault-concept-notes`)
 
 **O defeito.** Dois helpers de teste de `cmd/mem` compilam o binario **por cima do
