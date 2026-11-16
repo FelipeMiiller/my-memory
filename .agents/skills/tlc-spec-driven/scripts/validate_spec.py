@@ -142,6 +142,34 @@ def classify_ears(text):
     return (True, "warn: SHALL present but no EARS lead keyword")
 
 
+def collect_ac_items(lines):
+    """Collect the acceptance criteria of every AC block of a spec.
+
+    A block starts at an `**Acceptance Criteria**:` header and ends at a
+    heading (`#{1,3}`) or at a line that starts with `**`. A blank line is
+    spacing, not structure: it never ends the block. The blank-line reset was
+    the blindness of ISSUE-050 - it hid 441 of the 752 ACs of the repo.
+
+    Returns a list of (line number, criterion text), placeholders excluded.
+    """
+    items = []
+    in_ac = False
+    for i, ln in enumerate(lines, start=1):
+        stripped = ln.strip()
+        if re.match(r"^\*{0,2}Acceptance Criteria\*{0,2}\s*:?\s*$", stripped):
+            in_ac = True
+            continue
+        if in_ac:
+            m = re.match(r"^\s*\d+\.\s+(.*)$", ln)
+            if m:
+                item = m.group(1).strip()
+                if not PLACEHOLDER_RE.match(item):
+                    items.append((i, item))
+            elif re.match(r"^#{1,3}\s", ln) or stripped.startswith("**"):
+                in_ac = False
+    return items
+
+
 def check(spec_path):
     with open(spec_path, "r", encoding="utf-8") as f:
         text = f.read()
@@ -154,25 +182,12 @@ def check(spec_path):
             errors.append(f"missing required section: ## {name}")
 
     # 2. Acceptance criteria are EARS-shaped (have a SHALL).
-    in_ac = False
-    for i, ln in enumerate(lines, start=1):
-        stripped = ln.strip()
-        if re.match(r"^\*{0,2}Acceptance Criteria\*{0,2}\s*:?\s*$", stripped):
-            in_ac = True
-            continue
-        if in_ac:
-            m = re.match(r"^\s*\d+\.\s+(.*)$", ln)
-            if m:
-                item = m.group(1).strip()
-                if PLACEHOLDER_RE.match(item):
-                    continue  # untouched template row
-                ok, note = classify_ears(item)
-                if not ok:
-                    errors.append(f"L{i}: acceptance criterion has no SHALL (not testable): {item[:70]}")
-                elif note.startswith("warn"):
-                    warnings.append(f"L{i}: AC has SHALL but no EARS keyword (WHEN/WHILE/WHERE/IF or ubiquitous 'The … shall'): {item[:60]}")
-            elif stripped == "" or re.match(r"^#{1,3}\s", ln) or stripped.startswith("**"):
-                in_ac = False
+    for i, item in collect_ac_items(lines):
+        ok, note = classify_ears(item)
+        if not ok:
+            errors.append(f"L{i}: acceptance criterion has no SHALL (not testable): {item[:70]}")
+        elif note.startswith("warn"):
+            warnings.append(f"L{i}: AC has SHALL but no EARS keyword (WHEN/WHILE/WHERE/IF or ubiquitous 'The … shall'): {item[:60]}")
 
     # 3. Assumptions table cells filled.
     b = section_bounds(lines, "Assumptions & Open Questions")

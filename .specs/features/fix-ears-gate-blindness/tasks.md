@@ -94,12 +94,12 @@ apontou.
 
 **Done when**:
 
-- [ ] A condição de fim de bloco não inclui mais `stripped == ""`
-- [ ] O bloco termina em heading (`#{1,3}`) ou em linha que começa com `**`
-- [ ] Uma spec com AC malformado **depois** de uma linha em branco faz o gate sair com código **!= 0**, nomeando a linha e o critério
-- [ ] O gate continua ignorando listas numeradas que **não** estão dentro de um bloco de AC
-- [ ] As demais seções do validador (assumptions, traceability, placeholders) **não** mudaram de comportamento
-- [ ] O script continua em UTF-8 sem BOM e LF
+- [x] A condição de fim de bloco não inclui mais `stripped == ""`
+- [x] O bloco termina em heading (`#{1,3}`) ou em linha que começa com `**`
+- [x] Uma spec com AC malformado **depois** de uma linha em branco faz o gate sair com código **!= 0**, nomeando a linha e o critério
+- [x] O gate continua ignorando listas numeradas que **não** estão dentro de um bloco de AC
+- [x] As demais seções do validador (assumptions, traceability, placeholders) **não** mudaram de comportamento
+- [x] O script continua em UTF-8 sem BOM e LF
 
 **Tests**: unit
 **Gate**: quick

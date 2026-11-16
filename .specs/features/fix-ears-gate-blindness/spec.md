@@ -192,8 +192,8 @@ prova não fique sem prova.
 
 | Requirement ID | Acceptance Criterion | Where | Status |
 | :--- | :--- | :--- | :--- |
-| EAG-01 | AC1 — a linha em branco não zera a coleta | `.agents/skills/tlc-spec-driven/scripts/validate_spec.py` | Pending |
-| EAG-02 | AC2 — o bloco só termina em heading ou `**` | `.agents/skills/tlc-spec-driven/scripts/validate_spec.py` | Pending |
+| EAG-01 | AC1 — a linha em branco não zera a coleta | `.agents/skills/tlc-spec-driven/scripts/validate_spec.py` | Verified |
+| EAG-02 | AC2 — o bloco só termina em heading ou `**` | `.agents/skills/tlc-spec-driven/scripts/validate_spec.py` | Verified |
 | EAG-03 | AC3 — AC sem SHALL vira ERROR nomeando linha e critério | `.agents/skills/tlc-spec-driven/scripts/test_validate_spec.py` | Pending |
 | EAG-04 | AC4 — AC com SHALL e sem keyword vira WARNING | `.agents/skills/tlc-spec-driven/scripts/test_validate_spec.py` | Pending |
 | EAG-05 | AC5 — placeholder de template não vira erro | `.agents/skills/tlc-spec-driven/scripts/test_validate_spec.py` | Pending |
