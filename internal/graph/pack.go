@@ -24,6 +24,11 @@ type PackOptions struct {
 	PageRanks              map[string]float64 // Scores de PageRank para ponderação prioritária
 }
 
+// packNodeReserve é a margem de segurança cobrada por nó vizinho: além do
+// conteúdo, o pacote carrega os metadados que o renderizador escreve para cada
+// nó. A raiz é isenta dessa reserva — é o tratamento preferencial do nó raiz.
+const packNodeReserve = 20
+
 // DefaultPackOptions retorna as opções padrão de empacotamento
 func DefaultPackOptions() PackOptions {
 	return PackOptions{
@@ -215,74 +220,74 @@ func PackContext(nodes []PackGraphNode, edges []WeightedEdge, rootID string, opt
 		return candidates[i].node.ID < candidates[j].node.ID
 	})
 
-	// 5. Alocação gananciosa com orçamento de tokens
-	// Reserva de overhead inicial (~80 tokens para headers estruturais)
-	headerOverhead := 80
-	availableBudget := opts.MaxTokens - headerOverhead
-	if availableBudget < 100 {
-		availableBudget = opts.MaxTokens
-	}
-
+	// 5. Alocação gananciosa com orçamento medido contra o bundle renderizado
+	//
+	// O orçamento é um saldo único: o conteúdo dos nós e o custo estrutural que o
+	// renderizador escreve (cabeçalho, bloco Mermaid, metadados por nó, linhas
+	// da tabela de periféricos e seção de omitidos) disputam o mesmo espaço.
+	// A alocação lê o saldo disponível que ela calcula a partir do artefato
+	// renderizado — nunca compara o conteúdo diretamente com opts.MaxTokens.
 	packedNodes := make([]PackedNode, 0, len(candidates))
 	omittedList := make([]string, 0)
-	totalTokensUsed := headerOverhead
 	coreCount := 0
 	fringeCount := 0
 	omittedCount := 0
+
+	// renderState monta o Markdown do estado atual da alocação. Durante a
+	// alocação o cabeçalho exibe o maior número possível (opts.MaxTokens), de
+	// modo que a medição nunca underestimate o artefato final.
+	renderState := func(nodes []PackedNode, omitted []string) string {
+		mermaid := buildMermaidSubgraph(rootID, nodes, subgraphEdges)
+		return renderMarkdownBundle(rootNode, opts, nodes, omitted, opts.MaxTokens, mermaid)
+	}
 
 	for _, cand := range candidates {
 		c := cand.node
 		contentTokens := EstimateTokens(c.Content)
 		abstractTokens := EstimateTokens(c.Abstract)
+		abstractContent := c.Abstract
 		if abstractTokens == 0 && c.Content != "" {
 			// Fallback de abstract se vazio: primeiros 200 caracteres
 			if len(c.Content) > 200 {
-				abstractTokens = EstimateTokens(c.Content[:200] + "...")
+				abstractContent = c.Content[:200] + "..."
 			} else {
-				abstractTokens = contentTokens
+				abstractContent = c.Content
 			}
+			abstractTokens = EstimateTokens(abstractContent)
 		}
 
-		// Nó raiz tem tratamento preferencial
+		// O nó raiz tem tratamento preferencial: é isento da reserva de
+		// segurança que os vizinhos pagam e não pode ser omitido — a raiz é o
+		// objeto pedido pelo chamador.
+		reserve := packNodeReserve
+		rootMandatory := false
 		if cand.depth == 0 {
-			if totalTokensUsed+contentTokens <= opts.MaxTokens {
-				packedNodes = append(packedNodes, PackedNode{
-					ID:       c.ID,
-					Title:    c.Title,
-					Path:     c.Path,
-					Depth:    0,
-					Tier:     TierCore,
-					Tokens:   contentTokens,
-					Content:  c.Content,
-					Abstract: c.Abstract,
-					Category: c.Category,
-					PageRank: cand.pageRank,
-				})
-				totalTokensUsed += contentTokens
-				coreCount++
-				continue
-			} else if opts.IncludeFringeAbstracts && totalTokensUsed+abstractTokens <= opts.MaxTokens {
-				packedNodes = append(packedNodes, PackedNode{
-					ID:       c.ID,
-					Title:    c.Title,
-					Path:     c.Path,
-					Depth:    0,
-					Tier:     TierFringe,
-					Tokens:   abstractTokens,
-					Abstract: c.Abstract,
-					Category: c.Category,
-					PageRank: cand.pageRank,
-				})
-				totalTokensUsed += abstractTokens
-				fringeCount++
-				continue
-			}
+			reserve = 0
+			rootMandatory = true
 		}
 
-		// Nós vizinhos:
-		// Tenta TierCore
-		if contentTokens > 0 && totalTokensUsed+contentTokens+20 <= opts.MaxTokens {
-			packedNodes = append(packedNodes, PackedNode{
+		// Tamanho do bundle já renderizado e o saldo que resta no orçamento
+		current := EstimateTokens(renderState(packedNodes, omittedList))
+		availableBudget := opts.MaxTokens - current
+
+		// cabe verifica se o nó cabe no saldo disponível: o custo que ele
+		// acrescenta ao artefato renderizado (conteúdo + metadados) precisa
+		// caber no saldo.
+		cabe := func(node PackedNode, omitted []string, charged int) bool {
+			if charged > availableBudget {
+				return false
+			}
+			trial := make([]PackedNode, 0, len(packedNodes)+1)
+			trial = append(trial, packedNodes...)
+			trial = append(trial, node)
+			trialSize := EstimateTokens(renderState(trial, omitted))
+			return trialSize-current+reserve <= availableBudget
+		}
+
+		// TierCore: texto integral (L2). Um vizinho sem conteúdo não tem
+		// texto integral a oferecer.
+		if contentTokens > 0 || rootMandatory {
+			core := PackedNode{
 				ID:       c.ID,
 				Title:    c.Title,
 				Path:     c.Path,
@@ -293,20 +298,17 @@ func PackContext(nodes []PackGraphNode, edges []WeightedEdge, rootID string, opt
 				Abstract: c.Abstract,
 				Category: c.Category,
 				PageRank: cand.pageRank,
-			})
-			totalTokensUsed += contentTokens + 20
-			coreCount++
-		} else if opts.IncludeFringeAbstracts && abstractTokens > 0 && totalTokensUsed+abstractTokens+15 <= opts.MaxTokens {
-			// Tenta TierFringe
-			abstractContent := c.Abstract
-			if abstractContent == "" && c.Content != "" {
-				if len(c.Content) > 200 {
-					abstractContent = c.Content[:200] + "..."
-				} else {
-					abstractContent = c.Content
-				}
 			}
-			packedNodes = append(packedNodes, PackedNode{
+			if cabe(core, omittedList, contentTokens) {
+				packedNodes = append(packedNodes, core)
+				coreCount++
+				continue
+			}
+		}
+
+		// TierFringe: micro-abstract (L0/L1)
+		if opts.IncludeFringeAbstracts && abstractTokens > 0 {
+			fringe := PackedNode{
 				ID:       c.ID,
 				Title:    c.Title,
 				Path:     c.Path,
@@ -316,31 +318,80 @@ func PackContext(nodes []PackGraphNode, edges []WeightedEdge, rootID string, opt
 				Abstract: abstractContent,
 				Category: c.Category,
 				PageRank: cand.pageRank,
-			})
-			totalTokensUsed += abstractTokens + 15
-			fringeCount++
-		} else {
-			// Não coube: TierOmitted
-			packedNodes = append(packedNodes, PackedNode{
+			}
+			if cabe(fringe, omittedList, abstractTokens) {
+				packedNodes = append(packedNodes, fringe)
+				fringeCount++
+				continue
+			}
+		}
+
+		if rootMandatory {
+			// A raiz é o objeto pedido: sem ela não há pacote. O menor
+			// pacote possível é a raiz em TierFringe.
+			minRoot := PackedNode{
 				ID:       c.ID,
 				Title:    c.Title,
 				Path:     c.Path,
-				Depth:    cand.depth,
-				Tier:     TierOmitted,
-				Tokens:   0,
+				Depth:    0,
+				Tier:     TierFringe,
+				Tokens:   abstractTokens,
+				Abstract: abstractContent,
 				Category: c.Category,
 				PageRank: cand.pageRank,
-			})
-			omittedList = append(omittedList, c.ID)
-			omittedCount++
+			}
+			minRequired := EstimateTokens(renderState([]PackedNode{minRoot}, nil))
+			return nil, fmt.Errorf("orçamento insuficiente: o pacote mínimo com a raiz '%s' exige %d tokens (orçamento recebido: %d)",
+				rootID, minRequired, opts.MaxTokens)
 		}
+
+		// TierOmitted: listado na seção de omitidos do bundle
+		omittedNode := PackedNode{
+			ID:       c.ID,
+			Title:    c.Title,
+			Path:     c.Path,
+			Depth:    cand.depth,
+			Tier:     TierOmitted,
+			Tokens:   0,
+			Category: c.Category,
+			PageRank: cand.pageRank,
+		}
+		trialOmitted := make([]string, 0, len(omittedList)+1)
+		trialOmitted = append(trialOmitted, omittedList...)
+		trialOmitted = append(trialOmitted, c.ID)
+		if cabe(omittedNode, trialOmitted, 0) {
+			packedNodes = append(packedNodes, omittedNode)
+			omittedList = trialOmitted
+			omittedCount++
+			continue
+		}
+
+		// Nem a listagem do omitido cabe no saldo: os candidatos seguintes
+		// também não cabem, porque o bundle renderizado só cresce.
+		break
 	}
 
 	// 6. Gerar Diagrama Mermaid
 	mermaidDiagram := buildMermaidSubgraph(rootID, packedNodes, subgraphEdges)
 
 	// 7. Renderizar Markdown Consolidado
-	markdownBundle := renderMarkdownBundle(rootNode, opts, packedNodes, omittedList, totalTokensUsed, mermaidDiagram)
+	//
+	// O cabeçalho do bundle exibe o tamanho real do artefato. Como o número
+	// exibido altera o próprio tamanho, ele é fixado por ponto fixo.
+	totalTokensUsed := 0
+	markdownBundle := ""
+	for i := 0; i < 16; i++ {
+		markdownBundle = renderMarkdownBundle(rootNode, opts, packedNodes, omittedList, totalTokensUsed, mermaidDiagram)
+		measured := EstimateTokens(markdownBundle)
+		if measured == totalTokensUsed {
+			break
+		}
+		totalTokensUsed = measured
+	}
+	if totalTokensUsed > opts.MaxTokens {
+		return nil, fmt.Errorf("orçamento insuficiente: o bundle renderizado exige %d tokens (orçamento recebido: %d)",
+			totalTokensUsed, opts.MaxTokens)
+	}
 
 	rootTitle := rootNode.Title
 	if rootTitle == "" {

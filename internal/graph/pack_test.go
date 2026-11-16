@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -83,10 +84,11 @@ func TestPackContext_BudgetConstraintAndFallback(t *testing.T) {
 		{Source: "Root", Target: "HeavyChild", Type: "links_to", Weight: 1.0},
 	}
 
-	// Orçamento apertado de 200 tokens
+	// Orçamento apertado de 300 tokens: a raiz e o cabeçalho renderizado já
+	// consomem ~160 tokens, então o filho pesado não cabe em texto integral.
 	opts := PackOptions{
 		MaxDepth:               1,
-		MaxTokens:              200,
+		MaxTokens:              300,
 		Direction:              "outbound",
 		IncludeFringeAbstracts: true,
 	}
@@ -125,10 +127,11 @@ func TestPackContext_OmittedNodes(t *testing.T) {
 		{Source: "Root", Target: "Child1", Type: "links_to", Weight: 1.0},
 	}
 
-	// Orçamento extremamente pequeno (100 tokens, que praticamente só cabe o overhead e a raiz)
+	// Orçamento apertado de 250 tokens: a raiz consome ~160 tokens e o filho
+	// não cabe nem como resumo — ele é omitido.
 	opts := PackOptions{
 		MaxDepth:               1,
-		MaxTokens:              100,
+		MaxTokens:              250,
 		Direction:              "outbound",
 		IncludeFringeAbstracts: true,
 	}
@@ -146,6 +149,71 @@ func TestPackContext_OmittedNodes(t *testing.T) {
 	}
 	if !strings.Contains(res.Markdown, "Nós Omitidos por Orçamento") {
 		t.Errorf("Markdown não documentou seção de omitidos")
+	}
+}
+
+func TestPackContext_BundleRespeitaOrcamentoReal(t *testing.T) {
+	nodes := []PackGraphNode{
+		{ID: "root", Title: "Raiz", Content: strings.Repeat("Conteúdo da raiz do subgrafo empacotado. ", 8)},
+	}
+	edges := make([]WeightedEdge, 0, 12)
+	for i := 0; i < 12; i++ {
+		id := fmt.Sprintf("vizinho-%02d", i)
+		nodes = append(nodes, PackGraphNode{
+			ID:       id,
+			Title:    fmt.Sprintf("Vizinho %02d", i),
+			Content:  strings.Repeat(fmt.Sprintf("Conteúdo do vizinho %02d com detalhes que ocupam espaço. ", i), 12),
+			Abstract: fmt.Sprintf("Resumo do vizinho %02d", i),
+		})
+		edges = append(edges, WeightedEdge{Source: "root", Target: id, Type: "links_to", Weight: 1.0})
+	}
+
+	opts := PackOptions{
+		MaxDepth:               1,
+		MaxTokens:              1000,
+		Direction:              "outbound",
+		IncludeFringeAbstracts: true,
+	}
+
+	res, err := PackContext(nodes, edges, "root", opts)
+	if err != nil {
+		t.Fatalf("PackContext falhou: %v", err)
+	}
+
+	real := EstimateTokens(res.Markdown)
+	if real > opts.MaxTokens {
+		t.Errorf("o bundle emitido mede %d tokens, acima do orçamento de %d", real, opts.MaxTokens)
+	}
+	if res.TotalTokens != real {
+		t.Errorf("TotalTokens = %d, esperado exatamente o tamanho real do bundle (%d)", res.TotalTokens, real)
+	}
+	if res.CoreCount+res.FringeCount == 0 {
+		t.Errorf("o bundle não coletou nenhum nó: a medição do orçamento não pode ser vazia")
+	}
+}
+
+func TestPackContext_OrcamentoInsuficiente(t *testing.T) {
+	nodes := []PackGraphNode{
+		{ID: "root", Title: "Raiz", Content: "Conteúdo da raiz."},
+	}
+	edges := []WeightedEdge{}
+
+	opts := PackOptions{
+		MaxDepth:               1,
+		MaxTokens:              50,
+		Direction:              "outbound",
+		IncludeFringeAbstracts: true,
+	}
+
+	res, err := PackContext(nodes, edges, "root", opts)
+	if err == nil {
+		t.Fatalf("esperava erro de orçamento insuficiente, mas PackContext emitiu bundle com %d tokens", res.TotalTokens)
+	}
+	if res != nil {
+		t.Errorf("nenhum bundle pode ser emitido com orçamento insuficiente, obtido %d tokens", res.TotalTokens)
+	}
+	if !strings.Contains(err.Error(), "orçamento insuficiente") {
+		t.Errorf("mensagem de erro inesperada: %v", err)
 	}
 }
 

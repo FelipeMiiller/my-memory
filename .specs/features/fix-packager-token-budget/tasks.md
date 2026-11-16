@@ -95,14 +95,14 @@ T6 -> T7 -> T8 -> T9
 
 **Done when**:
 
-- [ ] A alocação lê o saldo disponível que calcula — não há mais comparação direta com `opts.MaxTokens` no caminho de alocação
-- [ ] O custo estrutural renderizado entra na conta do orçamento
-- [ ] `PackResult.TotalTokens` é exatamente `EstimateTokens(result.Markdown)`
-- [ ] `max_tokens=50` devolve erro e **nenhum** bundle é emitido
-- [ ] Teste novo `TestPackContext_BundleRespeitaOrcamentoReal`: grafo de 12 vizinhos com `MaxTokens=1000` → `EstimateTokens(res.Markdown) <= 1000` e `res.TotalTokens == EstimateTokens(res.Markdown)` (hoje o valor real é 1370)
-- [ ] Teste novo `TestPackContext_OrcamentoInsuficiente`: `MaxTokens=50` → erro e nenhum bundle
-- [ ] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./internal/graph/...`
-- [ ] Nenhum teste existente foi removido ou afrouxado
+- [x] A alocação lê o saldo disponível que calcula — não há mais comparação direta com `opts.MaxTokens` no caminho de alocação
+- [x] O custo estrutural renderizado entra na conta do orçamento
+- [x] `PackResult.TotalTokens` é exatamente `EstimateTokens(result.Markdown)`
+- [x] `max_tokens=50` devolve erro e **nenhum** bundle é emitido
+- [x] Teste novo `TestPackContext_BundleRespeitaOrcamentoReal`: grafo de 12 vizinhos com `MaxTokens=1000` → `EstimateTokens(res.Markdown) <= 1000` e `res.TotalTokens == EstimateTokens(res.Markdown)` (hoje o valor real é 1370)
+- [x] Teste novo `TestPackContext_OrcamentoInsuficiente`: `MaxTokens=50` → erro e nenhum bundle
+- [x] Gate check passa: `go -C D:\repository\my-memory build ./...`, `go -C D:\repository\my-memory vet ./...` e a suíte de `./internal/graph/...`
+- [x] Nenhum teste existente foi removido ou afrouxado — as asserções foram preservadas; os **orçamentos** de `TestPackContext_BudgetConstraintAndFallback` (200 → 300) e `TestPackContext_OmittedNodes` (100 → 250) foram recalibrados porque o bundle mínimo renderizado mede ~152 tokens (medido), ou seja, abaixo de 200 tokens o cenário original deixa de existir: a raiz + o cabeçalho renderizado já consomem ~160 tokens
 
 **Tests**: unit
 **Gate**: quick
