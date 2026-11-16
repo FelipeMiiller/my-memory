@@ -233,11 +233,11 @@ gap 7 no texto — e cita esta spec de correção como origem da emenda.
 
 **Done when**:
 
-- [ ] A spec de origem não promete `mem setup` como alias em nenhum ponto (`:9` e `:16` emendados)
-- [ ] A spec de origem declara que o config escrito usa 2 espaços e chaves de topo em ordem alfabética
-- [ ] A spec de origem cita a spec `fix-autowiring-cli-contract` e a ISSUE-048 como origem da emenda
-- [ ] A spec de origem descreve o registro de clientes que **existe** (as 4 constantes `ClientType`)
-- [ ] O gate de build passa: `go -C D:\repository\my-memory build ./...`
+- [x] A spec de origem não promete `mem setup` como alias em nenhum ponto (`:9` e `:16` emendados)
+- [x] A spec de origem declara que o config escrito usa 2 espaços e chaves de topo em ordem alfabética
+- [x] A spec de origem cita a spec `fix-autowiring-cli-contract` e a ISSUE-048 como origem da emenda
+- [x] A spec de origem descreve o registro de clientes que **existe** (as 4 constantes `ClientType`)
+- [x] O gate de build passa: `go -C D:\repository\my-memory build ./...`
 
 **Tests**: none (camada de contrato — o gate é o build + a leitura cruzada)
 **Gate**: quick
