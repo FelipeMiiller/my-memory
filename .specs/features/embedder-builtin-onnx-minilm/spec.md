@@ -8,7 +8,7 @@ tags: [embedding, onnx, minilm, cgo, fallback, adr-035, search]
 
 # embedder-builtin-onnx-minilm — provider de embedding embutido
 
-> **Tipo:** Feature. Executa o plano de implementação do [[ADR-035]] (que está com `Status: Proposed` desde 2026-09-16 e nunca foi executado).
+> **Tipo:** Feature. Executa o plano de implementação do [[docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md|ADR-035]] (que está com `Status: Proposed` desde 2026-09-16 e nunca foi executado).
 
 > [!warning] O plano inteiro depende de uma premissa não validada
 > O ADR-035 assume que `github.com/yalue/onnxruntime_go` compila em **Windows com CGO** e produz inferência utilizável. Isso **nunca foi testado** neste repositório: não há `onnxruntime` no `go.mod`, e nada nunca rodou uma inferência ONNX aqui.
@@ -185,7 +185,7 @@ Se a projeção for padding+zero, o vetor final tem metade das dimensões zerada
 
 ## Cross-references
 
-- [[ADR-035]] — a decisão que esta spec executa (Status: Proposed)
+- [[docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md|ADR-035]] — a decisão que esta spec executa (Status: Proposed)
 - [`.specs/features/spike-onnxruntime-binding/`](../spike-onnxruntime-binding/spec.md) — **adiado** (ADR-045 → `Deferred`, 2026-10-08); o gate de binding migrou para T1 desta spec
 - [`internal/embedder/ollama.go`](../../../internal/embedder/ollama.go) — o provider atual, que precisa ganhar um irmão
 - [`internal/config/config.go`](../../../internal/config/config.go) — `EmbeddingConfig` (hoje só conhece `ollama`)

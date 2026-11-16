@@ -81,11 +81,11 @@ o alias preserva o display curto `ADR-035`
 
 **Done when**:
 
-- [ ] A linha 11 (`> **Tipo:** Feature. Executa o plano de implementação do [[…]]`) usa a forma path-style com alias
-- [ ] A linha 188 (`- [[…]] — a decisão que esta spec executa`) usa a forma path-style com alias
-- [ ] O display continua sendo `ADR-035` (o alias)
-- [ ] `grep -rn "\[\[ADR-035\]\]" .specs/` não devolve ocorrência **neste** arquivo
-- [ ] O arquivo continua em UTF-8 sem BOM e LF
+- [x] A linha 11 (`> **Tipo:** Feature. Executa o plano de implementação do [[…]]`) usa a forma path-style com alias
+- [x] A linha 188 (`- [[…]] — a decisão que esta spec executa`) usa a forma path-style com alias
+- [x] O display continua sendo `ADR-035` (o alias)
+- [x] `grep -rn "\[\[ADR-035\]\]" .specs/` não devolve ocorrência **neste** arquivo
+- [x] O arquivo continua em UTF-8 sem BOM e LF
 
 **Tests**: integration
 **Gate**: quick
