@@ -1028,7 +1028,59 @@ func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
 
+type nodeCandidate struct {
+	id       string
+	relPath  string
+	title    string
+	isDoc    bool
+	segments int
+}
+
+func countPathSegments(p string) int {
+	clean := strings.Trim(strings.ReplaceAll(p, "\\", "/"), "/")
+	if clean == "" {
+		return 0
+	}
+	return strings.Count(clean, "/") + 1
+}
+
+func isBetterNodeCandidate(a, b nodeCandidate) bool {
+	// 1. Documento do mesmo repositório vence (ADR-066 / GPR-03)
+	if a.isDoc != b.isDoc {
+		return a.isDoc
+	}
+	// 2. Menos segmentos de caminho vence (GPR-04)
+	if a.segments != b.segments {
+		return a.segments < b.segments
+	}
+	// 3. Menor ID lexicográfico desempata (GPR-04)
+	return a.id < b.id
+}
+
+func selectCanonicalCandidate(cands []nodeCandidate) nodeCandidate {
+	best := cands[0]
+	for _, c := range cands[1:] {
+		if isBetterNodeCandidate(c, best) {
+			best = c
+		}
+	}
+	return best
+}
+
+func toGraphCandidates(cands []nodeCandidate) []graph.Candidate {
+	res := make([]graph.Candidate, len(cands))
+	for i, c := range cands {
+		res[i] = graph.Candidate{
+			ID:      c.id,
+			RelPath: c.relPath,
+			Title:   c.title,
+		}
+	}
+	return res
+}
+
 // ResolveNodeCanonicalID resolve um identificador informal para o ID canônico correspondente no PostgreSQL.
+// Retorna também o relatório de ambiguidade quando houver mais de um candidato correspondente (GPR-02).
 //
 // ADR-066: o id canônico do nó é o `documents.id`. O path, o `title:` e o
 // `alias:` do MESMO documento são aliases do mesmo nó — e a consulta pelo
@@ -1037,107 +1089,258 @@ func (s *PostgresStore) Close() error {
 // A raiz do vault — necessária para o `alias:`, que só existe no disco — vem
 // da precedência padrão do `internal/vaultfs`: catálogo do repositório
 // auditado → cofre central → diretório de trabalho atual.
-func (s *PostgresStore) ResolveNodeCanonicalID(ctx context.Context, repo string, query string) (string, error) {
+func (s *PostgresStore) ResolveNodeCanonicalID(ctx context.Context, repo string, query string) (string, *graph.AmbiguityReport, error) {
 	return s.ResolveNodeCanonicalIDWithRoot(ctx, repo, query, vaultfs.ResolveRoot("", repo).Path)
 }
 
 // ResolveNodeCanonicalIDWithRoot resolve o nó canônico com a raiz do vault
-// explícita.
-//
-// A raiz é o que permite resolver o `alias:` de frontmatter: o alias não é
-// persistido no índice (a ADR-056 não foi implementada), então ele só
-// resolve contra o disco. Sem raiz — ou sem o alias no disco — a resposta
-// honesta é o erro de nó não encontrado.
-func (s *PostgresStore) ResolveNodeCanonicalIDWithRoot(ctx context.Context, repo string, query string, vaultRoot string) (string, error) {
+// explícita, respeitando o filtro de repositório e ordenando o desempate determinístico (GPR-01 a GPR-08).
+func (s *PostgresStore) ResolveNodeCanonicalIDWithRoot(ctx context.Context, repo string, query string, vaultRoot string) (string, *graph.AmbiguityReport, error) {
 	clean := strings.TrimSpace(query)
 	clean = strings.TrimPrefix(clean, "[[")
 	clean = strings.TrimSuffix(clean, "]]")
 	clean = strings.TrimSpace(clean)
 	if clean == "" {
-		return "", fmt.Errorf("identificador de busca não pode ser vazio")
+		return "", nil, fmt.Errorf("identificador de busca não pode ser vazio")
 	}
 
-	// `alias:` nomeia um alias de frontmatter: ele vive no disco, não no
+	// 0a. `alias:` nomeia um alias de frontmatter: ele vive no disco, não no
 	// índice, então a resolução é contra o vault.
 	if alias, isAlias := strings.CutPrefix(clean, "alias:"); isAlias {
 		alias = strings.TrimSpace(alias)
 		if canonicalID, ok := s.resolveAliasToDocumentID(ctx, repo, alias, vaultRoot); ok {
-			return canonicalID, nil
+			return canonicalID, nil, nil
 		}
-		return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+		return "", nil, fmt.Errorf("nó '%s' não encontrado no grafo", query)
 	}
 
-	// `title:` nomeia o rótulo do documento. O prefixo é descartado e o
-	// termo passa pelas mesmas chaves — o título resolve para o id do
-	// DOCUMENTO (ADR-066), não para um nó de estilo título.
-	clean = strings.TrimSpace(strings.TrimPrefix(clean, "title:"))
-	if clean == "" {
-		return "", fmt.Errorf("identificador de busca não pode ser vazio")
+	// 0b. `title:` nomeia explicitamente o rótulo do documento (ADR-066).
+	explicitTitle := false
+	if rawTitle, isTitle := strings.CutPrefix(clean, "title:"); isTitle {
+		explicitTitle = true
+		clean = strings.TrimSpace(rawTitle)
+		if clean == "" {
+			return "", nil, fmt.Errorf("identificador de busca não pode ser vazio")
+		}
 	}
 
-	// 1. Checagem exata em documents
-	var canonicalID string
+	if explicitTitle {
+		titleRows, err := s.db.QueryContext(ctx, `
+			SELECT id, path, COALESCE(title, '') FROM documents
+			WHERE ($1 = '' OR repository = $1) AND LOWER(title) = LOWER($2)
+			ORDER BY path ASC, id ASC
+		`, repo, clean)
+		if err == nil {
+			defer titleRows.Close()
+			var cands []nodeCandidate
+			for titleRows.Next() {
+				var id, path, title string
+				if err := titleRows.Scan(&id, &path, &title); err == nil {
+					cands = append(cands, nodeCandidate{
+						id:       id,
+						relPath:  path,
+						title:    title,
+						isDoc:    true,
+						segments: countPathSegments(path),
+					})
+				}
+			}
+			if len(cands) > 0 {
+				best := selectCanonicalCandidate(cands)
+				var amb *graph.AmbiguityReport
+				if len(cands) > 1 {
+					amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+				}
+				return best.id, amb, nil
+			}
+		}
+		return "", nil, fmt.Errorf("nó '%s' não encontrado no grafo", query)
+	}
+
+	cleanSlash := strings.ReplaceAll(clean, "\\", "/")
+	cleanBack := strings.ReplaceAll(clean, "/", "\\")
+
+	// 1. Checagem exata em documents por id (GPR-05)
+	var docID string
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id FROM documents
-		WHERE ($1 = '' OR repository = $1) AND (id = $2 OR path = $2 OR path = $3)
-		LIMIT 1
-	`, repo, clean, clean+".md").Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
+		WHERE ($1 = '' OR repository = $1) AND id = $2
+	`, repo, clean).Scan(&docID)
+	if err == nil && docID != "" {
+		return docID, nil, nil
 	}
 
-	// 2. Checagem exata por título — o título é o RÓTULO do nó, e a resposta
-	// é o `documents.id` do documento (ADR-066). A consulta vem ANTES da
-	// busca em `graph_nodes` porque um nó de estilo título não pode
-	// sequestrar a identidade de um documento indexado.
-	err = s.db.QueryRowContext(ctx, `
-		SELECT id FROM documents
+	// 2. Checagem por caminho relativo em documents (GPR-05, GPR-06)
+	hasSlash := strings.ContainsAny(clean, "/\\")
+	hasMDExt := strings.EqualFold(filepath.Ext(clean), ".md")
+
+	if hasSlash || hasMDExt {
+		p1 := clean
+		p2 := cleanSlash
+		p3 := cleanBack
+		p4 := strings.TrimSuffix(cleanSlash, ".md") + ".md"
+		p5 := strings.TrimSuffix(cleanBack, ".md") + ".md"
+		p6 := strings.TrimSuffix(cleanSlash, ".md")
+		p7 := strings.TrimSuffix(cleanBack, ".md")
+
+		pathRows, err := s.db.QueryContext(ctx, `
+			SELECT DISTINCT id, path, COALESCE(title, '') FROM documents
+			WHERE ($1 = '' OR repository = $1) AND path IN ($2, $3, $4, $5, $6, $7, $8)
+			ORDER BY path ASC, id ASC
+		`, repo, p1, p2, p3, p4, p5, p6, p7)
+		if err == nil {
+			defer pathRows.Close()
+			var cands []nodeCandidate
+			for pathRows.Next() {
+				var id, path, title string
+				if err := pathRows.Scan(&id, &path, &title); err == nil {
+					cands = append(cands, nodeCandidate{
+						id:       id,
+						relPath:  path,
+						title:    title,
+						isDoc:    true,
+						segments: countPathSegments(path),
+					})
+				}
+			}
+			if len(cands) > 0 {
+				best := selectCanonicalCandidate(cands)
+				var amb *graph.AmbiguityReport
+				if len(cands) > 1 {
+					amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+				}
+				return best.id, amb, nil
+			}
+		}
+	}
+
+	// 3. Checagem em graph_nodes por name ou id (GPR-03, GPR-04, GPR-05)
+	gnRows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT gn.id, COALESCE(d.path, gn.id), COALESCE(d.title, gn.name), CASE WHEN d.id IS NOT NULL THEN 1 ELSE 0 END AS is_doc
+		FROM graph_nodes gn
+		LEFT JOIN documents d ON d.id = gn.id AND ($1 = '' OR d.repository = $1)
+		WHERE ($1 = '' OR gn.repository = $1) AND (gn.name = $2 OR gn.name = $3 OR gn.name = $4 OR gn.id = $2 OR gn.id = $3 OR gn.id = $4)
+		ORDER BY gn.id ASC
+	`, repo, clean, cleanSlash, cleanBack)
+	if err == nil {
+		defer gnRows.Close()
+		var cands []nodeCandidate
+		for gnRows.Next() {
+			var id, path, title string
+			var isDocInt int
+			if err := gnRows.Scan(&id, &path, &title, &isDocInt); err == nil {
+				cands = append(cands, nodeCandidate{
+					id:       id,
+					relPath:  path,
+					title:    title,
+					isDoc:    isDocInt == 1,
+					segments: countPathSegments(path),
+				})
+			}
+		}
+		if len(cands) > 0 {
+			best := selectCanonicalCandidate(cands)
+			var amb *graph.AmbiguityReport
+			if len(cands) > 1 {
+				amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+			}
+			return best.id, amb, nil
+		}
+	}
+
+	// 4. Checagem exata por título em documents (GPR-05)
+	titleRows, err := s.db.QueryContext(ctx, `
+		SELECT id, path, COALESCE(title, '') FROM documents
 		WHERE ($1 = '' OR repository = $1) AND LOWER(title) = LOWER($2)
-		LIMIT 1
-	`, repo, clean).Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
+		ORDER BY path ASC, id ASC
+	`, repo, clean)
+	if err == nil {
+		defer titleRows.Close()
+		var cands []nodeCandidate
+		for titleRows.Next() {
+			var id, path, title string
+			if err := titleRows.Scan(&id, &path, &title); err == nil {
+				cands = append(cands, nodeCandidate{
+					id:       id,
+					relPath:  path,
+					title:    title,
+					isDoc:    true,
+					segments: countPathSegments(path),
+				})
+			}
+		}
+		if len(cands) > 0 {
+			best := selectCanonicalCandidate(cands)
+			var amb *graph.AmbiguityReport
+			if len(cands) > 1 {
+				amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+			}
+			return best.id, amb, nil
+		}
 	}
 
-	// 3. Checagem em graph_nodes
-	err = s.db.QueryRowContext(ctx, `
-		SELECT id FROM graph_nodes
-		WHERE ($1 = '' OR repository = $1) AND (id = $2 OR name = $2)
-		LIMIT 1
-	`, repo, clean).Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
-	}
-
-	// 4. Checagem difusa LIKE
-	likeQuery := "%" + clean + "%"
-	err = s.db.QueryRowContext(ctx, `
-		SELECT id FROM documents
-		WHERE ($1 = '' OR repository = $1) AND (id LIKE $2 OR path LIKE $2 OR title LIKE $2)
+	// 5. Checagem difusa (LIKE) em id, path ou title (GPR-05)
+	likeSlash := "%" + cleanSlash + "%"
+	likeBack := "%" + cleanBack + "%"
+	likeClean := "%" + clean + "%"
+	fuzzyRows, err := s.db.QueryContext(ctx, `
+		SELECT id, path, COALESCE(title, '') FROM documents
+		WHERE ($1 = '' OR repository = $1) AND (id LIKE $2 OR path LIKE $2 OR path LIKE $3 OR title LIKE $4)
 		ORDER BY
 			CASE
-				WHEN id LIKE $3 THEN 1
-				WHEN path LIKE $3 THEN 2
+				WHEN id LIKE $5 THEN 1
+				WHEN path LIKE $5 OR path LIKE $6 THEN 2
 				ELSE 3
-			END
-		LIMIT 1
-	`, repo, likeQuery, clean+"%").Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
+			END,
+			id ASC
+	`, repo, likeSlash, likeBack, likeClean, clean+"%", cleanSlash+"%", cleanBack+"%")
+	if err == nil {
+		defer fuzzyRows.Close()
+		var cands []nodeCandidate
+		for fuzzyRows.Next() {
+			var id, path, title string
+			if err := fuzzyRows.Scan(&id, &path, &title); err == nil {
+				cands = append(cands, nodeCandidate{
+					id:       id,
+					relPath:  path,
+					title:    title,
+					isDoc:    true,
+					segments: countPathSegments(path),
+				})
+			}
+		}
+		if len(cands) > 0 {
+			best := selectCanonicalCandidate(cands)
+			var amb *graph.AmbiguityReport
+			if len(cands) > 1 {
+				amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+			}
+			return best.id, amb, nil
+		}
 	}
 
-	// 5. Checagem nas arestas
-	err = s.db.QueryRowContext(ctx, `
-		SELECT target_id FROM graph_edges WHERE ($1 = '' OR repository = $1) AND target_id = $2
+	// 6. Se existe nas arestas do grafo como source ou target direto
+	edgeRows, err := s.db.QueryContext(ctx, `
+		SELECT target_id FROM graph_edges WHERE ($1 = '' OR repository = $1) AND (target_id = $2 OR target_id = $3 OR target_id = $4)
 		UNION
-		SELECT source_id FROM graph_edges WHERE ($1 = '' OR repository = $1) AND source_id = $2
-		LIMIT 1
-	`, repo, clean).Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
+		SELECT source_id FROM graph_edges WHERE ($1 = '' OR repository = $1) AND (source_id = $2 OR source_id = $3 OR source_id = $4)
+		ORDER BY 1 ASC
+	`, repo, clean, cleanSlash, cleanBack)
+	if err == nil {
+		defer edgeRows.Close()
+		var edgeIDs []string
+		for edgeRows.Next() {
+			var edgeID string
+			if err := edgeRows.Scan(&edgeID); err == nil {
+				edgeIDs = append(edgeIDs, edgeID)
+			}
+		}
+		if len(edgeIDs) > 0 {
+			return edgeIDs[0], nil, nil
+		}
 	}
 
-	return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+	return "", nil, fmt.Errorf("nó '%s' não encontrado no grafo", query)
 }
 
 // resolveAliasToDocumentID resolve um alias de frontmatter contra o disco do
@@ -1173,7 +1376,7 @@ func (s *PostgresStore) resolveAliasToDocumentID(ctx context.Context, repo strin
 
 // CalculateImpact calcula a análise de impacto (blast radius) de um nó alvo no PostgreSQL
 func (s *PostgresStore) CalculateImpact(ctx context.Context, repo string, targetQuery string, maxDepth int) (*graph.ImpactResult, error) {
-	canonicalID, err := s.ResolveNodeCanonicalID(ctx, repo, targetQuery)
+	canonicalID, _, err := s.ResolveNodeCanonicalID(ctx, repo, targetQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -1258,7 +1461,7 @@ func (s *PostgresStore) CalculateImpact(ctx context.Context, repo string, target
 
 // InspectNode constrói a visualização cirúrgica em 3 colunas (Triptych) de um nó no PostgreSQL
 func (s *PostgresStore) InspectNode(ctx context.Context, repo string, targetQuery string, maxContentLen int) (*graph.TriptychView, error) {
-	canonicalID, err := s.ResolveNodeCanonicalID(ctx, repo, targetQuery)
+	canonicalID, _, err := s.ResolveNodeCanonicalID(ctx, repo, targetQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -1438,12 +1641,12 @@ func (s *PostgresStore) InspectNode(ctx context.Context, repo string, targetQuer
 
 // FindPath resolve os nós de origem e destino e calcula o menor caminho no PostgreSQL
 func (s *PostgresStore) FindPath(ctx context.Context, repo string, sourceQuery string, targetQuery string, opts graph.PathOptions) (*graph.PathResult, error) {
-	canonicalSource, err := s.ResolveNodeCanonicalID(ctx, repo, sourceQuery)
+	canonicalSource, ambSource, err := s.ResolveNodeCanonicalID(ctx, repo, sourceQuery)
 	if err != nil {
 		return nil, fmt.Errorf("falha ao resolver nó de origem: %w", err)
 	}
 
-	canonicalTarget, err := s.ResolveNodeCanonicalID(ctx, repo, targetQuery)
+	canonicalTarget, ambTarget, err := s.ResolveNodeCanonicalID(ctx, repo, targetQuery)
 	if err != nil {
 		return nil, fmt.Errorf("falha ao resolver nó de destino: %w", err)
 	}
@@ -1504,7 +1707,21 @@ func (s *PostgresStore) FindPath(ctx context.Context, repo string, sourceQuery s
 		allNodes = append(allNodes, n)
 	}
 
-	return graph.FindPath(allNodes, edges, canonicalSource, canonicalTarget, opts)
+	pathRes, err := graph.FindPath(allNodes, edges, canonicalSource, canonicalTarget, opts)
+	if err != nil {
+		return nil, err
+	}
+	if pathRes != nil {
+		if ambSource != nil && ambTarget != nil {
+			allCands := append(ambSource.Candidates, ambTarget.Candidates...)
+			pathRes.Ambiguity = graph.NewAmbiguityReport(ambSource.Query+", "+ambTarget.Query, allCands)
+		} else if ambSource != nil {
+			pathRes.Ambiguity = ambSource
+		} else if ambTarget != nil {
+			pathRes.Ambiguity = ambTarget
+		}
+	}
+	return pathRes, nil
 }
 
 // GetDocumentsMetadata recupera o mapa de caminhos para metadados de documentos para detecção de staleness
@@ -1530,7 +1747,7 @@ func (s *PostgresStore) GetDocumentsMetadata(ctx context.Context, repo string) (
 
 // PackContext resolve o nó raiz e constrói o pacote consolidado de subgrafo no PostgreSQL
 func (s *PostgresStore) PackContext(ctx context.Context, repo string, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
-	canonicalRoot, err := s.ResolveNodeCanonicalID(ctx, repo, rootQuery)
+	canonicalRoot, _, err := s.ResolveNodeCanonicalID(ctx, repo, rootQuery)
 	if err != nil {
 		return nil, fmt.Errorf("falha ao resolver nó raiz no postgres: %w", err)
 	}

@@ -196,14 +196,14 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] Nenhuma query de resolução usa mais `LIMIT 1` sem `ORDER BY` para escolher entre candidatos (`internal/store/postgres.go:1029-1033`, `:1039-1043`, `:1049-1053` e `:1076-1081`)
-- [ ] O passo difuso (LIKE, `internal/store/postgres.go:1060-1070`) tem a **mesma** ordem de desempate de T2
-- [ ] A coleta de candidatos **respeta** o filtro de repositório: candidatos de outro repositório nunca entram na lista
-- [ ] Dois nós de mesmo nome **no mesmo repositório** produzem o relatório de ambiguidade com os dois candidatos
-- [ ] O id canônico devolvido é **o mesmo** que o teste do SQLite afirma para o mesmo identificador (GPR-08)
-- [ ] O teste usa `pgtest.New(t)` (banco descartável) e **nunca** o Postgres configurado do dono; sem `MY_MEMORY_PG_TEST=1` ele **pulsa** (skip) em vez de falhar
-- [ ] Gate completo passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 ./internal/store/...`
-- [ ] Test count: os testes de `internal/store` passam, sem nenhuma deleção silenciosa
+- [x] Nenhuma query de resolução usa mais `LIMIT 1` sem `ORDER BY` para escolher entre candidatos (`internal/store/postgres.go:1029-1033`, `:1039-1043`, `:1049-1053` e `:1076-1081`)
+- [x] O passo difuso (LIKE, `internal/store/postgres.go:1060-1070`) tem a **mesma** ordem de desempate de T2
+- [x] A coleta de candidatos **respeta** o filtro de repositório: candidatos de outro repositório nunca entram na lista
+- [x] Dois nós de mesmo nome **no mesmo repositório** produzem o relatório de ambiguidade com os dois candidatos
+- [x] O id canônico devolvido é **o mesmo** que o teste do SQLite afirma para o mesmo identificador (GPR-08)
+- [x] O teste usa `pgtest.New(t)` (banco descartável) e **nunca** o Postgres configurado do dono; sem `MY_MEMORY_PG_TEST=1` ele **pulsa** (skip) em vez de falhar
+- [x] Gate completo passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 ./internal/store/...`
+- [x] Test count: os testes de `internal/store` passam, sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: full

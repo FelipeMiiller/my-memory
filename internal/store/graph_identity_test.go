@@ -160,15 +160,15 @@ func TestPostgresResolveCanonical(t *testing.T) {
 	}
 
 	// 1. Path, `title:` e `alias:` do mesmo documento → o mesmo id.
-	byPath, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, notaPath, vault)
+	byPath, _, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, notaPath, vault)
 	if err != nil {
 		t.Fatalf("resolvendo pelo path: %v", err)
 	}
-	byTitle, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "title:Minha Nota", vault)
+	byTitle, _, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "title:Minha Nota", vault)
 	if err != nil {
 		t.Fatalf("resolvendo pelo title:: %v", err)
 	}
-	byAlias, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "alias:Meu Alias", vault)
+	byAlias, _, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "alias:Meu Alias", vault)
 	if err != nil {
 		t.Fatalf("resolvendo pelo alias:: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestPostgresResolveCanonical(t *testing.T) {
 
 	// 2. A consulta pelo título devolve o `documents.id` do repositório
 	// auditado — nunca o id do nó de estilo título nem o do outro repo.
-	byPlainTitle, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "Minha Nota", vault)
+	byPlainTitle, _, err := s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "Minha Nota", vault)
 	if err != nil {
 		t.Fatalf("resolvendo pelo título: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestPostgresResolveCanonical(t *testing.T) {
 	}
 
 	// 3. Sem raiz do vault, o alias devolve o erro de nó não encontrado.
-	_, err = s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "alias:Meu Alias", "")
+	_, _, err = s.ResolveNodeCanonicalIDWithRoot(ctx, repo, "alias:Meu Alias", "")
 	if err == nil {
 		t.Fatal("sem raiz do vault, o alias devolve erro; obteve nil")
 	}

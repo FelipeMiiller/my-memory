@@ -110,7 +110,7 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 			if resolvedPG != "" && (*pgURL != "" || (cfg != nil && cfg.Storage.Engine == "postgres")) {
 				if pgStore, err := store.NewPostgresStore(resolvedPG); err == nil {
 					defer pgStore.Close()
-					if canonical, err := pgStore.ResolveNodeCanonicalID(ctx, resolvedRepo, targetNode); err == nil && canonical != "" {
+					if canonical, _, err := pgStore.ResolveNodeCanonicalID(ctx, resolvedRepo, targetNode); err == nil && canonical != "" {
 						resolvedPath = canonical
 					}
 				}
