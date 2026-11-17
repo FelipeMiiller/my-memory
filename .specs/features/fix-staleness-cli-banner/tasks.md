@@ -286,11 +286,11 @@ continua sendo **só** o documento JSON.
 
 **Done when**:
 
-- [ ] `mem path` num vault stale escreve o banner **antes** do bloco de resultado
-- [ ] `mem path --json` escreve **só** o JSON: o banner não aparece e o documento continua desserializável
-- [ ] Num vault em sincronia, `mem path` **não** escreve banner
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] `mem path` num vault stale escreve o banner **antes** do bloco de resultado
+- [x] `mem path --json` escreve **só** o JSON: o banner não aparece e o documento continua desserializável
+- [x] Num vault em sincronia, `mem path` **não** escreve banner
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: integration
 **Gate**: quick
