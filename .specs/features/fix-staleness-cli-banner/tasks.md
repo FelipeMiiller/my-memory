@@ -386,15 +386,15 @@ truncamento existente (`cmd/mem/status.go:134-143`) · o par `--json` (`:97-101`
 
 **Done when**:
 
-- [ ] O output humano tem **três** headings distintos: modificados, novos e removidos, cada um com a sua contagem
-- [ ] A linha `Diferenças:` traz os três números (modificados, novos, removidos)
-- [ ] O status stale é `⚠️ DESATUALIZADO (Stale)` e o fresh é `✅ ATUALIZADO (Fresh)`
-- [ ] Cada caminho listado é **relativo à raiz do vault** e a lista está em **ordem lexicográfica crescente**
-- [ ] Uma categoria com mais de 10 arquivos imprime os 10 primeiros e a linha `  ... e mais N arquivo(s)` com N correto
-- [ ] O `--json` traz `new_files` e `new_files_count` com os mesmos valores da listagem humana
-- [ ] `cmd/mem/status_test.go:46` e `:87` passam a asseverar os literais canônicos — **atualizados, nunca removidos**; e um teste novo assevera a **listagem** (caminho relativo, ordenação, truncamento), que hoje **não tem asserção nenhuma**
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] O output humano tem **três** headings distintos: modificados, novos e removidos, cada um com a sua contagem
+- [x] A linha `Diferenças:` traz os três números (modificados, novos, removidos)
+- [x] O status stale é `⚠️ DESATUALIZADO (Stale)` e o fresh é `✅ ATUALIZADO (Fresh)`
+- [x] Cada caminho listado é **relativo à raiz do vault** e a lista está em **ordem lexicográfica crescente**
+- [x] Uma categoria com mais de 10 arquivos imprime os 10 primeiros e a linha `  ... e mais N arquivo(s)` com N correto
+- [x] O `--json` traz `new_files` e `new_files_count` com os mesmos valores da listagem humana
+- [x] `cmd/mem/status_test.go:46` e `:87` passam a asseverar os literais canônicos — **atualizados, nunca removidos**; e um teste novo assevera a **listagem** (caminho relativo, ordenação, truncamento), que hoje **não tem asserção nenhuma**
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: integration
 **Gate**: quick

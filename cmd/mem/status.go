@@ -121,43 +121,35 @@ func runStatusCommand(ctx context.Context, defaultRepo string, args []string, ou
 	fmt.Fprintf(out, "Arquivos Indexados: %d\n", report.IndexedCount)
 
 	if !report.IsStale {
-		fmt.Fprintf(out, "Status:             ✅ Atualizado (In Sync)\n")
+		fmt.Fprintf(out, "Status:             ✅ ATUALIZADO (Fresh)\n")
 		fmt.Fprintf(out, "Todos os arquivos elegíveis estão devidamente sincronizados com o grafo e embeddings.\n\n")
 		return nil
 	}
 
-	fmt.Fprintf(out, "Status:             ⚠️  Desatualizado (Stale Data)\n")
-	fmt.Fprintf(out, "Diferenças:         %d modificado(s)/novo(s), %d removido(s)\n\n", report.StaleFilesCount, report.DeletedFilesCount)
+	fmt.Fprintf(out, "Status:             ⚠️ DESATUALIZADO (Stale)\n")
+	fmt.Fprintf(out, "Diferenças:         %d modificado(s), %d novo(s), %d removido(s)\n\n", report.StaleFilesCount, report.NewFilesCount, report.DeletedFilesCount)
 
-	if len(report.StaleFiles) > 0 {
-		fmt.Fprintf(out, "Arquivos Modificados ou Não-Indexados (%d):\n", len(report.StaleFiles))
+	printFileList := func(title string, files []string) {
+		if len(files) == 0 {
+			return
+		}
+		fmt.Fprintf(out, "%s (%d):\n", title, len(files))
 		limit := 10
-		if len(report.StaleFiles) < limit {
-			limit = len(report.StaleFiles)
+		if len(files) < limit {
+			limit = len(files)
 		}
 		for i := 0; i < limit; i++ {
-			fmt.Fprintf(out, "  • %s\n", report.StaleFiles[i])
+			fmt.Fprintf(out, "  • %s\n", files[i])
 		}
-		if len(report.StaleFiles) > limit {
-			fmt.Fprintf(out, "  ... e mais %d arquivo(s)\n", len(report.StaleFiles)-limit)
+		if len(files) > limit {
+			fmt.Fprintf(out, "  ... e mais %d arquivo(s)\n", len(files)-limit)
 		}
 		fmt.Fprintln(out)
 	}
 
-	if len(report.DeletedFiles) > 0 {
-		fmt.Fprintf(out, "Arquivos Removidos do Disco (%d):\n", len(report.DeletedFiles))
-		limit := 10
-		if len(report.DeletedFiles) < limit {
-			limit = len(report.DeletedFiles)
-		}
-		for i := 0; i < limit; i++ {
-			fmt.Fprintf(out, "  • %s\n", report.DeletedFiles[i])
-		}
-		if len(report.DeletedFiles) > limit {
-			fmt.Fprintf(out, "  ... e mais %d arquivo(s)\n", len(report.DeletedFiles)-limit)
-		}
-		fmt.Fprintln(out)
-	}
+	printFileList("Arquivos Modificados", report.StaleFiles)
+	printFileList("Arquivos Novos", report.NewFiles)
+	printFileList("Arquivos Removidos do Disco", report.DeletedFiles)
 
 	fmt.Fprintf(out, "💡 Recomendação: Execute 'mem index' para sincronizar o grafo e embeddings.\n\n")
 	return nil
