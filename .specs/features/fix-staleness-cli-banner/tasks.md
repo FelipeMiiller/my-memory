@@ -349,11 +349,11 @@ depois de abrir a conexão e **antes** da renderização `=== Análise de Impact
 
 **Done when**:
 
-- [ ] `mem impact` num vault stale escreve o banner **antes** da tabela de impacto
-- [ ] `mem impact --json` escreve **só** o JSON: o banner não aparece e o documento continua desserializável
-- [ ] Num vault em sincronia, `mem impact` **não** escreve banner
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] `mem impact` num vault stale escreve o banner **antes** da tabela de impacto
+- [x] `mem impact --json` escreve **só** o JSON: o banner não aparece e o documento continua desserializável
+- [x] Num vault em sincronia, `mem impact` **não** escreve banner
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: integration
 **Gate**: quick
