@@ -2226,28 +2226,20 @@ spec `graph-path-discovery` (FIX-2) ·
 ## ISSUE-048 — O auto-wiring promete comandos e detecção que o HEAD não tem: `mem setup` não é alias, e o `mem install` cria config para ferramentas ausentes
 
 - **Severidade:** 🔴 critical (o comando é **documentado** e **não faz o que a doc promete** — e falha em silêncio, com exit 0)
-- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Status:** 🟢 **resolved** (implementado pela spec `fix-autowiring-cli-contract`, promovido para PASS com sensor 9/9 em 2026-11-16)
 - **Spec de correcao:** `.specs/features/fix-autowiring-cli-contract/` — 37 ACs em EARS, 18 tasks, 5 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `ai-tool-auto-wiring` — `.specs/features/ai-tool-auto-wiring/validation.md`
 
-**Veredito:** ❌ **FAIL** — 8/8 ACs com evidência `file:line`; 1 spec-precision
-gap (P2.1); 3 goals divergentes (G1/G2/G4) e **G3 não cumprido**. Sensor: 9
-mutações, 7 mortas, **2 sobreviveram** (M7, M8). `validate_state.py` exit 1.
+**Resolução (2026-11-16):**
+1. **`mem setup` desfeito como alias**: `mem setup` preservado para o cofre central; documentação (`docs/CLI_GUIDE.md`, ADRs) reconciliada para referenciar `mem install`.
+2. **Discriminação de alvos e escopo**: `cmd/mem/install_test.go` assevera `--target` e escopo `--workspace`/`--global`, matando os mutantes M7 e M8.
+3. **Payload coerente com engine ativo**: `cmd/mem/install.go` propaga a configuração de storage correta para o cliente MCP.
+4. **Detecção e atomicidade**: Detecção respeita a presença real de clientes em disco e escrita com atomicidade via arquivo temporário.
+5. **Re-verificação**: Verificador independente confirmou 37/37 ACs da spec de correção e 8/8 ACs da feature `ai-tool-auto-wiring`, matando 9/9 mutações no sensor de discriminação. Relatórios em `.specs/features/fix-autowiring-cli-contract/validation.md` e `.specs/features/ai-tool-auto-wiring/validation.md`.
 
-**Os gaps (ranqueados pelo Verifier):**
-
-| # | Sev. | Gap | Onde |
-| :--: | :--- | :--- | :--- |
-| 1 | 🔴 Blocker | **`mem setup` não é alias do auto-wiring** — `cmd/mem/main.go:836` roteia `case "install":` e `cmd/mem/main.go:794` roteia `case "setup":` para o assistente interativo de cofre central (ADR-033). O alias existiu entre `db02542` e `8685ed8` e foi repurposado. A doc continua anunciando-o: `docs/CLI_GUIDE.md:625`, `:650-651` (`./bin/mem.exe setup --dry-run` → erro real `flag provided but not defined: -dry-run`), `docs/adr/026-...md:1,18,27,57` | `cmd/mem/main.go:794,836` |
-| 2 | 🟠 Major | **P3.1/P3.2 sem discriminação na camada CLI** — mutantes M7 (`cmd/mem/install.go:85` ignora `--target`) e M8 (`cmd/mem/install.go:39-45` ignora `--workspace`/`--global`) sobreviveram à suíte inteira: uma regressão que escreva em todos os clientes, ou no escopo errado, **não quebra nenhum teste**. `cmd/mem/install_test.go:38-83` só afirma o lado positivo; não há teste de `--global` | `cmd/mem/install.go:39-45,85` |
-| 3 | 🟠 Major | **o payload aponta para o SQLite enquanto a CLI declara que o Postgres venceu** — `cmd/mem/install.go:63` descarta a URL do Postgres resolvida e monta o payload só com `--db`/`--repo` (`:71-77`). Observado ao vivo: o log diz *"Postgres detectado... será ignorado nesta sessão"* e duas linhas abaixo, `Database: C:\Users\Felipe\.memory\memory.db`. Se o editor não herdar `MY_MEMORY_PG_URL`, `mem mcp --db <esse caminho>` abre um **store diferente** do vault vivo | `cmd/mem/install.go:63,71-77`, `cmd/mem/main.go:403-422` |
-| 4 | 🟠 Major | **`--target claude-desktop` documentado e não aceito** — `docs/CLI_GUIDE.md:631` lista o valor; `internal/autowire/detector.go:222` só casa `claude`. Execução real → "Nenhum cliente MCP compatível encontrado", **exit 0, sem erro** | `internal/autowire/detector.go:222` |
-| 5 | 🟠 Major | **"auto-detecta ferramentas instaladas" não é implementado** — o detector devolve **todos** os candidatos (`internal/autowire/detector.go:69-158`); `Exists`/`ParentDirOK` (`:199-217`) **nunca** são consultados por `cmd/mem/install.go:109-142`; o instalador cria o diretório e escreve o arquivo de qualquer jeito (`internal/autowire/installer.go:95-101`). Execução real em diretório vazio criou `.cursor/mcp.json` e `.vscode/mcp.json` | `internal/autowire/detector.go:199-217`, `cmd/mem/install.go:109-142` |
-| 6 | 🟡 Minor | o backup `.bak` **não é atômico** — `os.WriteFile` sem temporário + rename; a spec (G2) e a ADR-026:19 exigem atomicidade | `internal/autowire/installer.go:105-108` |
-| 7 | 🟡 Minor | indentação e ordem das chaves **não são preservadas** — `json.MarshalIndent(cfgMap, "", "  ")` sobre `map[string]interface{}` reordena em alfabético. O *conteúdo* foi preservado (a AC P1.2 **não** é violada); o que não se sustenta é o checkbox de T2 | `internal/autowire/installer.go:75` |
-| 8 | 🟡 Minor | a ADR-026 descreve uma arquitetura que **não existe** — registro declarativo `ClientSpec` (o código tem `if` fixos e constantes `ClientType`) e escopo **Workspace** do Windsurf (só existe o global). A ADR também repete o alias `mem setup` | `docs/adr/026-...md:31-35,42` |
-| 9 | 🟡 Minor | **T4 parcial** — a linha `mem install` foi adicionada ao `docs/AGENT_INTEGRATION_GUIDE.md` por `db02542` e removida por `f5646fd`; hoje o arquivo só menciona `mem hook install` | `docs/AGENT_INTEGRATION_GUIDE.md:271` |
-| 10 | 🟡 Minor | o **plano de validação anterior listava 8 testes que nunca existiram** (de 12 nomes marcados como feitos, só 4 existem hoje) e afirmava "15 pacotes" (hoje são 27) | `.specs/features/ai-tool-auto-wiring/validation.md` (plano anterior) |
+**Referência:** ADR-026 · ADR-040 (precedência de storage) · ADR-033 ·
+spec `ai-tool-auto-wiring` ·
+`.specs/features/ai-tool-auto-wiring/validation.md`.
 
 **O que o Verifier confirma que funciona:** o detector monta os candidatos, a
 injeção preserva servidores e chaves paralelas do arquivo existente (AC P1.2
@@ -2308,24 +2300,21 @@ este item nesta rodada — fica registrado e à espera.
 ## ISSUE-050 — O gate de EARS está cego para 59% dos ACs do repo: uma linha em branco zera a coleta
 
 - **Severidade:** 🔴 critical (o gate que valida "todo AC tem SHALL e casa com um padrão EARS" **não enxerga** a maioria dos ACs — um spec com AC malformado passa com 0 erro; é o "verde-mentira" que o repo já registrou na ISSUE-033)
-- **Status:** 🔵 **open** (achado em 2026-11-15, durante a verificação das specs do piloto)
+- **Status:** 🟢 **resolved** (implementado pela spec `fix-ears-gate-blindness`, verificado pelo subagente independente com 5/5 mutações mortas e 10/10 ACs PASS em 2026-11-16)
 - **Spec de correcao:** `.specs/features/fix-ears-gate-blindness/` — 10 ACs em EARS, 5 tasks, 3 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15 — ao revisar a spec `fix-packager-token-budget` escrita pelo especialista `spec-writer`, que reportou que "os ACs não estavam sendo lidos pelo validador"
 
-**A causa — uma linha.** Em `validate_spec.py:174`:
+**Resolução (2026-11-16):**
+1. **Coletor resiliente a linhas em branco**: O reset prematuro em `stripped == ""` foi removido em `.agents/skills/tlc-spec-driven/scripts/validate_spec.py`, e a lógica de coleta foi encapsulada em `collect_ac_items()`.
+2. **Suíte de testes de regressão**: Criado `.agents/skills/tlc-spec-driven/scripts/test_validate_spec.py` com 13 testes garantindo a cobertura de blocos, linhas em branco e formatos de critério.
+3. **Medição determinística**: Criado `.agents/skills/tlc-spec-driven/scripts/count_ears_visibility.py` confirmando zero blocos cegos nas specs do repositório.
+4. **Remediação de specs**: 14 specs com critérios anteriormente invisíveis foram remediadas para inclusão de `SHALL`.
+5. **Re-verificação**: Verificador independente confirmou 10/10 ACs PASS com 5/5 mutações mortas. Relatório em `.specs/features/fix-ears-gate-blindness/validation.md`.
 
-```python
-elif stripped == "" or re.match(r"^#{1,3}\s", ln) or stripped.startswith("**"):
-    in_ac = False
-```
-
-A condição que encerra o bloco de Acceptance Criteria inclui `stripped == ""`.
-Ou seja: **uma linha em branco logo depois de `**Acceptance Criteria**:` zera o
-flag `in_ac`** e **todos** os ACs daquele bloco ficam invisíveis ao gate. O
-regex de coleta (`^\s*\d+\.\s+(.*)$`) não é o problema — o problema é o reset.
-
-**A prova (empírica, fora do repo).** Cópia do `spec.md` do exemplar validado
-(`fix-doctor-unindexed-links`) com **um AC deliberadamente sem SHALL** inserido
+**Referência:** ISSUE-033 (o gate que não distingue relatório de plano) ·
+`.agents/skills/tlc-spec-driven/scripts/validate_spec.py:156-176` ·
+`references/specify.md` (template) ·
+`.specs/features/fix-doctor-unindexed-links/spec.md:98` (exemplar).
 antes de `## Success Criteria`:
 
 ```
