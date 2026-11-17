@@ -345,12 +345,12 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] O default de `--max-depth`, de direção e de `--mode` vem de `graph.DefaultPathOptions()`
-- [ ] O default efetivo continua sendo **6** / **true** / **epistemic** e a saída mostra `Profundidade:    6 saltos máx` e `Modo:            epistemic`
-- [ ] O `grep` não acha mais literal de default de caminho em `cmd/mem/path.go` (GPR-36)
-- [ ] A precedência `--undirected` sobre `--directed` e o reset de `--max-depth` ≤ 0 continuam valendo (comportamento vigente, ver Edge Cases)
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
-- [ ] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
+- [x] O default de `--max-depth`, de direção e de `--mode` vem de `graph.DefaultPathOptions()`
+- [x] O default efetivo continua sendo **6** / **true** / **epistemic** e a saída mostra `Profundidade:    6 saltos máx` e `Modo:            epistemic`
+- [x] O `grep` não acha mais literal de default de caminho em `cmd/mem/path.go` (GPR-36)
+- [x] A precedência `--undirected` sobre `--directed` e o reset de `--max-depth` ≤ 0 continuam valendo (comportamento vigente, ver Edge Cases)
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
+- [x] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: quick

@@ -23,14 +23,16 @@ func runPathCLI(ctx context.Context, defaultRepo string, args []string) error {
 
 // runPathCommand executa a descoberta de rota permitindo injeção de io.Writer para testes
 func runPathCommand(ctx context.Context, defaultRepo string, args []string, out io.Writer) error {
+	defaultOpts := graph.DefaultPathOptions()
+
 	pathCmd := flag.NewFlagSet("path", flag.ContinueOnError)
 	pathCmd.SetOutput(out)
 
-	maxDepth := pathCmd.Int("max-depth", 6, "Profundidade máxima de saltos a explorar (padrão: 6)")
-	depthAlias := pathCmd.Int("depth", 6, "Alias para --max-depth")
-	directed := pathCmd.Bool("directed", true, "Navegação respeitando o sentido das arestas (padrão: true)")
+	maxDepth := pathCmd.Int("max-depth", defaultOpts.MaxDepth, fmt.Sprintf("Profundidade máxima de saltos a explorar (padrão: %d)", defaultOpts.MaxDepth))
+	depthAlias := pathCmd.Int("depth", defaultOpts.MaxDepth, "Alias para --max-depth")
+	directed := pathCmd.Bool("directed", defaultOpts.Directed, fmt.Sprintf("Navegação respeitando o sentido das arestas (padrão: %t)", defaultOpts.Directed))
 	undirected := pathCmd.Bool("undirected", false, "Navegação bidirecional ignorando o sentido das arestas")
-	modeStr := pathCmd.String("mode", "epistemic", "Modo de custo ('epistemic' ponderado ou 'hops' uniforme)")
+	modeStr := pathCmd.String("mode", string(defaultOpts.CostMode), "Modo de custo ('epistemic' ponderado ou 'hops' uniforme)")
 	jsonOutput := pathCmd.Bool("json", false, "Exibe o resultado em formato JSON estruturado")
 	dbPath := pathCmd.String("db", "", "Caminho do arquivo SQLite")
 	pgURL := pathCmd.String("postgres", "", "URL de conexão PostgreSQL")
@@ -48,12 +50,13 @@ func runPathCommand(ctx context.Context, defaultRepo string, args []string, out 
 	sourceNode := remaining[0]
 	targetNode := remaining[1]
 
+	defaultDepthStr := fmt.Sprintf("%d", defaultOpts.MaxDepth)
 	resolvedDepth := *maxDepth
-	if pathCmd.Lookup("depth").Value.String() != "6" && *depthAlias != 6 {
+	if pathCmd.Lookup("depth").Value.String() != defaultDepthStr && *depthAlias != defaultOpts.MaxDepth {
 		resolvedDepth = *depthAlias
 	}
 	if resolvedDepth <= 0 {
-		resolvedDepth = 6
+		resolvedDepth = defaultOpts.MaxDepth
 	}
 
 	isDirected := *directed
@@ -61,7 +64,7 @@ func runPathCommand(ctx context.Context, defaultRepo string, args []string, out 
 		isDirected = false
 	}
 
-	costMode := graph.CostModeEpistemic
+	costMode := defaultOpts.CostMode
 	if strings.ToLower(strings.TrimSpace(*modeStr)) == "hops" {
 		costMode = graph.CostModeHops
 	}
