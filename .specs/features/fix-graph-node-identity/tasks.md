@@ -447,14 +447,14 @@ mudar, porque as arestas passam a apontar para documentos).
 
 **Done when**:
 
-- [ ] A doc traz a **query** que conta as arestas com as duas pontas em id de documento
-- [ ] A doc diz que o valor atual do vault `repo_central` é **0** de 40.243 (a medição
+- [x] A doc traz a **query** que conta as arestas com as duas pontas em id de documento
+- [x] A doc diz que o valor atual do vault `repo_central` é **0** de 40.243 (a medição
       de 2026-11-15)
-- [ ] A doc traz o procedimento (reindex → `mem doctor --fix` → query) e avisa que ele
+- [x] A doc traz o procedimento (reindex → `mem doctor --fix` → query) e avisa que ele
       reescreve o grafo
-- [ ] A doc manda comparar o `mem doctor` (Health Score e links rompidos) antes e depois
-- [ ] A doc deixa claro que a mudança de código **não** repara o vault sem reindex
-- [ ] O gate de build passa: `go -C D:\repository\my-memory build ./...`
+- [x] A doc manda comparar o `mem doctor` (Health Score e links rompidos) antes e depois
+- [x] A doc deixa claro que a mudança de código **não** repara o vault sem reindex
+- [x] O gate de build passa: `go -C D:\repository\my-memory build ./...`
 
 **Tests**: none (camada de contrato — o gate é o build + a query de medição)
 **Gate**: quick

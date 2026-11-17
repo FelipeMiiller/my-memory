@@ -461,6 +461,90 @@ A verificação varre `title`, `abstract` e o conteúdo dos chunks e reporta os 
 ./bin/mem.exe doctor --fix
 ```
 
+#### Procedimento de reparo do grafo depois da unificação da identidade do nó (ADR-066)
+
+Até a ADR-066, o indexador dava **duas identidades** a cada nota: a **origem** da aresta era gravada com o `documents.id` (o id de path) e o **destino** com o **id de título** (o texto do wikilink). Toda aresta atravessava essa fenda — e o `mem path` não achava caminho no vault real.
+
+A correção do código (o indexador grava o `documents.id` do destino e o `title:` vira o **rótulo** do nó) **não repara o dado já gravado**: o grafo é derivado do disco, e o que já está no banco continua atravessado. O reparo é um **reindex**.
+
+**Estado medido do cofre central (`repo_central`, SQL somente-leitura, 2026-11-15):**
+
+| Métrica | Valor |
+| :--- | ---: |
+| arestas em `graph_edges` | **40.243** |
+| arestas com as **duas** pontas em id de path | **0** |
+| nós em `graph_nodes` | **3.601** (401 com id de path · 3.200 de estilo título) |
+
+Ou seja: **0 de 40.243** arestas têm as duas pontas no id de path — nenhuma.
+
+**As queries de verificação** — o numerador (as arestas com as duas pontas em id de documento) e o denominador (as arestas cujo alvo resolve para um documento indexado). Depois do reparo os dois números têm de ser **iguais**:
+
+```sql
+-- (1) as arestas com as DUAS pontas em id de documento
+SELECT COUNT(*) AS arestas_com_duas_pontas_em_documento
+  FROM graph_edges e
+  JOIN documents d1 ON d1.repository = e.repository AND d1.id = e.source_id
+  JOIN documents d2 ON d2.repository = e.repository AND d2.id = e.target_id
+ WHERE e.repository = 'repo_central';
+
+-- (2) as arestas cujo ALVO resolve para um documento indexado
+SELECT COUNT(*) AS arestas_com_alvo_em_documento
+  FROM graph_edges e
+  JOIN documents d ON d.repository = e.repository AND d.id = e.target_id
+ WHERE e.repository = 'repo_central';
+
+-- (3) os nós legados SEM GRAU (os que o `--fix` remove): depois do reparo, 0
+SELECT COUNT(*) AS nos_legados_sem_grau
+  FROM graph_nodes n
+ WHERE n.repository = 'repo_central'
+   AND n.type <> 'code_symbol'
+   AND NOT EXISTS (
+       SELECT 1 FROM documents d WHERE d.repository = n.repository AND d.id = n.id
+   )
+   AND NOT EXISTS (
+       SELECT 1 FROM graph_edges e
+        WHERE e.repository = n.repository
+          AND (e.source_id = n.id OR e.target_id = n.id)
+   );
+```
+
+O nó legado **com grau** é a representação viva de um link rompido (o alvo que não
+resolve para documento indexado continua com o texto do wikilink) — ele **permanece**
+por decisão (ADR-063) e é justamente o que o `mem doctor` aponta. Por isso a query (3)
+conta só os **sem grau**: são eles, e só eles, que o `--fix` apaga.
+
+**O procedimento** — a ordem importa, porque o `mem doctor` do passo 1 é a linha de base da comparação:
+
+```bash
+# 1. BASE: guarde o relatório do doctor (Health Score e links rompidos)
+./bin/mem.exe doctor --storage=postgres --repo repo_central --vault "G:\My Drive\central-memory" > doctor-antes.txt
+
+# 2. REINDEX: reconstrói o grafo a partir das notas, já com a identidade única
+./bin/mem.exe index "G:\My Drive\central-memory" --storage=postgres --repo repo_central --force
+
+# 3. REMOVE os nós legados de identidade (os de id de título sem grau)
+./bin/mem.exe doctor --fix --storage=postgres --repo repo_central --vault "G:\My Drive\central-memory"
+
+# 4. DEPOIS: o mesmo relatório, para comparar, e as queries acima
+./bin/mem.exe doctor --storage=postgres --repo repo_central --vault "G:\My Drive\central-memory" > doctor-depois.txt
+```
+
+> [!WARNING]
+> O reindex **reescreve o grafo** do vault: as arestas são reconstruídas a partir das
+> notas em disco. Por isso o passo 1 vem antes — o relatório do `mem doctor` é a linha
+> de base — e o `--fix` do passo 3 **apaga** os nós legados de identidade (os que não
+> são `documents.id` nem `code_symbol` e estão **sem grau**). Rode o procedimento com o
+> vault parado (sem `mem watch` no ar), porque o watcher grava aresta no grafo.
+
+**O que comparar antes e depois:** o **Health Score** e a lista de **links rompidos** do `mem doctor`. O score pode **mudar** — as arestas passam a apontar para documentos, e o alvo que não resolve para um documento indexado continua com o texto do wikilink (é assim que o doctor enxerga o link rompido, ADR-063). O que **não** pode acontecer é o score piorar por link morto novo: o reparo não pode cegar o doctor.
+
+Depois do reparo, a prova de que a rota existe no dado real:
+
+```bash
+./bin/mem.exe path "CONTRIBUTING.md" "README.md" --undirected --storage=postgres --repo repo_e4c8f3b1a2d5
+# → ✅ Encontrado
+```
+
 ---
 
 ### 10. `mem hubs [--algorithm degree|pagerank] [--damping 0.85] [--iter 30] [--top 10]` e `mem insights`
