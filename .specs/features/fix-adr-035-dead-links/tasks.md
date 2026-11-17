@@ -13,7 +13,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Design**: inline nesta spec (correção de **conteúdo** em 2 artefatos + a regra registrada como lição + a prova pelo `mem doctor`; **nenhum arquivo de ADR é tocado**)
-**Status**: Draft
+**Status**: Complete
 
 ---
 
@@ -168,11 +168,11 @@ repo_e4c8f3b1a2d5` (o mesmo comando que mediu os 2 links em 2026-11-15)
 
 **Done when**:
 
-- [ ] `mem index --force` rodou no vault do repositório
-- [ ] O `mem doctor` **não** reporta nenhum link rompido cujo alvo seja um wikilink de ADR (hoje: 2 arestas)
-- [ ] `git diff --name-only docs/adr/` sai **vazio** — a ADR-035 não foi tocada
-- [ ] O Health Score do vault subiu: os **10 pontos** consumidos por esses 2 links não são mais perdidos
-- [ ] O gate completo do repo continua verde: `go -C D:\repository\my-memory test -count=1 ./...`
+- [x] `mem index --force` rodou no vault do repositório
+- [x] O `mem doctor` **não** reporta nenhum link rompido cujo alvo seja um wikilink de ADR (hoje: 2 arestas)
+- [x] `git diff --name-only docs/adr/` sai **vazio** — a ADR-035 não foi tocada
+- [x] O Health Score do vault subiu: os **10 pontos** consumidos por esses 2 links não são mais perdidos
+- [x] O gate completo do repo continua verde: `go -C D:\repository\my-memory test -count=1 ./...`
 
 **Tests**: integration
 **Gate**: full

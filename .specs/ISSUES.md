@@ -2265,7 +2265,7 @@ spec `ai-tool-auto-wiring` ·
 ## ISSUE-049 — 2 dead links reais no vault do repositório: `[[ADR-035]]` não casa com o basename do arquivo da ADR
 
 - **Severidade:** 🟢 low (custam **10 pontos** de Health Score ao vault do repo — o resto do score está em 100)
-- **Status:** 🔵 **open** (achado em 2026-11-15, no `mem doctor` do repo após o reindex)
+- **Status:** 🟢 **resolved** (implementado pela spec `fix-adr-035-dead-links`, medido no vault real com 0 dead links de ADR em 2026-11-17)
 - **Spec de correcao:** `.specs/features/fix-adr-035-dead-links/` — 6 ACs em EARS, 4 tasks, 2 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15 — `mem doctor --storage=postgres --repo repo_e4c8f3b1a2d5` reportou 2 links rompidos
 
@@ -2277,8 +2277,14 @@ match é por basename, e `ADR-035` ≠ `035-embedder-embutido-com-fallback-onnx-
 
 | Onde | Ocorrência |
 | :--- | :--- |
-| `.specs/features/embedder-builtin-onnx-minilm/spec.md` | linha 11 (`> **Tipo:** Feature. Executa o plano de implementação do [[ADR-035]]…`) e linha 188 (`- [[ADR-035]] — a decisão que esta spec executa`) |
-| `.specs/features/embedder-builtin-onnx-minilm/tasks.md` | linha 3 (`**ADR:** [[ADR-035]]`) |
+| `.specs/features/embedder-builtin-onnx-minilm/spec.md` | linha 11 (`> **Tipo:** Feature. Executa o plano de implementação do [[docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md|ADR-035]]…`) e linha 188 (`- [[docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md|ADR-035]] — a decisão que esta spec executa`) |
+| `.specs/features/embedder-builtin-onnx-minilm/tasks.md` | linha 3 (`**ADR:** [[docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md|ADR-035]]`) |
+
+**Resolução (2026-11-17):**
+1. **ADL-01 / ADL-02**: As 3 ocorrências de `[[ADR-035]]` em `.specs/features/embedder-builtin-onnx-minilm/spec.md` (linhas 11 e 188) e `tasks.md` (linha 3) foram atualizadas para o formato canônico `[[docs/adr/035-embedder-embutido-com-fallback-onnx-minilm.md|ADR-035]]`.
+2. **ADL-03**: Os arquivos de decisão em `docs/adr/` permaneceram intactos (imutabilidade de ADRs preservada).
+3. **ADL-04 / ADL-05**: Medição via `mem doctor` confirmou **0 dead links** no repositório. O display text `ADR-035` foi preservado pelo alias.
+4. **ADL-06**: A regra de referências cruzadas path-style com alias foi persistida no store de lições (`.specs/lessons.json`). Relatório em `.specs/features/fix-adr-035-dead-links/validation.md`.
 
 **O conserto já está escrito — é a lição registrada do próprio repo**
 (`.specs/042-stubs-editoriais/validation.md:90`): *"Plain `[[ADR-001]]` é frágil
