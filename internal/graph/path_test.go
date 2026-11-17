@@ -275,3 +275,91 @@ func TestFindPath_CyclicGraph(t *testing.T) {
 		}
 	}
 }
+
+func TestFindPath_EdgeDetails(t *testing.T) {
+	nodes := []string{"A", "B", "C", "D", "E", "Other1", "Other2"}
+	edges := []WeightedEdge{
+		// Aresta 1: relação EXTRACTED, status epistêmico vazio -> normaliza para EXTRACTED, links_to, peso 1.0
+		{Source: "A", Target: "B", Weight: 0.0, Type: "EXTRACTED", EpistemicStatus: ""},
+		// Aresta 2: relação customizada implements, status INFERRED -> normaliza para INFERRED, implements verbatim, peso 0.6
+		{Source: "B", Target: "C", Weight: 0.0, Type: "implements", EpistemicStatus: "INFERRED"},
+		// Aresta 3: relação customizada depends_on, status TAG -> normaliza para TAG, depends_on verbatim, peso 0.3
+		{Source: "C", Target: "D", Weight: 0.0, Type: "depends_on", EpistemicStatus: "TAG"},
+		// Aresta 4: relação vazia, status EXTRACTED -> normaliza para EXTRACTED, links_to, peso 1.0
+		{Source: "D", Target: "E", Weight: 0.0, Type: "", EpistemicStatus: "EXTRACTED"},
+		// Aresta distratora fora do caminho
+		{Source: "Other1", Target: "Other2", Weight: 0.99, Type: "unrelated", EpistemicStatus: "INFERRED"},
+	}
+
+	opts := DefaultPathOptions() // epistemic mode, directed=true, max_depth=6
+	res, err := FindPath(nodes, edges, "A", "E", opts)
+	if err != nil {
+		t.Fatalf("erro inesperado ao buscar caminho: %v", err)
+	}
+	if !res.Found {
+		t.Fatalf("esperava encontrar caminho entre A e E")
+	}
+	if len(res.Edges) != 4 {
+		t.Fatalf("esperado 4 arestas, obteve %d", len(res.Edges))
+	}
+
+	// Edge 0: A -> B
+	e0 := res.Edges[0]
+	if e0.From != "A" || e0.To != "B" {
+		t.Errorf("aresta 0 nós errados: %+v", e0)
+	}
+	if e0.EpistemicStatus != "EXTRACTED" {
+		t.Errorf("aresta 0 esperado status EXTRACTED, obteve %s", e0.EpistemicStatus)
+	}
+	if e0.Weight != 1.0 {
+		t.Errorf("aresta 0 esperado peso 1.0, obteve %f", e0.Weight)
+	}
+	if e0.Relation != "links_to" {
+		t.Errorf("aresta 0 relação epistêmica deveria ser 'links_to', obteve %s", e0.Relation)
+	}
+
+	// Edge 1: B -> C
+	e1 := res.Edges[1]
+	if e1.From != "B" || e1.To != "C" {
+		t.Errorf("aresta 1 nós errados: %+v", e1)
+	}
+	if e1.EpistemicStatus != "INFERRED" {
+		t.Errorf("aresta 1 esperado status INFERRED, obteve %s", e1.EpistemicStatus)
+	}
+	if e1.Weight != 0.6 {
+		t.Errorf("aresta 1 esperado peso 0.6, obteve %f", e1.Weight)
+	}
+	if e1.Relation != "implements" {
+		t.Errorf("aresta 1 relação customizada deveria ser mantida verbatim 'implements', obteve %s", e1.Relation)
+	}
+
+	// Edge 2: C -> D
+	e2 := res.Edges[2]
+	if e2.From != "C" || e2.To != "D" {
+		t.Errorf("aresta 2 nós errados: %+v", e2)
+	}
+	if e2.EpistemicStatus != "TAG" {
+		t.Errorf("aresta 2 esperado status TAG, obteve %s", e2.EpistemicStatus)
+	}
+	if e2.Weight != 0.3 {
+		t.Errorf("aresta 2 esperado peso 0.3, obteve %f", e2.Weight)
+	}
+	if e2.Relation != "depends_on" {
+		t.Errorf("aresta 2 relação customizada deveria ser mantida verbatim 'depends_on', obteve %s", e2.Relation)
+	}
+
+	// Edge 3: D -> E
+	e3 := res.Edges[3]
+	if e3.From != "D" || e3.To != "E" {
+		t.Errorf("aresta 3 nós errados: %+v", e3)
+	}
+	if e3.EpistemicStatus != "EXTRACTED" {
+		t.Errorf("aresta 3 esperado status EXTRACTED, obteve %s", e3.EpistemicStatus)
+	}
+	if e3.Weight != 1.0 {
+		t.Errorf("aresta 3 esperado peso 1.0, obteve %f", e3.Weight)
+	}
+	if e3.Relation != "links_to" {
+		t.Errorf("aresta 3 relação vazia deveria ser reescrita para 'links_to', obteve %s", e3.Relation)
+	}
+}

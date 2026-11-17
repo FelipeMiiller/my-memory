@@ -433,14 +433,14 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] Cada aresta devolvida tem status `EXTRACTED`, `INFERRED` ou `TAG` — o teste afirma o valor exato de cada uma
-- [ ] O peso de cada aresta é **1.0**, **0.6** ou **0.3**, conforme o status (caso sem peso customizado)
-- [ ] Cada aresta devolvida carrega a relação, o status e o peso **da aresta que ela percorreu**, e não de outra do grafo
-- [ ] Uma aresta cuja relação de origem é `EXTRACTED` (ou vazia) volta como `links_to`
-- [ ] Uma aresta de relação própria (`implements`, `depends_on`) volta **verbatim** — controle negativo da reescrita
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/graph/...`
-- [ ] Test count: os testes de `internal/graph` passam, sem nenhuma deleção silenciosa
-- [ ] Nenhum arquivo de produção foi tocado
+- [x] Cada aresta devolvida tem status `EXTRACTED`, `INFERRED` ou `TAG` — o teste afirma o valor exato de cada uma
+- [x] O peso de cada aresta é **1.0**, **0.6** ou **0.3**, conforme o status (caso sem peso customizado)
+- [x] Cada aresta devolvida carrega a relação, o status e o peso **da aresta que ela percorreu**, e não de outra do grafo
+- [x] Uma aresta cuja relação de origem é `EXTRACTED` (ou vazia) volta como `links_to`
+- [x] Uma aresta de relação própria (`implements`, `depends_on`) volta **verbatim** — controle negativo da reescrita
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/graph/...`
+- [x] Test count: os testes de `internal/graph` passam, sem nenhuma deleção silenciosa
+- [x] Nenhum arquivo de produção foi tocado
 
 **Tests**: unit
 **Gate**: quick
