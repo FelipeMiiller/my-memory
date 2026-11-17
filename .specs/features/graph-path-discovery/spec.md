@@ -48,6 +48,15 @@ Inspirado nas necessidades de navegação cirúrgica de grafos para agentes aut�
 | Direcionamento padrão | Direcionado (`directed: true`) | Em grafos de dependência e arquitetura, a direção causal importa (A depende de B não significa que B depende de A) | y |
 | Profundidade padrão | `max_depth: 6` | Suficiente para a esmagadora maioria das conexões em vaults e bases de código sem degradar performance | y |
 | Comportamento em caso de nó inexistente | Erro claro indicando qual nó não foi encontrado | Evita buscas custosas e guia o usuário/agente na correção de nomes | y |
+| Precedência de flags de direção (S3) | `--undirected` prevalece sobre `--directed` | Se ambas forem passadas, a busca não-direcionada/bidirecional prevalece | y |
+| Fallback para modo inválido (S4) | `epistemic` | Qualquer valor de `--mode` diferente de `hops` adota o padrão canônico `epistemic` | y |
+| Reset de profundidade não-positiva (S5) | `max_depth: 6` | `--max-depth <= 0` é resetado para o default canônico de 6 saltos | y |
+| Relações, status epistêmicos e pesos canônicos (S2, S6) | Relações: `links_to`, `implements`, `depends_on`, `references_code`, `tagged_as`; Status: `EXTRACTED` (peso 1.0), `INFERRED` (peso 0.6), `TAG` (peso 0.3) | Relações epistêmicas (`EXTRACTED`, `INFERRED`, `TAG`) ou vazias normalizam para `links_to`; relações customizadas (`implements`, `depends_on`) voltam verbatim | y |
+| Textos canônicos de Summary (S7) | `Nenhum caminho encontrado entre '<origem>' e '<destino>' dentro de <N> saltos` e `Nó de origem e destino são idênticos ('<id>')` | Literais exatos devolvidos nos casos de borda | y |
+| Formato de resposta MCP (S1) | Texto puro formatado em Markdown (`NewTextResult`) | Entrega de payload JSON estruturado é diferida para a [ISSUE-022](../../ISSUES.md#issue-022) | y |
+| Dependência de identidade de nós (FIX-2) | Depende de ISSUE-047 (`fix-graph-node-identity`) | `mem path` no vault real em disco só opera com resolução completa após a padronização de identidade de nós e reindexação | y |
+
+Open questions: none (todas as 7 decisões fechadas via ISSUE-046 / ADR-027).
 
 ---
 
@@ -57,18 +66,18 @@ Inspirado nas necessidades de navegação cirúrgica de grafos para agentes aut�
 **User Story**: Como um agente de IA ou desenvolvedor, quero consultar `mem path auth db` para obter a sequência exata de nós e arestas que conectam os dois pontos com o menor custo de navegação.
 **Critérios de Aceite**:
 1. Se houver caminho conectando origem e destino dentro do `max_depth`, retorna `found: true` com lista ordenada de nós e arestas detalhadas (relação, status epistêmico e peso).
-2. Se não houver caminho, retorna `found: false` com mensagem elucidativa.
-3. Se origem for igual ao destino, retorna caminho de 0 saltos com custo 0.
+2. Se não houver caminho, retorna `found: false` com mensagem elucidativa (`Nenhum caminho encontrado entre '<origem>' e '<destino>' dentro de <N> saltos`).
+3. Se origem for igual ao destino, retorna caminho de 0 saltos com custo 0 (`Nó de origem e destino são idênticos ('<id>')`).
 
 ### P2: Travessia Não-Direcionada e Modos de Custo
 **User Story**: Como engenheiro investigando afinidade conceitual ampla, quero executar `mem path auth db --undirected --mode hops` para encontrar o caminho com menor número de intermediários, ignorando a direção das setas.
 **Critérios de Aceite**:
-1. A flag `--undirected` permite navegar pelas arestas em ambos os sentidos.
+1. A flag `--undirected` permite navegar pelas arestas em ambos os sentidos (tem precedência quando combinada com `--directed`).
 2. Cada aresta no resultado indica sua orientação relativa (`forward` ou `reverse`).
-3. O modo `--mode hops` usa custo unitário por aresta em vez de custo epistêmico ponderado.
+3. O modo `--mode hops` usa custo unitário por aresta em vez de custo epistêmico ponderado (qualquer valor inválido recai em `epistemic`).
 
 ### P3: Integração com Servidor MCP para Agentes Autônomos
-**User Story**: Como assistente de IA conectado via MCP, quero chamar a ferramenta `memory_find_path(source, target, max_depth, directed)` para receber o caminho estruturado em Markdown e JSON sem precisar disparar múltiplas buscas manuais.
+**User Story**: Como assistente de IA conectado via MCP, quero chamar a ferramenta `memory_find_path(source, target, max_depth, directed)` para receber o caminho estruturado em Markdown (com payload JSON estruturado diferido para a [ISSUE-022](../../ISSUES.md#issue-022)) sem precisar disparar múltiplas buscas manuais.
 **Critérios de Aceite**:
 1. Ferramenta registrada e listada no catálogo `tools/list`.
 2. Saída em Markdown formatada com representação visual em linha (ex: `A --[implements]--> B --[depends_on]--> C`) e tabela de detalhes.

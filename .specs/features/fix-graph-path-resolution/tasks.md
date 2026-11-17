@@ -495,12 +495,12 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] As 7 decisões estão escritas no spec da feature, com os **literais** exatos (não "o texto de não-encontrado", mas o texto)
-- [ ] A história P3 da feature deixa de prometer "Markdown **e** JSON" e remete à ISSUE-022
-- [ ] O spec da feature declara que o `mem path` só acha caminho no vault real **depois** da spec `fix-graph-node-identity` (ISSUE-047) e do reindex
-- [ ] Nenhum AC do spec da feature é apagado ou afrouxado pela emenda
-- [ ] Gate de spec passa: `python3 D:\repository\my-memory\.agents\skills\tlc-spec-driven\scripts\validate_spec.py graph-path-discovery --root D:\repository\my-memory`
-- [ ] Test count: **nenhum teste** — é texto; o gate é o validador de spec
+- [x] As 7 decisões estão escritas no spec da feature, com os **literais** exatos (não "o texto de não-encontrado", mas o texto)
+- [x] A história P3 da feature deixa de prometer "Markdown **e** JSON" e remete à ISSUE-022
+- [x] O spec da feature declara que o `mem path` só acha caminho no vault real **depois** da spec `fix-graph-node-identity` (ISSUE-047) e do reindex
+- [x] Nenhum AC do spec da feature é apagado ou afrouxado pela emenda
+- [x] Gate de spec passa: `python3 D:\repository\my-memory\.agents\skills\tlc-spec-driven\scripts\validate_spec.py graph-path-discovery --root D:\repository\my-memory`
+- [x] Test count: **nenhum teste** — é texto; o gate é o validador de spec
 
 **Tests**: none
 **Gate**: build
