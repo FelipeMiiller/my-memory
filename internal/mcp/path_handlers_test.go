@@ -95,6 +95,13 @@ func TestMemoryFindPathHandler_Direct(t *testing.T) {
 	if !strings.Contains(content, "implements") || !strings.Contains(content, "depends_on") {
 		t.Errorf("relações das arestas não encontradas:\n%s", content)
 	}
+	// GPR-32: resposta com rota contém os headings 'Rota Conectada' e 'Segmentos Percorridos'
+	if !strings.Contains(content, "Rota Conectada") {
+		t.Errorf("heading 'Rota Conectada' não encontrado na rota encontrada:\n%s", content)
+	}
+	if !strings.Contains(content, "Segmentos Percorridos") {
+		t.Errorf("heading 'Segmentos Percorridos' não encontrado na rota encontrada:\n%s", content)
+	}
 
 	// 2. Caminho não encontrado
 	argsUnreach, _ := json.Marshal(map[string]any{
@@ -108,6 +115,13 @@ func TestMemoryFindPathHandler_Direct(t *testing.T) {
 	unreachContent := resUnreach.(CallToolResult).Content[0].Text
 	if !strings.Contains(unreachContent, "Nenhum caminho encontrado") {
 		t.Errorf("mensagem de não encontrado esperada:\n%s", unreachContent)
+	}
+	// GPR-32 (controle negativo): caso não encontrado NÃO deve conter 'Rota Conectada'
+	if strings.Contains(unreachContent, "Rota Conectada") {
+		t.Errorf("controle negativo falhou: 'Rota Conectada' não deve constar quando caminho não for encontrado:\n%s", unreachContent)
+	}
+	if strings.Contains(unreachContent, "Segmentos Percorridos") {
+		t.Errorf("controle negativo falhou: 'Segmentos Percorridos' não deve constar quando caminho não for encontrado:\n%s", unreachContent)
 	}
 
 	// 3. Erro interno quando função retorna erro
@@ -212,7 +226,7 @@ func TestMemoryFindPathHandler_Validation(t *testing.T) {
 		t.Fatal("esperava erro para JSON inválido")
 	}
 
-	// 2. Ausência de source
+	// 2. Ausência de source (GPR-31)
 	argsNoSrc, _ := json.Marshal(map[string]any{"target": "auth"})
 	_, err = handler(ctx, argsNoSrc)
 	if err == nil {
@@ -221,8 +235,12 @@ func TestMemoryFindPathHandler_Validation(t *testing.T) {
 	if !strings.Contains(err.Error(), "source") {
 		t.Errorf("mensagem esperava mencionar source: %v", err)
 	}
+	mcpErrSrc, ok := err.(*Error)
+	if !ok || mcpErrSrc.Code != CodeInvalidParams {
+		t.Errorf("esperava CodeInvalidParams ao omitir source (GPR-31), obteve %v", err)
+	}
 
-	// 3. Ausência de target
+	// 3. Ausência de target (GPR-31)
 	argsNoTgt, _ := json.Marshal(map[string]any{"source": "auth"})
 	_, err = handler(ctx, argsNoTgt)
 	if err == nil {
@@ -230,6 +248,10 @@ func TestMemoryFindPathHandler_Validation(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "target") {
 		t.Errorf("mensagem esperava mencionar target: %v", err)
+	}
+	mcpErrTgt, ok := err.(*Error)
+	if !ok || mcpErrTgt.Code != CodeInvalidParams {
+		t.Errorf("esperava CodeInvalidParams ao omitir target (GPR-31), obteve %v", err)
 	}
 }
 

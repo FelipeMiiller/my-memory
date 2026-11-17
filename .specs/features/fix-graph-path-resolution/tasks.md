@@ -288,11 +288,11 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] O teste sem `source` e o teste sem `target` afirmam o **código** `InvalidParams` (hoje só o texto é afirmar)
-- [ ] A resposta de uma rota encontrada contém `Rota Conectada` **e** `Segmentos Percorridos`
-- [ ] O caso "nenhum caminho" **não** contém `Rota Conectada` (controle negativo que prova que o heading não é decoration)
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/mcp/...`
-- [ ] Test count: os testes de `internal/mcp` passam, sem nenhuma deleção silenciosa
+- [x] O teste sem `source` e o teste sem `target` afirmam o **código** `InvalidParams` (hoje só o texto é afirmar)
+- [x] A resposta de uma rota encontrada contém `Rota Conectada` **e** `Segmentos Percorridos`
+- [x] O caso "nenhum caminho" **não** contém `Rota Conectada` (controle negativo que prova que o heading não é decoration)
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/mcp/...`
+- [x] Test count: os testes de `internal/mcp` passam, sem nenhuma deleção silenciosa
 
 **Tests**: unit
 **Gate**: quick
