@@ -2113,7 +2113,7 @@ foram do sub-agente. A re-verificação independente da spec continua pendente.
 ## ISSUE-045 — O `mem pack` estoura o orçamento de tokens e a ordem de prioridade não tem resultado definido
 
 - **Severidade:** 🟠 high (o bundle gravado tem **1370 tokens** contra um orçamento de **1000** — a restrição que a ADR-029 e o `docs/CLI_GUIDE.md` §21 prometem é violada em uso real)
-- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Status:** 🟢 **corrigida** (2026-11-17, `.specs/features/fix-packager-token-budget/`) — 17 ACs, 9 tasks, 4 fases; a re-verificação independente da feature `context-packager-and-subgraph-bundle` deu 🟢 **PASS** (12/12 critérios cobertos, 6/6 mutantes mortos pelo sensor, 0 sobreviventes). O motor passou a medir o orçamento contra o Markdown emitido (cobrando o custo estrutural e retornando erro para orçamentos insuficientes), a CLI reporta o tamanho real do arquivo gravado, testes discriminantes cobrem direção (M3 morto), ordem por PageRank (M4 morto), tier da raiz (M2 morto) e cabeçalhos do bundle, defaults foram unificados a partir de `graph.DefaultPackOptions()` e código morto (`nodeIDs`, `availableBudget`) foi removido.
 - **Spec de correcao:** `.specs/features/fix-packager-token-budget/` — 17 ACs em EARS, 9 tasks, 4 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `context-packager-and-subgraph-bundle` — `.specs/features/context-packager-and-subgraph-bundle/validation.md`
 
@@ -2141,6 +2141,16 @@ spec exige.
 
 **Referência:** ADR-029 · spec `context-packager-and-subgraph-bundle` ·
 `.specs/features/context-packager-and-subgraph-bundle/validation.md`.
+
+**Resolução (2026-11-17).** A spec `fix-packager-token-budget` fechou os 7 gaps:
+1. **Gap 1**: O motor de empacotamento passou a contabilizar o custo estrutural renderizado (cabeçalho, Mermaid, metadados por nó, periféricos e omitidos), garantindo `EstimateTokens(result.Markdown) <= max_tokens`, e orçamentos abaixo do bundle mínimo retornam erro explícito (`6ddeeb8`).
+2. **Gap 2**: Teste discriminante de direção `TestPackContext_ConjuntoExatoPorDirecao` assevera o conjunto exato coletado em `both`, `outbound` e `inbound` (matando M3, `3899d3e`).
+3. **Gap 3**: Ordem de prioridade definida na spec e comprovada por `TestPackContext_OrdemDePrioridadePorPageRank` (matando M4, `f6bdda9`).
+4. **Gap 4**: A ADR-029:24 e o `tasks.md` da feature de origem foram alinhados com o código real, declarando a ordem por profundidade/PageRank/ID e removendo a promessa inerte de peso epistêmico.
+5. **Gap 5**: Asserções de tier da raiz e cabeçalhos do bundle adicionadas em `TestPackContext_TierDaRaizECabecalhosDoBundle` e `TestPackContext_RaizPreferencialNaoEhOmitida` (matando M2, `36da388`).
+6. **Gap 6**: Código morto (`nodeIDs`, `availableBudget`) removido (`3569255`), e defaults unificados a partir de `graph.DefaultPackOptions()` na CLI (`ebfb255`) e no MCP (`1db797a`).
+7. **Gap 7**: A CLI (`mem pack`) passou a reportar o tamanho real medido do arquivo gravado (`fe24922`).
+8. **Re-verificação**: Verifier independente confirmou 12/12 critérios PASS com 6/6 mutações mortas em `context-packager-and-subgraph-bundle/validation.md` e emitiu o relatório de validação PASS em `fix-packager-token-budget/validation.md`.
 
 ## ISSUE-046 — 7 gaps na feature `graph-path-discovery`: resolução ambígua, defaults mortos e ausência de asserção
 

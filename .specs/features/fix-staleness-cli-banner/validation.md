@@ -99,3 +99,4 @@ Sensor executado pelo Verifier independente com 10 mutações nos 4 gap sites (G
 - `validate_spec.py`: 0 erros
 - `validate_tasks.py`: 0 erros
 - `validate_state.py`: exit 0
+
