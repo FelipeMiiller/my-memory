@@ -2409,6 +2409,11 @@ func runSearchPostgres(ctx context.Context, s *store.PostgresStore, emb embedder
 	}
 	levelInfo := fmt.Sprintf(" [Nível: %s]", strings.ToUpper(searchOpts.Level))
 
+	// Aviso de desatualização (ADR-028): sai antes do cabeçalho e dos
+	// resultados. A checagem é a cacheada do detector e degrada em silêncio —
+	// a busca não pode falhar por causa do aviso.
+	printStalenessBanner(ctx, os.Stdout, stalenessBannerOptions{PgStore: s, Repo: targetRepo})
+
 	fmt.Printf("🔎 Buscando no PostgreSQL (pgvector) [Repo: %s, Modo: %s%s%s%s] por: \"%s\"\n\n", targetRepo, mode, levelInfo, catInfo, decayInfo, query)
 
 	var results []store.SearchResult
@@ -2550,6 +2555,11 @@ func runSearchSQLite(ctx context.Context, database *sql.DB, emb embedder.Embedde
 		catInfo = fmt.Sprintf(" [Categoria: %s]", strings.ToUpper(searchOpts.Category))
 	}
 	levelInfo := fmt.Sprintf(" [Nível: %s]", strings.ToUpper(searchOpts.Level))
+
+	// Aviso de desatualização (ADR-028): sai antes do cabeçalho e dos
+	// resultados. A checagem é a cacheada do detector e degrada em silêncio —
+	// a busca não pode falhar por causa do aviso.
+	printStalenessBanner(ctx, os.Stdout, stalenessBannerOptions{Database: database})
 
 	fmt.Printf("🔎 Buscando no SQLite por: \"%s\" [Modo: %s (%s)%s%s%s]\n\n", query, mode, vecSubmode, levelInfo, catInfo, decayInfo)
 

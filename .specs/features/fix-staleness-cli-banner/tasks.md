@@ -253,11 +253,11 @@ o par `db.InitDB` + inserção de documento (`cmd/mem/status_test.go:19`)
 
 **Done when**:
 
-- [ ] `mem search` num vault stale escreve o banner **antes** da linha do primeiro resultado
-- [ ] Num vault em sincronia, `mem search` **não** escreve banner
-- [ ] O teste usa `t.TempDir()` e um banco temporário — não toca em nenhum vault nem em `.memory/memory.db`
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] `mem search` num vault stale escreve o banner **antes** da linha do primeiro resultado
+- [x] Num vault em sincronia, `mem search` **não** escreve banner
+- [x] O teste usa `t.TempDir()` e um banco temporário — não toca em nenhum vault nem em `.memory/memory.db`
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: integration
 **Gate**: quick
