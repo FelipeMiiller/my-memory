@@ -19,6 +19,14 @@
   - [x] Criar `cmd/mem/status.go` com flags `--json`, `--db`, `--postgres`, `--repo`.
   - [x] Renderizar saída amigável no terminal indicando status `Fresh` ou `Stale`, lista de arquivos e recomendações.
   - [x] Integrar alerta de staleness nos comandos de consulta (`search`, `path`, `inspect`, `impact`).
+    > **Nota de conformidade (reconciliação ISSUE-043 / fix-staleness-cli-banner)**:
+    > O Verifier independente de 2026-11-15 descobriu que este checkbox mentia — o código de integração nunca havia sido escrito e `FormatCLIBanner` era código morto no repositório.
+    > O checkbox é mantido como `[x]` unicamente porque a integração foi efetivamente entregue pela spec de correção `fix-staleness-cli-banner` com evidência comprovada:
+    > - Helper compartilhado: `cmd/mem/staleness_banner.go:91` (commit `92e189a`)
+    > - `mem search`: `cmd/mem/main.go:2415` (Postgres) e `cmd/mem/main.go:2562` (SQLite) (commit `ee7258a`)
+    > - `mem path`: `cmd/mem/path.go:123` (commit `a9ac45e`)
+    > - `mem inspect`: `cmd/mem/inspect.go:101` (commit `1ebacc7`)
+    > - `mem impact`: `cmd/mem/impact.go:99` (commit `3c93c6e`)
   - [x] Registrar `status` no switch de comandos e em `printHelp()` no `cmd/mem/main.go`.
   - [x] Escrever testes em `cmd/mem/status_test.go`.
 

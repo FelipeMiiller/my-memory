@@ -484,10 +484,10 @@ os hashes dos commits de T4 a T7
 
 **Done when**:
 
-- [ ] A T3 da feature de origem cita o `file:line` do helper e das quatro chamadas
-- [ ] O `[x]` só sobrevive **porque** o código existe — e o texto diz isso
-- [ ] Há uma nota explícita de que o checkbox mentia (achado do Verifier de 2026-11-15) e de que a integração é feita por esta spec
-- [ ] Nenhum outro arquivo da feature de origem é alterado (o `spec.md` é histórico)
+- [x] A T3 da feature de origem cita o `file:line` do helper e das quatro chamadas
+- [x] O `[x]` só sobrevive **porque** o código existe — e o texto diz isso
+- [x] Há uma nota explícita de que o checkbox mentia (achado do Verifier de 2026-11-15) e de que a integração é feita por esta spec
+- [x] Nenhum outro arquivo da feature de origem é alterado (o `spec.md` é histórico)
 
 **Tests**: none
 **Gate**: build
