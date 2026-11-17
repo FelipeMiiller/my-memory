@@ -244,3 +244,58 @@ func TestPathCLI_AmbiguityReport(t *testing.T) {
 		t.Errorf("controle negativo falhou: aviso de ambiguidade impresso para consulta unívoca:\n%s", cleanOut)
 	}
 }
+
+func TestPathCLI_NotFoundAndIdenticalNode(t *testing.T) {
+	ctx := context.Background()
+	dbFile := filepath.Join(t.TempDir(), "path_not_found.db")
+
+	database, err := db.InitDB(dbFile)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("ambiente sem FTS5")
+		}
+		t.Fatalf("falha ao inicializar SQLite: %v", err)
+	}
+
+	now := time.Now().Unix()
+	// Topologia: nó isolado A e nó isolado B (sem arestas entre si)
+	_ = db.InsertDocument(ctx, database, "node-iso-a", "docs/iso_a.md", "Iso A", now, "h1")
+	_ = db.InsertDocument(ctx, database, "node-iso-b", "docs/iso_b.md", "Iso B", now, "h2")
+	database.Close()
+
+	// 1. Caso sem rota (GPR-28, GPR-29, GPR-30):
+	var notFoundBuf bytes.Buffer
+	err = runPathCommand(ctx, "test-repo", []string{"--db", dbFile, "node-iso-a", "node-iso-b"}, &notFoundBuf)
+	if err != nil {
+		t.Fatalf("runPathCommand não deve falhar com erro no not-found: %v", err)
+	}
+	notFStr := notFoundBuf.String()
+
+	// GPR-29: linha 'Status:          ❌ Não encontrado'
+	if !strings.Contains(notFStr, "Status:          ❌ Não encontrado") {
+		t.Errorf("linha 'Status:          ❌ Não encontrado' esperada na saída:\n%s", notFStr)
+	}
+	// GPR-30: linha 'Detalhes:' carregando o Summary
+	if !strings.Contains(notFStr, "Detalhes:        Nenhum caminho encontrado entre 'node-iso-a' e 'node-iso-b' dentro de 6 saltos") {
+		t.Errorf("linha 'Detalhes:' com o Summary esperada na saída:\n%s", notFStr)
+	}
+
+	// 2. Caso origem = destino (GPR-20):
+	var identicalBuf bytes.Buffer
+	err = runPathCommand(ctx, "test-repo", []string{"--db", dbFile, "node-iso-a", "node-iso-a"}, &identicalBuf)
+	if err != nil {
+		t.Fatalf("runPathCommand falhou para nó idêntico: %v", err)
+	}
+	identStr := identicalBuf.String()
+
+	// GPR-20: linha 'Origem e destino são o mesmo nó ('<id>').'
+	if !strings.Contains(identStr, "Origem e destino são o mesmo nó ('node-iso-a').") {
+		t.Errorf("mensagem de nó idêntico esperada na saída:\n%s", identStr)
+	}
+	if !strings.Contains(identStr, "Status:          ✅ Encontrado") {
+		t.Errorf("status '✅ Encontrado' esperado na saída:\n%s", identStr)
+	}
+	if !strings.Contains(identStr, "Saltos:          0") {
+		t.Errorf("saltos '0' esperado na saída:\n%s", identStr)
+	}
+}

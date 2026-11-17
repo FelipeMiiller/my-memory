@@ -316,12 +316,12 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] O caso sem rota afirma a linha `Status:          ❌ Não encontrado` **e** o `Summary` na linha `Detalhes:`
-- [ ] O caso origem = destino afirma `Origem e destino são o mesmo nó ('<id>').`
-- [ ] O caso origem = destino é o **controle negativo** do M7: a renderização da CLI decide por `Hops == 0` (`cmd/mem/path.go:135`), então ela **não** substitui a asserção do `Summary` (T10) — as duas juntas provam o ramo
-- [ ] O teste usa `t.TempDir()` e não escreve em nenhum vault nem em `.memory/memory.db`
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
-- [ ] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
+- [x] O caso sem rota afirma a linha `Status:          ❌ Não encontrado` **e** o `Summary` na linha `Detalhes:`
+- [x] O caso origem = destino afirma `Origem e destino são o mesmo nó ('<id>').`
+- [x] O caso origem = destino é o **controle negativo** do M7: a renderização da CLI decide por `Hops == 0` (`cmd/mem/path.go:135`), então ela **não** substitui a asserção do `Summary` (T10) — as duas juntas provam o ramo
+- [x] O teste usa `t.TempDir()` e não escreve em nenhum vault nem em `.memory/memory.db`
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
+- [x] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: quick
