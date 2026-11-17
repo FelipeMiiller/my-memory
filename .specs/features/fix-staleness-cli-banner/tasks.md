@@ -216,15 +216,15 @@ TTL 3 s — nunca `ForceCheck`), e escreve `staleness.FormatCLIBanner(report)` n
 
 **Done when**:
 
-- [ ] Existe **um** helper em `cmd/mem/staleness_banner.go` usado pelos quatro comandos de consulta
-- [ ] O helper escreve o banner **apenas** quando `report.IsStale` — com o índice em sincronia ele **não** escreve nada
-- [ ] O helper usa `CheckStaleness` (cache de 3 s) e **nunca** `ForceCheck`
-- [ ] O helper **não** retorna erro: uma checagem que falha não interrompe o comando nem escreve nada no `out`
-- [ ] O teste prova o reuso do cache: com TTL longo, a 1ª chamada escreve o banner, o diretório do vault é **removido**, a 2ª chamada **dentro do TTL** **ainda** escreve o banner (com `ForceCheck` a varredura falharia e o banner sumiria)
-- [ ] O teste prova que o **mesmo** comando em sequência não varre o disco de novo dentro do TTL
-- [ ] O teste prova a degradação silenciosa: um detector sem base configurada não escreve nada e não devolve erro
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestStalenessBanner ./cmd/mem/...`
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] Existe **um** helper em `cmd/mem/staleness_banner.go` usado pelos quatro comandos de consulta
+- [x] O helper escreve o banner **apenas** quando `report.IsStale` — com o índice em sincronia ele **não** escreve nada
+- [x] O helper usa `CheckStaleness` (cache de 3 s) e **nunca** `ForceCheck`
+- [x] O helper **não** retorna erro: uma checagem que falha não interrompe o comando nem escreve nada no `out`
+- [x] O teste prova o reuso do cache: com TTL longo, a 1ª chamada escreve o banner, o diretório do vault é **removido**, a 2ª chamada **dentro do TTL** **ainda** escreve o banner (com `ForceCheck` a varredura falharia e o banner sumiria)
+- [x] O teste prova que o **mesmo** comando em sequência não varre o disco de novo dentro do TTL
+- [x] O teste prova a degradação silenciosa: um detector sem base configurada não escreve nada e não devolve erro
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestStalenessBanner ./cmd/mem/...`
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: unit
 **Gate**: quick
