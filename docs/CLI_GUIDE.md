@@ -1520,16 +1520,29 @@ Diretório do Vault: C:\repository\my-memory
 Repositório:        FelipeMiiller/my-memory
 Arquivos no Disco:  41
 Arquivos Indexados: 38
-Status:             ⚠️  Desatualizado (Stale Data)
-Diferenças:         8 modificado(s)/novo(s), 0 removido(s)
+Status:             ⚠️ DESATUALIZADO (Stale)
+Diferenças:         5 modificado(s), 2 novo(s), 1 removido(s)
 
-Arquivos Modificados ou Não-Indexados (8):
+Arquivos Modificados (5):
   • README.md
   • docs/AGENT_INTEGRATION_GUIDE.md
   • docs/CLI_GUIDE.md
   • docs/adr/028-staleness-banners-e-deteccao-de-desatualizacao.md
 
+Arquivos Novos (2):
+  • docs/adr/029-context-packager.md
+  • specs/novas-regras.md
+
+Arquivos Removidos do Disco (1):
+  • rascunhos/antigo.md
+
 💡 Recomendação: Execute 'mem index' para sincronizar o grafo e embeddings.
+```
+
+Quando o índice está perfeitamente sincronizado com o disco:
+```text
+Status:             ✅ ATUALIZADO (Fresh)
+Todos os arquivos elegíveis estão devidamente sincronizados com o grafo e embeddings.
 ```
 
 ---

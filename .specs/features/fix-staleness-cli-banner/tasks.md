@@ -452,10 +452,10 @@ números e as três seções de listagem (modificados, novos, removidos).
 
 **Done when**:
 
-- [ ] A amostra publica `⚠️ DESATUALIZADO (Stale)` e `✅ ATUALIZADO (Fresh)`
-- [ ] A amostra publica as três seções de listagem e a linha `Diferenças:` com três números
-- [ ] Os literais aposentados `⚠️  Desatualizado (Stale Data)` e `✅ Atualizado (In Sync)` **não** aparecem mais no arquivo (conferir com `grep`)
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] A amostra publica `⚠️ DESATUALIZADO (Stale)` e `✅ ATUALIZADO (Fresh)`
+- [x] A amostra publica as três seções de listagem e a linha `Diferenças:` com três números
+- [x] Os literais aposentados `⚠️  Desatualizado (Stale Data)` e `✅ Atualizado (In Sync)` **não** aparecem mais no arquivo (conferir com `grep`)
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: none
 **Gate**: build
