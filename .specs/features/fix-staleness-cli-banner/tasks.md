@@ -557,9 +557,9 @@ status, achado, referência) · a seção de Handoff do `STATE.md`
 
 **Done when**:
 
-- [ ] A ISSUE-043 não está mais marcada como `open` e cita a evidência da re-verificação
-- [ ] O `STATE.md` registra a decisão do literal canônico e o snapshot de handoff
-- [ ] Nenhuma outra issue é alterada
+- [x] A ISSUE-043 não está mais marcada como `open` e cita a evidência da re-verificação
+- [x] O `STATE.md` registra a decisão do literal canônico e o snapshot de handoff
+- [x] Nenhuma outra issue é alterada
 
 **Tests**: none
 **Gate**: build

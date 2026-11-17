@@ -2040,7 +2040,7 @@ codigo graph que o `--fix` apagava por engano — corte errado e custo alto) ·
 ## ISSUE-043 — O banner de staleness nunca aparece nos comandos de consulta: `FormatCLIBanner` é código morto
 
 - **Severidade:** 🟠 high (a feature entrega o motor e deixa de fora o gancho que a torna visível — o usuário não é avisado de que o índice está desatualizado)
-- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15; `tasks.md` marca T3 como `[x]` e o checkbox mente)
+- **Status:** 🟢 **corrigida** (2026-11-17, `.specs/features/fix-staleness-cli-banner/`) — 28 ACs, 13 tasks, 5 fases; a re-verificação independente da feature `staleness-detection-and-banners` deu 🟢 **PASS** (9/9 ACs cobertas, 10/10 mutantes mortos pelo sensor, commit `5b54dc5`). Helper compartilhado `printStalenessBanner` em `cmd/mem/staleness_banner.go:91` integrado a `search`, `path`, `inspect` e `impact`, literal canônico da ADR-028 §3 restaurado no código e guias, "novos" como categoria distinta (`NewFiles`) com heading dedicado no `mem status` e literais canônicos unificados.
 - **Spec de correcao:** `.specs/features/fix-staleness-cli-banner/` — 28 ACs em EARS, 13 tasks, 5 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `staleness-detection-and-banners` — `.specs/features/staleness-detection-and-banners/validation.md`
 
@@ -2073,6 +2073,13 @@ A única construção de `staleness.Detector` na CLI é a de `cmd/mem/status.go:
 
 **Referência:** ADR-028 · spec `staleness-detection-and-banners` ·
 `.specs/features/staleness-detection-and-banners/validation.md` (§ Fix Plans).
+
+**Resolução (2026-11-17).** A spec `fix-staleness-cli-banner` fechou os 4 gaps:
+1. **P3-1 (Blocker)**: helper compartilhado `printStalenessBanner` criado em `cmd/mem/staleness_banner.go:91` (commit `92e189a`) e conectado em `search` (`cmd/mem/main.go:2415,2562`, `ee7258a`), `path` (`cmd/mem/path.go:123`, `a9ac45e`), `inspect` (`cmd/mem/inspect.go:101`, `1ebacc7`) e `impact` (`cmd/mem/impact.go:99`, `3c93c6e`), com supressão sob `--json`. Testes co-localizados dedicados em `cmd/mem/*_staleness_banner_test.go`.
+2. **P1-1 (Major)**: código alinhado ao texto canônico da ADR-028 §3 (`StalenessWarningTitle` e `StalenessRecommendation` em `internal/staleness/detector.go:32,36`, commit `9f4b7cb`), asseverado no teste MCP (`internal/mcp/staleness_handlers_test.go:94`) e documentado no guia (`docs/AGENT_INTEGRATION_GUIDE.md:397`, `bb2fca8`).
+3. **P2-2 (Major)**: "novos" separado de "modificados" em `StalenessReport.NewFiles` e `NewFilesCount` (`internal/staleness/detector.go`, `bcfb784`), exibido em seção própria no `mem status` (`cmd/mem/status.go`, `7327a57`) e asseverado em `cmd/mem/status_test.go:TestRunStatusCommand_ListagemFormatacao`.
+4. **P2-3/P2-4 (Minor)**: literais `⚠️ DESATUALIZADO (Stale)` e `✅ ATUALIZADO (Fresh)` adotados no `mem status` (`cmd/mem/status.go`, `7327a57`), asseverados no teste e documentados no guia (`docs/CLI_GUIDE.md:1523`, `94607e6`).
+5. **Re-verificação**: Verifier independente confirmou 9/9 ACs PASS com 10/10 mutações mortas (`.specs/features/staleness-detection-and-banners/validation.md`, commit `5b54dc5`).
 
 ## ISSUE-044 — 3 caminhos do carregamento progressivo não têm teste: o default da flag, o schema da tool e o indexador
 
