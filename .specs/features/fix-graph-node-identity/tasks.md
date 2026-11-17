@@ -252,7 +252,7 @@ o escopo de repositório do nó (`(repository, id)`)
 **Done when**:
 
 - [x] O nó de um documento indexado tem `id` = `documents.id` e `name` = `documents.title`
-- [ ] Um documento não ocupa dois nós no Postgres
+- [x] Um documento não ocupa dois nós no Postgres
 - [x] O nó de destino não resolvido continua sendo criado, com o texto como nome
 - [x] O gate rápido passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 -run TestPostgresNodeIdentity ./internal/store/...`
 
