@@ -1289,7 +1289,7 @@ func (s *PostgresStore) ResolveNodeCanonicalIDWithRoot(ctx context.Context, repo
 		ORDER BY
 			CASE
 				WHEN id LIKE $5 THEN 1
-				WHEN path LIKE $5 OR path LIKE $6 THEN 2
+				WHEN path LIKE $5 OR path LIKE $6 OR path LIKE $7 THEN 2
 				ELSE 3
 			END,
 			id ASC

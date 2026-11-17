@@ -208,6 +208,7 @@ func rearrangePathArgs(args []string) []string {
 			if !strings.Contains(arg, "=") && (arg == "--max-depth" || arg == "-max-depth" ||
 				arg == "--depth" || arg == "-depth" || arg == "--mode" || arg == "-mode" ||
 				arg == "--db" || arg == "-db" || arg == "--postgres" || arg == "-postgres" ||
+				arg == "--storage" || arg == "-storage" ||
 				arg == "--repo" || arg == "-repo") {
 				if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 					flags = append(flags, args[i+1])
