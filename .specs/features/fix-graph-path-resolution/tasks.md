@@ -227,15 +227,15 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] A saída nomeia o **id canônico resolvido** (origem e destino)
-- [ ] Quando há mais de um candidato, a saída traz o caminho relativo e o título de **todos** eles
-- [ ] A saída nomeia as chaves: o literal `title:` e o caminho relativo, deixando o sufixo `.md` opcional
-- [ ] A CLI **não falha** com a ambiguidade: termina com sucesso e mostra o resultado da rota
-- [ ] O relatório sai **antes** do bloco `Status:`, para que o usuário veja a ambiguidade antes do resultado
-- [ ] Com um único candidato, **nada** de relatório é impresso (controle negativo)
-- [ ] Nenhuma flag nova é criada para desambiguar — a desambiguação usa o caminho relativo e o `title:`
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
-- [ ] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
+- [x] A saída nomeia o **id canônico resolvido** (origem e destino)
+- [x] Quando há mais de um candidato, a saída traz o caminho relativo e o título de **todos** eles
+- [x] A saída nomeia as chaves: o literal `title:` e o caminho relativo, deixando o sufixo `.md` opcional
+- [x] A CLI **não falha** com a ambiguidade: termina com sucesso e mostra o resultado da rota
+- [x] O relatório sai **antes** do bloco `Status:`, para que o usuário veja a ambiguidade antes do resultado
+- [x] Com um único candidato, **nada** de relatório é impresso (controle negativo)
+- [x] Nenhuma flag nova é criada para desambiguar — a desambiguação usa o caminho relativo e o `title:`
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
+- [x] Test count: os testes de `cmd/mem` passam, sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: quick

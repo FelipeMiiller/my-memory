@@ -174,3 +174,73 @@ func TestPathCLI_UndirectedAndHops(t *testing.T) {
 		t.Errorf("esperava CostMode hops, obteve %s", undirRes.CostMode)
 	}
 }
+
+func TestPathCLI_AmbiguityReport(t *testing.T) {
+	ctx := context.Background()
+	dbFile := filepath.Join(t.TempDir(), "path_amb.db")
+
+	database, err := db.InitDB(dbFile)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such module: fts5") {
+			t.Skip("ambiente sem FTS5")
+		}
+		t.Fatalf("falha ao inicializar SQLite: %v", err)
+	}
+
+	now := time.Now().Unix()
+	// Dois READMEs com o mesmo nome no grafo
+	_ = db.InsertDocument(ctx, database, "README.md", "README.md", "README", now, "h1")
+	_ = db.InsertDocument(ctx, database, "skills/mymemory/README.md", "skills/mymemory/README.md", "README", now, "h2")
+	_ = db.InsertDocument(ctx, database, "target-doc", "docs/target.md", "Target Doc", now, "h3")
+
+	_ = db.InsertEdgeWithProps(ctx, database, "README.md", "target-doc", "links_to", "EXTRACTED", 1.0)
+	database.Close()
+
+	// 1. Caso com ambiguidade: consulta "README"
+	var ambBuf bytes.Buffer
+	err = runPathCommand(ctx, "test-repo", []string{"--db", dbFile, "README", "target-doc"}, &ambBuf)
+	if err != nil {
+		t.Fatalf("CLI não deve falhar na ambiguidade (GPR-14): %v", err)
+	}
+
+	outStr := ambBuf.String()
+
+	// GPR-11: nomeia o id canônico resolvido
+	if !strings.Contains(outStr, "Origem:          README.md") {
+		t.Errorf("esperava id canônico resolvido 'README.md' na Origem, obteve:\n%s", outStr)
+	}
+	if !strings.Contains(outStr, "Destino:         target-doc") {
+		t.Errorf("esperava id canônico resolvido 'target-doc' no Destino, obteve:\n%s", outStr)
+	}
+
+	// GPR-12: contém caminho relativo e título de todos os candidatos
+	if !strings.Contains(outStr, "README.md") || !strings.Contains(outStr, "skills/mymemory/README.md") {
+		t.Errorf("esperava caminhos de todos os candidatos na saída:\n%s", outStr)
+	}
+
+	// GPR-13: nomeia as chaves de desambiguação title: e caminho relativo (.md opcional)
+	if !strings.Contains(outStr, "title:") {
+		t.Errorf("esperava menção à chave 'title:' na desambiguação:\n%s", outStr)
+	}
+	if !strings.Contains(outStr, ".md") {
+		t.Errorf("esperava menção à chave de caminho relativo com .md:\n%s", outStr)
+	}
+
+	// Relatório deve aparecer antes do bloco Status:
+	ambIdx := strings.Index(outStr, "Aviso de Ambiguidade")
+	statusIdx := strings.Index(outStr, "Status:")
+	if ambIdx < 0 || statusIdx < 0 || ambIdx >= statusIdx {
+		t.Errorf("relatório de ambiguidade deve sair antes do bloco Status:. ambIdx=%d, statusIdx=%d", ambIdx, statusIdx)
+	}
+
+	// 2. Controle negativo: identificador exato/único não imprime relatório de ambiguidade
+	var cleanBuf bytes.Buffer
+	err = runPathCommand(ctx, "test-repo", []string{"--db", dbFile, "README.md", "target-doc"}, &cleanBuf)
+	if err != nil {
+		t.Fatalf("falha ao rodar consulta não ambígua: %v", err)
+	}
+	cleanOut := cleanBuf.String()
+	if strings.Contains(cleanOut, "Aviso de Ambiguidade") {
+		t.Errorf("controle negativo falhou: aviso de ambiguidade impresso para consulta unívoca:\n%s", cleanOut)
+	}
+}

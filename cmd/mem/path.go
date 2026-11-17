@@ -139,6 +139,11 @@ func runPathCommand(ctx context.Context, defaultRepo string, args []string, out 
 	fmt.Fprintf(out, "Direcionamento:  %s\n", dirStr)
 	fmt.Fprintf(out, "Profundidade:    %d saltos máx\n", resolvedDepth)
 
+	// Relatório de ambiguidade (GPR-11 a GPR-14): impresso antes de Status:
+	if pathResult.Ambiguity != nil && len(pathResult.Ambiguity.Candidates) > 1 {
+		fmt.Fprintf(out, "\n⚠️  Aviso de Ambiguidade:\n%s\n", pathResult.Ambiguity.FormatCLI())
+	}
+
 	if !pathResult.Found {
 		fmt.Fprintf(out, "\nStatus:          ❌ Não encontrado\n")
 		fmt.Fprintf(out, "Detalhes:        %s\n\n", pathResult.Summary)
