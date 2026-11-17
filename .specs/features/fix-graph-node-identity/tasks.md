@@ -377,12 +377,12 @@ resolvedor continua devolvendo o id de título.
 
 **Done when**:
 
-- [ ] O relatório expõe a contagem de nós que não são `documents.id` nem `code_symbol`
-- [ ] A rotina `--fix` remove exatamente esses nós **sem grau**, escopada por
+- [x] O relatório expõe a contagem de nós que não são `documents.id` nem `code_symbol`
+- [x] A rotina `--fix` remove exatamente esses nós **sem grau**, escopada por
       repositório, e nenhum outro
-- [ ] Um nó de código (`code_symbol`) nunca é removido
-- [ ] Uma aresta cujo destino é um documento indexado não é tratada como dead link
-- [ ] O gate passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 -run TestPostgresDoctorLegacyNodes ./internal/store/...`
+- [x] Um nó de código (`code_symbol`) nunca é removido
+- [x] Uma aresta cujo destino é um documento indexado não é tratada como dead link
+- [x] O gate passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 -run TestPostgresDoctorLegacyNodes ./internal/store/...`
 
 **Tests**: integration
 **Gate**: quick

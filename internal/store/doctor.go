@@ -80,6 +80,35 @@ func CalculateHealthScore(report DoctorReport) int {
 // quanto a transacao da correcao implementam.
 type querier interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// legacyNodeCounts conta os nós do grafo que não são a identidade canônica
+// de um documento (`documents.id`) nem um nó de código (`code_symbol`).
+//
+// ADR-066: são os nós do OUTRO lado da fenda — os que o indexador antigo
+// gravava com o id de título. O primeiro número conta todos; o segundo
+// conta só os que estão SEM GRAU, que é exatamente o que a correção remove.
+//
+// O nó de um alvo não resolvido (o texto do wikilink) tem grau: ele é a
+// representação viva de um link rompido, e o `mem doctor` precisa dele
+// visível (ADR-063).
+func legacyNodeCounts(ctx context.Context, q querier, repo string) (total int, orphans int, err error) {
+	err = q.QueryRowContext(ctx, `
+		SELECT COUNT(*),
+		       COALESCE(SUM(CASE WHEN NOT EXISTS (
+		           SELECT 1 FROM graph_edges e
+		           WHERE e.repository = $1 AND (e.source_id = n.id OR e.target_id = n.id)
+		       ) THEN 1 ELSE 0 END), 0)
+		FROM graph_nodes n
+		WHERE n.repository = $1
+		  AND n.type <> 'code_symbol'
+		  AND n.id NOT IN (SELECT id FROM documents WHERE repository = $1)
+	`, repo).Scan(&total, &orphans)
+	if err != nil {
+		return 0, 0, err
+	}
+	return total, orphans, nil
 }
 
 // deadLinkCandidates lista as arestas que o SQL suspeita de link morto: o
@@ -188,6 +217,12 @@ func (s *PostgresStore) DiagnoseHealth(ctx context.Context, repo string, vaultRo
 	// ADR-057: documentos indexados antes de mtime existir ficam com 0. Reportar
 	// a contagem torna a lacuna visível em vez de silenciosa.
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM documents WHERE repository = $1 AND COALESCE(mtime, 0) = 0`, repo).Scan(&report.MissingMTimeCount)
+	// ADR-066: nós que não são `documents.id` nem `code_symbol` — o outro
+	// lado da fenda da identidade do nó.
+	if total, orphans, err := legacyNodeCounts(ctx, s.db, repo); err == nil {
+		report.LegacyNodeCount = total
+		report.OrphanLegacyNodeCount = orphans
+	}
 
 	// 2. Dead Links (arestas que apontam para notas inexistentes, ignorando tags)
 	//
@@ -387,9 +422,34 @@ func (s *PostgresStore) FixHealthIssues(ctx context.Context, repo string, vaultR
 		return 0, err
 	}
 
+	// 3. Remove os nós legados de identidade (ADR-066).
+	//
+	// São os nós que o indexador antigo gravava com o id de TÍTULO — o
+	// outro lado da fenda. A correção remove os que estão SEM GRAU: eles
+	// não são mais o alvo de nenhuma aresta (as arestas passam a apontar
+	// para o `documents.id` do documento).
+	//
+	// O nó com GRAU fica: ele é a representação viva de um link rompido —
+	// apagar ele apagaria a aresta junto (FK ON DELETE CASCADE) e o
+	// `mem doctor` perderia a detecção de link morto (ADR-063).
+	res, err := tx.ExecContext(ctx, `
+		DELETE FROM graph_nodes n
+		WHERE n.repository = $1
+		  AND n.type <> 'code_symbol'
+		  AND n.id NOT IN (SELECT id FROM documents WHERE repository = $1)
+		  AND NOT EXISTS (
+		      SELECT 1 FROM graph_edges e
+		      WHERE e.repository = $1 AND (e.source_id = n.id OR e.target_id = n.id)
+		  )
+	`, repo)
+	if err != nil {
+		return 0, err
+	}
+	legacyFixed, _ := res.RowsAffected()
+
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
 
-	return int(loopsFixed + deadFixed), nil
+	return int(loopsFixed + deadFixed + int64(legacyFixed)), nil
 }
