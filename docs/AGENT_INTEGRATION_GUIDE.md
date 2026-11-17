@@ -395,13 +395,11 @@ Quando o agente invoca ferramentas de consulta (`memory_search`, `memory_pack_co
 
 
 ```markdown
-> ⚠️ **AVISO: Memória Desatualizada (Stale Data)**
-> O índice local está defasado em relação aos arquivos no disco (3 modificado(s)/novo(s), 0 removido(s)).
-> Execute `mem index` no terminal para sincronizar o grafo e embeddings.
+> ⚠️ **Staleness Warning**: O índice de memória está desatualizado em relação aos arquivos no disco (3 arquivo(s) pendente(s): 2 modificado(s), 1 novo(s), 0 deletado(s)). As respostas abaixo podem refletir um estado anterior. Execute `mem index` ou inicie `mem watch`.
 ```
 
 ### O que o Agente de IA deve fazer ao ver este aviso?
-1. Se a tarefa envolver tomada de decisão de alta precisão (ex: refatoração crítica, checagem de regras de negócio), execute `mem index` ou recomende ao usuário executá-lo.
+1. Se a tarefa envolver tomada de decisão de alta precisão (ex: refatoração crítica, checagem de regras de negócio), execute `mem index` ou inicie `mem watch`, ou recomende ao usuário executá-lo.
 2. Não descarte a resposta: o conteúdo retornado reflete a versão anteriormente indexada e continua sendo útil como contexto histórico ou estrutural preliminar.
 
 ---

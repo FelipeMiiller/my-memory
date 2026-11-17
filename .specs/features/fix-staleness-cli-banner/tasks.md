@@ -424,9 +424,9 @@ volta passa a dizer que a alternativa ao reindex manual é o `mem watch`.
 
 **Done when**:
 
-- [ ] O guia mostra a linha canônica do banner MCP, com as três contagens e a recomendação `mem index` **e** `mem watch`
-- [ ] O literal aposentado **não** aparece mais no arquivo (conferir com `grep`)
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] O guia mostra a linha canônica do banner MCP, com as três contagens e a recomendação `mem index` **e** `mem watch`
+- [x] O literal aposentado **não** aparece mais no arquivo (conferir com `grep`)
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: none
 **Gate**: build
