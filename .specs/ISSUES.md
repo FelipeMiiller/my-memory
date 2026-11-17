@@ -2393,3 +2393,40 @@ ISSUE-050 com a nota da correcao.
 **Referência:** ISSUE-050 (o reset) · spec `fix-ears-gate-blindness` ·
 `.agents/skills/tlc-spec-driven/scripts/validate_spec.py:156-176` ·
 `references/specify.md` (o template que produz a forma que o gate le).
+
+## ISSUE-052 — A branch `env == nil` do filtro de alvo do `mem install` não tem cobertura: um mutante sobrevive à suíte inteira
+
+- **Severidade:** 🟡 medium (não é um defeito de comportamento — a branch está correta — é **uma branch de produção sem nenhum teste**, e o sensor a expõe como mutante sobrevivente)
+- **Status:** 🔵 **open** (achado pela verificação independente da spec `fix-autowiring-cli-contract`, 2026-11-16)
+- **Achado em:** 2026-11-16 — Verifier da spec `fix-autowiring-cli-contract`, em `.specs/features/fix-autowiring-cli-contract/validation.md` (Achado 2, mutante **M7b**)
+
+**O furo.** Os 10 testes de `cmd/mem/install_test.go` **sempre** constroem um
+`SystemEnv` de teste **não-nil**. A branch `env == nil` de
+`cmd/mem/install.go:125` — o caminho em que o `autowire.DetectClients(` é
+chamado **sem** ambiente injetado, ou seja, com o `realSystemEnv` — **não é
+exercitada por nenhum teste**, e `autowire.DetectClients(` **não é chamada por
+nenhum teste** do pacote.
+
+**Como isso aparece.** O sensor (worktree isolado, 9 mutantes) injetou o
+mutante **M7b**: na branch `env == nil`, o filtro de alvo passa a ignorar o
+`--target`. **Nenhum dos 10 testes de `cmd/mem/install_test.go` falhou** — o
+mutante **sobreviveu à suíte inteira**.
+
+**Por que importa.** O gap original (ISSUE-048) era justamente "o filtro de
+alvo **não** tinha teste discriminante" — e a correção (T14) fechou o gap **do
+caminho testado**. A branch que sobra é a **de produção por default** (o
+`mem install` real não injeta ambiente), ou seja: **a branch mais usada do
+produto é a que não tem prova**.
+
+**O conserto.** Um teste que exerça `mem install` (ou `runInstallCommand`) com o
+ambiente **real** (`env == nil`), sobre um alvo que exista e um que não exista,
+asseverando o conjunto exato de clientes escritos. Com isso o mutante **M7b**
+morre e a branch ganha cobertura.
+
+**Ressalva honesta:** o M7 original (o gap bloqueante) **está fechado** — ele
+morre em `cmd/mem/install_test.go:160`. O que fica é a **lacuna de cobertura**
+da branch vizinha, registrada aqui em vez de silenciada.
+
+**Referência:** ISSUE-048 (o gap de origem) · ADR-026 ·
+`cmd/mem/install.go:125` · `.specs/features/fix-autowiring-cli-contract/validation.md`
+(Achado 2).

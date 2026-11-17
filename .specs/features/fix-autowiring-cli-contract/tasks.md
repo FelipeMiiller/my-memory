@@ -724,15 +724,15 @@ contrato
 
 **Done when**:
 
-- [ ] O Verifier é um agente **distinto** do autor de T1..T17 (autor ≠ verificador)
-- [ ] O sensor mata **M7** e **M8** — os dois que sobreviveram
-- [ ] Os 7 mutantes que já morriam continuam mortos, e o sensor fecha em **9/9**
-- [ ] As 8 ACs da feature de origem têm evidência `file:line` no relatório
-- [ ] O relatório cita **apenas** funções de teste que existem no repositório
-- [ ] O relatório declara que os 8 nomes do plano de validação anterior nunca existiram
-- [ ] O veredito do relatório é **PASS** e `validate_state.py ai-tool-auto-wiring` sai **exit 0**
-- [ ] A árvore real está intacta no fim (baseline e final idênticos, `git status --porcelain` limpo) — **sem `git stash`**
-- [ ] O Postgres do dono **não** foi contatado e nenhum banco foi criado ou apagado
+- [x] O Verifier é um agente **distinto** do autor de T1..T17 (autor ≠ verificador)
+- [x] O sensor mata **M7** e **M8** — os dois que sobreviveram
+- [x] Os 7 mutantes que já morriam continuam mortos, e o sensor fecha em **9/9**
+- [x] As 8 ACs da feature de origem têm evidência `file:line` no relatório
+- [x] O relatório cita **apenas** funções de teste que existem no repositório
+- [x] O relatório declara que os 8 nomes do plano de validação anterior nunca existiram
+- [x] O veredito do relatório é **PASS** e `validate_state.py ai-tool-auto-wiring` sai **exit 0**
+- [x] A árvore real está intacta no fim (baseline e final idênticos, `git status --porcelain` limpo) — **sem `git stash`**
+- [x] O Postgres do dono **não** foi contatado e nenhum banco foi criado ou apagado
 
 **Tests**: integration
 **Gate**: full
