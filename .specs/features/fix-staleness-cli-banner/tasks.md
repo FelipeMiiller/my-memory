@@ -175,15 +175,15 @@ ADR-028 §3 · o padrão de asserção já existente em `detector_test.go:136-14
 
 **Done when**:
 
-- [ ] `FormatMarkdownBanner` emite a linha `> ⚠️ **Staleness Warning**: O índice de memória está desatualizado em relação aos arquivos no disco (N arquivo(s) pendente(s): X modificado(s), Y novo(s), Z deletado(s)). As respostas abaixo podem refletir um estado anterior. Execute \`mem index\` ou inicie \`mem watch\`.`
-- [ ] `FormatCLIBanner` emite `⚠️ [Aviso] O índice local está desatualizado (X modificado(s), Y novo(s), Z removido(s)). Execute \`mem index\` ou inicie \`mem watch\`.`
-- [ ] O título e a recomendação vivem em **constantes exportadas** de `internal/staleness`, e os dois formatadores as usam
-- [ ] O literal **aposentado** `> ⚠️ **AVISO: Memória Desatualizada (Stale Data)**` **não** é emitido por nenhum caminho
-- [ ] Relatório `nil` ou com `IsStale` falso devolve **string vazia** nos dois formatadores — o banner some
-- [ ] O teste fixa o **texto literal** (string hard-coded no arquivo de teste) e compara com a constante exportada — **não** afirma a constante contra si mesma
-- [ ] `internal/mcp/staleness_handlers_test.go:94` passa a asseverar o literal **canônico** (e o `:77` continua provando que não há banner em sincronia)
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/staleness/... ./internal/mcp/...`
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] `FormatMarkdownBanner` emite a linha `> ⚠️ **Staleness Warning**: O índice de memória está desatualizado em relação aos arquivos no disco (N arquivo(s) pendente(s): X modificado(s), Y novo(s), Z deletado(s)). As respostas abaixo podem refletir um estado anterior. Execute \`mem index\` ou inicie \`mem watch\`.`
+- [x] `FormatCLIBanner` emite `⚠️ [Aviso] O índice local está desatualizado (X modificado(s), Y novo(s), Z removido(s)). Execute \`mem index\` ou inicie \`mem watch\`.`
+- [x] O título e a recomendação vivem em **constantes exportadas** de `internal/staleness`, e os dois formatadores as usam
+- [x] O literal **aposentado** `> ⚠️ **AVISO: Memória Desatualizada (Stale Data)**` **não** é emitido por nenhum caminho
+- [x] Relatório `nil` ou com `IsStale` falso devolve **string vazia** nos dois formatadores — o banner some
+- [x] O teste fixa o **texto literal** (string hard-coded no arquivo de teste) e compara com a constante exportada — **não** afirma a constante contra si mesma
+- [x] `internal/mcp/staleness_handlers_test.go:94` passa a asseverar o literal **canônico** (e o `:77` continua provando que não há banner em sincronia)
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/staleness/... ./internal/mcp/...`
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: unit
 **Gate**: quick

@@ -21,6 +21,27 @@ import (
 // DefaultTTL é o tempo de expiração padrão do cache de staleness (3 segundos)
 const DefaultTTL = 3 * time.Second
 
+// Fonte única dos literais de staleness (ADR-028 §3).
+//
+// O aviso é um contrato: o agente que lê o banner precisa reconhecê-lo, e o
+// teste precisa poder prová-lo. Escrever o texto no consumidor foi o que
+// produziu quatro literais divergentes (spec, ADR, código e guias) — por isso
+// o título, a recomendação e os rótulos de status vivem aqui.
+const (
+	// StalenessWarningTitle é o título canônico do banner de staleness.
+	StalenessWarningTitle = "Staleness Warning"
+
+	// StalenessRecommendation é a recomendação canônica: reindexar o vault
+	// ou deixar o watcher em pé.
+	StalenessRecommendation = "Execute `mem index` ou inicie `mem watch`"
+
+	// StatusStaleLabel é o rótulo de status do vault desatualizado.
+	StatusStaleLabel = "⚠️ DESATUALIZADO (Stale)"
+
+	// StatusFreshLabel é o rótulo de status do vault em sincronia.
+	StatusFreshLabel = "✅ ATUALIZADO (Fresh)"
+)
+
 // StalenessReport agrega as métricas de sincronização entre o disco e a base indexada
 //
 // As três categorias são disjuntas e exigidas pela ADR-028 §1: "Modificado"
@@ -306,22 +327,35 @@ func (d *Detector) computeStaleness(ctx context.Context) (*StalenessReport, erro
 	}, nil
 }
 
-// FormatMarkdownBanner gera o banner amigável em Markdown para ferramentas MCP
+// FormatMarkdownBanner gera o banner amigável em Markdown para ferramentas MCP.
+//
+// A linha é a da ADR-028 §3 (Accepted): o texto é o contrato que o agente
+// reconhece, e N é o total pendente (modificados + novos + deletados).
 func FormatMarkdownBanner(report *StalenessReport) string {
 	if report == nil || !report.IsStale {
 		return ""
 	}
-	return fmt.Sprintf("> ⚠️ **AVISO: Memória Desatualizada (Stale Data)**\n"+
-		"> O índice local está defasado em relação aos arquivos no disco (%d modificado(s)/novo(s), %d removido(s)).\n"+
-		"> Execute `mem index` no terminal para sincronizar o grafo e embeddings.\n\n",
-		report.StaleFilesCount, report.DeletedFilesCount)
+	return fmt.Sprintf("> ⚠️ **%s**: O índice de memória está desatualizado em relação aos arquivos no disco (%d arquivo(s) pendente(s): %d modificado(s), %d novo(s), %d deletado(s)). As respostas abaixo podem refletir um estado anterior. %s.\n",
+		StalenessWarningTitle,
+		report.StaleFilesCount+report.NewFilesCount+report.DeletedFilesCount,
+		report.StaleFilesCount,
+		report.NewFilesCount,
+		report.DeletedFilesCount,
+		StalenessRecommendation)
 }
 
-// FormatCLIBanner gera a linha de aviso para comandos CLI
+// FormatCLIBanner gera a linha de aviso para comandos CLI.
+//
+// A ADR-028 especifica apenas o banner Markdown (§3); a linha da CLI não tem
+// norma. Ela carrega a mesma recomendação e as mesmas três contagens, numa
+// linha só que cabe no topo do stdout com resultados.
 func FormatCLIBanner(report *StalenessReport) string {
 	if report == nil || !report.IsStale {
 		return ""
 	}
-	return fmt.Sprintf("⚠️  [Aviso] O índice local está desatualizado (%d alterados/novos, %d removidos). Execute 'mem index'.\n",
-		report.StaleFilesCount, report.DeletedFilesCount)
+	return fmt.Sprintf("⚠️ [Aviso] O índice local está desatualizado (%d modificado(s), %d novo(s), %d removido(s)). %s.\n",
+		report.StaleFilesCount,
+		report.NewFilesCount,
+		report.DeletedFilesCount,
+		StalenessRecommendation)
 }

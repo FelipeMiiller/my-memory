@@ -137,13 +137,90 @@ func TestDetector_ModifiedFile(t *testing.T) {
 	}
 
 	mdBanner := FormatMarkdownBanner(rep)
-	if !strings.Contains(mdBanner, "Memória Desatualizada") || !strings.Contains(mdBanner, "mem index") {
+	if !strings.Contains(mdBanner, "Staleness Warning") || !strings.Contains(mdBanner, "mem index") {
 		t.Errorf("FormatMarkdownBanner não contém aviso esperado: %s", mdBanner)
 	}
 
 	cliBanner := FormatCLIBanner(rep)
-	if !strings.Contains(cliBanner, "alterados/novos") || !strings.Contains(cliBanner, "mem index") {
+	if !strings.Contains(cliBanner, "O índice local está desatualizado") || !strings.Contains(cliBanner, "mem index") {
 		t.Errorf("FormatCLIBanner não contém aviso esperado: %s", cliBanner)
+	}
+}
+
+// Textos literais do banner canônico (ADR-028 §3). São strings hard-coded de
+// propósito: afirmar a constante exportada contra si mesma seria verde por
+// construção e não provaria nada. Se alguém trocar o aviso, este teste quebra.
+const (
+	canonicalMarkdownBanner = "> ⚠️ **Staleness Warning**: O índice de memória está desatualizado em relação aos arquivos no disco (1 arquivo(s) pendente(s): 1 modificado(s), 0 novo(s), 0 deletado(s)). As respostas abaixo podem refletir um estado anterior. Execute `mem index` ou inicie `mem watch`."
+	canonicalCLIBanner      = "⚠️ [Aviso] O índice local está desatualizado (1 modificado(s), 0 novo(s), 0 removido(s)). Execute `mem index` ou inicie `mem watch`."
+)
+
+// TestFormatBanners_CanonicalLiteral: os dois formatadores emitem exatamente o
+// texto da ADR-028 §3, com as contagens do relatório.
+func TestFormatBanners_CanonicalLiteral(t *testing.T) {
+	rep := &StalenessReport{
+		IsStale:           true,
+		StaleFilesCount:   1,
+		NewFilesCount:     0,
+		DeletedFilesCount: 0,
+	}
+
+	md := FormatMarkdownBanner(rep)
+	if strings.TrimRight(md, "\n") != canonicalMarkdownBanner {
+		t.Errorf("FormatMarkdownBanner não emitiu o literal canônico.\nobtido: %q\nesperado: %q", md, canonicalMarkdownBanner)
+	}
+
+	cli := FormatCLIBanner(rep)
+	if strings.TrimRight(cli, "\n") != canonicalCLIBanner {
+		t.Errorf("FormatCLIBanner não emitiu o literal canônico.\nobtido: %q\nesperado: %q", cli, canonicalCLIBanner)
+	}
+
+	// O literal aposentado não pode sair por nenhum caminho.
+	if strings.Contains(md, "AVISO: Memória Desatualizada") || strings.Contains(cli, "AVISO: Memória Desatualizada") {
+		t.Errorf("O literal aposentado do banner ainda é emitido: %q / %q", md, cli)
+	}
+	if strings.Contains(cli, "alterados/novos") {
+		t.Errorf("FormatCLIBanner ainda usa o literal aposentado 'alterados/novos': %q", cli)
+	}
+}
+
+// TestFormatBanners_ThreeCounts: as três contagens entram no banner e N é a
+// soma delas (modificados + novos + deletados).
+func TestFormatBanners_ThreeCounts(t *testing.T) {
+	rep := &StalenessReport{
+		IsStale:           true,
+		StaleFilesCount:   2,
+		NewFilesCount:     3,
+		DeletedFilesCount: 4,
+	}
+
+	md := FormatMarkdownBanner(rep)
+	if !strings.Contains(md, "(9 arquivo(s) pendente(s): 2 modificado(s), 3 novo(s), 4 deletado(s))") {
+		t.Errorf("FormatMarkdownBanner não traz as três contagens com N = soma: %q", md)
+	}
+
+	cli := FormatCLIBanner(rep)
+	if !strings.Contains(cli, "(2 modificado(s), 3 novo(s), 4 removido(s))") {
+		t.Errorf("FormatCLIBanner não traz as três contagens: %q", cli)
+	}
+}
+
+// TestFormatBanners_EmptyOutsideStale: fora do estado stale os dois
+// formatadores devolvem string vazia — nenhum banner vaza por acidente.
+func TestFormatBanners_EmptyOutsideStale(t *testing.T) {
+	if got := FormatMarkdownBanner(nil); got != "" {
+		t.Errorf("FormatMarkdownBanner com relatório nulo deveria devolver string vazia, obteve %q", got)
+	}
+	if got := FormatCLIBanner(nil); got != "" {
+		t.Errorf("FormatCLIBanner com relatório nulo deveria devolver string vazia, obteve %q", got)
+	}
+
+	inSync := &StalenessReport{IsStale: false, StaleFilesCount: 3, NewFilesCount: 1, DeletedFilesCount: 2}
+	if got := FormatMarkdownBanner(inSync); got != "" {
+		t.Errorf("FormatMarkdownBanner em sincronia deveria devolver string vazia, obteve %q", got)
+	}
+	if got := FormatCLIBanner(inSync); got != "" {
+		t.Errorf("FormatCLIBanner em sincronia deveria devolver string vazia, obteve %q", got)
 	}
 }
 

@@ -74,7 +74,7 @@ func TestMCP_StalenessBannerInjection(t *testing.T) {
 	if !ok || len(toolResSync.Content) == 0 {
 		t.Fatalf("Resposta inválida: %+v", resSync)
 	}
-	if strings.Contains(toolResSync.Content[0].Text, "AVISO: Memória Desatualizada") {
+	if strings.Contains(toolResSync.Content[0].Text, "Staleness Warning") {
 		t.Errorf("Não deveria conter banner de desatualização quando em sincronia!")
 	}
 
@@ -91,8 +91,15 @@ func TestMCP_StalenessBannerInjection(t *testing.T) {
 	if !ok || len(toolResStale.Content) == 0 {
 		t.Fatalf("Resposta inválida: %+v", resStale)
 	}
-	if !strings.Contains(toolResStale.Content[0].Text, "AVISO: Memória Desatualizada") {
-		t.Errorf("Deveria conter banner de desatualização após modificação do arquivo! Texto:\n%s", toolResStale.Content[0].Text)
+	// O banner injetado é o literal canônico da ADR-028 §3, com o total
+	// pendente e as três contagens do relatório (1 modificado, 0 novos,
+	// 0 deletados).
+	canonicalBanner := "> ⚠️ **Staleness Warning**: O índice de memória está desatualizado em relação aos arquivos no disco (1 arquivo(s) pendente(s): 1 modificado(s), 0 novo(s), 0 deletado(s)). As respostas abaixo podem refletir um estado anterior. Execute `mem index` ou inicie `mem watch`."
+	if !strings.Contains(toolResStale.Content[0].Text, canonicalBanner) {
+		t.Errorf("Deveria conter o banner canônico de desatualização após modificação do arquivo! Texto:\n%s", toolResStale.Content[0].Text)
+	}
+	if strings.Contains(toolResStale.Content[0].Text, "AVISO: Memória Desatualizada") {
+		t.Errorf("O literal aposentado do banner não pode mais ser emitido! Texto:\n%s", toolResStale.Content[0].Text)
 	}
 	if !strings.Contains(toolResStale.Content[0].Text, "mem index") {
 		t.Errorf("Banner deveria recomendar 'mem index'")
