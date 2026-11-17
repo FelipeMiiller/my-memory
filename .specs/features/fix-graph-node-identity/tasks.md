@@ -411,15 +411,15 @@ stdout já existente no pacote
 
 **Done when**:
 
-- [ ] O teste indexa 2 notas ligadas por `[[wikilink]]` e o `mem path` entre elas reporta
+- [x] O teste indexa 2 notas ligadas por `[[wikilink]]` e o `mem path` entre elas reporta
       `✅ Encontrado` com **1** salto
-- [ ] O teste prova que as duas notas ocupam **uma** identidade de nó cada e que a aresta
+- [x] O teste prova que as duas notas ocupam **uma** identidade de nó cada e que a aresta
       gravada tem as duas pontas em id de documento
-- [ ] O teste prova que `mem impact` e `mem inspect` devolvem o **mesmo** id canônico que
+- [x] O teste prova que `mem impact` e `mem inspect` devolvem o **mesmo** id canônico que
       o `mem path` para o mesmo documento
-- [ ] O teste prova que a ponte `references_code` mantém `source_id` = `documents.id`
-- [ ] O teste prova que o `mem doctor` não acusa as arestas de documento como dead link
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestPathIdentity ./cmd/mem/...`
+- [x] O teste prova que a ponte `references_code` mantém `source_id` = `documents.id`
+- [x] O teste prova que o `mem doctor` não acusa as arestas de documento como dead link
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 -run TestPathIdentity ./cmd/mem/...`
 
 **Tests**: e2e
 **Gate**: quick
