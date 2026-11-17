@@ -2155,7 +2155,7 @@ spec exige.
 ## ISSUE-046 — 7 gaps na feature `graph-path-discovery`: resolução ambígua, defaults mortos e ausência de asserção
 
 - **Severidade:** 🟡 medium (o motor de caminho está correto; os gaps são de gancho, de default e de prova — a feature é inutilizável no vault real por causa do ISSUE-047)
-- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Status:** 🟢 **resolved** (implementado pela spec `fix-graph-path-resolution`, re-verificado pelo subagente independente com 8/8 mutações mortas e 100% PASS em 2026-11-17)
 - **Spec de correcao:** `.specs/features/fix-graph-path-resolution/` — 47 ACs em EARS, 14 tasks, 4 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `graph-path-discovery` — `.specs/features/graph-path-discovery/validation.md`
 
@@ -2170,6 +2170,16 @@ spec exige.
 | 5 | FIX-5 | o caminho PostgreSQL só é coberto por um self-path; o **isolamento por repositório nunca é asseverado** |
 | 6 | FIX-6 | a mensagem de não-encontrado, o bloco CLI de not-found, os headings de rota/tabela MCP e o código `InvalidParams` **não são asseverados** |
 | 7 | FIX-7 | `DefaultPathOptions()` é **morto em produção**; os defaults são duplicados em outros dois lugares |
+
+**Resolução (2026-11-17):**
+1. **FIX-3 (Resolução determinística & Relatório de ambiguidade)**: `internal/graph/resolve.go` implementou o tipo `AmbiguityReport` e contrato determinístico de desempate (documento do mesmo repo > menos segmentos > id menor). Implementado no SQLite (`internal/db/graph.go`) e no PostgreSQL (`internal/store/postgres.go`). A CLI (`cmd/mem/path.go`) exibe aviso de ambiguidade sem abortar; a tool MCP (`internal/mcp/path_handlers.go`) retorna `CodeInvalidParams` com candidatos nomeados.
+2. **FIX-1 (M7 morto)**: Ramo de nó idêntico asseverado via `Summary` exato em `TestFindPath_IdenticalSourceAndTarget` (`internal/graph/path_test.go`), matando M7.
+3. **FIX-4 (Status e peso epistêmicos)**: `TestFindPath_EdgeDetails` assevera status (`EXTRACTED`, `INFERRED`, `TAG`), pesos (`1.0`, `0.6`, `0.3`) e relações (`links_to` e customizadas verbatim).
+4. **FIX-5 (Postgres multi-hop & isolamento)**: `TestPostgresStore_FindPath_MultiHopIsolation` valida rota multi-hop em PostgreSQL com dois repositórios isolados no mesmo banco.
+5. **FIX-6 (Mensagens, headings e status CLI/MCP)**: Testes adicionados para `❌ Não encontrado`, linha `Detalhes:`, headings `Rota Conectada` e `Segmentos Percorridos` e código de erro `InvalidParams`.
+6. **FIX-7 (Defaults unificados)**: CLI e MCP passam a consumir `graph.DefaultPathOptions()`, eliminando literais duplicados.
+7. **S1..S7 (Decisões na spec)**: Emenda na spec `graph-path-discovery` documentando precedência `--undirected`, fallback de modo, reset de profundidade, literais/pesos, summaries, remissão à ISSUE-022 e dependência de ISSUE-047.
+8. **Re-verificação**: Verificador independente confirmou 100% dos critérios PASS, matou 8/8 mutações do sensor e emitiu relatórios PASS para `graph-path-discovery` e `fix-graph-path-resolution`.
 
 **Spec precision:** 7 gaps (S1–S7), incluindo a promessa P3 "Markdown e JSON" que
 a resposta só-texto não cumpre (já rastreada pela ISSUE-022).

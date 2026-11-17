@@ -14,7 +14,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Design**: inline nesta spec (resolução determinística **e** relatório de ambiguidade + 2 resolvers + asserções + defaults em fonte única + emenda do spec da feature + ciclo de re-verificação; **o motor de pathfinding não é tocado**)
-**Status**: Draft
+**Status**: Complete
 
 ---
 
