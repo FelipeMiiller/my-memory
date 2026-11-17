@@ -2084,7 +2084,7 @@ A única construção de `staleness.Detector` na CLI é a de `cmd/mem/status.go:
 ## ISSUE-044 — 3 caminhos do carregamento progressivo não têm teste: o default da flag, o schema da tool e o indexador
 
 - **Severidade:** 🟡 medium (o comportamento existe e o gate está verde; falta a prova que liga as unidades — o padrão é "testado na unidade, encano sem prova")
-- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15)
+- **Status:** 🟢 **resolved** (implementado pela spec `fix-progressive-context-test-coverage`, promovido para PASS com sensor 7/7 e contrafactual 4/4 em 2026-11-16; ressalva de autoria registrada na ISSUE-054)
 - **Spec de correcao:** `.specs/features/fix-progressive-context-test-coverage/` — 9 ACs em EARS, 5 tasks, 2 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `progressive-context-loading` — `.specs/features/progressive-context-loading/validation.md`
 
@@ -2096,16 +2096,11 @@ A única construção de `staleness.Detector` na CLI é a de `cmd/mem/status.go:
 | PCL-02 | o **schema JSON** da tool MCP — o teste pega o **comportamento**, não o **schema** | `internal/mcp/` |
 | PCL-03 | o indexador `summary` → `abstract` — o teste pega o **parser**, não o **indexador** | indexador |
 
-**Veredito:** ⚠️ **PARTIAL** — 8/9 ACs com evidência `file:line`; o comportamento
-está implementado nos dois motores (taxonomia `category`, `abstract` L0, filtro
-por categoria na busca, projeção L0 sem corpo bruto, tool serializando por nível).
-
-**Sensor:** 6 mutações, **3 mortas / 3 sobreviveram** — as 3 que sobreviveram
-são exatamente as 3 bordas sem teste acima.
-
-**Ressalva de independência:** o sensor foi executado **no pai**, porque o Verifier
-independente encerrou o turno antes dele. O gate e a análise ancorada na spec
-foram do sub-agente. A re-verificação independente da spec continua pendente.
+**Resolução (2026-11-16):**
+1. **PCL-01**: `cmd/mem/search_level_l0_test.go` (SQLite) e `cmd/mem/search_level_l0_postgres_test.go` (PostgreSQL) asseveram a renderização L0 (badge `[MEMORY]` em maiúsculo + micro-abstract sem corpo bruto, e corpo bruto presente em `l1` como controle negativo).
+2. **PCL-02**: `internal/mcp/tools_test.go:137` assevera `detail_level` e `category` com seus enums no catálogo servido (`GetTools()`).
+3. **PCL-03**: `internal/watcher/indexer_abstract_test.go` assevera que `summary` vira `abstract` verbatim, que `abstract` do frontmatter é preservado quando sem summary, e fallback de 160 caracteres.
+4. **Re-verificação**: Sensor 7/7 mortas e contrafactual 4/4. Feature `progressive-context-loading` promovida para PASS. Relatório em `.specs/features/progressive-context-loading/validation.md`.
 
 **Referência:** ADR-025 · spec `progressive-context-loading` ·
 `.specs/features/progressive-context-loading/validation.md`.
