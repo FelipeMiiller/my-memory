@@ -374,12 +374,12 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] O default de `max_depth`, de `directed` e de `mode` vem de `graph.DefaultPathOptions()`
-- [ ] O default efetivo continua sendo **6** / **true** / **epistemic** e a resposta mostra `Limite de Profundidade: 6 saltos` e `Modo de Custo: \`epistemic\``
-- [ ] O `grep` não acha mais literal de default de caminho em `internal/mcp/path_handlers.go` (GPR-36)
-- [ ] `max_depth` não-positivo continua sendo ignorado em favor do default (comportamento vigente)
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/mcp/...`
-- [ ] Test count: os testes de `internal/mcp` passam, sem nenhuma deleção silenciosa
+- [x] O default de `max_depth`, de `directed` e de `mode` vem de `graph.DefaultPathOptions()`
+- [x] O default efetivo continua sendo **6** / **true** / **epistemic** e a resposta mostra `Limite de Profundidade: 6 saltos` e `Modo de Custo: \`epistemic\``
+- [x] O `grep` não acha mais literal de default de caminho em `internal/mcp/path_handlers.go` (GPR-36)
+- [x] `max_depth` não-positivo continua sendo ignorado em favor do default (comportamento vigente)
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/mcp/...`
+- [x] Test count: os testes de `internal/mcp` passam, sem nenhuma deleção silenciosa
 
 **Tests**: unit
 **Gate**: quick

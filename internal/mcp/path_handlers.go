@@ -40,7 +40,9 @@ func NewMemoryFindPathHandler(pathFn PathFunc) ToolHandlerFunc {
 			return nil, NewError(CodeInvalidParams, "Parâmetro 'target' é obrigatório", nil)
 		}
 
-		maxDepth := 6
+		defaultOpts := graph.DefaultPathOptions()
+
+		maxDepth := defaultOpts.MaxDepth
 		if rawDepth, ok := rawMap["max_depth"]; ok {
 			var d int
 			if err := json.Unmarshal(rawDepth, &d); err == nil && d > 0 {
@@ -48,7 +50,7 @@ func NewMemoryFindPathHandler(pathFn PathFunc) ToolHandlerFunc {
 			}
 		}
 
-		directed := true
+		directed := defaultOpts.Directed
 		if rawDir, ok := rawMap["directed"]; ok {
 			var dir bool
 			if err := json.Unmarshal(rawDir, &dir); err == nil {
@@ -56,7 +58,7 @@ func NewMemoryFindPathHandler(pathFn PathFunc) ToolHandlerFunc {
 			}
 		}
 
-		costMode := graph.CostModeEpistemic
+		costMode := defaultOpts.CostMode
 		if rawMode, ok := rawMap["mode"]; ok {
 			var m string
 			if err := json.Unmarshal(rawMode, &m); err == nil && strings.ToLower(strings.TrimSpace(m)) == "hops" {
