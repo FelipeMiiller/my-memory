@@ -523,13 +523,13 @@ standalone do `tlc-spec-driven` para a análise ancorada na spec
 
 **Done when**:
 
-- [ ] O Verifier é um agente **distinto** do autor de T1..T11 (autor ≠ verificador)
-- [ ] O sensor re-injeta mutações nos quatro gap sites e **cada uma** derruba a suíte
-- [ ] As 6 mutações do sensor original (M1..M6) constam no relatório: **6/6 mortas**, mais as novas dos quatro gap sites
-- [ ] As 9 ACs da feature `staleness-detection-and-banners` têm evidência `file:line` no relatório
-- [ ] O diff da correção **não toca** a ADR-028 (`git diff --stat` do range não lista `docs/adr/028-...`)
-- [ ] O veredito do relatório é **PASS** e `validate_state.py staleness-detection-and-banners` sai **exit 0**
-- [ ] A árvore real está intacta no fim (baseline e final idênticos, `git status --porcelain` limpo) — **sem `git stash`**
+- [x] O Verifier é um agente **distinto** do autor de T1..T11 (autor ≠ verificador)
+- [x] O sensor re-injeta mutações nos quatro gap sites e **cada uma** derruba a suíte
+- [x] As 6 mutações do sensor original (M1..M6) constam no relatório: **6/6 mortas**, mais as novas dos quatro gap sites
+- [x] As 9 ACs da feature `staleness-detection-and-banners` têm evidência `file:line` no relatório
+- [x] O diff da correção **não toca** a ADR-028 (`git diff --stat` do range não lista `docs/adr/028-...`)
+- [x] O veredito do relatório é **PASS** e `validate_state.py staleness-detection-and-banners` sai **exit 0**
+- [x] A árvore real está intacta no fim (baseline e final idênticos, `git status --porcelain` limpo) — **sem `git stash`**
 
 **Tests**: integration
 **Gate**: full
