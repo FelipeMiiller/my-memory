@@ -524,14 +524,14 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] O Verifier é um agente **distinto** do autor de T1..T13 (autor ≠ verificador)
-- [ ] O sensor re-injeta o M7 e **derruba** a suíte (GPR-43)
-- [ ] O sensor re-injeta a mutação composta do FIX-7 e **derruba** a suíte (GPR-44)
-- [ ] As 6 mutações do sensor original (M1–M6) constam no relatório: **6/6 mortas** (GPR-45)
-- [ ] As ACs da feature `graph-path-discovery` têm evidência `file:line` no relatório
-- [ ] O veredito do relatório é **PASS** e `validate_state.py graph-path-discovery` sai **exit 0**
-- [ ] A árvore real está intacta no fim (baseline e final idênticos, `git status --porcelain` limpo) — **sem `git stash`**
-- [ ] O relatório registra a dependência que **resta**: o `mem path` no vault real só funciona depois da ISSUE-047
+- [x] O Verifier é um agente **distinto** do autor de T1..T13 (autor ≠ verificador)
+- [x] O sensor re-injeta o M7 e **derruba** a suíte (GPR-43)
+- [x] O sensor re-injeta a mutação composta do FIX-7 e **derruba** a suíte (GPR-44)
+- [x] As 6 mutações do sensor original (M1–M6) constam no relatório: **6/6 mortas** (GPR-45)
+- [x] As ACs da feature `graph-path-discovery` têm evidência `file:line` no relatório
+- [x] O veredito do relatório é **PASS** e `validate_state.py graph-path-discovery` sai **exit 0**
+- [x] A árvore real está intacta no fim (baseline e final idênticos, `git status --porcelain` limpo) — **sem `git stash`**
+- [x] O relatório registra a dependência que **resta**: o `mem path` no vault real só funciona depois da ISSUE-047
 
 **Tests**: integration
 **Gate**: full
