@@ -3541,7 +3541,8 @@ func runMCPServer(ctx context.Context, pgStore *store.PostgresStore, database *s
 
 		cwd, _ := os.Getwd()
 		srv.SetOpenHandler(func(ctx context.Context, repo, nodeID string) (string, error) {
-			return db.ResolveNodeCanonicalID(ctx, database, nodeID)
+			id, _, err := db.ResolveNodeCanonicalID(ctx, database, nodeID)
+			return id, err
 		}, cwd, mcpCfg.ResolveObsidianVault(cwd), deeplink.DefaultLauncher)
 
 		srv.SetDriftHandler(func(ctx context.Context, rangeStr string, threshold float64, includeUncovered bool, repoSlug string) (*drift.DriftReport, error) {

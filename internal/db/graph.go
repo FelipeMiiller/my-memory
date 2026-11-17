@@ -638,7 +638,59 @@ func FixHealthIssues(ctx context.Context, db *sql.DB, vaultRoot string) (int, er
 	return int(loopsFixed + deadFixed + legacyFixed), nil
 }
 
+type nodeCandidate struct {
+	id       string
+	relPath  string
+	title    string
+	isDoc    bool
+	segments int
+}
+
+func countPathSegments(p string) int {
+	clean := strings.Trim(strings.ReplaceAll(p, "\\", "/"), "/")
+	if clean == "" {
+		return 0
+	}
+	return strings.Count(clean, "/") + 1
+}
+
+func isBetterNodeCandidate(a, b nodeCandidate) bool {
+	// 1. Documento do mesmo repositório vence (ADR-066 / GPR-03)
+	if a.isDoc != b.isDoc {
+		return a.isDoc
+	}
+	// 2. Menos segmentos de caminho vence (GPR-04)
+	if a.segments != b.segments {
+		return a.segments < b.segments
+	}
+	// 3. Menor ID lexicográfico desempata (GPR-04)
+	return a.id < b.id
+}
+
+func selectCanonicalCandidate(cands []nodeCandidate) nodeCandidate {
+	best := cands[0]
+	for _, c := range cands[1:] {
+		if isBetterNodeCandidate(c, best) {
+			best = c
+		}
+	}
+	return best
+}
+
+func toGraphCandidates(cands []nodeCandidate) []graph.Candidate {
+	res := make([]graph.Candidate, len(cands))
+	for i, c := range cands {
+		res[i] = graph.Candidate{
+			ID:      c.id,
+			RelPath: c.relPath,
+			Title:   c.title,
+		}
+	}
+	return res
+}
+
 // ResolveNodeCanonicalID resolve um identificador informal, slug, título ou caminho relativo para o ID canônico no grafo.
+// Retorna também o relatório de ambiguidade quando houver mais de um candidato correspondente (GPR-02).
 //
 // ADR-066: o id canônico do nó é o `documents.id`. O path, o `title:` e o
 // `alias:` do MESMO documento são aliases do mesmo nó — e a consulta pelo
@@ -646,111 +698,257 @@ func FixHealthIssues(ctx context.Context, db *sql.DB, vaultRoot string) (int, er
 //
 // A raiz do vault — necessária para o `alias:`, que só existe no disco — vem
 // da precedência padrão do `internal/vaultfs`: diretório de trabalho atual.
-func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (string, error) {
+func ResolveNodeCanonicalID(ctx context.Context, db *sql.DB, query string) (string, *graph.AmbiguityReport, error) {
 	return ResolveNodeCanonicalIDWithRoot(ctx, db, query, vaultfs.ResolveRoot("", "").Path)
 }
 
 // ResolveNodeCanonicalIDWithRoot resolve o nó canônico com a raiz do vault
-// explícita.
-//
-// A raiz é o que permite resolver o `alias:` de frontmatter: o alias não é
-// persistido no índice (a ADR-056 não foi implementada), então ele só
-// resolve contra o disco. Sem raiz — ou sem o alias no disco — a resposta
-// honesta é o erro de nó não encontrado.
-func ResolveNodeCanonicalIDWithRoot(ctx context.Context, db *sql.DB, query string, vaultRoot string) (string, error) {
+// explícita, coletando candidatos e determinando desempate determinístico (GPR-01 a GPR-07).
+func ResolveNodeCanonicalIDWithRoot(ctx context.Context, db *sql.DB, query string, vaultRoot string) (string, *graph.AmbiguityReport, error) {
 	clean := strings.TrimSpace(query)
 	clean = strings.TrimPrefix(clean, "[[")
 	clean = strings.TrimSuffix(clean, "]]")
 	clean = strings.TrimSpace(clean)
 	if clean == "" {
-		return "", fmt.Errorf("identificador de busca não pode ser vazio")
+		return "", nil, fmt.Errorf("identificador de busca não pode ser vazio")
 	}
 
-	// `alias:` nomeia um alias de frontmatter: ele vive no disco, não no
+	// 0a. `alias:` nomeia um alias de frontmatter: ele vive no disco, não no
 	// índice, então a resolução é contra o vault.
 	if alias, isAlias := strings.CutPrefix(clean, "alias:"); isAlias {
 		alias = strings.TrimSpace(alias)
 		if canonicalID, ok := resolveAliasToDocumentID(ctx, db, alias, vaultRoot); ok {
-			return canonicalID, nil
+			return canonicalID, nil, nil
 		}
-		return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+		return "", nil, fmt.Errorf("nó '%s' não encontrado no grafo", query)
 	}
 
-	// `title:` nomeia o rótulo do documento. O prefixo é descartado e o
-	// termo passa pelas mesmas chaves — o título resolve para o id do
-	// DOCUMENTO (ADR-066), não para um nó de estilo título.
-	clean = strings.TrimSpace(strings.TrimPrefix(clean, "title:"))
-	if clean == "" {
-		return "", fmt.Errorf("identificador de busca não pode ser vazio")
+	// 0b. `title:` nomeia explicitamente o rótulo do documento (ADR-066).
+	explicitTitle := false
+	if rawTitle, isTitle := strings.CutPrefix(clean, "title:"); isTitle {
+		explicitTitle = true
+		clean = strings.TrimSpace(rawTitle)
+		if clean == "" {
+			return "", nil, fmt.Errorf("identificador de busca não pode ser vazio")
+		}
+	}
+
+	if explicitTitle {
+		titleRows, err := db.QueryContext(ctx, `
+			SELECT id, path, COALESCE(title, '') FROM documents
+			WHERE LOWER(title) = LOWER(?)
+			ORDER BY path ASC, id ASC
+		`, clean)
+		if err == nil {
+			defer titleRows.Close()
+			var cands []nodeCandidate
+			for titleRows.Next() {
+				var id, path, title string
+				if err := titleRows.Scan(&id, &path, &title); err == nil {
+					cands = append(cands, nodeCandidate{
+						id:       id,
+						relPath:  path,
+						title:    title,
+						isDoc:    true,
+						segments: countPathSegments(path),
+					})
+				}
+			}
+			if len(cands) > 0 {
+				best := selectCanonicalCandidate(cands)
+				var amb *graph.AmbiguityReport
+				if len(cands) > 1 {
+					amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+				}
+				return best.id, amb, nil
+			}
+		}
+		return "", nil, fmt.Errorf("nó '%s' não encontrado no grafo", query)
 	}
 
 	cleanSlash := strings.ReplaceAll(clean, "\\", "/")
 	cleanBack := strings.ReplaceAll(clean, "/", "\\")
 
-	// 1. Checagem exata em documents por id ou path (suportando / e \)
-	var canonicalID string
-	err := db.QueryRowContext(ctx, `
-		SELECT id FROM documents
-		WHERE id = ? OR path = ? OR path = ? OR path = ? OR path = ?
-		LIMIT 1
-	`, clean, cleanSlash, cleanBack, cleanSlash+".md", cleanBack+".md").Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
+	// 1. Checagem exata em documents por id (GPR-05)
+	var docID string
+	err := db.QueryRowContext(ctx, `SELECT id FROM documents WHERE id = ?`, clean).Scan(&docID)
+	if err == nil && docID != "" {
+		return docID, nil, nil
 	}
 
-	// 2. Checagem exata por título — o título é o RÓTULO do nó, e a resposta
-	// é o `documents.id` do documento (ADR-066). A consulta vem ANTES da
-	// busca em `graph_nodes` porque um nó de estilo título não pode
-	// sequestrar a identidade de um documento indexado.
-	err = db.QueryRowContext(ctx, `
-		SELECT id FROM documents
+	// 2. Checagem por caminho relativo em documents (GPR-05, GPR-06)
+	// Se tiver barras (/ ou \), é um caminho relativo explícito (ex: docs/guide ou docs/guide.md).
+	// Se não tiver barras, é um caminho se corresponder exatamente a path ou se terminar com .md (ex: README.md).
+	hasSlash := strings.ContainsAny(clean, "/\\")
+	hasMDExt := strings.EqualFold(filepath.Ext(clean), ".md")
+
+	if hasSlash || hasMDExt {
+		p1 := clean
+		p2 := cleanSlash
+		p3 := cleanBack
+		p4 := strings.TrimSuffix(cleanSlash, ".md") + ".md"
+		p5 := strings.TrimSuffix(cleanBack, ".md") + ".md"
+		p6 := strings.TrimSuffix(cleanSlash, ".md")
+		p7 := strings.TrimSuffix(cleanBack, ".md")
+
+		pathRows, err := db.QueryContext(ctx, `
+			SELECT DISTINCT id, path, COALESCE(title, '') FROM documents
+			WHERE path IN (?, ?, ?, ?, ?, ?, ?)
+			ORDER BY path ASC, id ASC
+		`, p1, p2, p3, p4, p5, p6, p7)
+		if err == nil {
+			defer pathRows.Close()
+			var cands []nodeCandidate
+			for pathRows.Next() {
+				var id, path, title string
+				if err := pathRows.Scan(&id, &path, &title); err == nil {
+					cands = append(cands, nodeCandidate{
+						id:       id,
+						relPath:  path,
+						title:    title,
+						isDoc:    true,
+						segments: countPathSegments(path),
+					})
+				}
+			}
+			if len(cands) > 0 {
+				best := selectCanonicalCandidate(cands)
+				var amb *graph.AmbiguityReport
+				if len(cands) > 1 {
+					amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+				}
+				return best.id, amb, nil
+			}
+		}
+	}
+
+	// 3. Checagem em graph_nodes por name ou id (GPR-03, GPR-04, GPR-05)
+	gnRows, err := db.QueryContext(ctx, `
+		SELECT DISTINCT gn.id, COALESCE(d.path, gn.id), COALESCE(d.title, gn.name), CASE WHEN d.id IS NOT NULL THEN 1 ELSE 0 END AS is_doc
+		FROM graph_nodes gn
+		LEFT JOIN documents d ON d.id = gn.id
+		WHERE gn.name = ? OR gn.name = ? OR gn.name = ? OR gn.id = ? OR gn.id = ? OR gn.id = ?
+		ORDER BY gn.id ASC
+	`, clean, cleanSlash, cleanBack, clean, cleanSlash, cleanBack)
+	if err == nil {
+		defer gnRows.Close()
+		var cands []nodeCandidate
+		for gnRows.Next() {
+			var id, path, title string
+			var isDocInt int
+			if err := gnRows.Scan(&id, &path, &title, &isDocInt); err == nil {
+				cands = append(cands, nodeCandidate{
+					id:       id,
+					relPath:  path,
+					title:    title,
+					isDoc:    isDocInt == 1,
+					segments: countPathSegments(path),
+				})
+			}
+		}
+		if len(cands) > 0 {
+			best := selectCanonicalCandidate(cands)
+			var amb *graph.AmbiguityReport
+			if len(cands) > 1 {
+				amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+			}
+			return best.id, amb, nil
+		}
+	}
+
+	// 4. Checagem exata por título em documents (GPR-05)
+	titleRows, err := db.QueryContext(ctx, `
+		SELECT id, path, COALESCE(title, '') FROM documents
 		WHERE LOWER(title) = LOWER(?)
-		LIMIT 1
-	`, clean).Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
+		ORDER BY path ASC, id ASC
+	`, clean)
+	if err == nil {
+		defer titleRows.Close()
+		var cands []nodeCandidate
+		for titleRows.Next() {
+			var id, path, title string
+			if err := titleRows.Scan(&id, &path, &title); err == nil {
+				cands = append(cands, nodeCandidate{
+					id:       id,
+					relPath:  path,
+					title:    title,
+					isDoc:    true,
+					segments: countPathSegments(path),
+				})
+			}
+		}
+		if len(cands) > 0 {
+			best := selectCanonicalCandidate(cands)
+			var amb *graph.AmbiguityReport
+			if len(cands) > 1 {
+				amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+			}
+			return best.id, amb, nil
+		}
 	}
 
-	// 3. Checagem em graph_nodes por id ou name
-	err = db.QueryRowContext(ctx, `
-		SELECT id FROM graph_nodes
-		WHERE id = ? OR name = ? OR id = ? OR name = ?
-		LIMIT 1
-	`, clean, clean, cleanSlash, cleanBack).Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
-	}
-
-	// 4. Checagem difusa (LIKE) em id, path ou title
+	// 5. Checagem difusa (LIKE) em id, path ou title (GPR-05)
 	likeSlash := "%" + cleanSlash + "%"
 	likeBack := "%" + cleanBack + "%"
-	err = db.QueryRowContext(ctx, `
-		SELECT id FROM documents
+	likeClean := "%" + clean + "%"
+	fuzzyRows, err := db.QueryContext(ctx, `
+		SELECT id, path, COALESCE(title, '') FROM documents
 		WHERE id LIKE ? OR path LIKE ? OR path LIKE ? OR title LIKE ?
 		ORDER BY
 			CASE
 				WHEN id LIKE ? THEN 1
 				WHEN path LIKE ? OR path LIKE ? THEN 2
 				ELSE 3
-			END
-		LIMIT 1
-	`, likeSlash, likeSlash, likeBack, "%"+clean+"%", clean+"%", cleanSlash+"%", cleanBack+"%").Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
+			END,
+			id ASC
+	`, likeSlash, likeSlash, likeBack, likeClean, clean+"%", cleanSlash+"%", cleanBack+"%")
+	if err == nil {
+		defer fuzzyRows.Close()
+		var cands []nodeCandidate
+		for fuzzyRows.Next() {
+			var id, path, title string
+			if err := fuzzyRows.Scan(&id, &path, &title); err == nil {
+				cands = append(cands, nodeCandidate{
+					id:       id,
+					relPath:  path,
+					title:    title,
+					isDoc:    true,
+					segments: countPathSegments(path),
+				})
+			}
+		}
+		if len(cands) > 0 {
+			best := selectCanonicalCandidate(cands)
+			var amb *graph.AmbiguityReport
+			if len(cands) > 1 {
+				amb = graph.NewAmbiguityReport(query, toGraphCandidates(cands))
+			}
+			return best.id, amb, nil
+		}
 	}
 
-	// 5. Se existe nas arestas do grafo como source ou target direto
-	err = db.QueryRowContext(ctx, `
+	// 6. Se existe nas arestas do grafo como source ou target direto
+	edgeRows, err := db.QueryContext(ctx, `
 		SELECT target_id FROM graph_edges WHERE target_id = ? OR target_id = ? OR target_id = ?
 		UNION
 		SELECT source_id FROM graph_edges WHERE source_id = ? OR source_id = ? OR source_id = ?
-		LIMIT 1
-	`, clean, cleanSlash, cleanBack, clean, cleanSlash, cleanBack).Scan(&canonicalID)
-	if err == nil && canonicalID != "" {
-		return canonicalID, nil
+		ORDER BY 1 ASC
+	`, clean, cleanSlash, cleanBack, clean, cleanSlash, cleanBack)
+	if err == nil {
+		defer edgeRows.Close()
+		var edgeIDs []string
+		for edgeRows.Next() {
+			var edgeID string
+			if err := edgeRows.Scan(&edgeID); err == nil {
+				edgeIDs = append(edgeIDs, edgeID)
+			}
+		}
+		if len(edgeIDs) > 0 {
+			return edgeIDs[0], nil, nil
+		}
 	}
 
-	return "", fmt.Errorf("nó '%s' não encontrado no grafo", query)
+	return "", nil, fmt.Errorf("nó '%s' não encontrado no grafo", query)
 }
 
 // resolveAliasToDocumentID resolve um alias de frontmatter contra o disco do
@@ -789,7 +987,7 @@ func resolveAliasToDocumentID(ctx context.Context, db *sql.DB, alias, vaultRoot 
 
 // CalculateImpactForTarget resolve o nó alvo e calcula a análise de impacto (blast radius) completa no SQLite
 func CalculateImpactForTarget(ctx context.Context, db *sql.DB, targetQuery string, maxDepth int) (*graph.ImpactResult, error) {
-	canonicalID, err := ResolveNodeCanonicalID(ctx, db, targetQuery)
+	canonicalID, _, err := ResolveNodeCanonicalID(ctx, db, targetQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -874,7 +1072,7 @@ func CalculateImpactForTarget(ctx context.Context, db *sql.DB, targetQuery strin
 
 // InspectNode constrói a visualização cirúrgica em 3 colunas (Triptych) de um nó no banco SQLite
 func InspectNode(ctx context.Context, db *sql.DB, targetQuery string, maxContentLen int) (*graph.TriptychView, error) {
-	canonicalID, err := ResolveNodeCanonicalID(ctx, db, targetQuery)
+	canonicalID, _, err := ResolveNodeCanonicalID(ctx, db, targetQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -1051,12 +1249,12 @@ func InspectNode(ctx context.Context, db *sql.DB, targetQuery string, maxContent
 
 // FindPath resolve os nós de origem e destino e calcula o menor caminho entre eles no SQLite
 func FindPath(ctx context.Context, db *sql.DB, sourceQuery, targetQuery string, opts graph.PathOptions) (*graph.PathResult, error) {
-	canonicalSource, err := ResolveNodeCanonicalID(ctx, db, sourceQuery)
+	canonicalSource, ambSource, err := ResolveNodeCanonicalID(ctx, db, sourceQuery)
 	if err != nil {
 		return nil, fmt.Errorf("falha ao resolver nó de origem: %w", err)
 	}
 
-	canonicalTarget, err := ResolveNodeCanonicalID(ctx, db, targetQuery)
+	canonicalTarget, ambTarget, err := ResolveNodeCanonicalID(ctx, db, targetQuery)
 	if err != nil {
 		return nil, fmt.Errorf("falha ao resolver nó de destino: %w", err)
 	}
@@ -1115,12 +1313,26 @@ func FindPath(ctx context.Context, db *sql.DB, sourceQuery, targetQuery string, 
 		allNodes = append(allNodes, n)
 	}
 
-	return graph.FindPath(allNodes, edges, canonicalSource, canonicalTarget, opts)
+	pathRes, err := graph.FindPath(allNodes, edges, canonicalSource, canonicalTarget, opts)
+	if err != nil {
+		return nil, err
+	}
+	if pathRes != nil {
+		if ambSource != nil && ambTarget != nil {
+			allCands := append(ambSource.Candidates, ambTarget.Candidates...)
+			pathRes.Ambiguity = graph.NewAmbiguityReport(ambSource.Query+", "+ambTarget.Query, allCands)
+		} else if ambSource != nil {
+			pathRes.Ambiguity = ambSource
+		} else if ambTarget != nil {
+			pathRes.Ambiguity = ambTarget
+		}
+	}
+	return pathRes, nil
 }
 
 // PackContext resolve o nó raiz e constrói o pacote consolidado de subgrafo no SQLite
 func PackContext(ctx context.Context, db *sql.DB, rootQuery string, opts graph.PackOptions) (*graph.PackResult, error) {
-	canonicalRoot, err := ResolveNodeCanonicalID(ctx, db, rootQuery)
+	canonicalRoot, _, err := ResolveNodeCanonicalID(ctx, db, rootQuery)
 	if err != nil {
 		return nil, fmt.Errorf("falha ao resolver nó raiz: %w", err)
 	}

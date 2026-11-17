@@ -53,15 +53,15 @@ func TestResolveCanonical(t *testing.T) {
 	}
 
 	// 1. Path, `title:` e `alias:` do mesmo documento → o mesmo id.
-	byPath, err := ResolveNodeCanonicalIDWithRoot(ctx, database, notaPath, vault)
+	byPath, _, err := ResolveNodeCanonicalIDWithRoot(ctx, database, notaPath, vault)
 	if err != nil {
 		t.Fatalf("resolvendo pelo path: %v", err)
 	}
-	byTitle, err := ResolveNodeCanonicalIDWithRoot(ctx, database, "title:Minha Nota", vault)
+	byTitle, _, err := ResolveNodeCanonicalIDWithRoot(ctx, database, "title:Minha Nota", vault)
 	if err != nil {
 		t.Fatalf("resolvendo pelo title:: %v", err)
 	}
-	byAlias, err := ResolveNodeCanonicalIDWithRoot(ctx, database, "alias:Meu Alias", vault)
+	byAlias, _, err := ResolveNodeCanonicalIDWithRoot(ctx, database, "alias:Meu Alias", vault)
 	if err != nil {
 		t.Fatalf("resolvendo pelo alias:: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestResolveCanonical(t *testing.T) {
 
 	// 2. A consulta pelo título devolve o `documents.id`, nunca o id do nó de
 	// estilo título.
-	byPlainTitle, err := ResolveNodeCanonicalIDWithRoot(ctx, database, "Minha Nota", vault)
+	byPlainTitle, _, err := ResolveNodeCanonicalIDWithRoot(ctx, database, "Minha Nota", vault)
 	if err != nil {
 		t.Fatalf("resolvendo pelo título: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestResolveCanonical(t *testing.T) {
 	}
 
 	// 3. Sem raiz do vault, o alias devolve o erro de nó não encontrado.
-	_, err = ResolveNodeCanonicalIDWithRoot(ctx, database, "alias:Meu Alias", "")
+	_, _, err = ResolveNodeCanonicalIDWithRoot(ctx, database, "alias:Meu Alias", "")
 	if err == nil {
 		t.Fatal("sem raiz do vault, o alias devolve erro; obteve nil")
 	}

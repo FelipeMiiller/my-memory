@@ -164,15 +164,15 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] Nenhuma query de resolução usa mais `LIMIT 1` sem `ORDER BY` para escolher entre candidatos (`internal/db/graph.go:596-600`, `:606-610`, `:616-620` e `:644-649`)
-- [ ] O passo difuso (LIKE, `internal/db/graph.go:628-638`) tem a **mesma** ordem de desempate — e o `ORDER BY` que ele já tinha ganha um desempate estável por id
-- [ ] A chave do caminho relativo resolve para o documento do caminho (com ou sem `.md`) e **não** cai no nome
-- [ ] Entre nós de mesmo nome, vence o que é documento do mesmo repositório; persistindo o empate, vence o caminho com menos segmentos e depois o id lexicograficamente menor
-- [ ] Dois nós de mesmo nome **não** viram erro: o resultado traz o id canônico e o relatório com os dois candidatos
-- [ ] O mesmo identificador resolvido duas vezes devolve o mesmo id
-- [ ] Teste novo em `internal/db/graph_resolve_test.go` cobre: chave exata, caminho relativo, desempate, ambiguidade (2 candidatos) e ordem dos candidatos
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/db/...`
-- [ ] Test count: os testes de `internal/db` passam, sem nenhuma deleção silenciosa
+- [x] Nenhuma query de resolução usa mais `LIMIT 1` sem `ORDER BY` para escolher entre candidatos (`internal/db/graph.go:596-600`, `:606-610`, `:616-620` e `:644-649`)
+- [x] O passo difuso (LIKE, `internal/db/graph.go:628-638`) tem a **mesma** ordem de desempate — e o `ORDER BY` que ele já tinha ganha um desempate estável por id
+- [x] A chave do caminho relativo resolve para o documento do caminho (com ou sem `.md`) e **não** cai no nome
+- [x] Entre nós de mesmo nome, vence o que é documento do mesmo repositório; persistindo o empate, vence o caminho com menos segmentos e depois o id lexicograficamente menor
+- [x] Dois nós de mesmo nome **não** viram erro: o resultado traz o id canônico e o relatório com os dois candidatos
+- [x] O mesmo identificador resolvido duas vezes devolve o mesmo id
+- [x] Teste novo em `internal/db/graph_resolve_test.go` cobre: chave exata, caminho relativo, desempate, ambiguidade (2 candidatos) e ordem dos candidatos
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/db/...`
+- [x] Test count: os testes de `internal/db` passam, sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: quick

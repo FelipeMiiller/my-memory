@@ -117,7 +117,7 @@ func runOpenCommand(ctx context.Context, defaultRepo string, args []string, out 
 			} else {
 				if database, err := db.InitDB(resolvedDB); err == nil {
 					defer database.Close()
-					if canonical, err := db.ResolveNodeCanonicalID(ctx, database, targetNode); err == nil && canonical != "" {
+					if canonical, _, err := db.ResolveNodeCanonicalID(ctx, database, targetNode); err == nil && canonical != "" {
 						resolvedPath = canonical
 					}
 				}
