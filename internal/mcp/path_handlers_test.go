@@ -125,6 +125,83 @@ func TestMemoryFindPathHandler_Direct(t *testing.T) {
 	}
 }
 
+func TestMemoryFindPath_AmbiguityInvalidParams(t *testing.T) {
+	ctx := context.Background()
+
+	ambReport := graph.NewAmbiguityReport("README", []graph.Candidate{
+		{ID: "README.md", RelPath: "README.md", Title: "Root Readme"},
+		{ID: "skills/mymemory/README.md", RelPath: "skills/mymemory/README.md", Title: "Skill Readme"},
+	})
+
+	// 1. Caso em que o resultado carrega AmbiguityReport
+	mockAmb := func(ctx context.Context, repo, source, target string, opts graph.PathOptions) (*graph.PathResult, error) {
+		return &graph.PathResult{
+			Found:     true,
+			Source:    "README.md",
+			Target:    target,
+			Ambiguity: ambReport,
+		}, nil
+	}
+
+	handler := NewMemoryFindPathHandler(mockAmb)
+	args, _ := json.Marshal(map[string]any{
+		"source": "README",
+		"target": "redis",
+	})
+	res, err := handler(ctx, args)
+	if err == nil {
+		t.Fatalf("esperava que a tool MCP falhasse em caso de ambiguidade (GPR-15), obteve: %v", res)
+	}
+
+	mcpErr, ok := err.(*Error)
+	if !ok {
+		t.Fatalf("erro deve ser do tipo *Error, obteve: %T (%v)", err, err)
+	}
+	// GPR-15: deve falhar com o código InvalidParams
+	if mcpErr.Code != CodeInvalidParams {
+		t.Errorf("esperava código CodeInvalidParams, obteve %d", mcpErr.Code)
+	}
+	// GPR-16: a mensagem de erro deve conter o caminho relativo e título de cada candidato
+	errMsg := mcpErr.Message
+	if !strings.Contains(errMsg, "README.md") || !strings.Contains(errMsg, "skills/mymemory/README.md") {
+		t.Errorf("mensagem de erro deve conter todos os caminhos dos candidatos:\n%s", errMsg)
+	}
+	if !strings.Contains(errMsg, "Root Readme") || !strings.Contains(errMsg, "Skill Readme") {
+		t.Errorf("mensagem de erro deve conter os títulos dos candidatos:\n%s", errMsg)
+	}
+	if !strings.Contains(errMsg, "title:") || !strings.Contains(errMsg, ".md") {
+		t.Errorf("mensagem deve conter chaves de desambiguação title: e caminho relativo:\n%s", errMsg)
+	}
+
+	// 2. Caso em que a função de busca retorna o erro de ambiguidade diretamente
+	mockErrAmb := func(ctx context.Context, repo, source, target string, opts graph.PathOptions) (*graph.PathResult, error) {
+		return nil, ambReport
+	}
+	handlerErr := NewMemoryFindPathHandler(mockErrAmb)
+	_, err2 := handlerErr(ctx, args)
+	if err2 == nil {
+		t.Fatalf("esperava erro para mock com erro de ambiguidade")
+	}
+	mcpErr2, ok := err2.(*Error)
+	if !ok || mcpErr2.Code != CodeInvalidParams {
+		t.Errorf("esperava CodeInvalidParams para erro de ambiguidade, obteve: %v", err2)
+	}
+
+	// 3. Controle negativo (GPR-17): erro não de ambiguidade deve retornar CodeInternalError
+	mockGenericErr := func(ctx context.Context, repo, source, target string, opts graph.PathOptions) (*graph.PathResult, error) {
+		return nil, errors.New("erro interno de banco ou quebra de conexão")
+	}
+	handlerGeneric := NewMemoryFindPathHandler(mockGenericErr)
+	_, err3 := handlerGeneric(ctx, args)
+	if err3 == nil {
+		t.Fatalf("esperava erro para mock com erro genérico")
+	}
+	mcpErr3, ok := err3.(*Error)
+	if !ok || mcpErr3.Code != CodeInternalError {
+		t.Errorf("esperava CodeInternalError para erro não de ambiguidade (GPR-17), obteve: %v", err3)
+	}
+}
+
 func TestMemoryFindPathHandler_Validation(t *testing.T) {
 	ctx := context.Background()
 	handler := NewMemoryFindPathHandler(nil)

@@ -80,7 +80,13 @@ func NewMemoryFindPathHandler(pathFn PathFunc) ToolHandlerFunc {
 		if pathFn != nil {
 			res, err = pathFn(ctx, repo, source, target, opts)
 			if err != nil {
+				if amb, ok := graph.AsAmbiguityReport(err); ok {
+					return nil, NewError(CodeInvalidParams, amb.Error(), nil)
+				}
 				return nil, NewError(CodeInternalError, "Falha ao calcular rota no grafo", err.Error())
+			}
+			if res != nil && res.Ambiguity != nil && len(res.Ambiguity.Candidates) > 1 {
+				return nil, NewError(CodeInvalidParams, res.Ambiguity.Error(), nil)
 			}
 		} else {
 			res = &graph.PathResult{

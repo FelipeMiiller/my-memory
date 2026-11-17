@@ -259,12 +259,12 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] O erro de ambiguidade sai com o código `InvalidParams` (e **não** `CodeInternalError`)
-- [ ] O texto do erro mantém o caminho relativo e o título de cada candidato e as chaves de desambiguação
-- [ ] A tool **não** devolve rota nenhuma quando a resolução é ambígua — ela falha
-- [ ] Um erro que **não** é de ambiguidade continua saindo como `CodeInternalError` (controle negativo)
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/mcp/...`
-- [ ] Test count: os testes de `internal/mcp` passam, sem nenhuma deleção silenciosa
+- [x] O erro de ambiguidade sai com o código `InvalidParams` (e **não** `CodeInternalError`)
+- [x] O texto do erro mantém o caminho relativo e o título de cada candidato e as chaves de desambiguação
+- [x] A tool **não** devolve rota nenhuma quando a resolução é ambígua — ela falha
+- [x] Um erro que **não** é de ambiguidade continua saindo como `CodeInternalError` (controle negativo)
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/mcp/...`
+- [x] Test count: os testes de `internal/mcp` passam, sem nenhuma deleção silenciosa
 
 **Tests**: unit
 **Gate**: quick
