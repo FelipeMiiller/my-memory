@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -275,8 +276,13 @@ func TestPathCLI_NotFoundAndIdenticalNode(t *testing.T) {
 	if !strings.Contains(notFStr, "Status:          ❌ Não encontrado") {
 		t.Errorf("linha 'Status:          ❌ Não encontrado' esperada na saída:\n%s", notFStr)
 	}
-	// GPR-30: linha 'Detalhes:' carregando o Summary
-	if !strings.Contains(notFStr, "Detalhes:        Nenhum caminho encontrado entre 'node-iso-a' e 'node-iso-b' dentro de 6 saltos") {
+	// GPR-30, GPR-34: linha 'Detalhes:' carregando o Summary e Profundidade derivados de graph.DefaultPathOptions()
+	expectedDepth := fmt.Sprintf("Profundidade:    %d saltos máx", graph.DefaultPathOptions().MaxDepth)
+	if !strings.Contains(notFStr, expectedDepth) {
+		t.Errorf("linha 'Profundidade:' esperada na saída:\n%s", notFStr)
+	}
+	expectedSummary := fmt.Sprintf("Detalhes:        Nenhum caminho encontrado entre 'node-iso-a' e 'node-iso-b' dentro de %d saltos", graph.DefaultPathOptions().MaxDepth)
+	if !strings.Contains(notFStr, expectedSummary) {
 		t.Errorf("linha 'Detalhes:' com o Summary esperada na saída:\n%s", notFStr)
 	}
 

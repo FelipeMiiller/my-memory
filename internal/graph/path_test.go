@@ -40,6 +40,20 @@ func TestFindPath_IdenticalSourceAndTarget(t *testing.T) {
 	}
 }
 
+// TestDefaultPathOptions valida GPR-33: defaults canônicos 6 / true / epistemic
+func TestDefaultPathOptions(t *testing.T) {
+	opts := DefaultPathOptions()
+	if opts.MaxDepth != 6 {
+		t.Errorf("esperado MaxDepth=6, obteve %d", opts.MaxDepth)
+	}
+	if !opts.Directed {
+		t.Errorf("esperado Directed=true")
+	}
+	if opts.CostMode != CostModeEpistemic {
+		t.Errorf("esperado CostMode=epistemic, obteve %s", opts.CostMode)
+	}
+}
+
 func TestFindPath_NodeNotFound(t *testing.T) {
 	nodes := []string{"auth.md"}
 	edges := []WeightedEdge{}
