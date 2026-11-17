@@ -44,16 +44,17 @@ type PathEdge struct {
 
 // PathResult representa a rota encontrada entre source e target
 type PathResult struct {
-	Found     bool       `json:"found"`
-	Source    string     `json:"source"`
-	Target    string     `json:"target"`
-	Directed  bool       `json:"directed"`
-	CostMode  CostMode   `json:"cost_mode"`
-	Hops      int        `json:"hops"`
-	TotalCost float64    `json:"total_cost"`
-	Nodes     []string   `json:"nodes"`
-	Edges     []PathEdge `json:"edges"`
-	Summary   string     `json:"summary"`
+	Found     bool             `json:"found"`
+	Source    string           `json:"source"`
+	Target    string           `json:"target"`
+	Directed  bool             `json:"directed"`
+	CostMode  CostMode         `json:"cost_mode"`
+	Hops      int              `json:"hops"`
+	TotalCost float64          `json:"total_cost"`
+	Nodes     []string         `json:"nodes"`
+	Edges     []PathEdge       `json:"edges"`
+	Summary   string           `json:"summary"`
+	Ambiguity *AmbiguityReport `json:"ambiguity,omitempty"`
 }
 
 // pqItem representa um estado na fila de prioridades do Dijkstra

@@ -131,16 +131,16 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] O relatório carrega **todos** os candidatos casados — nenhum é descartado nem truncado
-- [ ] Cada candidato carrega o id, o caminho relativo (sem a raiz do vault) e o título do documento
-- [ ] A mensagem do relatório lista um candidato por linha e nomeia as chaves que o endereçam (caminho relativo, com ou sem `.md`, e `title:`)
-- [ ] A ordem dos candidatos é por caminho relativo e, no empate, por id
-- [ ] Há um predicado exported que reconhece o erro de ambiguidade (o `errors.As` funciona)
-- [ ] O `graph.PathResult` tem onde carregar o relatório, e a CLI e a tool MCP leem **o mesmo** relatório
-- [ ] Teste unitário novo em `internal/graph/resolve_test.go` cobre 1 candidato, 2 candidatos e 0 candidato
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/graph/...`
-- [ ] Test count: os testes de `internal/graph` passam, sem nenhuma deleção silenciosa
-- [ ] O **algoritmo** de `internal/graph/path.go` não foi tocado — o motor (Dijkstra, pruning, inversão epistêmica) fica intacto; só o `PathResult` ganhou o campo
+- [x] O relatório carrega **todos** os candidatos casados — nenhum é descartado nem truncado
+- [x] Cada candidato carrega o id, o caminho relativo (sem a raiz do vault) e o título do documento
+- [x] A mensagem do relatório lista um candidato por linha e nomeia as chaves que o endereçam (caminho relativo, com ou sem `.md`, e `title:`)
+- [x] A ordem dos candidatos é por caminho relativo e, no empate, por id
+- [x] Há um predicado exported que reconhece o erro de ambiguidade (o `errors.As` funciona)
+- [x] O `graph.PathResult` tem onde carregar o relatório, e a CLI e a tool MCP leem **o mesmo** relatório
+- [x] Teste unitário novo em `internal/graph/resolve_test.go` cobre 1 candidato, 2 candidatos e 0 candidato
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/graph/...`
+- [x] Test count: os testes de `internal/graph` passam, sem nenhuma deleção silenciosa
+- [x] O **algoritmo** de `internal/graph/path.go` não foi tocado — o motor (Dijkstra, pruning, inversão epistêmica) fica intacto; só o `PathResult` ganhou o campo
 
 **Tests**: unit
 **Gate**: quick
