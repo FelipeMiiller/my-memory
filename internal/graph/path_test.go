@@ -30,6 +30,14 @@ func TestFindPath_IdenticalSourceAndTarget(t *testing.T) {
 	if len(res.Edges) != 0 {
 		t.Errorf("arestas deveriam estar vazias: %v", res.Edges)
 	}
+
+	expectedSummary := "Nó de origem e destino são idênticos ('auth.md')"
+	if res.Summary != expectedSummary {
+		t.Errorf("esperado Summary %q, obteve %q", expectedSummary, res.Summary)
+	}
+	if strings.HasPrefix(res.Summary, "Caminho encontrado") {
+		t.Errorf("Summary não deveria ter prefixo de caminho encontrado: %q", res.Summary)
+	}
 }
 
 func TestFindPath_NodeNotFound(t *testing.T) {

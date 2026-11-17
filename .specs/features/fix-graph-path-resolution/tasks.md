@@ -403,13 +403,13 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] O teste afirma o `Summary` **exato** do nó idêntico, com o id interpolado
-- [ ] O teste afirma 0 saltos, custo total 0, exatamente 1 nó e 0 arestas
-- [ ] O teste afirma que o `Summary` do nó idêntico é **diferente** do `Summary` do caminho encontrado (`Caminho encontrado com ...`) — é essa diferença que distingue o ramo do Dijkstra genérico
-- [ ] **Prova do sensor**: desligar o ramo (`internal/graph/path.go:166` → `if false {`) faz **este** teste falhar — a asserção do `Summary`, e não a renderização da CLI (que decide por `Hops == 0`), é o que mata o M7
-- [ ] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/graph/...`
-- [ ] Test count: os testes de `internal/graph` passam, sem nenhuma deleção silenciosa
-- [ ] Nenhum arquivo de produção foi tocado — o motor não muda
+- [x] O teste afirma o `Summary` **exato** do nó idêntico, com o id interpolado
+- [x] O teste afirma 0 saltos, custo total 0, exatamente 1 nó e 0 arestas
+- [x] O teste afirma que o `Summary` do nó idêntico é **diferente** do `Summary` do caminho encontrado (`Caminho encontrado com ...`) — é essa diferença que distingue o ramo do Dijkstra genérico
+- [x] **Prova do sensor**: desligar o ramo (`internal/graph/path.go:166` → `if false {`) faz **este** teste falhar — a asserção do `Summary`, e não a renderização da CLI (que decide por `Hops == 0`), é o que mata o M7
+- [x] Gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/graph/...`
+- [x] Test count: os testes de `internal/graph` passam, sem nenhuma deleção silenciosa
+- [x] Nenhum arquivo de produção foi tocado — o motor não muda
 
 **Tests**: unit
 **Gate**: quick
