@@ -2430,3 +2430,75 @@ da branch vizinha, registrada aqui em vez de silenciada.
 **Referência:** ISSUE-048 (o gap de origem) · ADR-026 ·
 `cmd/mem/install.go:125` · `.specs/features/fix-autowiring-cli-contract/validation.md`
 (Achado 2).
+
+## ISSUE-053 — O harness `pgtest` deixa bancos descartáveis órfãos no Postgres do dono quando o processo morre no meio do teste
+
+- **Severidade:** 🟢 low (consome cota do Neon e polui a lista de bancos do dono; **não** afeta o dado do `mymemory`)
+- **Status:** 🔵 **open** (achado em 2026-11-16, pela verificação independente da spec `fix-progressive-context-test-coverage`)
+- **Achado em:** 2026-11-16 — Verifier da spec `fix-progressive-context-test-coverage`, em `.specs/features/fix-progressive-context-test-coverage/validation.md` (Achado 2)
+
+**O sintoma.** O harness `internal/pgtest` cria um banco descartavel
+`mymemory_pgtest_<pid>_<rand>` no Postgres (Neon) do dono, para o teste rodar
+contra um Postgres de verdade sem tocar o banco real. Em 2026-11-16 havia **3
+bancos `mymemory_pgtest_*` orfaos** no Neon, todos com as tabelas do schema
+criadas e **sem** o marcador do T3 (ou seja, **nao** vinham do teste do PCL —
+vinham de execucoes em que o processo **morreu no meio**, tipicamente os
+sub-agentes que caíram com **429 Token Plan**).
+
+**Por que o harness vaza.** O `pgtest` dropa o banco no `t.Cleanup` / no fim do
+teste. Se o **processo morre** — 429 do provedor, cancelamento, queda da
+maquina — o `DROP DATABASE` nunca roda, e o banco fica.
+
+**A evidencia de que nao e vazamento normal.** O Verifier mediu a contagem de
+bancos antes e depois de ~10 execucoes com Postgres: **inalterada**. O harness
+se limpa sozinho em execucao normal; **so** sobra quando o processo morre.
+
+**A limpeza pendente (precisa de go-ahead do dono).** Sao **3** bancos
+`mymemory_pgtest_*` no Neon, com nome `mymemory_pgtest_<pid>_<rand>`. Eles sao
+descartaveis por construcao (criados pelo harness de teste), mas **dropar banco
+e mudanca no Postgres de producao** — a regra do repo exige go-ahead explicito.
+Ate la, ficam registrados aqui.
+
+**Como evitar.** O `pgtest` poderia criar o banco com um prefixo que identifique a
+origem e um sweeping periodico (ou um `DROP DATABASE ... IF EXISTS` por PID
+orfao) — mas isso e mudanca no harness, que pede spec propria.
+
+**Referencia:** `internal/pgtest/pgtest.go` · ADR-035 ·
+`.specs/features/fix-progressive-context-test-coverage/validation.md` (Achado 2).
+
+## ISSUE-054 — O relatório da spec `fix-progressive-context-test-coverage` foi escrito pelo orquestrador, não pelo Verifier: falta uma revisão independente
+
+- **Severidade:** 🟡 medium (o **veredito** é sustentado pela evidência bruta do Verifier independente; o que falta é a **autoria** do relatório)
+- **Status:** 🔵 **open** (achado em 2026-11-16, na verificação da spec `fix-progressive-context-test-coverage`)
+- **Achado em:** 2026-11-16 — o proprio Verifier, ao morrer com 429 no último passo
+
+**O fato.** A T5 da spec `fix-progressive-context-test-coverage` exige que
+**"o relatório final desta feature de correção seja escrito pelo Verifier da fase
+final"**. O Verifier **independente** (session distinta do autor dos commits
+T1–T4) executou **toda** a verificacao — spec-anchored check das 9 ACs, sensor
+de discriminacao (**7/7** mutantes mortos, cada um com o teste matador nomeado),
+**contrafactual 4/4** (com o teste novo desativado, o mutante sobrevive — o que
+prova que os testes novos sao os matadores) e os gates (27/27 `ok`, build e vet
+exit 0) — e **morreu com 429 (Token Plan) no ultimo passo**, imediatamente antes
+de escrever o arquivo.
+
+O **orquestrador** escreveu o relatorio a partir da **evidencia bruta** que o
+Verifier deixou no scratch (`sensor-results.json`, `sensor-counterfactual.json`,
+`gate-full.txt`, `sensor3.py`), e a **ressalva de independencia** esta no topo
+do relatorio. O `validate_state.py` sai **exit 0** para a feature e para a spec
+de correcao.
+
+**Por que fica registrado.** O checkbox da T5 que exige a autoria do Verifier
+**nao** foi marcado — o relatorio nao foi escrito por ele. A **execucao** foi
+independente (agente distinto, worktree isolado, sem `git stash`, arvore real
+intacta); a **autoria** do texto nao foi.
+
+**O que fecha.** Um **segundo Verifier independente** que releia o relatorio e
+confirme que a evidencia sustenta o PASS — sem reexecutar o sensor (a evidencia
+bruta esta no scratch e no relatorio). Ate la, o feature fica verde **com esta
+ressalva declarada**, e nao com um verde sem lastro.
+
+**Referencia:** `.specs/features/fix-progressive-context-test-coverage/validation.md`
+(secao "Ressalva de independencia") · `.specs/features/fix-progressive-context-test-coverage/tasks.md`
+(T5, ultimo checkbox) ·
+`.specs/features/progressive-context-loading/validation.md` (relatorio promovido).
