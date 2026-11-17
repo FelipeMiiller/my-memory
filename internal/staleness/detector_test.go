@@ -75,6 +75,9 @@ func TestDetector_InSync(t *testing.T) {
 	if rep.StaleFilesCount != 0 || rep.DeletedFilesCount != 0 {
 		t.Errorf("Contagens anômalas: stale=%d, deleted=%d", rep.StaleFilesCount, rep.DeletedFilesCount)
 	}
+	if rep.NewFilesCount != 0 {
+		t.Errorf("NewFilesCount esperado 0 para dados sincronizados, obteve %d", rep.NewFilesCount)
+	}
 	if rep.IndexedCount != 1 || rep.DiskCount != 1 {
 		t.Errorf("Contagens de documentos: indexed=%d, disk=%d", rep.IndexedCount, rep.DiskCount)
 	}
@@ -171,11 +174,124 @@ func TestDetector_NewUnindexedFile(t *testing.T) {
 	if !rep.IsStale {
 		t.Fatalf("Esperava IsStale=true para arquivo novo no disco")
 	}
-	if rep.StaleFilesCount != 1 {
-		t.Errorf("StaleFilesCount esperado 1, obteve %d", rep.StaleFilesCount)
+	if rep.NewFilesCount != 1 {
+		t.Errorf("NewFilesCount esperado 1, obteve %d", rep.NewFilesCount)
+	}
+	if len(rep.NewFiles) != 1 || rep.NewFiles[0] != "brand_new.md" {
+		t.Errorf("NewFiles inesperado: %v", rep.NewFiles)
+	}
+	// "Novo" é categoria própria: não pode vazar para "modificado".
+	if rep.StaleFilesCount != 0 {
+		t.Errorf("StaleFilesCount esperado 0 para arquivo novo, obteve %d", rep.StaleFilesCount)
+	}
+	if len(rep.StaleFiles) != 0 {
+		t.Errorf("StaleFiles deveria estar vazio para arquivo novo, obteve: %v", rep.StaleFiles)
 	}
 	if rep.DiskCount != 1 || rep.IndexedCount != 0 {
 		t.Errorf("Contagens incorretas: disk=%d, indexed=%d", rep.DiskCount, rep.IndexedCount)
+	}
+}
+
+// TestDetector_SeparatesNewModifiedAndDeleted fixa a separação das três
+// categorias da ADR-028 §1: um arquivo novo, um modificado e um deletado
+// ocupam uma lista cada — e as contagens são reportadas separadamente.
+func TestDetector_SeparatesNewModifiedAndDeleted(t *testing.T) {
+	tempDir, cfg, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	dbPath := filepath.Join(tempDir, "test.db")
+	database, err := db.InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+
+	// 1. Modificado: indexado com mtime antigo, editado no disco depois.
+	modPath := filepath.Join(tempDir, "mod.md")
+	pastTime := time.Now().Add(-30 * time.Second).Truncate(time.Second)
+	if err := os.WriteFile(modPath, []byte("# Mod"), 0644); err != nil {
+		t.Fatalf("WriteFile falhou: %v", err)
+	}
+	_ = os.Chtimes(modPath, pastTime, pastTime)
+	if err := db.InsertDocument(ctx, database, modPath, "mod.md", "Mod", pastTime.Unix(), "hashmod"); err != nil {
+		t.Fatalf("InsertDocument falhou: %v", err)
+	}
+	_ = os.Chtimes(modPath, pastTime.Add(10*time.Second), pastTime.Add(10*time.Second))
+
+	// 2. Novo: existe no disco, nunca foi indexado.
+	if err := os.WriteFile(filepath.Join(tempDir, "novo.md"), []byte("# Novo"), 0644); err != nil {
+		t.Fatalf("WriteFile falhou: %v", err)
+	}
+
+	// 3. Deletado: indexado, mas não existe mais no disco.
+	if err := db.InsertDocument(ctx, database, "apagado.md", "apagado.md", "Apagado", pastTime.Unix(), "hashdel"); err != nil {
+		t.Fatalf("InsertDocument falhou: %v", err)
+	}
+
+	d := NewDetector(tempDir, cfg, database, nil, "")
+	rep, err := d.CheckStaleness(ctx)
+	if err != nil {
+		t.Fatalf("CheckStaleness falhou: %v", err)
+	}
+
+	if !rep.IsStale {
+		t.Fatalf("Esperava IsStale=true com as três categorias presentes")
+	}
+	if rep.StaleFilesCount != 1 {
+		t.Errorf("StaleFilesCount esperado 1, obteve %d", rep.StaleFilesCount)
+	}
+	if rep.NewFilesCount != 1 {
+		t.Errorf("NewFilesCount esperado 1, obteve %d", rep.NewFilesCount)
+	}
+	if rep.DeletedFilesCount != 1 {
+		t.Errorf("DeletedFilesCount esperado 1, obteve %d", rep.DeletedFilesCount)
+	}
+	if len(rep.StaleFiles) != 1 || rep.StaleFiles[0] != "mod.md" {
+		t.Errorf("StaleFiles inesperado: %v", rep.StaleFiles)
+	}
+	if len(rep.NewFiles) != 1 || rep.NewFiles[0] != "novo.md" {
+		t.Errorf("NewFiles inesperado: %v", rep.NewFiles)
+	}
+	if len(rep.DeletedFiles) != 1 || rep.DeletedFiles[0] != "apagado.md" {
+		t.Errorf("DeletedFiles inesperado: %v", rep.DeletedFiles)
+	}
+}
+
+// TestDetector_OnlyNewFilesIsStale: um vault com só arquivos novos é stale — a
+// separação das listas não pode produzir regressão para "in sync".
+func TestDetector_OnlyNewFilesIsStale(t *testing.T) {
+	tempDir, cfg, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	dbPath := filepath.Join(tempDir, "test.db")
+	database, err := db.InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB falhou: %v", err)
+	}
+	defer database.Close()
+
+	for _, name := range []string{"a.md", "b.md"} {
+		if err := os.WriteFile(filepath.Join(tempDir, name), []byte("# "+name), 0644); err != nil {
+			t.Fatalf("WriteFile falhou: %v", err)
+		}
+	}
+
+	d := NewDetector(tempDir, cfg, database, nil, "")
+	rep, err := d.CheckStaleness(context.Background())
+	if err != nil {
+		t.Fatalf("CheckStaleness falhou: %v", err)
+	}
+
+	if !rep.IsStale {
+		t.Fatalf("Esperava IsStale=true quando só há arquivos novos")
+	}
+	if rep.NewFilesCount != 2 {
+		t.Errorf("NewFilesCount esperado 2, obteve %d", rep.NewFilesCount)
+	}
+	if rep.StaleFilesCount != 0 || rep.DeletedFilesCount != 0 {
+		t.Errorf("Contagens anômalas: stale=%d, deleted=%d", rep.StaleFilesCount, rep.DeletedFilesCount)
 	}
 }
 

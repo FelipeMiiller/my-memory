@@ -120,8 +120,12 @@ func TestRunStatusCommand_JSON(t *testing.T) {
 	if !rep.IsStale {
 		t.Errorf("Esperava IsStale=true no JSON")
 	}
-	if rep.StaleFilesCount != 1 {
-		t.Errorf("StaleFilesCount esperado 1, obteve %d", rep.StaleFilesCount)
+	// O arquivo existe no disco e não está indexado: categoria "novo".
+	if rep.NewFilesCount != 1 {
+		t.Errorf("NewFilesCount esperado 1, obteve %d", rep.NewFilesCount)
+	}
+	if rep.StaleFilesCount != 0 {
+		t.Errorf("StaleFilesCount esperado 0 (arquivo novo não é modificado), obteve %d", rep.StaleFilesCount)
 	}
 	if rep.DiskCount != 1 || rep.IndexedCount != 0 {
 		t.Errorf("Contagens incorretas no JSON: disk=%d, indexed=%d", rep.DiskCount, rep.IndexedCount)

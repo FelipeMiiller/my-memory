@@ -132,15 +132,15 @@ de fixture `setupTestEnvironment` do próprio `detector_test.go:41`
 
 **Done when**:
 
-- [ ] `StalenessReport` tem `NewFiles []string` (tag JSON `new_files`) e `NewFilesCount int` (tag JSON `new_files_count`)
-- [ ] Um arquivo presente em disco e ausente do índice aparece **só** em `NewFiles`
-- [ ] Um arquivo com mtime mais novo que o persistido aparece **só** em `StaleFiles`
-- [ ] `IsStale` é verdadeiro com **qualquer** das três categorias não vazia (inclusive só "novos")
-- [ ] `TestDetector_NewUnindexedFile` (`internal/staleness/detector_test.go:147`) passa a exigir `NewFilesCount == 1` — **atualizado, nunca removido**
-- [ ] Um teste novo fixa a separação: vault com 1 arquivo novo + 1 modificado + 1 deletado → 1 em cada lista
-- [ ] Nenhuma função de teste foi apagada e nenhuma asserção foi afrouxada
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/staleness/...`
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] `StalenessReport` tem `NewFiles []string` (tag JSON `new_files`) e `NewFilesCount int` (tag JSON `new_files_count`)
+- [x] Um arquivo presente em disco e ausente do índice aparece **só** em `NewFiles`
+- [x] Um arquivo com mtime mais novo que o persistido aparece **só** em `StaleFiles`
+- [x] `IsStale` é verdadeiro com **qualquer** das três categorias não vazia (inclusive só "novos")
+- [x] `TestDetector_NewUnindexedFile` (`internal/staleness/detector_test.go:147`) passa a exigir `NewFilesCount == 1` — **atualizado, nunca removido**
+- [x] Um teste novo fixa a separação: vault com 1 arquivo novo + 1 modificado + 1 deletado → 1 em cada lista
+- [x] Nenhuma função de teste foi apagada e nenhuma asserção foi afrouxada
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./internal/staleness/...`
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: unit
 **Gate**: quick

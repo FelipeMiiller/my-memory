@@ -22,13 +22,19 @@ import (
 const DefaultTTL = 3 * time.Second
 
 // StalenessReport agrega as métricas de sincronização entre o disco e a base indexada
+//
+// As três categorias são disjuntas e exigidas pela ADR-028 §1: "Modificado"
+// (mtime mais novo que o persistido), "Novo" (no disco, ausente do índice) e
+// "Deletado" (no índice, ausente do disco).
 type StalenessReport struct {
 	IsStale           bool      `json:"is_stale"`
 	StaleFilesCount   int       `json:"stale_files_count"`
+	NewFilesCount     int       `json:"new_files_count"`
 	DeletedFilesCount int       `json:"deleted_files_count"`
 	IndexedCount      int       `json:"indexed_count"`
 	DiskCount         int       `json:"disk_count"`
 	StaleFiles        []string  `json:"stale_files,omitempty"`
+	NewFiles          []string  `json:"new_files,omitempty"`
 	DeletedFiles      []string  `json:"deleted_files,omitempty"`
 	LastCheck         time.Time `json:"last_check"`
 }
@@ -162,6 +168,7 @@ func (d *Detector) computeStaleness(ctx context.Context) (*StalenessReport, erro
 	seenDocs := make(map[string]bool)
 	seenPaths := make(map[string]bool)
 	var staleFiles []string
+	var newFiles []string
 	diskCount := 0
 
 	// Varre o disco a partir de rootDir
@@ -223,8 +230,10 @@ func (d *Detector) computeStaleness(ctx context.Context) (*StalenessReport, erro
 
 		displayPath := filepath.ToSlash(relPath)
 		if !found {
-			// Arquivo novo presente no disco mas não indexado
-			staleFiles = append(staleFiles, displayPath)
+			// Arquivo novo presente no disco mas não indexado (ADR-028 §1,
+			// categoria "Novo"). Antes ele caía na lista de modificados e o
+			// relatório não distinguia "novo" de "modificado".
+			newFiles = append(newFiles, displayPath)
 		} else {
 			seenDocs[docMeta.ID] = true
 			seenPaths[filepath.Clean(docMeta.Path)] = true
@@ -280,15 +289,18 @@ func (d *Detector) computeStaleness(ctx context.Context) (*StalenessReport, erro
 	}
 
 	sort.Strings(staleFiles)
+	sort.Strings(newFiles)
 	sort.Strings(deletedFiles)
 
 	return &StalenessReport{
-		IsStale:           len(staleFiles) > 0 || len(deletedFiles) > 0,
+		IsStale:           len(staleFiles) > 0 || len(newFiles) > 0 || len(deletedFiles) > 0,
 		StaleFilesCount:   len(staleFiles),
+		NewFilesCount:     len(newFiles),
 		DeletedFilesCount: len(deletedFiles),
 		IndexedCount:      len(metaMap),
 		DiskCount:         diskCount,
 		StaleFiles:        staleFiles,
+		NewFiles:          newFiles,
 		DeletedFiles:      deletedFiles,
 		LastCheck:         time.Now(),
 	}, nil
