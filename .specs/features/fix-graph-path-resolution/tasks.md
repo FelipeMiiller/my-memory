@@ -464,14 +464,14 @@ T13 ──→ T14
 
 **Done when**:
 
-- [ ] O banco do teste tem **dois** repositórios (o self-path não exercita o filtro — L-021)
-- [ ] A rota de 2 saltos dentro do repositório A é devolvida com `Found = true` e `Hops = 2`
-- [ ] O teste **assere** a rota multi-hop — e não só o caso self-path (GPR-27)
-- [ ] Nenhum nó devolvido pertence ao repositório B
-- [ ] O nó homônimo de B **não** aparece como candidato de ambiguidade na resolução dentro de A (o filtro de repositório vale antes da contagem de candidatos)
-- [ ] O teste usa `pgtest.New(t)` e **nunca** o Postgres configurado do dono; sem `MY_MEMORY_PG_TEST=1` ele **pulsa** (skip)
-- [ ] Gate completo passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 ./internal/store/...`
-- [ ] Test count: os testes de `internal/store` passam, sem nenhuma deleção silenciosa
+- [x] O banco do teste tem **dois** repositórios (o self-path não exercita o filtro — L-021)
+- [x] A rota de 2 saltos dentro do repositório A é devolvida com `Found = true` e `Hops = 2`
+- [x] O teste **assere** a rota multi-hop — e não só o caso self-path (GPR-27)
+- [x] Nenhum nó devolvido pertence ao repositório B
+- [x] O nó homônimo de B **não** aparece como candidato de ambiguidade na resolução dentro de A (o filtro de repositório vale antes da contagem de candidatos)
+- [x] O teste usa `pgtest.New(t)` e **nunca** o Postgres configurado do dono; sem `MY_MEMORY_PG_TEST=1` ele **pulsa** (skip)
+- [x] Gate completo passa: `MY_MEMORY_PG_TEST=1 go -C D:\repository\my-memory test -count=1 ./internal/store/...`
+- [x] Test count: os testes de `internal/store` passam, sem nenhuma deleção silenciosa
 
 **Tests**: integration
 **Gate**: full

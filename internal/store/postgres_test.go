@@ -305,3 +305,104 @@ func TestPostgresStore_Integration(t *testing.T) {
 	}
 	_ = s.DeleteDocumentData(ctx, repo, closeDocID)
 }
+
+func TestPostgresStore_FindPath_MultiHopIsolation(t *testing.T) {
+	h := pgtest.New(t)
+
+	ctx := context.Background()
+	s, err := NewPostgresStore(h.DSN)
+	if err != nil {
+		t.Fatalf("Falha ao conectar no PostgreSQL descartável (%s): %v", h.DBName, err)
+	}
+	defer s.Close()
+
+	repoA := "repo-a"
+	repoB := "repo-b"
+	now := time.Now().Unix()
+
+	// Repo A: 2-hop route nodeA1 -> nodeA2 -> nodeA3
+	if err := s.InsertDocument(ctx, repoA, "nodeA1", "docs/a1.md", "Node A1", now, "hA1"); err != nil {
+		t.Fatalf("InsertDocument A1: %v", err)
+	}
+	if err := s.InsertDocument(ctx, repoA, "nodeA2", "docs/shared.md", "Shared Node", now, "hA2"); err != nil {
+		t.Fatalf("InsertDocument A2: %v", err)
+	}
+	if err := s.InsertDocument(ctx, repoA, "nodeA3", "docs/a3.md", "Node A3", now, "hA3"); err != nil {
+		t.Fatalf("InsertDocument A3: %v", err)
+	}
+	if err := s.InsertEdgeWithProps(ctx, repoA, "nodeA1", "nodeA2", "links_to", "EXTRACTED", 1.0); err != nil {
+		t.Fatalf("InsertEdge A1->A2: %v", err)
+	}
+	if err := s.InsertEdgeWithProps(ctx, repoA, "nodeA2", "nodeA3", "implements", "EXTRACTED", 1.0); err != nil {
+		t.Fatalf("InsertEdge A2->A3: %v", err)
+	}
+
+	// Repo B: homonymous node "nodeA2" and homonymous title "Shared Node", plus B-specific nodes
+	if err := s.InsertDocument(ctx, repoB, "nodeB1", "docs/b1.md", "Node B1", now, "hB1"); err != nil {
+		t.Fatalf("InsertDocument B1: %v", err)
+	}
+	if err := s.InsertDocument(ctx, repoB, "nodeA2", "docs/b_shared.md", "Shared Node", now, "hB2"); err != nil {
+		t.Fatalf("InsertDocument B2: %v", err)
+	}
+	if err := s.InsertDocument(ctx, repoB, "nodeB3", "docs/b3.md", "Node B3", now, "hB3"); err != nil {
+		t.Fatalf("InsertDocument B3: %v", err)
+	}
+	if err := s.InsertEdgeWithProps(ctx, repoB, "nodeB1", "nodeA2", "links_to", "EXTRACTED", 1.0); err != nil {
+		t.Fatalf("InsertEdge B1->B2: %v", err)
+	}
+	if err := s.InsertEdgeWithProps(ctx, repoB, "nodeA2", "nodeB3", "depends_on", "EXTRACTED", 1.0); err != nil {
+		t.Fatalf("InsertEdge B2->B3: %v", err)
+	}
+
+	// 1. Resolução do nó homônimo em Repo A: o homônimo de Repo B não deve aparecer como candidato de ambiguidade
+	canonical, amb, err := s.ResolveNodeCanonicalID(ctx, repoA, "Shared Node")
+	if err != nil {
+		t.Fatalf("ResolveNodeCanonicalID em Repo A falhou: %v", err)
+	}
+	if canonical != "nodeA2" {
+		t.Errorf("esperado canonical nodeA2 em Repo A, obteve %s", canonical)
+	}
+	if amb != nil && len(amb.Candidates) > 1 {
+		t.Errorf("nó homônimo do repo B não deveria criar ambiguidade no repo A: %+v", amb)
+	}
+
+	// 2. Multi-hop FindPath em Repo A
+	pathRes, err := s.FindPath(ctx, repoA, "nodeA1", "nodeA3", graph.DefaultPathOptions())
+	if err != nil {
+		t.Fatalf("FindPath em Repo A falhou: %v", err)
+	}
+	if !pathRes.Found {
+		t.Fatalf("rota de 2 saltos em Repo A deveria ser encontrada")
+	}
+	if pathRes.Hops != 2 {
+		t.Errorf("esperado 2 saltos, obteve %d", pathRes.Hops)
+	}
+	if len(pathRes.Nodes) != 3 {
+		t.Fatalf("esperado 3 nós na rota, obteve %d (%v)", len(pathRes.Nodes), pathRes.Nodes)
+	}
+	expectedNodes := []string{"nodeA1", "nodeA2", "nodeA3"}
+	for i, n := range expectedNodes {
+		if pathRes.Nodes[i] != n {
+			t.Errorf("nó[%d] esperado %s, obteve %s", i, n, pathRes.Nodes[i])
+		}
+	}
+
+	// 3. Isolamento: nenhum nó devolvido pertence ao repo B
+	bNodes := map[string]bool{"nodeB1": true, "nodeB3": true}
+	for _, n := range pathRes.Nodes {
+		if bNodes[n] {
+			t.Errorf("nó do repo B (%s) vazou para o resultado do repo A", n)
+		}
+	}
+	for _, e := range pathRes.Edges {
+		if bNodes[e.From] || bNodes[e.To] {
+			t.Errorf("aresta envolvendo nó do repo B vazou: %+v", e)
+		}
+	}
+
+	// 4. Caminho entre nó de A e nó de B dentro de Repo A não deve encontrar
+	crossRes, err := s.FindPath(ctx, repoA, "nodeA1", "nodeB3", graph.DefaultPathOptions())
+	if err == nil && crossRes != nil && crossRes.Found {
+		t.Errorf("não deveria encontrar caminho para nó pertencente exclusivamente ao repo B")
+	}
+}
