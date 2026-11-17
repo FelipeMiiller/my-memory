@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -59,21 +60,27 @@ func runInspectCommand(ctx context.Context, defaultRepo string, args []string, o
 
 	var view *graph.TriptychView
 	var inspectErr error
+	// A conexão fica em escopo de função porque o aviso de staleness (ADR-028)
+	// reaproveita a mesma conexão que a consulta abriu.
+	var database *sql.DB
+	var pgStore *store.PostgresStore
 
 	if resolvedPG != "" && (*pgURL != "" || (cfg != nil && cfg.Storage.Engine == "postgres")) {
-		pgStore, err := store.NewPostgresStore(resolvedPG)
+		pg, err := store.NewPostgresStore(resolvedPG)
 		if err != nil {
 			return fmt.Errorf("falha ao conectar no PostgreSQL: %w", err)
 		}
-		defer pgStore.Close()
+		defer pg.Close()
+		pgStore = pg
 
 		view, inspectErr = pgStore.InspectNode(ctx, resolvedRepo, targetNode, previewLength)
 	} else {
-		database, err := db.InitDB(resolvedDB)
+		sqliteDB, err := db.InitDB(resolvedDB)
 		if err != nil {
 			return fmt.Errorf("falha ao abrir banco SQLite '%s': %w", resolvedDB, err)
 		}
-		defer database.Close()
+		defer sqliteDB.Close()
+		database = sqliteDB
 
 		view, inspectErr = db.InspectNode(ctx, database, targetNode, previewLength)
 	}
@@ -87,6 +94,16 @@ func runInspectCommand(ctx context.Context, defaultRepo string, args []string, o
 		enc.SetIndent("", "  ")
 		return enc.Encode(view)
 	}
+
+	// Aviso de desatualização (ADR-028): sai antes do tríptico e é
+	// suprimido no --json (ali o stdout tem que continuar sendo só o
+	// documento JSON).
+	printStalenessBanner(ctx, out, stalenessBannerOptions{
+		Config:   cfg,
+		Database: database,
+		PgStore:  pgStore,
+		Repo:     resolvedRepo,
+	})
 
 	// Renderização Visual do Tríptico para Terminal
 	fmt.Fprintf(out, "\n=== 🔬 Visualização Cirúrgica de Nó (Triptych Inspector) ===\n\n")

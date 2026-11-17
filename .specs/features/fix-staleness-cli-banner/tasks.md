@@ -317,11 +317,11 @@ do tríptico. Com `--json` (`inspect.go`) o banner é **suprimido**.
 
 **Done when**:
 
-- [ ] `mem inspect` num vault stale escreve o banner **antes** do tríptico
-- [ ] `mem inspect --json` escreve **só** o JSON: o banner não aparece e o documento continua desserializável
-- [ ] Num vault em sincronia, `mem inspect` **não** escreve banner
-- [ ] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
-- [ ] `go build ./...` e `go vet ./...` saem exit 0
+- [x] `mem inspect` num vault stale escreve o banner **antes** do tríptico
+- [x] `mem inspect --json` escreve **só** o JSON: o banner não aparece e o documento continua desserializável
+- [x] Num vault em sincronia, `mem inspect` **não** escreve banner
+- [x] O gate rápido passa: `go -C D:\repository\my-memory test -count=1 ./cmd/mem/...`
+- [x] `go build ./...` e `go vet ./...` saem exit 0
 
 **Tests**: integration
 **Gate**: quick
