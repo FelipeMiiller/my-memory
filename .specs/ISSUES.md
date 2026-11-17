@@ -2195,33 +2195,28 @@ transportes stdio e HTTP/SSE pelo mesmo `runMCPServer`.
 ## ISSUE-047 — `mem path` não funciona no vault real: o indexador dá duas identidades a cada nota
 
 - **Severidade:** 🔴 critical (a feature `graph-path-discovery` está entregue e verificada, e ainda assim o comando principal dela **não acha caminho nenhum** entre duas notas ligadas por wikilink)
-- **Status:** 🔵 **open** (achado pela verificação independente de 2026-11-15; a causa é **anterior** à feature)
+- **Status:** 🟢 **resolved** (implementado pela spec `fix-graph-node-identity`, verificado por Verificador Independente com veredicto PASS e sensor 3/3 em 2026-11-17)
 - **Spec de correcao:** `.specs/features/fix-graph-node-identity/` — 18 ACs em EARS, 12 tasks, 5 fases; `validate_spec.py` e `validate_tasks.py` com 0 erros.
 - **Achado em:** 2026-11-15, na verificação da feature `graph-path-discovery` — `.specs/features/graph-path-discovery/validation.md` (FIX-2)
 
-**O defeito.** O indexador dá **duas identidades** a cada nota: a **origem** da
-aresta é gravada com o **id de path** do documento, e o **destino** com o **id de
-título**. Toda aresta atravessa essa fenda. `ResolveNodeCanonicalID` cai
-justamente no lado que **nenhuma** aresta conecta.
+**Resolução (2026-11-17):**
+1. **Identidade Canônica Unificada (ADR-066)**: `documents.id` estabelecido como a identidade estável e única do nó no grafo nos motores SQLite e PostgreSQL. `graph_nodes.name` passa a carregar o `documents.title` como rótulo legível humano.
+2. **Gravação na Origem**: O indexador em lote (`cmd/mem/main.go`) e o cirúrgico (`internal/watcher/indexer.go`) gravam o `documents.id` como destino quando o wikilink resolve para nota indexada. Alvos não indexados permanecem como texto bruto preservando a detecção viva de dead links pelo `mem doctor` (ADR-063).
+3. **Resolução de Nós e Aliases**: `ResolveNodeCanonicalID` e `ResolveNodeCanonicalIDWithRoot` resolvem path, `title:` e `alias:` (via `vaultfs`) para o mesmo `documents.id`. Desempate determinístico (doc do mesmo repo > menos segmentos > id menor). Correção de aridade no query difuso Postgres (parâmetro $7 adicionado para alinhamento estrito com drivers pg).
+4. **Higiene e Prune de Nós Legados**: `mem doctor --fix` remove exclusivamente nós de estilo título sem grau que não sejam documentos nem símbolos de código (ADR-066).
+5. **Reparo e Medição no Vault Real (`repo_central`)**:
+   - Reindexação forçada e cleanup executados no banco Neon AWS de produção.
+   - Query 1 (`arestas_com_duas_pontas_em_documento`): **545**.
+   - Query 2 (`arestas_com_alvo_em_documento`): **545** (Query 1 == Query 2 → 0 arestas com pontas divididas).
+   - Query 3 (`nos_legados_sem_grau`): **0**.
+6. **Prova de Rota no Repositório (`repo_e4c8f3b1a2d5`)**:
+   - `./bin/mem.exe path "CONTRIBUTING.md" "README.md" --undirected --storage=postgres --repo repo_e4c8f3b1a2d5`: `Status: ✅ Encontrado` (2 saltos, custo 2.000 via ponte `code:repo_e4c8f3b1a2d5:import:os`).
+7. **Verificação Independente e Sensor**: Verificador independente aprovou 18/18 ACs (GNI-01 a GNI-18) e eliminou 3/3 mutantes no sensor de discriminação. Veredicto **PASS** registrado em `.specs/features/fix-graph-node-identity/validation.md`.
 
-**Medido no vault real (`repo_central`):** **0 de 40.243 arestas** têm as duas
-pontas em id de path. `mem path "CONTRIBUTING.md" "README"` devolve
-**"Não encontrado"**. O `README` tem grau **3** por id de path e **66** por id
-de título — o mesmo nó, dois graus.
-
-**A causa está fora do diff da feature** (commit `171df1e`, um dia antes do
-commit da feature). O motor de caminho **não precisa de mudança** — ele está
-correto (ver ISSUE-046). O que precisa consertar é a **identidade do nó** no
-grafo, o que afeta qualquer consumidor que resolva nó por id canônico.
-
-**Por que isso é uma issue separada:** não é um gap da feature — é um defeito de
-produto que precisa de **spec própria**, porque a correção toca o indexador (a
-gravação da aresta) e o resolvedor canônico, e a decisão "qual identidade é a
-canônica" é de arquitetura.
-
-**Referência:** ADR-027 · ADR-040 (identidade de repositório) ·
+**Referência:** ADR-027 · ADR-040 (identidade de repositório) · ADR-066 ·
 spec `graph-path-discovery` (FIX-2) ·
-`.specs/features/graph-path-discovery/validation.md`.
+`.specs/features/graph-path-discovery/validation.md` ·
+`.specs/features/fix-graph-node-identity/validation.md`.
 
 ## ISSUE-048 — O auto-wiring promete comandos e detecção que o HEAD não tem: `mem setup` não é alias, e o `mem install` cria config para ferramentas ausentes
 

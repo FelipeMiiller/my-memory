@@ -57,18 +57,18 @@ asserções de detalhe da aresta, cobertura Postgres, mensagens e defaults) é d
 
 ## Goals
 
-- [ ] Cada documento indexado ocupa **uma** identidade de nó no grafo: o seu
+- [x] Cada documento indexado ocupa **uma** identidade de nó no grafo: o seu
       `documents.id`, com o `title:` como rótulo (`graph_nodes.name`).
-- [ ] Toda aresta entre dois documentos indexados tem **as duas** pontas em id de
+- [x] Toda aresta entre dois documentos indexados tem **as duas** pontas em id de
       documento — 0 arestas atravessadas.
-- [ ] O resolvedor canônico trata path, `title:` e `alias:` como **aliases do mesmo nó**.
-- [ ] `mem path` entre duas notas ligadas por wikilink **acha a rota** (1 salto), e
+- [x] O resolvedor canônico trata path, `title:` e `alias:` como **aliases do mesmo nó**.
+- [x] `mem path` entre duas notas ligadas por wikilink **acha a rota** (1 salto), e
       nenhum consumidor (`mem impact`, `mem inspect`, a ponte de código, o `mem doctor`)
       fica com a identidade antiga.
-- [ ] O wikilink **rompido** continua visível (o alvo não indexado não vira um id de
+- [x] O wikilink **rompido** continua visível (o alvo não indexado não vira um id de
       documento) — a detecção de link morto não regride.
-- [ ] A decisão fica registrada em **ADR nova** (a identidade do nó é arquitetura).
-- [ ] O vault já indexado tem **procedimento de reparo** e **query de verificação** — o
+- [x] A decisão fica registrada em **ADR nova** (a identidade do nó é arquitetura).
+- [x] O vault já indexado tem **procedimento de reparo** e **query de verificação** — o
       código novo, sozinho, não conserta o dado antigo.
 
 ## Out of Scope
@@ -222,24 +222,24 @@ antes e depois do reindex, no Postgres do cofre central.
 
 | Requirement ID | Acceptance Criterion | Gap | Where | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| GNI-01 | AC1 — o alvo resolvido vira o `documents.id` do documento | FIX-2 | `cmd/mem/main.go` · `internal/watcher/indexer.go` | Pending |
-| GNI-02 | AC2 — a origem gravada é o `documents.id` do documento de origem | FIX-2 | `cmd/mem/main.go` · `internal/watcher/indexer.go` | Pending |
-| GNI-03 | AC3 — alvo não resolvido continua sendo o texto do wikilink | FIX-2 | `cmd/mem/main.go` · `internal/watcher/indexer.go` | Pending |
-| GNI-04 | AC4 — SQLite e Postgres gravam o mesmo alvo | FIX-2 | `cmd/mem/main.go` · `internal/watcher/indexer.go` | Pending |
-| GNI-05 | AC5 — uma identidade de nó por documento | FIX-2 | `internal/db/store.go` · `internal/store/postgres.go` | Pending |
-| GNI-06 | AC6 — o nó do documento carrega o `title:` como rótulo | FIX-2 | `internal/db/store.go` · `internal/store/postgres.go` | Pending |
-| GNI-07 | AC7 — path, `title:` e `alias:` do mesmo documento devolvem o mesmo id | FIX-2 | `internal/db/graph.go` · `internal/store/postgres.go` · `internal/vaultfs/target.go` | Pending |
-| GNI-08 | AC8 — sem raiz do vault, o alias devolve o erro de nó não encontrado | FIX-2 | `internal/db/graph.go` · `internal/store/postgres.go` | Pending |
-| GNI-09 | AC9 — título resolve para o `documents.id`, nunca para um nó de id de título | FIX-2 | `internal/db/graph.go` · `internal/store/postgres.go` | Pending |
-| GNI-10 | AC10 — `mem path` acha a rota de 1 salto entre notas ligadas por wikilink | FIX-2 | `cmd/mem/path.go` · `internal/db/graph.go` · `internal/store/postgres.go` | Pending |
-| GNI-11 | AC11 — `mem impact`, `mem inspect` e `mem path` devolvem o mesmo id canônico | FIX-2 | `internal/db/graph.go` · `internal/store/postgres.go` | Pending |
-| GNI-12 | AC12 — a ponte `references_code` mantém `source_id` = `documents.id` | FIX-2 | `internal/db/code_bridge.go` | Pending |
-| GNI-13 | AC13 — o doctor não acusa aresta de documento como dead link | FIX-2 | `internal/db/graph.go` · `internal/store/doctor.go` | Pending |
-| GNI-14 | AC14 — o doctor expõe a contagem de nós fora de `documents.id`/`code_symbol` | FIX-2 | `internal/db/graph.go` · `internal/store/doctor.go` | Pending |
-| GNI-15 | AC15 — no cofre central reindexado, as arestas divididas são 0 | FIX-2 | indexação em lote + medição SQL em `repo_central` | Pending |
-| GNI-16 | AC16 — no cofre central reparado, os nós de id de título são 0 | FIX-2 | `mem doctor --fix` + medição SQL em `repo_central` | Pending |
-| GNI-17 | AC17 — `mem path "CONTRIBUTING.md" "README.md" --undirected` acha a rota | FIX-2 | `cmd/mem/path.go` · vault do repositório | Pending |
-| GNI-18 | AC18 — a identidade canônica fica em ADR nova | FIX-2 | `docs/adr/README.md` | Pending |
+| GNI-01 | AC1 — o alvo resolvido vira o `documents.id` do documento | FIX-2 | `cmd/mem/main.go` · `internal/watcher/indexer.go` | Complete |
+| GNI-02 | AC2 — a origem gravada é o `documents.id` do documento de origem | FIX-2 | `cmd/mem/main.go` · `internal/watcher/indexer.go` | Complete |
+| GNI-03 | AC3 — alvo não resolvido continua sendo o texto do wikilink | FIX-2 | `cmd/mem/main.go` · `internal/watcher/indexer.go` | Complete |
+| GNI-04 | AC4 — SQLite e Postgres gravam o mesmo alvo | FIX-2 | `cmd/mem/main.go` · `internal/watcher/indexer.go` | Complete |
+| GNI-05 | AC5 — uma identidade de nó por documento | FIX-2 | `internal/db/store.go` · `internal/store/postgres.go` | Complete |
+| GNI-06 | AC6 — o nó do documento carrega o `title:` como rótulo | FIX-2 | `internal/db/store.go` · `internal/store/postgres.go` | Complete |
+| GNI-07 | AC7 — path, `title:` e `alias:` do mesmo documento devolvem o mesmo id | FIX-2 | `internal/db/graph.go` · `internal/store/postgres.go` · `internal/vaultfs/target.go` | Complete |
+| GNI-08 | AC8 — sem raiz do vault, o alias devolve o erro de nó não encontrado | FIX-2 | `internal/db/graph.go` · `internal/store/postgres.go` | Complete |
+| GNI-09 | AC9 — título resolve para o `documents.id`, nunca para um nó de id de título | FIX-2 | `internal/db/graph.go` · `internal/store/postgres.go` | Complete |
+| GNI-10 | AC10 — `mem path` acha a rota de 1 salto entre notas ligadas por wikilink | FIX-2 | `cmd/mem/path.go` · `internal/db/graph.go` · `internal/store/postgres.go` | Complete |
+| GNI-11 | AC11 — `mem impact`, `mem inspect` e `mem path` devolvem o mesmo id canônico | FIX-2 | `internal/db/graph.go` · `internal/store/postgres.go` | Complete |
+| GNI-12 | AC12 — a ponte `references_code` mantém `source_id` = `documents.id` | FIX-2 | `internal/db/code_bridge.go` | Complete |
+| GNI-13 | AC13 — o doctor não acusa aresta de documento como dead link | FIX-2 | `internal/db/graph.go` · `internal/store/doctor.go` | Complete |
+| GNI-14 | AC14 — o doctor expõe a contagem de nós fora de `documents.id`/`code_symbol` | FIX-2 | `internal/db/graph.go` · `internal/store/doctor.go` | Complete |
+| GNI-15 | AC15 — no cofre central reindexado, as arestas divididas são 0 | FIX-2 | indexação em lote + medição SQL em `repo_central` | Complete |
+| GNI-16 | AC16 — no cofre central reparado, os nós de id de título são 0 | FIX-2 | `mem doctor --fix` + medição SQL em `repo_central` | Complete |
+| GNI-17 | AC17 — `mem path "CONTRIBUTING.md" "README.md" --undirected` acha a rota | FIX-2 | `cmd/mem/path.go` · vault do repositório | Complete |
+| GNI-18 | AC18 — a identidade canônica fica em ADR nova | FIX-2 | `docs/adr/README.md` | Complete |
 
 **Coverage**: 18 total, 18 mapeados, 0 unmapped.
 
@@ -247,21 +247,21 @@ antes e depois do reindex, no Postgres do cofre central.
 
 ## Success Criteria
 
-- [ ] Num vault de teste com wikilinks, **100%** das arestas entre documentos indexados
+- [x] Num vault de teste com wikilinks, **100%** das arestas entre documentos indexados
       têm as duas pontas em id de documento, e `mem path` entre duas notas ligadas
       devolve `✅ Encontrado` com 1 salto.
-- [ ] O wikilink rompido continua apontado pelo `mem doctor` (nenhuma regressão na
+- [x] O wikilink rompido continua apontado pelo `mem doctor` (nenhuma regressão na
       detecção de link morto) — as **138** arestas classificáveis do cofre central (125
       fora do índice + 13 rompidas) continuam visíveis.
-- [ ] O vault real (`repo_central`), depois do reindex e do `mem doctor --fix`, sai de
+- [x] O vault real (`repo_central`), depois do reindex e do `mem doctor --fix`, sai de
       **0** arestas com as duas pontas em id de documento e passa a ter **0** dos 3.200
       nós de id de título; o `README` deixa de ter dois graus (3 e 66).
-- [ ] `mem path "CONTRIBUTING.md" "README.md" --undirected` no vault do repositório
+- [x] `mem path "CONTRIBUTING.md" "README.md" --undirected` no vault do repositório
       devolve **"Encontrado"** — hoje devolve "Não encontrado".
-- [ ] A ADR-066 existe, está no `docs/adr/README.md` e é citada pela doc que descreve a
+- [x] A ADR-066 existe, está no `docs/adr/README.md` e é citada pela doc que descreve a
       identidade do nó.
-- [ ] O gate completo (`go -C D:\repository\my-memory test -count=1 ./...`) e o taggeado
+- [x] O gate completo (`go -C D:\repository\my-memory test -count=1 ./...`) e o taggeado
       (`go -C D:\repository\my-memory test -tags "sqlite_fts5 onnx" -count=1 ./...`)
       saem **exit 0**, com `go build` e `go vet` verdes.
-- [ ] **O motor de pathfinding não é tocado** (`internal/graph/path.go` fica intacto) — o
+- [x] **O motor de pathfinding não é tocado** (`internal/graph/path.go` fica intacto) — o
       defeito nunca foi nele.

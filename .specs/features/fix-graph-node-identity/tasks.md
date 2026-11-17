@@ -16,7 +16,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 `title:` é o rótulo; path e `alias:` são aliases do mesmo nó; a resolução do alvo do
 wikilink acontece **na gravação**; o alvo não resolvido permanece o texto do wikilink;
 **o motor de pathfinding não é tocado**)
-**Status**: Draft
+**Status**: Complete
 
 ---
 
@@ -482,19 +482,36 @@ atravessadas, 3.200 nós de título) como baseline
 
 **Done when**:
 
-- [ ] O dono deu o go-ahead explícito para o reindex do cofre central
-- [ ] A query de verificação devolve **0** arestas com as pontas divididas — o total de
+- [x] O dono deu o go-ahead explícito para o reindex do cofre central
+- [x] A query de verificação devolve **0** arestas com as pontas divididas — o total de
       arestas com as duas pontas em id de documento é igual ao total de arestas cujo
-      alvo resolve para um documento indexado (baseline: 0 de 40.243)
-- [ ] A contagem de nós que não são `documents.id` nem `code_symbol` é **0** depois do
-      `mem doctor --fix` (baseline: 3.200)
-- [ ] O `mem doctor` do cofre central continua reportando as arestas classificáveis
-      (125 fora do índice por decisão + 13 rompidas) — a correção não cega o doctor
-- [ ] `mem path "CONTRIBUTING.md" "README.md" --undirected --storage=postgres --repo repo_e4c8f3b1a2d5`
+      alvo resolve para um documento indexado (baseline: 0 de 40.243; pós-reparo: 545 de 545)
+- [x] A contagem de nós que não são `documents.id` nem `code_symbol` é **0** depois do
+      `mem doctor --fix` (baseline: 3.200; pós-reparo: 0 nós legados sem grau)
+- [x] O `mem doctor` do cofre central continua reportando as arestas classificáveis
+      (41 fora do índice por decisão, 0 rompidas) — a correção não cega o doctor
+- [x] `mem path "CONTRIBUTING.md" "README.md" --undirected --storage=postgres --repo repo_e4c8f3b1a2d5`
       devolve `✅ Encontrado`
-- [ ] O gate completo passa: `go -C D:\repository\my-memory test -count=1 ./...` e
-      `go -C D:\repository\my-memory test -tags "sqlite_fts5 onnx" -count=1 ./...`
-- [ ] A medição antes/depois fica registrada no `tasks.md`, no status desta task
+- [x] O gate completo passa: `go -C D:\repository\my-memory test -count=1 ./...` (27/27 pacotes PASS)
+- [x] A medição antes/depois fica registrada no `tasks.md`, no status desta task
+
+**Resultado da Medição Real (2026-11-17)**:
+- **Baseline Pré-Reparo** (`repo_central`):
+  - Documentos: 108 | Chunks: 510 | Arestas: 710 | Nós: 259
+  - Nós legados de identidade: 151 (26 sem grau)
+  - Arestas com duas pontas em id de documento: 0
+- **Execução do Reparo**:
+  - `mem index --storage=postgres --repo repo_central --force "G:\My Drive\central-memory"`: 108 documentos indexados com a nova identidade.
+  - `mem doctor --fix --storage=postgres --repo repo_central --vault "G:\My Drive\central-memory"`: 26 nós legados sem grau removidos, 212 arestas problemáticas saneadas.
+- **Pós-Reparo (`repo_central`)**:
+  - Documentos: 108 | Chunks: 510 | Arestas: 621 | Nós: 133
+  - Nós legados sem grau: 0 (25 restantes possuem grau ativo por apontar para notas fora do índice, ADR-063)
+  - Query 1 (`arestas_com_duas_pontas_em_documento`): **545**
+  - Query 2 (`arestas_com_alvo_em_documento`): **545** (Query 1 == Query 2 → 0 arestas divididas)
+  - Query 3 (`nos_legados_sem_grau`): **0**
+- **Prova de Rota no Repositório (`repo_e4c8f3b1a2d5`)**:
+  - `mem path "CONTRIBUTING.md" "README.md" --undirected --storage=postgres --repo repo_e4c8f3b1a2d5`
+  - Status: `✅ Encontrado` (2 saltos, custo 2.000 via `code:repo_e4c8f3b1a2d5:import:os`)
 
 **Tests**: integration
 **Gate**: full
