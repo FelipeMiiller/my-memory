@@ -252,6 +252,8 @@ func TestStructuredContentNeverEmitsNullArrays(t *testing.T) {
 		{"hubs_pagerank", []PageRankNode(nil), []string{`[]`}},
 		{"insights", []SurprisingConnection(nil), []string{`[]`}},
 		{"clusters", graph.CommunityResult{}, []string{`"communities":[]`}},
+		{"impact", &graph.ImpactResult{TargetNode: "doc.md"}, []string{`"nodes":[]`, `"affected_clusters":[]`}},
+		{"path", &graph.PathResult{Source: "A", Target: "B"}, []string{`"nodes":[]`, `"edges":[]`}},
 	}
 
 	for _, tc := range cases {
@@ -316,5 +318,81 @@ func TestNormalizeStructuredContent_DoesNotMutateTheProducer(t *testing.T) {
 	}
 	if report.DriftedNotes != nil || report.UncoveredCode != nil {
 		t.Error("a normalização alterou o relatório do produtor")
+	}
+}
+
+func TestMemoryGetImpact_EmitsStructuredContent(t *testing.T) {
+	handler := NewMemoryGetImpactHandler(func(ctx context.Context, repo, nodeID string, maxDepth int) (*graph.ImpactResult, error) {
+		return &graph.ImpactResult{
+			TargetNode:      nodeID,
+			MaxDepthReached: 1,
+			TotalImpacted:   1,
+			RiskScore:       10,
+			RiskLevel:       "BAIXO",
+			Nodes: []graph.ImpactedNode{
+				{ID: "dep.md", Depth: 1, Relation: "links", Severity: graph.SeverityLow},
+			},
+		}, nil
+	})
+
+	res, err := handler(context.Background(), json.RawMessage(`{"node_id": "test.md"}`))
+	if err != nil {
+		t.Fatalf("handler falhou: %v", err)
+	}
+
+	callRes, ok := res.(CallToolResult)
+	if !ok {
+		t.Fatalf("esperava CallToolResult, obteve %T", res)
+	}
+	if callRes.StructuredContent == nil {
+		t.Fatal("memory_get_impact não emitiu structuredContent")
+	}
+
+	impact, ok := callRes.StructuredContent.(*graph.ImpactResult)
+	if !ok {
+		t.Fatalf("esperava *graph.ImpactResult no structuredContent, obteve %T", callRes.StructuredContent)
+	}
+	if impact.TargetNode != "test.md" || len(impact.Nodes) != 1 {
+		t.Errorf("payload inesperado: %+v", impact)
+	}
+}
+
+func TestMemoryFindPath_EmitsStructuredContent(t *testing.T) {
+	handler := NewMemoryFindPathHandler(func(ctx context.Context, repo, source, target string, opts graph.PathOptions) (*graph.PathResult, error) {
+		return &graph.PathResult{
+			Found:     true,
+			Source:    source,
+			Target:    target,
+			Directed:  opts.Directed,
+			CostMode:  opts.CostMode,
+			Hops:      1,
+			TotalCost: 1.0,
+			Nodes:     []string{source, target},
+			Edges: []graph.PathEdge{
+				{From: source, To: target, Relation: "links", Cost: 1.0, Direction: "forward"},
+			},
+			Summary: "Caminho encontrado com 1 salto",
+		}, nil
+	})
+
+	res, err := handler(context.Background(), json.RawMessage(`{"source": "A", "target": "B"}`))
+	if err != nil {
+		t.Fatalf("handler falhou: %v", err)
+	}
+
+	callRes, ok := res.(CallToolResult)
+	if !ok {
+		t.Fatalf("esperava CallToolResult, obteve %T", res)
+	}
+	if callRes.StructuredContent == nil {
+		t.Fatal("memory_find_path não emitiu structuredContent")
+	}
+
+	pathRes, ok := callRes.StructuredContent.(*graph.PathResult)
+	if !ok {
+		t.Fatalf("esperava *graph.PathResult no structuredContent, obteve %T", callRes.StructuredContent)
+	}
+	if !pathRes.Found || pathRes.Hops != 1 || len(pathRes.Nodes) != 2 {
+		t.Errorf("payload inesperado: %+v", pathRes)
 	}
 }

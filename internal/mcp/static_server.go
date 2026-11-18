@@ -171,9 +171,17 @@ func (s *StaticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// (5) O fallback SPA vale só para requisições de navegação. Um asset
-	// faltando continua sendo 404, para que o browser não receba HTML onde
-	// esperava JavaScript.
+	// (5) O fallback SPA vale só para requisições de navegação de rotas da SPA.
+	// Um path de asset (sob /assets/ ou com extensão de arquivo) faltando continua
+	// sendo 404 honesto, mesmo que o navegador envie Accept: text/html (ISSUE-021, ADR-067).
+	if len(segments) > 0 {
+		last := segments[len(segments)-1]
+		if segments[0] == "assets" || filepath.Ext(last) != "" {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+	}
+
 	if !acceptsHTML(r) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return

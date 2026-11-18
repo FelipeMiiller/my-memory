@@ -69,6 +69,27 @@ func normalizeStructuredContent(structured any) any {
 		normalized.DesyncedChunks = nonNilSlice(payload.DesyncedChunks)
 		return &normalized
 
+	case *graph.ImpactResult:
+		if payload == nil {
+			return payload
+		}
+		normalized := *payload
+		normalized.Nodes = nonNilSlice(payload.Nodes)
+		normalized.AffectedClusters = nonNilSlice(payload.AffectedClusters)
+		if normalized.SeverityCounts == nil {
+			normalized.SeverityCounts = make(map[graph.ImpactSeverity]int)
+		}
+		return &normalized
+
+	case *graph.PathResult:
+		if payload == nil {
+			return payload
+		}
+		normalized := *payload
+		normalized.Nodes = nonNilSlice(payload.Nodes)
+		normalized.Edges = nonNilSlice(payload.Edges)
+		return &normalized
+
 	default:
 		return structured
 	}

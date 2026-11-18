@@ -146,12 +146,31 @@ func TestStaticHandler_FallbackNotAppliedToMissingAsset(t *testing.T) {
 	root := newStaticFixture(t)
 	handler := NewStaticHandler(root, nil)
 
+	// Sem Accept header: 404
 	rec := doRequest(handler, http.MethodGet, "/assets/nao-existe.js", "")
 	if rec.Code != http.StatusNotFound {
-		t.Fatalf("esperado 404 para asset faltando, obteve %d", rec.Code)
+		t.Fatalf("esperado 404 para asset faltando sem Accept, obteve %d", rec.Code)
 	}
 	if body := rec.Body.String(); strings.Contains(body, "<title>viewer</title>") {
 		t.Errorf("o entrypoint não pode substituir um asset faltando: %q", body)
+	}
+
+	// Com Accept: text/html (cenário do navegador real, ISSUE-021, ADR-067): 404
+	recHtml := doRequest(handler, http.MethodGet, "/assets/nao-existe.js", "text/html,application/xhtml+xml")
+	if recHtml.Code != http.StatusNotFound {
+		t.Fatalf("esperado 404 para asset faltando mesmo com Accept text/html, obteve %d", recHtml.Code)
+	}
+	if body := recHtml.Body.String(); strings.Contains(body, "<title>viewer</title>") {
+		t.Errorf("o entrypoint não pode substituir um asset faltando quando navegador pede text/html: %q", body)
+	}
+
+	// Path com extensão de arquivo fora de /assets/ também não cai no fallback:
+	recIcon := doRequest(handler, http.MethodGet, "/nao-existe.ico", "text/html,*/*")
+	if recIcon.Code != http.StatusNotFound {
+		t.Fatalf("esperado 404 para arquivo com extensão faltando, obteve %d", recIcon.Code)
+	}
+	if body := recIcon.Body.String(); strings.Contains(body, "<title>viewer</title>") {
+		t.Errorf("o entrypoint não pode substituir arquivo com extensão faltando: %q", body)
 	}
 }
 

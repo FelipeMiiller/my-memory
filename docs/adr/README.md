@@ -67,6 +67,7 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-064](064-todo-conceito-linkado-no-cofre-central-tem-nota.md)** | Todo conceito linkado no cofre central tem nota | Implementado | spec `central-vault-concept-notes` (PASS) | 2026-11-14 | `cofre-central`, `vault`, `wikilinks`, `moc`, `conteudo`, `adr-062` |
 | **[ADR-065](065-o-caminho-de-limpeza-do-repo-e-inventario-podar-simplificar.md)** | O caminho de limpeza do repo é inventário → podar → simplificar | Implementado (fases 1-2 concluidas) | spec `central-vault-concept-notes` (PASS) + spec `prune-dead-code-2026-11` (PASS) | 2026-11-14 | `governanca`, `limpeza`, `backlog`, `dead-code`, `adr-036`, `adr-062` |
 | **[ADR-066](066-a-identidade-canonica-do-no-no-grafo.md)** | A identidade canônica do nó no grafo é o id do documento | Implementado | spec `fix-graph-node-identity` (PASS, 18/18 ACs, cofre central reparado) | 2026-11-16 | `graph`, `node-identity`, `documents-id`, `wikilinks`, `indexer`, `doctor` |
+| **[ADR-067](067-mcp-web-viewer-fallback-structured-content-e-protocolo.md)** | MCP Web e Viewer — Regra de Fallback SPA, structuredContent Aditivo e Negociação de Protocolo | Implementado | unit tests em `internal/mcp` + schemas viewer (PASS) | 2026-11-18 | `mcp`, `viewer`, `spa-fallback`, `structured-content`, `protocol-negotiation` |
 > **Como ler o status desta coluna.** O status aqui e o **real**, medido em
 > 2026-11-14 (ADR-065, fase 1 — inventario read-only) e **recalculado em
 > 2026-11-15** com a logica autoritativa do `validate_state.py`. O **texto da ADR
@@ -93,11 +94,11 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 >
 > | Medida | Valor |
 > | :--- | :---: |
-> | ADRs com status real verificado | **66** (65 arquivos + 1 slot reservado) |
+> | ADRs com status real verificado | **67** (66 arquivos + 1 slot reservado) |
 > | Specs com veredito **PASS** / **FAIL** / **PARTIAL** | **61** / **0** / **1** |
 > | Specs com `validation.md` que era **plano**, nao relatorio | **0** (eram 5 — as 5 verificadas em 2026-11-15) |
 > | Specs planejadas, nunca executadas | 6 |
-> | Implementadas e verificadas **sem gaps** | **51** |
+> | Implementadas e verificadas **sem gaps** | **52** |
 > | Implementadas **com gaps** (veredito FAIL ou PARTIAL) | **0** |
 > | Implementadas **sem** verificacao independente | **0** |
 > | Implementada por convencao (ADR-046) / viva como backlog (ADR-036) / fases 1-2 concluidas (ADR-065) | 1 / 1 / 1 |

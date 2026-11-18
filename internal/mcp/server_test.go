@@ -47,6 +47,31 @@ func TestServer_InitializeHandshake(t *testing.T) {
 	}
 }
 
+func TestServer_InitializeNegotiates2025ProtocolVersion(t *testing.T) {
+	in := `{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}}` + "\n"
+	var out bytes.Buffer
+
+	srv := NewServer("test-server", "1.0.0", strings.NewReader(in), &out, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_ = srv.Run(ctx)
+
+	var resp Response
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("erro ao decodificar resposta do initialize: %v\nSaída: %s", err, out.String())
+	}
+
+	resultBytes, _ := json.Marshal(resp.Result)
+	var initResult InitializeResult
+	_ = json.Unmarshal(resultBytes, &initResult)
+
+	if initResult.ProtocolVersion != "2025-06-18" {
+		t.Errorf("esperava versão 2025-06-18 negociada, obteve %s", initResult.ProtocolVersion)
+	}
+}
+
 func TestServer_Ping(t *testing.T) {
 	in := `{"jsonrpc": "2.0", "id": 2, "method": "ping"}` + "\n"
 	var out bytes.Buffer

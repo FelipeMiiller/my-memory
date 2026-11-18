@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/FelipeMiiller/my-memory/internal/staleness"
@@ -264,8 +265,20 @@ func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (
 	s.initialized = true
 	s.mu.Unlock()
 
+	protoVer := ProtocolVersion
+	if len(params) > 0 {
+		var initParams InitializeParams
+		if err := json.Unmarshal(params, &initParams); err == nil && initParams.ProtocolVersion != "" {
+			reqVer := strings.TrimSpace(initParams.ProtocolVersion)
+			// Suporte a 2025-06-18 (introdução do structuredContent) e 2024-11-05 (baseline) (ADR-067, ISSUE-023)
+			if reqVer == "2025-06-18" || reqVer == "2024-11-05" {
+				protoVer = reqVer
+			}
+		}
+	}
+
 	return InitializeResult{
-		ProtocolVersion: ProtocolVersion,
+		ProtocolVersion: protoVer,
 		Capabilities: ServerCapabilities{
 			Tools: &ToolsCapability{ListChanged: false},
 		},

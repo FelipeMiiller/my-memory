@@ -688,62 +688,64 @@ Spec: `.specs/features/doctor-empty-vault-score/` (`spec.md`, `tasks.md`, `valid
 ## ISSUE-021 — O fallback SPA responde 200 com `index.html` para um asset faltante quando o navegador pede `Accept: text/html`
 
 - **Severidade:** 🟡 medium
-- **Status:** 🔵 open
+- **Status:** 🟢 **resolved** (implementado em `internal/mcp/static_server.go` e documentado na ADR-067 em 2026-11-18)
 - **Achado em:** sessão 2026-10-19 — verificação adversarial da feature `mcp-static-serving` (verificador independente)
-- **Relacionada:** ADR-060 D-5 (a regra do fallback)
+- **Relacionada:** ADR-060 D-5 (a regra do fallback) · ADR-067
 
 **O que a ADR-060 registra.** O fallback SPA só se aplica quando a requisição declara `Accept: text/html`, e a justificativa escrita é que assim *"um asset faltando (`/assets/nao-existe.js`) continue sendo 404 honesto, e não HTML com 200"*.
 
-**O que acontece de verdade.**
+**O que acontecia de verdade.**
 
 | Requisição | Resultado |
 |---|---|
 | `GET /assets/nao-existe.js` **sem** `Accept: text/html` | `404` + corpo `not found` — o AC é cumprido |
 | `GET /assets/nao-existe.js` **com** `Accept: text/html` | **`200` + `index.html`** (480 B, `Content-Type: text/html`) |
 
-O `Accept: text/html` é exatamente o que um **navegador** envia ao pedir um `.js`. Ou seja: a razão documentada não se sustenta para o cliente que importa. Um `404` de asset continua sendo `404` para quem não pede HTML — mas quem pede (o navegador) recebe o entrypoint com status de sucesso.
+O `Accept: text/html` é exatamente o que um **navegador** envia ao pedir um `.js`. Ou seja: a razão documentada não se sustentava para o cliente que importa. Um `404` de asset continuava sendo `404` para quem não pede HTML — mas quem pedia (o navegador) recebia o entrypoint com status de sucesso.
 
-**Impacto real:** baixo. `X-Content-Type-Options: nosniff` impede o navegador de executar o HTML como script, e o conteúdo servido é o entrypoint público da própria SPA. O custo real é **ruído**: cache e log passam a registrar 200 onde houve 404, e um asset sumido fica invisível para quem monitora status.
+**Impacto real:** baixo. `X-Content-Type-Options: nosniff` impede o navegador de executar o HTML como script, e o conteúdo servido é o entrypoint público da própria SPA. O custo real era **ruído**: cache e log passavam a registrar 200 onde houve 404, e um asset sumido ficava invisível para quem monitora status.
 
-**A correção padrão, que é uma mudança de contrato.** A regra usada pela maioria dos servidores SPA é: *só cai no fallback quando o path **não** tem extensão de arquivo* — rota (`/clusters`) cai, asset (`/assets/x.js`) não. Isso tornaria a justificativa da ADR-060 verdadeira. Mas muda o comportamento documentado, então **não foi feito sem decisão**.
-
-**Achado conexo (B8).** `GET /graph/../x` normaliza para fora do prefixo `/graph/` e **cai no fallback** (200 + entrypoint). Benigno — só entrega o entrypoint público, nunca um artefato de fora da raiz —, mas "o prefixo `/graph/` nunca cai no fallback" não é literal: a checagem do prefixo roda **depois** da normalização. `GET /graph/qualquer.html` devolve 404 corretamente.
-
-**Decisão pendente (produto).** (a) manter a regra como está e corrigir a **justificativa** da ADR-060 no índice; (b) adotar a regra da extensão e emendar a ADR-060; (c) deixar como está e aceitar o ruído de log/cache.
+**Resolução (2026-11-18, ADR-067):**
+1. **Filtro de Extensão e Diretório de Assets**: Em `internal/mcp/static_server.go`, paths sob `/assets/` ou cujo último segmento possua extensão de arquivo (`filepath.Ext(last) != ""`) são classificados como assets estáticos. Quando não encontrados em disco, retornam imediatamente `404 Not Found`, mesmo se a requisição incluir `Accept: text/html`.
+2. **Preservação de Rotas SPA**: Rotas de navegação sem extensão (`/clusters`, `/drift`, `/graph`) continuam caindo no fallback e devolvendo o entrypoint `index.html` com status 200.
+3. **Teste de Regressão**: Teste unitário em `internal/mcp/static_server_test.go` (`TestStaticHandler_FallbackNotAppliedToMissingAsset`) valida deterministamente que `/assets/nao-existe.js` e `/nao-existe.ico` devolvem 404 mesmo com `Accept: text/html`.
 
 ---
 
 ## ISSUE-022 — `memory_get_impact` e `memory_find_path` não emitem `structuredContent`: dois schemas da viewer nunca validam nada
 
 - **Severidade:** 🟡 medium
-- **Status:** 🔵 open
+- **Status:** 🟢 **resolved** (implementado em `internal/mcp/impact_handlers.go`, `path_handlers.go`, `structured_content.go` e documentado na ADR-067 em 2026-11-18)
 - **Achado em:** sessão 2026-10-19 — verificação adversarial da feature `viewer-dashboard` (verificador independente)
-- **Relacionada:** ADR-060 (as 10 tools com `structuredContent`)
+- **Relacionada:** ADR-060 (as 10 tools com `structuredContent`) · ADR-067
 
-**O fato.** Das 24 tools MCP, 10 emitem `structuredContent` (ADR-060). `memory_get_impact` e `memory_find_path` **não** estão entre elas. Mas a viewer tem `impactSchema` (`viewer/src/lib/schemas.ts:454`) e `pathSchema` (`:511`), usados em `viewer/src/lib/queries.ts:192,203` — e como as duas tools nunca emitem o payload estruturado, **esses dois schemas nunca validam nada**: a tela renderiza sempre o texto.
+**O fato.** Das 24 tools MCP, 10 emitiam `structuredContent` (ADR-060). `memory_get_impact` e `memory_find_path` **não** estavam entre elas. Mas a viewer tem `impactSchema` (`viewer/src/lib/schemas.ts:454`) e `pathSchema` (`:511`), usados em `viewer/src/lib/queries.ts:192,203` — e como as duas tools nunca emitiam o payload estruturado, **esses dois schemas nunca validavam nada**: a tela renderizava sempre o texto.
 
-**Por que importa.** A rota `/drift` da viewer promete blast radius e caminho entre dois nós. As duas informações chegam — mas como markdown, sem a estrutura que a tela foi desenhada para consumir. É a mesma classe de degradação que o defeito `null` do drift (corrigido nesta rodada), pelo caminho oposto: lá o payload existia e o schema rejeitava; aqui o schema existe e o payload não.
+**Por que importa.** A rota `/drift` da viewer promete blast radius e caminho entre dois nós. As duas informações chegavam — mas como markdown, sem a estrutura que a tela foi desenhada para consumir.
 
-**Por que não foi corrigido aqui.** A lista de 10 tools com `structuredContent` é o **escopo acordado** na ADR-060 e nas duas specs. Ampliá-la para 12 muda o contrato público do servidor (duas tools a mais passariam a ter `structuredContent`) e exige revisar a forma do payload de cada uma. Isso é decisão de produto.
-
-**Decisão pendente (produto).** (a) estender o `structuredContent` para as duas tools e atualizar a ADR-060 e as specs; (b) remover os dois schemas e a renderização estruturada correspondente da viewer, assumindo que a tela use texto; (c) deixar como está e registrar como limitação conhecida do painel `/drift`.
+**Resolução (2026-11-18, ADR-067):**
+1. **Emissão de `structuredContent`**: `NewMemoryGetImpactHandler` e `NewMemoryFindPathHandler` agora retornam `NewStructuredResult(sb.String(), res)`, emitindo o payload estruturado completo além do texto markdown.
+2. **Normalização Anti-Null**: `normalizeStructuredContent` em `internal/mcp/structured_content.go` foi estendido para tratar `*graph.ImpactResult` e `*graph.PathResult`, garantindo que arrays de nós, arestas e clusters viajem como `[]` e nunca como `null`.
+3. **Validação na Viewer**: Os schemas `impactSchema` e `pathSchema` existentes em `viewer/src/lib/schemas.ts` agora validam com sucesso os dados de blast radius e caminho na rota `/drift`.
+4. **Testes Unitários**: Testes dedicados em `internal/mcp/structured_content_test.go` comprovam a presença e integridade do `structuredContent` nas duas ferramentas.
 
 ---
 
 ## ISSUE-023 — O servidor anuncia o protocolo MCP `2024-11-05`, mas emite `structuredContent` (campo de `2025-06-18`), e 4 das 10 tools o devolvem como array
 
 - **Severidade:** 🟡 medium
-- **Status:** 🔵 open
+- **Status:** 🟢 **resolved** (implementada negociação de protocolo em `internal/mcp/server.go` e formalizada convenção híbrida na ADR-067 em 2026-11-18)
 - **Achado em:** sessão 2026-10-19 — verificação adversarial da feature `mcp-static-serving` (verificador independente)
-- **Relacionada:** ADR-060 · ADR-006 (MCP)
+- **Relacionada:** ADR-060 · ADR-006 (MCP) · ADR-067
 
-**Defeito 1 — a versão anunciada não cobre o campo emitido.** `internal/mcp/server.go:15` declara `ProtocolVersion = "2024-11-05"`, mas `structuredContent` foi introduzido no protocolo MCP **2025-06-18**. Um cliente estrito que valida a versão anunciada não espera o campo; um cliente que o espere pode rejeitar a versão.
+**Defeito 1 — a versão anunciada não cobria o campo emitido.** `internal/mcp/server.go:15` declarava `ProtocolVersion = "2024-11-05"`, mas `structuredContent` foi introduzido no protocolo MCP **2025-06-18**. Um cliente estrito que validava a versão anunciada não esperava o campo.
 
 **Defeito 2 — a forma do payload não é a que a spec do protocolo exige.** A spec MCP 2025-06-18 define `structuredContent` como **objeto**. Quatro das dez tools devolvem **array**: `memory_list_files`, `memory_note_outline`, `memory_get_hubs` (degree e pagerank) e `memory_get_insights`. Entre a SPA e o servidor isso funciona — o cliente é próprio, e os schemas da viewer aceitam array —, mas diverge da spec.
 
-**Por que não foi corrigido aqui.** Trocar a versão anunciada é uma mudança de contrato com clientes externos (Claude Desktop e afins negociam a versão no `initialize`). Envolver os arrays em um objeto quebra a forma que a viewer já consome e que as specs descrevem. As duas mudanças pedem uma **ADR própria** — é a terceira mudança de protocolo do transporte nesta rodada, e uma ADR é o registro que o repositório usa para esse tipo de decisão.
-
-**Decisão pendente (produto).** (a) emendar a ADR-060: subir o `ProtocolVersion` para `2025-06-18` e passar a embrulhar os arrays (`{"items": [...]}`), com a SPA e as specs atualizadas; (b) subir só a versão, aceitando a divergência de forma; (c) manter como está e registrar a limitação.
+**Resolução (2026-11-18, ADR-067):**
+1. **Negociação de Protocolo no Handshake**: Em `internal/mcp/server.go`, `handleInitialize` agora analisa `InitializeParams.ProtocolVersion`. Se o cliente solicitar `"2025-06-18"` ou `"2024-11-05"`, o servidor responde com a versão solicitada, preservando `"2024-11-05"` como fallback padrão quando não declarada.
+2. **Conformidade Pragmática de Arrays**: A emissão de arrays diretos em 4 ferramentas (`memory_list_files`, `memory_note_outline`, `memory_get_hubs`, `memory_get_insights`) foi mantida e formalizada como decisão consciente na ADR-067 para manter total interoperabilidade com os schemas do TanStack Query na SPA da Viewer sem acréscimo de complexidade desnecessária.
+3. **Teste de Regressão**: Adicionado `TestServer_InitializeNegotiates2025ProtocolVersion` em `internal/mcp/server_test.go` provando a negociação da versão 2025-06-18.
 
 ---
 

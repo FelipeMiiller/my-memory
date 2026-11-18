@@ -119,14 +119,14 @@ func NewMemoryFindPathHandler(pathFn PathFunc) ToolHandlerFunc {
 
 		if !res.Found {
 			sb.WriteString(fmt.Sprintf("❌ **Nenhum caminho encontrado**: %s\n", res.Summary))
-			return NewTextResult(sb.String()), nil
+			return NewStructuredResult(sb.String(), res), nil
 		}
 
 		sb.WriteString(fmt.Sprintf("✅ **Caminho Encontrado**: %d salto(s) | Custo Total: `%.3f`\n\n", res.Hops, res.TotalCost))
 
 		if res.Hops == 0 {
 			sb.WriteString("*Nó de origem e destino são idênticos.*\n")
-			return NewTextResult(sb.String()), nil
+			return NewStructuredResult(sb.String(), res), nil
 		}
 
 		sb.WriteString("#### 🔗 Rota Conectada\n```text\n")
@@ -151,7 +151,7 @@ func NewMemoryFindPathHandler(pathFn PathFunc) ToolHandlerFunc {
 				i+1, edge.From, edge.To, edge.Relation, edge.EpistemicStatus, edge.Direction, edge.Cost))
 		}
 
-		return NewTextResult(sb.String()), nil
+		return NewStructuredResult(sb.String(), res), nil
 	}
 }
 

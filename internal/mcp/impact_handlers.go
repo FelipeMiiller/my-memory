@@ -148,7 +148,7 @@ func NewMemoryGetImpactHandler(impactFn ImpactFunc, codeFn ...ImpactCodeSymbolsF
 			}
 		}
 
-		return NewTextResult(sb.String()), nil
+		return NewStructuredResult(sb.String(), res), nil
 	}
 }
 
