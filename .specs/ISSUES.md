@@ -2391,7 +2391,7 @@ registrado e à espera da decisão.
 ## ISSUE-053 — O harness `pgtest` deixa bancos descartáveis órfãos no Postgres do dono quando o processo morre no meio do teste
 
 - **Severidade:** 🟢 low (consome cota do Neon e polui a lista de bancos do dono; **não** afeta o dado do `mymemory`)
-- **Status:** 🔵 **open** (achado em 2026-11-16, pela verificação independente da spec `fix-progressive-context-test-coverage`)
+- **Status:** 🟢 **resolved** (autorizado pelo dono e limpo em 2026-11-18; 0 bancos órfãos remanescentes no cluster Neon AWS)
 - **Achado em:** 2026-11-16 — Verifier da spec `fix-progressive-context-test-coverage`, em `.specs/features/fix-progressive-context-test-coverage/validation.md` (Achado 2)
 
 **O sintoma.** O harness `internal/pgtest` cria um banco descartavel
@@ -2410,11 +2410,10 @@ maquina — o `DROP DATABASE` nunca roda, e o banco fica.
 bancos antes e depois de ~10 execucoes com Postgres: **inalterada**. O harness
 se limpa sozinho em execucao normal; **so** sobra quando o processo morre.
 
-**A limpeza pendente (precisa de go-ahead do dono).** Sao **3** bancos
-`mymemory_pgtest_*` no Neon, com nome `mymemory_pgtest_<pid>_<rand>`. Eles sao
-descartaveis por construcao (criados pelo harness de teste), mas **dropar banco
-e mudanca no Postgres de producao** — a regra do repo exige go-ahead explicito.
-Ate la, ficam registrados aqui.
+**Resolução (2026-11-18):**
+1. **Autorização Expressa**: O usuário autorizou a execução da limpeza dos bancos descartáveis órfãos.
+2. **Execução Segura**: Script utilitário em Go conectou no cluster Neon AWS e identificou 2 bancos órfãos remanescentes (`mymemory_pgtest_27276_773400` e `mymemory_pgtest_6804_547000`), executando `DROP DATABASE IF EXISTS ... WITH (FORCE)`.
+3. **Verificação de Confirmação**: Nova consulta em `pg_database` confirmou 0 bancos de teste órfãos remanescentes no servidor.
 
 **Como evitar.** O `pgtest` poderia criar o banco com um prefixo que identifique a
 origem e um sweeping periodico (ou um `DROP DATABASE ... IF EXISTS` por PID
