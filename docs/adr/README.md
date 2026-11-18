@@ -34,9 +34,9 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-024](024-visualizacao-cirurgica-em-3-colunas-triptych-inspector.md)** | Visualização Cirúrgica em 3 Colunas (Triptych Node Inspector) | Implementado | spec `triptych-node-inspector` (PASS) | 2026-09-14 | `graph`, `triptych`, `inspector`, `surgical-context`, `zero-file-reads`, `codegraph`, `pagerank`, `cli`, `mcp` |
 | **[ADR-025](025-progressive-context-loading-e-taxonomia-de-memoria.md)** | Carregamento Progressivo de Contexto e Taxonomia de Memória | Implementado | spec `obsidian-parity-foundation` (PASS) + spec `progressive-context-loading` (PARTIAL → corrigida por spec `fix-progressive-context-test-coverage`, PASS) | 2026-09-14 | `progressive-context`, `context-stuffing`, `l0-abstract`, `taxonomy`, `openviking`, `codegraph`, `search`, `mcp`, `cli` |
 | **[ADR-026](026-auto-wiring-e-instalacao-zero-touch-de-ferramentas-de-ia.md)** | Auto-Wiring e Instalação Zero-Touch de Ferramentas de IA (`mem install`) | Implementado | spec `ai-tool-auto-wiring` (FAIL) → corrigida por spec `fix-autowiring-cli-contract` (PASS, sensor 9/9) | 2026-09-14 | `autowire`, `mcp`, `zero-touch`, `devx`, `claude-desktop`, `cursor`, `vscode`, `windsurf`, `cli` |
-| **[ADR-027](027-descoberta-de-rotas-e-caminho-minimo-no-grafo.md)** | Descoberta de Rotas e Caminho Mínimo no Grafo de Conhecimento (`mem path` / `memory_find_path`) | Implementado (com gaps) | spec `graph-path-discovery` (FAIL) | 2026-09-14 | `graph`, `pathfinding`, `dijkstra`, `shortest-path`, `epistemic-weights`, `bfs`, `mcp`, `cli` |
-| **[ADR-028](028-staleness-banners-e-deteccao-de-desatualizacao.md)** | Staleness Banners e Detecção de Desatualização de Conhecimento (`mem status`) | Implementado (com gaps) | spec `staleness-detection-and-banners` (FAIL) | 2026-09-14 | `staleness`, `drift-detection`, `banners`, `watcher`, `mcp`, `cli`, `consistency`, `codegraph` |
-| **[ADR-029](029-context-packager-e-subgraph-bundle.md)** | Context Packager e Subgraph Bundle com Orçamento de Tokens (`mem pack` / `memory_pack_context`) | Implementado (com gaps) | spec `code-graph-real` (PASS) + spec `context-packager-and-subgraph-bundle` (FAIL) | 2026-09-14 | `graph`, `context-packager`, `subgraph`, `token-budget`, `mermaid`, `progressive-context`, `mcp`, `cli` |
+| **[ADR-027](027-descoberta-de-rotas-e-caminho-minimo-no-grafo.md)** | Descoberta de Rotas e Caminho Mínimo no Grafo de Conhecimento (`mem path` / `memory_find_path`) | Implementado | spec `graph-path-discovery` (PASS) + spec `fix-graph-path-resolution` (PASS) | 2026-09-14 | `graph`, `pathfinding`, `dijkstra`, `shortest-path`, `epistemic-weights`, `bfs`, `mcp`, `cli` |
+| **[ADR-028](028-staleness-banners-e-deteccao-de-desatualizacao.md)** | Staleness Banners e Detecção de Desatualização de Conhecimento (`mem status`) | Implementado | spec `staleness-detection-and-banners` (PASS) + spec `fix-staleness-cli-banner` (PASS) | 2026-09-14 | `staleness`, `drift-detection`, `banners`, `watcher`, `mcp`, `cli`, `consistency`, `codegraph` |
+| **[ADR-029](029-context-packager-e-subgraph-bundle.md)** | Context Packager e Subgraph Bundle com Orçamento de Tokens (`mem pack` / `memory_pack_context`) | Implementado | spec `code-graph-real` (PASS) + spec `context-packager-and-subgraph-bundle` (PASS) + spec `fix-packager-token-budget` (PASS) | 2026-09-14 | `graph`, `context-packager`, `subgraph`, `token-budget`, `mermaid`, `progressive-context`, `mcp`, `cli` |
 | **[ADR-030](030-deep-linking-e-navegacao-de-editores.md)** | Deep Linking e Integração de Navegação com Editores (`mem open` e URIs `obsidian://` / `vscode://`) | Implementado | spec `deep-linking-and-editor-navigation` (PASS) | 2026-09-14 | `deeplink`, `obsidian`, `vscode`, `editor-navigation`, `cli`, `mcp`, `uri-scheme`, `ux` |
 | **[ADR-031](031-semantic-drift-e-deteccao-de-desvio-codigo-memoria.md)** | Semantic Drift e Detecção de Desvio Código-Memória (`mem drift` e `memory_get_drift`) | Implementado | spec `semantic-drift-detection` (PASS) | 2026-09-14 | `semantic-drift`, `knowledge-drift`, `git-diff`, `uncovered-code`, `cli`, `mcp`, `governance`, `ci-cd` |
 | **[ADR-032](032-instalador-universal-one-liner.md)** | Instalador Universal One-Liner para Windows, Linux e macOS (`install.ps1` e `install.sh`) | Implementado | spec `universal-binary-installer` (PASS) | 2026-09-14 | `installer`, `one-liner`, `devx`, `release-automation`, `powershell`, `posix-shell`, `sha256`, `security` |
@@ -66,7 +66,7 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 | **[ADR-063](063-o-doctor-distingue-link-rompido-de-link-fora-do-indice.md)** | O doctor distingue link rompido de link fora do índice por decisão | Implementado | spec `fix-doctor-unindexed-links` (PASS) | 2026-11-14 | `doctor`, `dead-links`, `health-score`, `obsidian`, `vault`, `adr-013` |
 | **[ADR-064](064-todo-conceito-linkado-no-cofre-central-tem-nota.md)** | Todo conceito linkado no cofre central tem nota | Implementado | spec `central-vault-concept-notes` (PASS) | 2026-11-14 | `cofre-central`, `vault`, `wikilinks`, `moc`, `conteudo`, `adr-062` |
 | **[ADR-065](065-o-caminho-de-limpeza-do-repo-e-inventario-podar-simplificar.md)** | O caminho de limpeza do repo é inventário → podar → simplificar | Implementado (fases 1-2 concluidas) | spec `central-vault-concept-notes` (PASS) + spec `prune-dead-code-2026-11` (PASS) | 2026-11-14 | `governanca`, `limpeza`, `backlog`, `dead-code`, `adr-036`, `adr-062` |
-| **[ADR-066](066-a-identidade-canonica-do-no-no-grafo.md)** | A identidade canônica do nó no grafo é o id do documento | Proposed | spec `fix-graph-node-identity` (T1: decisão registrada) | 2026-11-16 | `graph`, `node-identity`, `documents-id`, `wikilinks`, `indexer`, `doctor` |
+| **[ADR-066](066-a-identidade-canonica-do-no-no-grafo.md)** | A identidade canônica do nó no grafo é o id do documento | Implementado | spec `fix-graph-node-identity` (PASS, 18/18 ACs, cofre central reparado) | 2026-11-16 | `graph`, `node-identity`, `documents-id`, `wikilinks`, `indexer`, `doctor` |
 > **Como ler o status desta coluna.** O status aqui e o **real**, medido em
 > 2026-11-14 (ADR-065, fase 1 — inventario read-only) e **recalculado em
 > 2026-11-15** com a logica autoritativa do `validate_state.py`. O **texto da ADR
@@ -93,12 +93,12 @@ Este diretório contém os Registros de Decisão de Arquitetura (**ADRs**) do pr
 >
 > | Medida | Valor |
 > | :--- | :---: |
-> | ADRs com status real verificado | **65** (64 arquivos + 1 slot reservado) |
-> | Specs com veredito **PASS** / **FAIL** / **PARTIAL** | **48** / **4** / **2** |
+> | ADRs com status real verificado | **66** (65 arquivos + 1 slot reservado) |
+> | Specs com veredito **PASS** / **FAIL** / **PARTIAL** | **61** / **0** / **1** |
 > | Specs com `validation.md` que era **plano**, nao relatorio | **0** (eram 5 — as 5 verificadas em 2026-11-15) |
 > | Specs planejadas, nunca executadas | 6 |
-> | Implementadas e verificadas **sem gaps** | **45** |
-> | Implementadas **com gaps** (veredito FAIL ou PARTIAL) | **5** (ADR-025, ADR-026, ADR-027, ADR-028, ADR-029) |
+> | Implementadas e verificadas **sem gaps** | **51** |
+> | Implementadas **com gaps** (veredito FAIL ou PARTIAL) | **0** |
 > | Implementadas **sem** verificacao independente | **0** |
 > | Implementada por convencao (ADR-046) / viva como backlog (ADR-036) / fases 1-2 concluidas (ADR-065) | 1 / 1 / 1 |
 > | **Parcial** | 1 (ADR-047: so o backend Go) |
