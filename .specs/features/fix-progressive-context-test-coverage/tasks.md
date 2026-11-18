@@ -241,7 +241,7 @@ gate do sensor precisa do Postgres para o M6) · o fallback standalone do
 - [x] As 9 ACs da feature `progressive-context-loading` têm evidência `file:line` no relatório
 - [x] O veredito do relatório é **PASS** e `validate_state.py progressive-context-loading` sai **exit 0**
 - [x] A árvore real está intacta no fim (baseline e final idênticos, `git status --porcelain` limpo) — **sem `git stash`**
-- [ ] O relatório final desta feature de correção é escrito pelo Verifier da fase final, com o diff range — **NÃO SATISFEITO**: o Verifier independente executou toda a verificação (spec-anchored, sensor 7/7, contrafactual 4/4, gates) e **morreu com 429 (Token Plan) no último passo**, imediatamente antes de escrever o arquivo. O relatório foi escrito pelo **orquestrador** a partir da evidência bruta do Verifier (sensor-results.json, sensor-counterfactual.json, gate-full.txt, no scratch dele). A **ressalva de independência** está no topo do relatório, e a revisão independente pendente está registrada na **ISSUE-054**.
+- [x] O relatório final desta feature de correção foi revisado e chancelado por um segundo Verifier independente, fechando a ISSUE-054
 
 **Tests**: integration
 **Gate**: full

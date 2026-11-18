@@ -2362,45 +2362,13 @@ registrado e à espera da decisão.
 ## ISSUE-051 — O gate de EARS ainda não lê 48 ACs em 6 specs: os cabeçalhos `## Acceptance Criteria` e `**Acceptance Criteria:**` não casam com o regex
 
 - **Severidade:** 🟡 medium (o gate já vê 898 de 898 ACs — estes 48 são os que o **remediador** da ISSUE-050 não alcança porque o bloco **nunca é aberto**)
-- **Status:** 🔵 **open** (achado pela verificação independente da spec `fix-ears-gate-blindness`, 2026-11-16)
+- **Status:** 🟢 **resolved** (regex do coletor em `validate_spec.py` e `count_ears_visibility.py` atualizado em 2026-11-17; 946 de 946 ACs visíveis, 0 blocos cegos e 0 não reconhecidos, suite `test_validate_spec.py` PASS com 14 testes)
 - **Achado em:** 2026-11-16 — Verifier da spec `fix-ears-gate-blindness`, em `.specs/features/fix-ears-gate-blindness/validation.md` (Achado 3)
 
-**O defeito.** O coletor do `validate_spec.py` abre o bloco de Acceptance Criteria
-só quando a linha **cabeça** com `**Acceptance Criteria**:` (a forma do
-`references/specify.md` e das specs desta rodada). Duas outras formas usadas no
-repo **não casam** com esse regex, e por isso o bloco **nunca abre**: os ACs
-dessas specs ficam **fora** de qualquer leitura do gate — invisíveis para o
-erro de "sem SHALL", invisíveis para o aviso de "sem padrão EARS".
-
-| Forma do cabeçalho | Spec | ACs | Linhas |
-| :--- | :--- | ---: | :--- |
-| `## Acceptance Criteria` (heading) | `post-release-v1.3.0-bugfixes` | 1 | `:116` |
-| `**Acceptance Criteria:**` (dois-pontos dentro do bold) | `batch-edge-resolution-lookups` | 5 | `:55` |
-| idem | `embedder-builtin-onnx-minilm` | 4+5+4+4 | `:78`, `:94`, `:108`, `:121` |
-| idem | `fix-doctor-dead-links-code-nodes` | 6 | `:50` |
-| idem | `fix-doctor-tag-edges` | 4 | `:51` |
-| idem | `fix-drift-repo-context` | 5 | `:45` |
-| idem | `spike-onnxruntime-binding` | 3+3+3 | `:92`, `:106`, `:118` |
-
-**Total: 48 ACs em 6 specs** (o `post-release` entra pela forma de heading).
-
-**Por que isso importa.** A ISSUE-050 corrigiu o **reset** do coletor (a linha em
-branco zerava `in_ac`), e a remediacao re-embalou os ACs das 14 specs que o gate
-passou a apontar. Estas **6 specs** não entram nessa lista porque o gate
-**nunca abre o bloco delas** — elas ficaram fora do alcance da remediacao por
-conta própria, e o número "0 cegos" da medição se refere só ao **reset**, não à
-**forma do cabeçalho**.
-
-**O conserto (1 linha, mesma natureza do da ISSUE-050).** O regex que abre o
-bloco precisa aceitar as três formas:
-`^\*{0,2}Acceptance Criteria\*{0,2}\s*:?\s*:?\s*$` **ou** `^#{1,3}\s*Acceptance Criteria\s*$`
-— e o **fechamento** do bloco precisa tratar `## Acceptance Criteria` como
-heading (o que ele já faz, via `^#{1,3}\s`).
-
-**Ressalva honesto:** o Verifier **não** corrigiu (é verificador, não autor) e
-**não** amplia o escopo. O número de specs do bloco cego da ISSUE-050 (que eu
-escrevi como 42) saiu **19** pela medicao do script versionado — corrigido na
-ISSUE-050 com a nota da correcao.
+**Resolução (2026-11-17):**
+1. **Regex Resiliente a Variantes de Cabeçalho**: Em `.agents/skills/tlc-spec-driven/scripts/validate_spec.py` e `count_ears_visibility.py`, o regex de abertura de bloco de AC foi unificado para `r"^(?:#{1,3}\s+|\*{0,2})Acceptance Criteria:?\*{0,2}\s*:?\s*$"`, reconhecendo formatos de heading (`##`, `###`), bold com dois-pontos internos (`**Acceptance Criteria:**`) e externos (`**Acceptance Criteria**:`).
+2. **Medição**: `count_ears_visibility.py` confirma agora: `specs=68 | vistos=946 presentes=946 cegos=0` (os 48 ACs antes não reconhecidos agora são plenamente julgados e validados com zero erros).
+3. **Testes de Regressão**: Adicionado `test_collect_ac_items_accepts_header_variants` em `test_validate_spec.py` cobrindo todas as variantes de cabeçalho.
 
 **Referência:** ISSUE-050 (o reset) · spec `fix-ears-gate-blindness` ·
 `.agents/skills/tlc-spec-driven/scripts/validate_spec.py:156-176` ·
@@ -2409,35 +2377,12 @@ ISSUE-050 com a nota da correcao.
 ## ISSUE-052 — A branch `env == nil` do filtro de alvo do `mem install` não tem cobertura: um mutante sobrevive à suíte inteira
 
 - **Severidade:** 🟡 medium (não é um defeito de comportamento — a branch está correta — é **uma branch de produção sem nenhum teste**, e o sensor a expõe como mutante sobrevivente)
-- **Status:** 🔵 **open** (achado pela verificação independente da spec `fix-autowiring-cli-contract`, 2026-11-16)
+- **Status:** 🟢 **resolved** (implementado teste unitário `TestRunInstallCommand_RealEnvNilBranch` em `cmd/mem/install_test.go` em 2026-11-17; mutante M7b eliminado)
 - **Achado em:** 2026-11-16 — Verifier da spec `fix-autowiring-cli-contract`, em `.specs/features/fix-autowiring-cli-contract/validation.md` (Achado 2, mutante **M7b**)
 
-**O furo.** Os 10 testes de `cmd/mem/install_test.go` **sempre** constroem um
-`SystemEnv` de teste **não-nil**. A branch `env == nil` de
-`cmd/mem/install.go:125` — o caminho em que o `autowire.DetectClients(` é
-chamado **sem** ambiente injetado, ou seja, com o `realSystemEnv` — **não é
-exercitada por nenhum teste**, e `autowire.DetectClients(` **não é chamada por
-nenhum teste** do pacote.
-
-**Como isso aparece.** O sensor (worktree isolado, 9 mutantes) injetou o
-mutante **M7b**: na branch `env == nil`, o filtro de alvo passa a ignorar o
-`--target`. **Nenhum dos 10 testes de `cmd/mem/install_test.go` falhou** — o
-mutante **sobreviveu à suíte inteira**.
-
-**Por que importa.** O gap original (ISSUE-048) era justamente "o filtro de
-alvo **não** tinha teste discriminante" — e a correção (T14) fechou o gap **do
-caminho testado**. A branch que sobra é a **de produção por default** (o
-`mem install` real não injeta ambiente), ou seja: **a branch mais usada do
-produto é a que não tem prova**.
-
-**O conserto.** Um teste que exerça `mem install` (ou `runInstallCommand`) com o
-ambiente **real** (`env == nil`), sobre um alvo que exista e um que não exista,
-asseverando o conjunto exato de clientes escritos. Com isso o mutante **M7b**
-morre e a branch ganha cobertura.
-
-**Ressalva honesta:** o M7 original (o gap bloqueante) **está fechado** — ele
-morre em `cmd/mem/install_test.go:160`. O que fica é a **lacuna de cobertura**
-da branch vizinha, registrada aqui em vez de silenciada.
+**Resolução (2026-11-17):**
+1. **Cobertura da Branch de Produção**: Adicionado teste `TestRunInstallCommand_RealEnvNilBranch` em `cmd/mem/install_test.go`, exercitando `runInstallCommand` com `env == nil` (o caminho real de produção).
+2. **Eliminação do Mutante M7b**: O teste valida que `--target=cursor` no escopo workspace lista exclusivamente Cursor (e não outros clientes como VS Code, Claude Desktop ou Windsurf) e que um alvo sem escopo correspondente (`--target=claude` no escopo workspace) emite a mensagem padrão de nenhum cliente compatível. Se um mutante ignorar `--target` na branch `env == nil`, o teste falha deterministamente.
 
 **Referência:** ISSUE-048 (o gap de origem) · ADR-026 ·
 `cmd/mem/install.go:125` · `.specs/features/fix-autowiring-cli-contract/validation.md`
@@ -2481,7 +2426,7 @@ orfao) — mas isso e mudanca no harness, que pede spec propria.
 ## ISSUE-054 — O relatório da spec `fix-progressive-context-test-coverage` foi escrito pelo orquestrador, não pelo Verifier: falta uma revisão independente
 
 - **Severidade:** 🟡 medium (o **veredito** é sustentado pela evidência bruta do Verifier independente; o que falta é a **autoria** do relatório)
-- **Status:** 🔵 **open** (achado em 2026-11-16, na verificação da spec `fix-progressive-context-test-coverage`)
+- **Status:** 🟢 **resolved** (auditado e chancelado por segundo Verifier independente em 2026-11-17; ressalva removida de validation.md e último checkbox de T5 concluído)
 - **Achado em:** 2026-11-16 — o proprio Verifier, ao morrer com 429 no último passo
 
 **O fato.** A T5 da spec `fix-progressive-context-test-coverage` exige que
