@@ -603,3 +603,44 @@ func TestRearrangeInstallArgs(t *testing.T) {
 		})
 	}
 }
+
+// TestRunInstallCommand_RealEnvNilBranch cobre a branch env == nil (ISSUE-052 / mutante M7b).
+//
+// Assegura que quando nenhum ambiente é injetado (env == nil), runInstallCommand chama
+// autowire.DetectClients respeitando rigorosamente o filtro --target (alvo existente vs inexistente).
+func TestRunInstallCommand_RealEnvNilBranch(t *testing.T) {
+	wsDir := t.TempDir()
+	ctx := context.Background()
+
+	// 1. Alvo específico (cursor): deve exercitar a detecção real respeitando o filtro
+	var bufCursor bytes.Buffer
+	err := runInstallCommand(ctx, "repo_test", []string{"--dry-run", "--workspace", "--target=cursor", "--dir=" + wsDir}, &bufCursor)
+	if err != nil {
+		t.Fatalf("erro inesperado ao rodar com target=cursor: %v", err)
+	}
+	outCursor := bufCursor.String()
+	if !strings.Contains(outCursor, "Cursor") {
+		t.Errorf("saída deveria conter 'Cursor', obteve:\n%s", outCursor)
+	}
+	if strings.Contains(outCursor, "VS Code") {
+		t.Errorf("saída filtrada por cursor não deveria conter 'VS Code', obteve:\n%s", outCursor)
+	}
+	if strings.Contains(outCursor, "Claude Desktop") {
+		t.Errorf("saída filtrada por cursor não deveria conter 'Claude Desktop', obteve:\n%s", outCursor)
+	}
+	if strings.Contains(outCursor, "Windsurf") {
+		t.Errorf("saída filtrada por cursor não deveria conter 'Windsurf', obteve:\n%s", outCursor)
+	}
+
+	// 2. Alvo sem escopo correspondente (claude no escopo workspace): deve cair no ramo de nenhum cliente compatível
+	var bufNonexistent bytes.Buffer
+	err = runInstallCommand(ctx, "repo_test", []string{"--dry-run", "--workspace", "--target=claude", "--dir=" + wsDir}, &bufNonexistent)
+	if err != nil {
+		t.Fatalf("erro inesperado ao rodar com target=claude no workspace: %v", err)
+	}
+	outNonexistent := bufNonexistent.String()
+	expectedMsg := "Nenhum cliente MCP compatível encontrado para o filtro '--target claude' e escopo 'workspace'"
+	if !strings.Contains(outNonexistent, expectedMsg) {
+		t.Errorf("saída para alvo sem escopo deveria conter %q, obteve:\n%s", expectedMsg, outNonexistent)
+	}
+}
