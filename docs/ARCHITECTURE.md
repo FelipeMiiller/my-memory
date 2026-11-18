@@ -374,9 +374,7 @@ Duas regras derivam dessa ordem:
 
 * O **`/graph/` é prefixo reservado** e **nunca** cai no fallback da SPA — um
   artefato inexistente é 404, não o `index.html`.
-* O fallback só vale para **requisições de navegação** (`Accept: text/html`). Um
-  asset faltando continua 404, para que o browser não receba HTML onde esperava
-  JavaScript.
+* O fallback só vale para **rotas de navegação da SPA** (`Accept: text/html` em caminhos sem extensão e fora de `/assets/`, ADR-067). Um asset faltando (sob `/assets/` ou com extensão de arquivo) continua 404 honesto mesmo que o navegador solicite `Accept: text/html`, evitando que o browser receba HTML onde esperava JavaScript.
 
 **Por que o dispatcher é separado do `http.ServeMux`.** O `http.ServeMux` do
 `net/http` **canonicaliza** o path e responde **301** para qualquer path que

@@ -90,6 +90,8 @@ Decisões registradas no formato padronizado **MADR**:
 * **[`ADR-063`](adr/063-o-doctor-distingue-link-rompido-de-link-fora-do-indice.md)** — O doctor distingue link rompido de link fora do índice por decisão — *Aceito — Implementado* (três categorias de link, flag `--vault`, e o `--fix` consumindo a mesma lista do relatório)
 * **[`ADR-064`](adr/064-todo-conceito-linkado-no-cofre-central-tem-nota.md)** — Todo conceito linkado no cofre central tem nota — *Aceito — Implementado* (13 notas de conceito no padrão Obsidian; o critério "doctor ≥ 90" da ADR-062 fecha)
 * **[`ADR-065`](adr/065-o-caminho-de-limpeza-do-repo-e-inventario-podar-simplificar.md)** — O caminho de limpeza do repo é inventário → podar → simplificar — *Aceito* (o bucket GAP-6..10 é decidido item a item, com medição antes de cada corte)
+* **[`ADR-066`](adr/066-a-identidade-canonica-do-no-no-grafo.md)** — A identidade canônica do nó no grafo é o id do documento — *Aceito — Implementado* (identidade unificada em `documents.id`, resolvedor canônico fuzzy alinhado e reparo do cofre central)
+* **[`ADR-067`](adr/067-mcp-web-viewer-fallback-structured-content-e-protocolo.md)** — MCP Web e Viewer: Regra de Fallback SPA, structuredContent Aditivo e Negociação de Protocolo — *Aceito — Implementado* (barreira de assets no fallback, `structuredContent` em `memory_get_impact`/`memory_find_path` e negociação de protocolo MCP)
 
 ### Higiene do índice (PostgreSQL)
 
