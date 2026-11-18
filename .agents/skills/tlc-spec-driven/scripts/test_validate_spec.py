@@ -259,6 +259,30 @@ def test_collect_ac_items_skips_placeholders():
     assert items[0][1].startswith("WHEN x"), items
 
 
+def test_collect_ac_items_accepts_header_variants():
+    """O coletor aceita cabecalhos com colon dentro do bold e na forma de heading (ISSUE-051)."""
+    lines_colon_inside = [
+        "**Acceptance Criteria:**",
+        "1. WHEN event THEN system SHALL act.",
+    ]
+    items1 = collect_ac_items(lines_colon_inside)
+    assert len(items1) == 1, f"esperado 1 criterio com colon inside, obtido {items1!r}"
+
+    lines_h2 = [
+        "## Acceptance Criteria",
+        "1. WHEN event THEN system SHALL act.",
+    ]
+    items2 = collect_ac_items(lines_h2)
+    assert len(items2) == 1, f"esperado 1 criterio com h2 heading, obtido {items2!r}"
+
+    lines_h3 = [
+        "### Acceptance Criteria:",
+        "1. WHEN event THEN system SHALL act.",
+    ]
+    items3 = collect_ac_items(lines_h3)
+    assert len(items3) == 1, f"esperado 1 criterio com h3 heading, obtido {items3!r}"
+
+
 def test_collector_source_has_no_blank_line_reset():
     """O reset de linha em branco nao pode voltar ao coletor (EAG-09)."""
     src = inspect.getsource(validate_spec.collect_ac_items)
@@ -293,6 +317,8 @@ def main():
     print("[OK] O coletor so coleta dentro de um bloco declarado.")
     test_collect_ac_items_skips_placeholders()
     print("[OK] O coletor ignora placeholders.")
+    test_collect_ac_items_accepts_header_variants()
+    print("[OK] O coletor aceita variantes de cabecalho (colon inside, heading).")
     test_collector_source_has_no_blank_line_reset()
     print("[OK] O reset de linha em branco nao esta no coletor.")
     print("\n[OK] Todos os testes do validate_spec.py passaram com 100% de sucesso!\n")

@@ -156,7 +156,7 @@ def collect_ac_items(lines):
     in_ac = False
     for i, ln in enumerate(lines, start=1):
         stripped = ln.strip()
-        if re.match(r"^\*{0,2}Acceptance Criteria\*{0,2}\s*:?\s*$", stripped):
+        if re.match(r"^(?:#{1,3}\s+|\*{0,2})Acceptance Criteria:?\*{0,2}\s*:?\s*$", stripped, re.IGNORECASE):
             in_ac = True
             continue
         if in_ac:

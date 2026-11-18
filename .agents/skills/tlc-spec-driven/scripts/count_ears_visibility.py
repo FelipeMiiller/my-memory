@@ -34,7 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from validate_spec import classify_ears, collect_ac_items  # noqa: E402
 
-HEADER_RE = re.compile(r"^\*{0,2}Acceptance Criteria\*{0,2}\s*:?\s*$")
+HEADER_RE = re.compile(r"^(?:#{1,3}\s+|\*{0,2})Acceptance Criteria:?\*{0,2}\s*:?\s*$", re.IGNORECASE)
 ITEM_RE = re.compile(r"^\s*\d+\.\s+(.*)$")
 PLACEHOLDER_RE = re.compile(r"^\s*\[.+\]\s*$")
 # Cabecalho que parece de AC mas que o validador nao reconhece.
